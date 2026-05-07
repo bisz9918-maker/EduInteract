@@ -615,6 +615,27 @@ export class WorkspaceMaterializationManager {
     }
 
     if (entry.materializedAt) {
+      if (entry.version === "live" && entry.source.kind === "object_store") {
+        try {
+          const syncResult = await syncRemotePrefixToLocal(
+            this.#store,
+            entry.source.remotePrefix,
+            entry.localPath,
+            this.#logger,
+            entry.workspaceId
+          );
+          entry.lastSyncedLocalFingerprint =
+            syncResult.localFingerprint ??
+            (await computeLocalDirectoryFingerprint(entry.localPath, {
+              excludeRelativePath: shouldExcludeWorkspaceBackingStoreRelativePath
+            }));
+          await this.#writeSyncMetadata(entry);
+        } catch (error) {
+          this.#logger(
+            `[workspace-materialization] incremental sync failed for ${entry.workspaceId}: ${error}`
+          );
+        }
+      }
       return undefined;
     }
 
