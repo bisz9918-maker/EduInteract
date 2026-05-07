@@ -266,6 +266,10 @@ function selectPlacementPreferredWorkerId(placement: {
     return undefined;
   }
 
+  if (process.env.OAH_WORKSPACE_AFFINITY_DISABLED === "1") {
+    return undefined;
+  }
+
   const preferredWorkerId = placement?.preferredWorkerId?.trim();
   if (preferredWorkerId) {
     return preferredWorkerId;

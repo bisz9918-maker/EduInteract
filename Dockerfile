@@ -143,6 +143,13 @@ WORKDIR /app/native
 RUN --mount=type=cache,target=/var/cache/apk \
   apk add --update-cache build-base cmake perl pkgconf
 
+RUN mkdir -p /usr/local/cargo \
+  && echo '[source.crates-io]' > /usr/local/cargo/config.toml \
+  && echo 'replace-with = "rsproxy-sparse"' >> /usr/local/cargo/config.toml \
+  && echo '' >> /usr/local/cargo/config.toml \
+  && echo '[source.rsproxy-sparse]' >> /usr/local/cargo/config.toml \
+  && echo 'registry = "sparse+https://rsproxy.cn/index/"' >> /usr/local/cargo/config.toml
+
 COPY native/Cargo.toml native/Cargo.lock ./
 COPY native/oah-workspace-sync/Cargo.toml ./oah-workspace-sync/Cargo.toml
 COPY native/oah-archive-export/Cargo.toml ./oah-archive-export/Cargo.toml
