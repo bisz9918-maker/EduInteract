@@ -19,6 +19,8 @@ import type {
 } from "@oah/engine-core";
 import { AppError } from "@oah/engine-core";
 import {
+  createImageExtractionModel,
+  extractImageDataFromToolResults,
   extractToolErrors,
   mergeToolSets,
   toAiTools,
@@ -148,13 +150,15 @@ export class AiSdkModelRuntime implements ModelGateway {
         : {}),
       ...(options?.prepareStep
         ? {
-            prepareStep: async ({ stepNumber, messages, model: currentModel }) =>
-              toStepPreparation(
-                (await options.prepareStep?.(stepNumber)),
+            prepareStep: async ({ stepNumber, messages, model: currentModel }) => {
+              const userPreparation = await options?.prepareStep?.(stepNumber);
+              return toStepPreparation(
+                userPreparation,
                 messages,
                 currentModel,
                 (nextModelName, modelDefinition) => this.#resolveModel(nextModelName, modelDefinition)
-              )
+              );
+            }
           }
         : {}),
       ...(options?.onStepFinish
@@ -302,7 +306,7 @@ export class AiSdkModelRuntime implements ModelGateway {
           ...(definition.key ? { apiKey: definition.key } : {}),
           includeUsage: true
         });
-        return provider(definition.name);
+        return createImageExtractionModel(provider(definition.name));
       }
       default:
         throw new AppError(

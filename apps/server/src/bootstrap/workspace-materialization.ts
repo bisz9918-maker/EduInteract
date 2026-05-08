@@ -615,27 +615,12 @@ export class WorkspaceMaterializationManager {
     }
 
     if (entry.materializedAt) {
-      if (entry.version === "live" && entry.source.kind === "object_store") {
-        try {
-          const syncResult = await syncRemotePrefixToLocal(
-            this.#store,
-            entry.source.remotePrefix,
-            entry.localPath,
-            this.#logger,
-            entry.workspaceId
-          );
-          entry.lastSyncedLocalFingerprint =
-            syncResult.localFingerprint ??
-            (await computeLocalDirectoryFingerprint(entry.localPath, {
-              excludeRelativePath: shouldExcludeWorkspaceBackingStoreRelativePath
-            }));
-          await this.#writeSyncMetadata(entry);
-        } catch (error) {
-          this.#logger(
-            `[workspace-materialization] incremental sync failed for ${entry.workspaceId}: ${error}`
-          );
-        }
-      }
+      // For live workspaces backed by object store, skip incremental sync on re-acquire.
+      // In split-deploy (API + sandbox in separate containers), files created by Bash
+      // on the sandbox may not yet be flushed to MinIO. If we sync from MinIO here,
+      // syncRemotePrefixToLocal would delete local files not yet in MinIO (e.g. screenshots).
+      // The sandbox's flush + idle/drain lifecycle handles syncing back to MinIO;
+      // the API will pick up changes on the next full acquire or idle maintenance cycle.
       return undefined;
     }
 

@@ -187,7 +187,14 @@ async function materializedExecutionLease(
   return {
     workspace: leaseToExecutionWorkspace(workspace, lease),
     async release(options?: { dirty?: boolean | undefined }) {
-      await lease.release(options);
+      await lease.release({ dirty: true });
+      if (workspace.kind === "project") {
+        try {
+          await manager.flushWorkspaceCopies(workspace.id);
+        } catch {
+          // best-effort flush; idle/drain lifecycle will retry
+        }
+      }
     }
   };
 }

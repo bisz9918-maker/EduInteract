@@ -1,10 +1,12 @@
 import {
   type LanguageModel,
+  type LanguageModelMiddleware,
   modelMessageSchema,
   tool,
   type ModelMessage,
   type OnStepFinishEvent,
-  type ToolSet
+  type ToolSet,
+  wrapLanguageModel
 } from "ai";
 
 import type { Usage } from "@oah/api-contracts";
@@ -83,7 +85,7 @@ export function normalizeMessages(messages: GenerateModelInput["messages"]): Mod
     );
   }
 
-  return parsed.data;
+  return extractImageDataFromToolResults(parsed.data) ?? parsed.data;
 }
 
 export function toUsage(usage: Usage | undefined): Usage | undefined {
@@ -149,6 +151,40 @@ export function toAiTools(
             });
 
           return runSerially ? runSerially(executeTool) : executeTool();
+        },
+        toModelOutput: ({ output }) => {
+          if (
+            isRecord(output) &&
+            output.type === "content" &&
+            Array.isArray(output.value)
+          ) {
+            const hasMedia = output.value.some(
+              (item: Record<string, unknown>) =>
+                item.type === "image-data" || item.type === "image-url"
+            );
+            if (hasMedia) {
+              return {
+                type: "content" as const,
+                value: output.value.map((item: Record<string, unknown>) => {
+                  if (item.type === "image-data") {
+                    return {
+                      type: "media" as const,
+                      data: item.data,
+                      mediaType: item.mediaType
+                    };
+                  }
+                  if (item.type === "image-url") {
+                    return {
+                      type: "text" as const,
+                      text: `[image url: ${item.url}]`
+                    };
+                  }
+                  return item;
+                })
+              };
+            }
+          }
+          return undefined;
         }
       })
     ])
@@ -211,6 +247,107 @@ export function toToolResult(toolResult: { toolCallId: string; toolName: string;
     toolName: toolResult.toolName,
     output: toolResult.output
   };
+}
+
+export function createImageExtractionModel(model: LanguageModel): LanguageModel {
+  const middleware: LanguageModelMiddleware = {
+    specificationVersion: "v3",
+    transformParams: async ({ params }) => {
+      const prompt = params.prompt;
+      let changed = false;
+      const newMessages: typeof prompt = [];
+
+      for (const message of prompt) {
+        if (message.role !== "tool") {
+          newMessages.push(message);
+          continue;
+        }
+
+        const toolParts = message.content;
+        const imageParts: Array<{
+          type: "file";
+          data: string;
+          mediaType: string;
+        }> = [];
+        const replacedParts: typeof toolParts = [];
+
+        for (const part of toolParts) {
+          if (part.type !== "tool-result") {
+            replacedParts.push(part);
+            continue;
+          }
+
+          const output = part.output;
+          if (output.type !== "content" || !Array.isArray(output.value)) {
+            replacedParts.push(part);
+            continue;
+          }
+
+          const hasImage = output.value.some(
+            (item) => item.type === "image-data" || item.type === "image-url"
+          );
+
+          if (!hasImage) {
+            replacedParts.push(part);
+            continue;
+          }
+
+          changed = true;
+          const textItems = output.value.filter(
+            (item) => item.type === "text"
+          );
+          const textContent = textItems.map((item) => item.text).join("\n");
+
+          replacedParts.push({
+            ...part,
+            output: {
+              type: "text" as const,
+              value: textContent || "[Image displayed above]"
+            }
+          });
+
+          for (const item of output.value) {
+            if (item.type === "image-data") {
+              imageParts.push({
+                type: "file" as const,
+                data: item.data,
+                mediaType: item.mediaType
+              });
+            } else if (item.type === "image-url") {
+              imageParts.push({
+                type: "file" as const,
+                data: item.url,
+                mediaType: "image/png"
+              });
+            }
+          }
+        }
+
+        if (replacedParts.length > 0) {
+          newMessages.push({ ...message, content: replacedParts });
+        }
+
+        if (imageParts.length > 0) {
+          newMessages.push({
+            role: "user",
+            content: [
+              { type: "text" as const, text: "以下是工具返回的图片：" },
+              ...imageParts
+            ]
+          });
+        }
+      }
+
+      if (!changed) {
+        return params;
+      }
+
+      return { ...params, prompt: newMessages };
+    }
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return wrapLanguageModel({ model: model as any, middleware }) as LanguageModel;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -281,4 +418,116 @@ export function toStepPreparation(
     ...(nextMessages ? { messages: nextMessages } : {}),
     ...(preparation.activeToolNames ? { activeTools: preparation.activeToolNames } : {})
   };
+}
+
+interface ContentPart {
+  type: string;
+  text?: string;
+  data?: string;
+  mediaType?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
+interface ToolResultPart {
+  type: "tool-result";
+  toolCallId: string;
+  toolName: string;
+  output: {
+    type: string;
+    value?: ContentPart[] | unknown;
+    [key: string]: unknown;
+  };
+}
+
+export function extractImageDataFromToolResults(messages: ModelMessage[]): ModelMessage[] | undefined {
+  let changed = false;
+  const result: ModelMessage[] = [];
+
+  for (const message of messages) {
+    if (message.role !== "tool" || typeof message.content === "string") {
+      result.push(message);
+      continue;
+    }
+
+    const needsExtraction = message.content.some(
+      (part) =>
+        part.type === "tool-result" &&
+        part.output.type === "content" &&
+        Array.isArray(part.output.value) &&
+        part.output.value.some(
+          (item: ContentPart) => item.type === "image-data" || item.type === "image-url"
+        )
+    );
+
+    if (!needsExtraction) {
+      result.push(message);
+      continue;
+    }
+
+    changed = true;
+    const toolParts: ToolResultPart[] = [];
+    const userImageParts: Array<{ type: "image"; image: string; mediaType?: string } | { type: "text"; text: string }> = [];
+
+    for (const part of message.content) {
+      if (part.type !== "tool-result" || part.output.type !== "content" || !Array.isArray(part.output.value)) {
+        toolParts.push(part as ToolResultPart);
+        continue;
+      }
+
+      const imageParts = part.output.value.filter(
+        (item: ContentPart) => item.type === "image-data" || item.type === "image-url"
+      );
+      const textParts = part.output.value.filter(
+        (item: ContentPart) => item.type === "text"
+      );
+
+      if (imageParts.length === 0) {
+        toolParts.push(part as ToolResultPart);
+        continue;
+      }
+
+      const textContent = textParts.map((item: ContentPart) => item.text ?? "").join("\n");
+
+      toolParts.push({
+        ...part,
+        output: {
+          ...part.output,
+          type: "text",
+          value: textContent || "[Image displayed above]"
+        }
+      } as unknown as ToolResultPart);
+
+      for (const img of imageParts) {
+        if (img.type === "image-data" && img.data && img.mediaType) {
+          userImageParts.push({
+            type: "image" as const,
+            image: img.data,
+            mediaType: img.mediaType
+          });
+        } else if (img.type === "image-url" && img.url) {
+          userImageParts.push({
+            type: "image" as const,
+            image: img.url
+          });
+        }
+      }
+    }
+
+    if (toolParts.length > 0) {
+      result.push({ role: "tool", content: toolParts } as ModelMessage);
+    }
+
+    if (userImageParts.length > 0) {
+      result.push({
+        role: "user",
+        content: [
+          { type: "text" as const, text: "以下是工具返回的图片：" },
+          ...userImageParts
+        ]
+      } as ModelMessage);
+    }
+  }
+
+  return changed ? result : undefined;
 }

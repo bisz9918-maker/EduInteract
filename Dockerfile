@@ -22,6 +22,7 @@ RUN corepack enable
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.base.json ./
+COPY patches ./patches
 COPY apps/cli/package.json ./apps/cli/package.json
 COPY apps/compose-scaler/package.json ./apps/compose-scaler/package.json
 COPY apps/controller/package.json ./apps/controller/package.json
@@ -225,7 +226,18 @@ WORKDIR /app
 
 COPY --from=node-runtime-binary /usr/local/bin/node /usr/local/bin/node
 
+FROM ${BASE_BUILD_IMAGE} AS playwright-deps
+
+RUN cd /tmp && npm init -y && npm install playwright-core
+
 FROM runtime-common AS runtime-execution-base
+
+RUN apk add --no-cache python3 chromium chromium-swiftshader nss freetype harfbuzz
+
+COPY --from=playwright-deps /tmp/node_modules /app/playwright_modules
+
+ENV CHROMIUM_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 ENV OAH_DOCS_ROOT=/app
 ENV OAH_NATIVE_WORKSPACE_SYNC=1
