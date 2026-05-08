@@ -85,7 +85,7 @@ export function normalizeMessages(messages: GenerateModelInput["messages"]): Mod
     );
   }
 
-  return extractImageDataFromToolResults(parsed.data) ?? parsed.data;
+  return parsed.data;
 }
 
 export function toUsage(usage: Usage | undefined): Usage | undefined {
