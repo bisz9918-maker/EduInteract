@@ -154,6 +154,14 @@ async def process_one(image_path: Path, output_dir: str, model: str, skip_existi
         print(f"  ❌ 无法打开图片: {e}")
         return False
 
+    # 1b. 复制题目图片到输出目录
+    out_prefix_dir = Path(output_dir) / file_prefix
+    out_prefix_dir.mkdir(parents=True, exist_ok=True)
+    dest = out_prefix_dir / f"{file_prefix}{image_path.suffix}"
+    if not dest.exists():
+        import shutil
+        shutil.copy2(image_path, dest)
+
     # 2. OCR
     print(f"  🔍 OCR 识别中...")
     try:

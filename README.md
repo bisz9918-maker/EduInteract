@@ -32,9 +32,15 @@ EduIllustrate
 │   │   ├── mllm_tools/            # LLM interface wrappers
 │   │   └── task_generator/        # Task and prompt generation
 │   └── ...
+├── teacher_app/                   # Teacher preparation assistant (Vue 3 + Express)
+│   ├── src/
+│   │   ├── server/                # Express backend (API + static file serving)
+│   │   ├── client/                # Vue 3 frontend
+│   │   └── bridge/                # Python bridge (worker.py)
+│   └── data/                      # User data & question bank
+├── deploy/                        # Docker deployment configuration
 ├── evaluate.py                    # Evaluation script
 ├── eval_suite/                    # Evaluation suite
-├── teacher_app/                   # Teacher preparation assistant (Vue 3 + Express)
 └── data/                          # Datasets
 ```
 
@@ -62,12 +68,16 @@ sudo apt-get install -y \
     libsdl-pango-dev \
     portaudio19-dev
 
-# Create virtual environment
+# Clone the main repository
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# Clone VisualSolver package into the project (not included in main repo, must clone separately)
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# Create virtual environment and install
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Clone VisualSolver package and install
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
 pip install -e VisualSolver
 ```
 
@@ -82,12 +92,16 @@ brew install portaudio
 # Install LaTeX
 brew install --cask mactex
 
-# Create virtual environment
+# Clone the main repository
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# Clone VisualSolver package into the project (not included in main repo, must clone separately)
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# Create virtual environment and install
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Clone VisualSolver package and install
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
 pip install -e VisualSolver
 ```
 
@@ -379,6 +393,214 @@ python -m visual_solver.generate_explanation \
 
 - `max_scene_concurrency`: Number of scenes processed simultaneously within a single problem
 - `max_topic_concurrency`: Number of problems processed simultaneously
+
+## 👩‍🏫 Teacher App Deployment
+
+The Teacher Preparation Assistant is a standalone full-stack web application that lets teachers input problems through a browser and have AI automatically generate interactive step-by-step diagrams.
+
+### Tech Stack
+
+- **Frontend**: Vue 3 + TypeScript + Vite
+- **Backend**: Express 5 + TypeScript (tsx)
+- **Python Bridge**: Express spawns `worker.py` as a subprocess to drive `ExplanationGenerator`
+- **Auth**: JWT (bcryptjs password hashing, 30-day validity)
+
+### Prerequisites
+
+- Node.js 22+
+- Python 3.10+ (with VisualSolver package installed)
+- LLM API key (at least one configured)
+- (Optional) OAH service for HTML diagram generation
+
+### Option 1: Local Development
+
+```bash
+# 1. Clone the main repository
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# 2. Clone VisualSolver package into the project
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# 3. Install VisualSolver Python package
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e VisualSolver
+
+# 4. Install teacher app frontend dependencies
+cd teacher_app
+npm install
+
+# 3. Configure environment variables
+cp ../.env.template ../.env
+# Edit ../.env, at minimum configure:
+#   SERVER_PORT=8765
+#   CUSTOM_API_BASE=...
+#   CUSTOM_API_KEY=...
+#   TEACHER_MODEL=claude-sonnet-4-6
+#   OAH_API_URL=http://<oah-host>:8787  (if using OAH)
+
+# 4. Start dev servers (Vite HMR + Express backend)
+cd /path/to/EduIllustrate-teacher/teacher_app
+npm run dev
+```
+
+In development mode:
+- Frontend Vite dev server: `http://localhost:5175` (auto-proxies `/api` to backend)
+- Express backend: `http://localhost:8765`
+
+### Option 2: Local Production
+
+```bash
+# 1. Ensure VisualSolver is installed and .env is configured (same as Option 1)
+
+# 2. Build frontend
+cd /path/to/EduIllustrate-teacher/teacher_app
+npm run build    # Generates dist/client/ and dist/server/
+
+# 3. Start production server
+npm start        # NODE_ENV=production tsx src/server/index.ts
+
+# 4. Background deployment (optional)
+nohup npm start > /tmp/teacher_app.log 2>&1 &
+
+# Stop background service
+pkill -f "tsx src/server/index.ts"
+```
+
+In production, Express serves both the frontend static files and the API. Visit `http://<IP>:8765`.
+
+### Option 3: Docker Deployment (Recommended for Production)
+
+Docker packages Node.js + Python + VisualSolver into a single container image — no need to manually configure the Python environment on the server.
+
+```bash
+# 1. Transfer code to remote server
+rsync -avz --delete \
+  --exclude='.git' \
+  --exclude='node_modules' \
+  --exclude='.venv' \
+  --exclude='__pycache__' \
+  --exclude='*.egg-info' \
+  --exclude='output' \
+  --exclude='.env' \
+  --exclude='baseline_videos' \
+  --exclude='models' \
+  --exclude='*.onnx' \
+  --exclude='*.bin' \
+  --exclude='data' \
+  --exclude='annotation_app' \
+  --exclude='eval_suite' \
+  --exclude='test*' \
+  --exclude='logs' \
+  --exclude='*.log' \
+  /path/to/EduIllustrate-teacher/ \
+  user@server:/home/user/EduIllustrate-teacher/
+
+# 2. Configure .env on the remote server
+ssh user@server
+cd /home/user/EduIllustrate-teacher
+cp .env.template .env
+vim .env   # Fill in actual configuration
+
+# Required variables:
+# SERVER_PORT=8765
+# CUSTOM_API_BASE=...          # LLM API endpoint
+# CUSTOM_API_KEY=...           # LLM API key
+# TEACHER_MODEL=...            # Model name to use
+# OAH_API_URL=http://...       # OAH service address (if using)
+# OCR_URL=...                  # OCR service address (if image recognition needed)
+# OCR_KEY=...
+
+# 3. Build image and start
+docker compose -f deploy/docker-compose.prod.yml build
+docker compose -f deploy/docker-compose.prod.yml up -d
+
+# 4. Verify
+docker compose -f deploy/docker-compose.prod.yml ps
+docker compose -f deploy/docker-compose.prod.yml logs -f
+curl http://localhost:8765
+```
+
+Visit `http://<server-ip>:8765` in your browser. Default test account: username `test`, password `test`.
+
+#### Docker Image Architecture
+
+The image uses a multi-stage build:
+1. **Stage 1** — `node:22-alpine`: Builds the Vue frontend (`npm run build`)
+2. **Stage 2** — `python:3.11-slim`: Installs the VisualSolver Python package
+3. **Stage 3** — `node:22-slim`: Runtime image with Node.js + apt Python3 + installed pip packages
+
+The final image contains only runtime-essential files. Express starts via `npx tsx`, and the Python worker is invoked as a subprocess.
+
+#### Data Persistence
+
+| Volume | Container Path | Description |
+|--------|---------------|-------------|
+| `app-data` | `/app/data` | User data, question bank database |
+| `app-output` | `/app/output` | Generated diagram files |
+
+`.env` is bind-mounted as read-only; restart to apply changes.
+
+#### Docker Operations
+
+```bash
+# View logs
+docker compose -f deploy/docker-compose.prod.yml logs -f teacher-app
+
+# Restart
+docker compose -f deploy/docker-compose.prod.yml restart
+
+# Redeploy after code update
+docker compose -f deploy/docker-compose.prod.yml build --no-cache
+docker compose -f deploy/docker-compose.prod.yml up -d
+
+# Restart after .env change
+docker compose -f deploy/docker-compose.prod.yml restart
+
+# Clean output data
+docker volume rm eduillustrate-teacher_app-output
+
+# Debug inside container
+docker compose -f deploy/docker-compose.prod.yml exec teacher-app bash
+python3 -c "from visual_solver import ExplanationGenerator; print('OK')"
+```
+
+### Environment Variables Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SERVER_PORT` | `8765` | Server listening port |
+| `TEACHER_MODEL` | `claude-sonnet-4-6` | Model for generation (comma-separated for multiple, or `{model:label}` format) |
+| `TEACHER_MODEL_DEFAULT` | First in list | Default model when multiple are configured |
+| `CUSTOM_API_BASE` | - | OpenAI-compatible LLM API endpoint |
+| `CUSTOM_API_KEY` | - | LLM API key |
+| `OAH_API_URL` | - | OAH service address (for HTML diagram generation) |
+| `JWT_SECRET` | `teacher-app-secret-2024` | JWT signing secret (**must change in production**) |
+| `MAX_CONCURRENT_JOBS` | `20` | Maximum concurrent Python workers |
+| `PYTHON` | `.venv/bin/python` | Python interpreter path (`/usr/bin/python3` in Docker) |
+| `OCR_URL` / `OCR_KEY` | - | OCR service config (image recognition) |
+
+### API Routes
+
+| Route | Method | Auth | Description |
+|-------|--------|------|-------------|
+| `/api/auth/login` | POST | No | Login, returns JWT |
+| `/api/auth/register` | POST | No | Register, returns JWT |
+| `/api/auth/me` | GET | No | Verify token |
+| `/api/generate` | POST | No | Start diagram generation task, returns `job_id` |
+| `/api/stream/:jobId` | GET | No | SSE real-time event stream |
+| `/api/poll/:jobId` | GET | No | Poll generation events |
+| `/api/modify_scene` | POST | JWT | Modify a specific Scene |
+| `/api/bank/save` | POST | JWT | Save problem to question bank |
+| `/api/bank/list` | GET | JWT | Get question bank list |
+| `/api/bank/:id` | GET/DELETE | JWT | Get/delete a problem |
+| `/api/ocr` | POST | No | Image OCR recognition |
+| `/doc/*` | GET | No | Static diagram HTML files |
+
+For detailed teacher app development docs, see [teacher_app/README.md](teacher_app/README.md). For Docker deployment details, see [deploy/README.md](deploy/README.md).
+
+---
 
 ## 🤝 Contributing
 

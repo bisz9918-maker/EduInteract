@@ -41,6 +41,7 @@ if load_dotenv:
     load_dotenv(ROOT / ".env", override=True)
 
 OUTPUT_DIR = ROOT / "output" / "Zipped_Items"
+EVAL_OUTPUT_DIR = ROOT / "output"
 DATA_DIR = ROOT / "data" / "Zipped_Items"
 API_URL = os.getenv("OAH_API_URL", "http://localhost:8787")
 RUNTIME = "visual-solver-eval"
@@ -351,7 +352,9 @@ def eval_topic(topic: str, skip_ocr=False):
 
     if not render_passed:
         print("\n前置检查未通过：有 scene 无法渲染，总分 0")
-        _write_report(topic, ocr_text, render_details,
+        eval_dir = EVAL_OUTPUT_DIR / topic
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        _write_report(eval_dir, topic, ocr_text, render_details,
                       dim_scores={}, total_score=0.0)
         return
 
@@ -426,6 +429,11 @@ def eval_topic(topic: str, skip_ocr=False):
         ("pedagogy-eval", "教育适配性", "dim4_result.txt", "dim4_pedagogy"),
     ]
 
+    # Create eval output directory
+    eval_dir = EVAL_OUTPUT_DIR / topic
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    print(f"  eval output: {eval_dir}")
+
     dim_scores = {}   # {dim_key: score}
     dim_reasons = {}  # {dim_key: reasoning}
 
@@ -438,6 +446,12 @@ def eval_topic(topic: str, skip_ocr=False):
         dim_scores[dim_tag] = score
         dim_reasons[dim_tag] = reasoning
         print(f"  {dim_name}: {score}/5 — {reasoning[:80]}")
+
+        # Save raw agent output
+        if xml_content:
+            raw_path = eval_dir / result_file
+            raw_path.write_text(xml_content, encoding="utf-8")
+            print(f"  saved {raw_path}")
 
     # ── Compute total score ──
     print("\n" + "=" * 60)
@@ -459,10 +473,10 @@ def eval_topic(topic: str, skip_ocr=False):
     print("-" * 20)
     print(f"{'总分':<12} {total_score:>6.2f}")
 
-    _write_report(topic, ocr_text, render_details, dim_scores, dim_reasons, total_score)
+    _write_report(eval_dir, topic, ocr_text, render_details, dim_scores, dim_reasons, total_score)
 
 
-def _write_report(topic, ocr_text, render_details, dim_scores, dim_reasons=None, total_score=0.0):
+def _write_report(eval_dir, topic, ocr_text, render_details, dim_scores, dim_reasons=None, total_score=0.0):
     """Write evaluation report to XML file."""
     all_scene_names = sorted(render_details.keys())
 
@@ -498,7 +512,7 @@ def _write_report(topic, ocr_text, render_details, dim_scores, dim_reasons=None,
     report_lines.append('</evaluation_report>')
 
     report_xml = '\n'.join(report_lines)
-    report_path = OUTPUT_DIR / topic / "evaluation_report.xml"
+    report_path = eval_dir / "evaluation_report.xml"
     report_path.write_text(report_xml, encoding="utf-8")
     print(f"\nReport saved to {report_path}")
     print(report_xml)

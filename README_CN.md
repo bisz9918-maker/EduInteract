@@ -32,9 +32,15 @@ EduIllustrate
 │   │   ├── mllm_tools/            # 大模型接口封装
 │   │   └── task_generator/        # 任务和提示词生成
 │   └── ...
+├── teacher_app/                   # 教师备课助手 (Vue 3 + Express)
+│   ├── src/
+│   │   ├── server/                # Express 后端 (API + 静态文件服务)
+│   │   ├── client/                # Vue 3 前端
+│   │   └── bridge/                # Python 桥接 (worker.py)
+│   └── data/                      # 用户数据 & 题库
+├── deploy/                        # Docker 部署配置
 ├── evaluate.py                    # 评估脚本
 ├── eval_suite/                    # 评估套件
-├── teacher_app/                   # 教师备课助手 (Vue 3 + Express)
 └── data/                          # 数据集
 ```
 
@@ -62,12 +68,16 @@ sudo apt-get install -y \
     libsdl-pango-dev \
     portaudio19-dev
 
-# 创建虚拟环境
+# 克隆主仓库
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# 克隆 VisualSolver 包到项目内（主仓库不包含 VisualSolver 源码，需单独拉取）
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# 创建虚拟环境并安装
 python3 -m venv .venv
 source .venv/bin/activate
-
-# 克隆 VisualSolver 包并安装
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
 pip install -e VisualSolver
 ```
 
@@ -82,12 +92,16 @@ brew install portaudio
 # 安装 LaTeX
 brew install --cask mactex
 
-# 创建虚拟环境
+# 克隆主仓库
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# 克隆 VisualSolver 包到项目内（主仓库不包含 VisualSolver 源码，需单独拉取）
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# 创建虚拟环境并安装
 python3 -m venv .venv
 source .venv/bin/activate
-
-# 克隆 VisualSolver 包并安装
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
 pip install -e VisualSolver
 ```
 
@@ -380,6 +394,203 @@ python -m visual_solver.generate_explanation \
 - `max_scene_concurrency`: 单个题目内同时处理的场景数
 - `max_topic_concurrency`: 同时处理的题目数
 
+## 👩‍🏫 教师备课助手部署
+
+教师备课助手是一个独立的全栈 Web 应用，让教师通过浏览器输入题目，AI 自动生成交互式步骤图示。
+
+### 技术栈
+
+- **前端**: Vue 3 + TypeScript + Vite
+- **后端**: Express 5 + TypeScript (tsx)
+- **Python 桥接**: Express 通过子进程调用 `worker.py`，驱动 `ExplanationGenerator` 生成图示
+- **认证**: JWT（bcryptjs 密码哈希，30 天有效）
+
+### 前置条件
+
+- Node.js 22+
+- Python 3.10+（已安装 VisualSolver 包）
+- LLM API 密钥（至少配置一个）
+- （可选）OAH 服务，用于 HTML 图示生成
+
+### 方式一：本地开发部署
+
+```bash
+# 1. 克隆主仓库
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# 2. 克隆 VisualSolver 包到项目内
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# 3. 安装 VisualSolver Python 包
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e VisualSolver
+
+# 4. 安装教师端前端依赖
+cd teacher_app
+npm install
+
+# 5. 配置环境变量
+cp ../.env.template ../.env
+# 编辑 ../.env，至少配置以下项：
+#   SERVER_PORT=8765
+#   CUSTOM_API_BASE=...
+#   CUSTOM_API_KEY=...
+#   TEACHER_MODEL=claude-sonnet-4-6
+#   OAH_API_URL=http://<oah-host>:8787  （如果使用 OAH）
+
+# 6. 启动开发服务器（Vite 热更新 + Express 后端）
+cd /path/to/EduIllustrate-teacher/teacher_app
+npm run dev
+```
+
+开发模式下：
+- 前端 Vite 开发服务器：`http://localhost:5175`（自动代理 `/api` 到后端）
+- Express 后端：`http://localhost:8765`
+
+### 方式二：本地生产部署
+
+```bash
+# 1. 克隆仓库（同方式一步骤 1-3）
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+python3 -m venv .venv && source .venv/bin/activate && pip install -e VisualSolver
+
+# 2. 确认 .env 已配置（同方式一步骤 5）
+
+# 3. 构建前端
+cd /path/to/EduIllustrate-teacher/teacher_app
+npm run build    # 生成 dist/client/ 和 dist/server/
+
+# 4. 启动生产服务
+npm start        # NODE_ENV=production tsx src/server/index.ts
+
+# 5. 后台部署（可选）
+nohup npm start > /tmp/teacher_app.log 2>&1 &
+
+# 停止后台服务
+pkill -f "tsx src/server/index.ts"
+```
+
+生产模式下 Express 同时服务前端静态文件和 API，访问 `http://<IP>:8765`。
+
+### 方式三：Docker 部署（推荐生产环境）
+
+Docker 方式将 Node.js + Python + VisualSolver 打包为单容器镜像，无需在服务器上手动配置 Python 环境。
+
+```bash
+# 1. 在远程服务器克隆代码
+ssh user@server
+cd /home/user
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# 2. 配置 .env
+cp .env.template .env
+vim .env   # 填入实际配置
+
+# 必须配置的变量：
+# SERVER_PORT=8765
+# CUSTOM_API_BASE=...          # LLM API 端点
+# CUSTOM_API_KEY=...           # LLM API 密钥
+# TEACHER_MODEL=...            # 使用的模型名称
+# OAH_API_URL=http://...       # OAH 服务地址（如果使用）
+# OCR_URL=...                  # OCR 服务地址（如果需要图片识别）
+# OCR_KEY=...
+
+# 3. 构建镜像并启动
+docker compose -f deploy/docker-compose.prod.yml build
+docker compose -f deploy/docker-compose.prod.yml up -d
+
+# 4. 验证
+docker compose -f deploy/docker-compose.prod.yml ps
+docker compose -f deploy/docker-compose.prod.yml logs -f
+curl http://localhost:8765
+```
+
+浏览器访问 `http://<服务器IP>:8765`，默认测试账号：用户名 `test`，密码 `test`。
+
+#### Docker 镜像架构
+
+镜像采用多阶段构建：
+1. **Stage 1** — `node:22-alpine`：构建 Vue 前端（`npm run build`）
+2. **Stage 2** — `python:3.11-slim`：安装 VisualSolver Python 包
+3. **Stage 3** — `node:22-slim`：运行时镜像，Node.js + apt Python3 + 已安装的 pip 包
+
+最终镜像仅包含运行时必需的文件，Express 通过 `npx tsx` 启动，Python worker 通过子进程调用。
+
+#### 数据持久化
+
+| Volume | 容器路径 | 说明 |
+|--------|---------|------|
+| `app-data` | `/app/data` | 用户数据、题库数据库 |
+| `app-output` | `/app/output` | 生成的图示文件 |
+
+`.env` 通过 bind mount 挂载为只读，修改后重启生效。
+
+#### Docker 常用操作
+
+```bash
+# 查看日志
+docker compose -f deploy/docker-compose.prod.yml logs -f teacher-app
+
+# 重启
+docker compose -f deploy/docker-compose.prod.yml restart
+
+# 更新代码后重新部署
+docker compose -f deploy/docker-compose.prod.yml build --no-cache
+docker compose -f deploy/docker-compose.prod.yml up -d
+
+# 修改 .env 后重启
+docker compose -f deploy/docker-compose.prod.yml restart
+
+# 清理输出数据
+docker volume rm eduillustrate-teacher_app-output
+
+# 进入容器排查问题
+docker compose -f deploy/docker-compose.prod.yml exec teacher-app bash
+python3 -c "from visual_solver import ExplanationGenerator; print('OK')"
+```
+
+### 环境变量参考
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `SERVER_PORT` | `8765` | 服务监听端口 |
+| `TEACHER_MODEL` | `claude-sonnet-4-6` | 生成使用的模型（支持逗号分隔多模型或 `{model:label}` 格式） |
+| `TEACHER_MODEL_DEFAULT` | 列表第一个 | 多模型时的默认模型 |
+| `CUSTOM_API_BASE` | - | OpenAI 兼容的 LLM API 端点 |
+| `CUSTOM_API_KEY` | - | LLM API 密钥 |
+| `OAH_API_URL` | - | OAH 服务地址（用于 HTML 图示生成） |
+| `JWT_SECRET` | `teacher-app-secret-2024` | JWT 签名密钥（**生产环境务必修改**） |
+| `MAX_CONCURRENT_JOBS` | `20` | 最大并发 Python worker 数 |
+| `PYTHON` | `.venv/bin/python` | Python 解释器路径（Docker 中为 `/usr/bin/python3`） |
+| `OCR_URL` / `OCR_KEY` | - | OCR 服务配置（图片识别） |
+
+### API 路由
+
+| 路由 | 方法 | 认证 | 说明 |
+|------|------|------|------|
+| `/api/auth/login` | POST | 否 | 登录，返回 JWT |
+| `/api/auth/register` | POST | 否 | 注册，返回 JWT |
+| `/api/auth/me` | GET | 否 | 验证 token |
+| `/api/generate` | POST | 否 | 启动图示生成任务，返回 `job_id` |
+| `/api/stream/:jobId` | GET | 否 | SSE 实时事件流 |
+| `/api/poll/:jobId` | GET | 否 | 轮询生成事件 |
+| `/api/modify_scene` | POST | JWT | 修改指定 Scene |
+| `/api/bank/save` | POST | JWT | 保存题目到题库 |
+| `/api/bank/list` | GET | JWT | 获取题库列表 |
+| `/api/bank/:id` | GET/DELETE | JWT | 获取/删除题目 |
+| `/api/ocr` | POST | 否 | 图片 OCR 识别 |
+| `/doc/*` | GET | 否 | 静态图示 HTML 文件 |
+
+详细的教师端开发文档见 [teacher_app/README.md](teacher_app/README.md)，Docker 部署详细说明见 [deploy/README.md](deploy/README.md)。
+
+---
+
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request!
@@ -387,12 +598,16 @@ python -m visual_solver.generate_explanation \
 ### 开发设置
 
 ```bash
-# 克隆仓库
-git clone <repository-url>
-cd EduIllustrate
+# 克隆主仓库
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# 克隆 VisualSolver 包到项目内
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
 
 # 安装开发依赖
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e VisualSolver
 
 # 运行测试
