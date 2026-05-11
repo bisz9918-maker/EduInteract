@@ -431,7 +431,7 @@ pip install -e VisualSolver
 cd teacher_app
 npm install
 
-# 3. Configure environment variables
+# 5. Configure environment variables
 cp ../.env.template ../.env
 # Edit ../.env, at minimum configure:
 #   SERVER_PORT=8765
@@ -440,7 +440,7 @@ cp ../.env.template ../.env
 #   TEACHER_MODEL=claude-sonnet-4-6
 #   OAH_API_URL=http://<oah-host>:8787  (if using OAH)
 
-# 4. Start dev servers (Vite HMR + Express backend)
+# 6. Start dev servers (Vite HMR + Express backend)
 cd /path/to/EduIllustrate-teacher/teacher_app
 npm run dev
 ```
@@ -452,16 +452,22 @@ In development mode:
 ### Option 2: Local Production
 
 ```bash
-# 1. Ensure VisualSolver is installed and .env is configured (same as Option 1)
+# 1. Clone repo (same as Option 1 steps 1-3)
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+python3 -m venv .venv && source .venv/bin/activate && pip install -e VisualSolver
 
-# 2. Build frontend
+# 2. Ensure .env is configured (same as Option 1 step 5)
+
+# 3. Build frontend
 cd /path/to/EduIllustrate-teacher/teacher_app
 npm run build    # Generates dist/client/ and dist/server/
 
-# 3. Start production server
+# 4. Start production server
 npm start        # NODE_ENV=production tsx src/server/index.ts
 
-# 4. Background deployment (optional)
+# 5. Background deployment (optional)
 nohup npm start > /tmp/teacher_app.log 2>&1 &
 
 # Stop background service
@@ -475,31 +481,14 @@ In production, Express serves both the frontend static files and the API. Visit 
 Docker packages Node.js + Python + VisualSolver into a single container image — no need to manually configure the Python environment on the server.
 
 ```bash
-# 1. Transfer code to remote server
-rsync -avz --delete \
-  --exclude='.git' \
-  --exclude='node_modules' \
-  --exclude='.venv' \
-  --exclude='__pycache__' \
-  --exclude='*.egg-info' \
-  --exclude='output' \
-  --exclude='.env' \
-  --exclude='baseline_videos' \
-  --exclude='models' \
-  --exclude='*.onnx' \
-  --exclude='*.bin' \
-  --exclude='data' \
-  --exclude='annotation_app' \
-  --exclude='eval_suite' \
-  --exclude='test*' \
-  --exclude='logs' \
-  --exclude='*.log' \
-  /path/to/EduIllustrate-teacher/ \
-  user@server:/home/user/EduIllustrate-teacher/
-
-# 2. Configure .env on the remote server
+# 1. Clone code on the remote server
 ssh user@server
-cd /home/user/EduIllustrate-teacher
+cd /home/user
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+
+# 2. Configure .env
 cp .env.template .env
 vim .env   # Fill in actual configuration
 
@@ -609,12 +598,16 @@ Issues and Pull Requests are welcome!
 ### Development Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd EduIllustrate
+# Clone the main repository
+git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
+cd EduIllustrate-teacher
+
+# Clone VisualSolver package into the project
+git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
 
 # Install development dependencies
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e VisualSolver
 
 # Run tests
