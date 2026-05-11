@@ -1,0 +1,76 @@
+diff --git a/dist/index.js b/dist/index.js
+index 256b480be24f2acfa8dbff6536ca8d6fe88bbf5a..4196d9fb5e9227c5dcc96cbe5112898aa7ee7fc7 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -66,6 +66,16 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+               case "text": {
+                 return { type: "text", text: part.text, ...partMetadata };
+               }
++              case "image": {
++                const mediaType = part.mediaType === "image/*" ? "image/jpeg" : (part.mediaType || "image/png");
++                return {
++                  type: "image_url",
++                  image_url: {
++                    url: part.image instanceof URL ? part.image.toString() : `data:${mediaType};base64,${part.image}`
++                  },
++                  ...partMetadata
++                };
++              }
+               case "file": {
+                 if (part.mediaType.startsWith("image/")) {
+                   const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
+@@ -129,7 +139,53 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+             case "error-text":
+               contentValue = output.value;
+               break;
+-            case "content":
++            case "content": {
++              const imageParts = output.value.filter(
++                (item) => item.type === "image-data" || item.type === "image-url"
++              );
++              const textParts = output.value.filter(
++                (item) => item.type === "text"
++              );
++              if (imageParts.length > 0) {
++                const textContent = textParts.map((item) => item.text).join("\n");
++                contentValue = textContent || "[Image displayed above]";
++                const toolResponseMetadata = getOpenAIMetadata(toolResponse);
++                messages.push({
++                  role: "tool",
++                  tool_call_id: toolResponse.toolCallId,
++                  content: contentValue,
++                  ...toolResponseMetadata
++                });
++                const userParts = [];
++                for (const img of imageParts) {
++                  if (img.type === "image-data") {
++                    userParts.push({
++                      type: "image_url",
++                      image_url: { url: `data:${img.mediaType};base64,${img.data}` }
++                    });
++                  } else if (img.type === "image-url") {
++                    userParts.push({
++                      type: "image_url",
++                      image_url: { url: img.url }
++                    });
++                  }
++                }
++                if (textContent) {
++                  userParts.unshift({ type: "text", text: textContent });
++                }
++                messages.push({
++                  role: "user",
++                  content: userParts
++                });
++                continue;
++              } else {
++                contentValue = output.value.map((item) => {
++                  if (item.type === "text") return item.text;
++                  return JSON.stringify(item);
++                }).join("\n");
++              }
++              break;
++            }
+             case "json":
+             case "error-json":
+               contentValue = JSON.stringify(output.value);
