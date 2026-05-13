@@ -10,6 +10,35 @@ import {
 } from "../execution-message-content.js";
 import type { ModelDefinition, ModelStepResult, EngineToolSet, WorkspaceRecord } from "../types.js";
 
+function normalizeUsage(usage: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!usage) return undefined;
+
+  const inputTokens = usage.inputTokens as number | undefined;
+  const outputTokens = usage.outputTokens as number | undefined;
+  const totalTokens = usage.totalTokens as number | undefined;
+
+  if (inputTokens != null || outputTokens != null) {
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens: totalTokens ?? (inputTokens != null && outputTokens != null ? inputTokens + outputTokens : undefined),
+    };
+  }
+
+  // Fall back to provider-level fields (promptTokens/completionTokens)
+  const promptTokens = usage.promptTokens as number | undefined;
+  const completionTokens = usage.completionTokens as number | undefined;
+  if (promptTokens != null || completionTokens != null) {
+    return {
+      inputTokens: promptTokens,
+      outputTokens: completionTokens,
+      totalTokens: (promptTokens != null && completionTokens != null) ? promptTokens + completionTokens : undefined,
+    };
+  }
+
+  return usage;
+}
+
 export interface ModelExecutionInputSnapshot {
   model: string;
   canonicalModelRef: string;
@@ -173,13 +202,15 @@ export function serializeModelCallStepOutput(
   step: ModelStepResult,
   failedToolResults = extractFailedToolResults(step)
 ): Record<string, unknown> {
+  const usage = normalizeUsage(step.usage);
+
   return {
     response: {
       ...(typeof step.stepType === "string" ? { stepType: step.stepType } : {}),
       ...(typeof step.text === "string" ? { text: step.text } : {}),
       ...(Array.isArray(step.content) ? { content: step.content } : {}),
       ...(Array.isArray(step.reasoning) && step.reasoning.length > 0 ? { reasoning: step.reasoning } : {}),
-      ...(step.usage ? { usage: step.usage } : {}),
+      ...(usage ? { usage } : {}),
       ...(Array.isArray(step.warnings) && step.warnings.length > 0 ? { warnings: step.warnings } : {}),
       ...(step.request ? { request: step.request } : {}),
       ...(step.response ? { response: step.response } : {}),

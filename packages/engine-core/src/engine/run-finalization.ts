@@ -125,7 +125,8 @@ export class RunFinalizationService {
 
     const endedAt = this.#nowIso();
     const updatedRun = await this.#setRunStatus(latestRun, "completed", {
-      endedAt
+      endedAt,
+      ...(input.completed.usage ? { usage: input.completed.usage } : {})
     });
     await this.#recordSystemStep(updatedRun, "run.completed", {
       status: updatedRun.status
@@ -145,7 +146,8 @@ export class RunFinalizationService {
       data: {
         runId: updatedRun.id,
         sessionId: input.session.id,
-        status: updatedRun.status
+        status: updatedRun.status,
+        ...(updatedRun.usage ? { usage: updatedRun.usage } : {})
       }
     });
 

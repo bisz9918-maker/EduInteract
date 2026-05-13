@@ -79,6 +79,7 @@ export const runs = pgTable("runs", {
   errorCode: text("error_code"),
   errorMessage: text("error_message"),
   metadata: jsonb("metadata").$type<Run["metadata"]>(),
+  usage: jsonb("usage").$type<Run["usage"]>(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonObjectSchema, jsonValueSchema, timestampSchema } from "./common.js";
+import { usageSchema } from "./models.js";
 
 export const runSchema = z.object({
   id: z.string(),
@@ -20,7 +21,8 @@ export const runSchema = z.object({
   createdAt: timestampSchema,
   errorCode: z.string().optional(),
   errorMessage: z.string().optional(),
-  metadata: jsonObjectSchema.optional()
+  metadata: jsonObjectSchema.optional(),
+  usage: usageSchema.optional()
 });
 
 export const runPageSchema = z.object({

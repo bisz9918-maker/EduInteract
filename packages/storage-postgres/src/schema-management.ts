@@ -150,6 +150,7 @@ const schemaStatements = [
   )`,
   `create index if not exists runs_session_created_idx on runs (session_id, created_at desc)`,
   `create index if not exists runs_workspace_created_idx on runs (workspace_id, created_at desc)`,
+  `alter table runs add column if not exists usage jsonb`,
   `create table if not exists messages (
     id text primary key,
     session_id text not null references sessions(id) on delete cascade,

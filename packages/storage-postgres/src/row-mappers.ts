@@ -273,6 +273,7 @@ export function buildRunRow(input: Run) {
     errorCode: input.errorCode ?? null,
     errorMessage: input.errorMessage ?? null,
     metadata: input.metadata ?? null,
+    usage: input.usage ?? null,
     createdAt: input.createdAt
   };
 }
@@ -297,7 +298,8 @@ export function toRun(row: typeof runs.$inferSelect): Run {
     createdAt: normalizeTimestamp(row.createdAt) ?? row.createdAt,
     ...(row.errorCode ? { errorCode: row.errorCode } : {}),
     ...(row.errorMessage ? { errorMessage: row.errorMessage } : {}),
-    ...(row.metadata ? { metadata: row.metadata } : {})
+    ...(row.metadata ? { metadata: row.metadata } : {}),
+    ...(row.usage ? { usage: row.usage } : {})
   };
 }
 

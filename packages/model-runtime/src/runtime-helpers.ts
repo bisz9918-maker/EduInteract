@@ -93,10 +93,21 @@ export function toUsage(usage: Usage | undefined): Usage | undefined {
     return undefined;
   }
 
+  // Some openai-compatible providers (e.g. Kimi) return prompt_tokens/completion_tokens
+  // in the streaming API, but AI SDK may not correctly map them to inputTokens/outputTokens,
+  // leaving them as undefined. Fall back to promptTokens/completionTokens which are the
+  // provider-level fields parsed from the raw API response.
+  const inputTokens = usage.inputTokens ??
+    (typeof (usage as Record<string, unknown>).promptTokens === "number" ? (usage as Record<string, unknown>).promptTokens as number : undefined);
+  const outputTokens = usage.outputTokens ??
+    (typeof (usage as Record<string, unknown>).completionTokens === "number" ? (usage as Record<string, unknown>).completionTokens as number : undefined);
+  const totalTokens = usage.totalTokens ??
+    ((inputTokens != null && outputTokens != null) ? inputTokens + outputTokens : undefined);
+
   return {
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    totalTokens: usage.totalTokens
+    inputTokens,
+    outputTokens,
+    totalTokens,
   };
 }
 
