@@ -1172,17 +1172,16 @@ if __name__ == "__main__":
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
 
-            # Only update token_usage if not already present in existing timing data
-            if "token_usage" not in timing_data:
-                timing_data["token_usage"] = {
-                    "total_tokens": total_tokens,
-                    "input_tokens": total_input_tokens,
-                    "output_tokens": total_output_tokens,
-                    "planner_model": planner_total,
-                    "planner_model_detailed": planner_detailed_tokens,
-                    "scene_model": scene_model_total,
-                    "scene_model_detailed": scene_model_detailed,
-                }
+            # Always update token_usage (reruns may have new token data from regenerated stages)
+            timing_data["token_usage"] = {
+                "total_tokens": total_tokens,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "planner_model": planner_total,
+                "planner_model_detailed": planner_detailed_tokens,
+                "scene_model": scene_model_total,
+                "scene_model_detailed": scene_model_detailed,
+            }
 
             with open(timing_file, 'w') as f:
                 json.dump(timing_data, f, indent=2)
