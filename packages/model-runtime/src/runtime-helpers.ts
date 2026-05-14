@@ -153,8 +153,8 @@ export function toAiTools(
       name,
       tool({
         description: definition.description,
-        inputSchema: definition.inputSchema,
-        execute: async (input, options) => {
+        inputSchema: definition.inputSchema as any,
+        execute: async (input: any, options: any) => {
           const executeTool = async () =>
             definition.execute(input, {
               abortSignal: signal,
@@ -163,7 +163,7 @@ export function toAiTools(
 
           return runSerially ? runSerially(executeTool) : executeTool();
         },
-        toModelOutput: ({ output }) => {
+        toModelOutput: ({ output }: { output: any }) => {
           if (
             isRecord(output) &&
             output.type === "content" &&
@@ -195,9 +195,9 @@ export function toAiTools(
               };
             }
           }
-          return undefined;
+          return undefined as any;
         }
-      })
+      } as any)
     ])
   );
 }
