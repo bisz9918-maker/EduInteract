@@ -94,7 +94,15 @@ export class RunStateService {
   }
 
   async setRunStatusIfPossible(runId: string, nextStatus: Run["status"]): Promise<void> {
-    const run = await this.#getRun(runId);
+    let run: Run;
+    try {
+      run = await this.#getRun(runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") {
+        return;
+      }
+      throw error;
+    }
     if (run.status === nextStatus || !canTransitionRunStatus(run.status, nextStatus)) {
       return;
     }
@@ -103,7 +111,15 @@ export class RunStateService {
   }
 
   async refreshRunHeartbeat(runId: string): Promise<void> {
-    const run = await this.#getRun(runId);
+    let run: Run;
+    try {
+      run = await this.#getRun(runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") {
+        return;
+      }
+      throw error;
+    }
     if (run.status !== "running" && run.status !== "waiting_tool") {
       return;
     }

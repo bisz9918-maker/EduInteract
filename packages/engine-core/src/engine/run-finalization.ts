@@ -1,5 +1,6 @@
 import type { ChatMessage, Message, ModelGenerateResponse, Run, RunStep, Session } from "@oah/api-contracts";
 
+import { AppError } from "../errors.js";
 import { assistantContentFromModelOutput } from "../execution-message-content.js";
 import type { ModelStepResult, SessionRepository, WorkspaceRecord } from "../types.js";
 
@@ -226,7 +227,14 @@ export class RunFinalizationService {
     runId: string;
     runTimeoutMs: number | undefined;
   }): Promise<void> {
-    const timedOutRun = await this.#markRunTimedOut(await this.#getRun(input.runId), input.runTimeoutMs);
+    let run: Run;
+    try {
+      run = await this.#getRun(input.runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") return;
+      throw error;
+    }
+    const timedOutRun = await this.#markRunTimedOut(run, input.runTimeoutMs);
     if (input.session) {
       await this.#appendEvent({
         sessionId: input.session.id,
@@ -256,13 +264,20 @@ export class RunFinalizationService {
     session: Session | undefined;
     runId: string;
   }): Promise<void> {
+    let run: Run;
+    try {
+      run = await this.#getRun(input.runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") return;
+      throw error;
+    }
     if (input.session) {
-      await this.#markRunCancelled(input.session.id, await this.#getRun(input.runId));
+      await this.#markRunCancelled(input.session.id, run);
       await this.#dispatchNextQueuedRun(input.session.id);
       return;
     }
 
-    const cancelledRun = await this.#setRunStatus(await this.#getRun(input.runId), "cancelled", {
+    const cancelledRun = await this.#setRunStatus(run, "cancelled", {
       endedAt: this.#nowIso(),
       cancelRequestedAt: this.#nowIso()
     });
@@ -281,7 +296,15 @@ export class RunFinalizationService {
     errorCode: string;
     errorMessage: string;
   }): Promise<Run> {
-    const currentRun = await this.#getRun(input.runId);
+    let currentRun: Run;
+    try {
+      currentRun = await this.#getRun(input.runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") {
+        return undefined as unknown as Run;
+      }
+      throw error;
+    }
     const failedRun =
       currentRun.status === "failed" || currentRun.status === "timed_out"
         ? currentRun
