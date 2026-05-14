@@ -15,6 +15,7 @@ class Config:
     # OAH (Open Agent Harness) configuration
     OAH_API_URL = os.getenv('OAH_API_URL', '')
     OAH_WORKSPACE_TEMPLATE = os.getenv('OAH_WORKSPACE_TEMPLATE', 'visual-solver-code')
+    OAH_MODEL_REF = os.getenv('OAH_MODEL_REF', '')
 
     # Kokoro TTS configurations
     KOKORO_MODEL_PATH = os.getenv('KOKORO_MODEL_PATH')

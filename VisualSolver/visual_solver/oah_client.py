@@ -29,6 +29,7 @@ class OAHClient:
         token: Optional[str] = None,
         workspace_template: str = "visual-solver-code",
         timeout: float = 1200.0,
+        model_ref: Optional[str] = None,
     ):
         self.api_url = api_url or os.getenv("OAH_API_URL", "")
         if not self.api_url:
@@ -36,6 +37,7 @@ class OAHClient:
         self.token = token or os.getenv("OAH_TOKEN", "")
         self.workspace_template = workspace_template
         self.timeout = timeout
+        self.model_ref = model_ref
 
     def _request(self, method: str, path: str, body: Optional[bytes] = None,
                  headers: Optional[dict] = None, params: Optional[dict] = None) -> dict:
@@ -120,12 +122,43 @@ class OAHClient:
 
     # ── Session ────────────────────────────────────────────────────────────
 
-    def create_session(self, workspace_id: str, title: str = "Scene generation") -> str:
+    def create_session(
+        self,
+        workspace_id: str,
+        title: str = "Scene generation",
+        agent_name: Optional[str] = None,
+        model_ref: Optional[str] = None,
+    ) -> str:
+        effective_model = model_ref or self.model_ref
+        body: dict = {"title": title}
+        if agent_name:
+            body["agentName"] = agent_name
+        if effective_model:
+            body["modelRef"] = effective_model
         data = self._request("POST", f"/api/v1/workspaces/{workspace_id}/sessions",
-                             body=json.dumps({"title": title}).encode())
+                             body=json.dumps(body).encode())
         ses_id = data["id"]
-        _log(f"Created session: {ses_id}")
+        _log(f"Created session: {ses_id}" +
+             (f" agent={agent_name}" if agent_name else "") +
+             (f" model={effective_model}" if effective_model else ""))
         return ses_id
+
+    def update_session(
+        self,
+        session_id: str,
+        active_agent_name: Optional[str] = None,
+        model_ref: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> dict:
+        body: dict = {}
+        if title is not None:
+            body["title"] = title
+        if active_agent_name is not None:
+            body["activeAgentName"] = active_agent_name
+        if model_ref is not None:
+            body["modelRef"] = model_ref
+        return self._request("PATCH", f"/api/v1/sessions/{session_id}",
+                             body=json.dumps(body).encode())
 
     # ── Messages & Runs ────────────────────────────────────────────────────
 

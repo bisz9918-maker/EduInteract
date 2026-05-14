@@ -18,7 +18,7 @@ class CodeGenerator:
                  use_rag=False, use_context_learning=False, context_learning_path="data/context_learning",
                  chroma_db_path="rag/chroma_db", manim_docs_path="rag/manim_docs",
                  embedding_model="azure/text-embedding-3-large", use_visual_fix_code=False,
-                 use_langfuse=True, session_id=None, use_oah=False, oah_api_url=None):
+                 use_langfuse=True, session_id=None, use_oah=False, oah_api_url=None, oah_model_ref=None):
         self.scene_model = scene_model
         self.helper_model = helper_model
         self.output_dir = output_dir
@@ -28,6 +28,7 @@ class CodeGenerator:
         self.session_id = session_id
         self.use_oah = use_oah
         self.oah_api_url = oah_api_url
+        self.oah_model_ref = oah_model_ref
         self._oah_usage = {}  # scene_trace_id -> usage dict
 
     async def _extract_code_with_retries(self, response_text: str, pattern: str,
@@ -82,7 +83,7 @@ class CodeGenerator:
         print(f"[OAH] === Starting OAH generation for scene {scene_number} ===")
 
         def _sync_call():
-            client = OAHClient(api_url=self.oah_api_url)
+            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref)
             return client.generate_scene_html(
                 spec=spec,
                 output_file=spec["output_file"],

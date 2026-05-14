@@ -116,6 +116,7 @@ class ExplanationGenerator:
             use_langfuse=use_langfuse,
             use_oah=use_oah,
             oah_api_url=Config.OAH_API_URL if use_oah else None,
+            oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
         )
         self.code_generator = CodeGenerator(
             scene_model=scene_model if scene_model is not None else planner_model,
@@ -133,6 +134,7 @@ class ExplanationGenerator:
             session_id=self.session_id,
             use_oah=use_oah,
             oah_api_url=Config.OAH_API_URL if use_oah else None,
+            oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
         )
         self.explanation_renderer = HTMLRenderer(
             output_dir=output_dir,
@@ -931,7 +933,13 @@ if __name__ == "__main__":
                        help='Translate text content to Chinese in the final Markdown output (default: False)')
     parser.add_argument('--use_oah', action='store_true',
                        help='Use OAH workspace agent for code generation instead of direct LiteLLM call')
+    parser.add_argument('--oah_model', type=str, default=None,
+                       help='Model ref to use in OAH sessions (e.g. kimi-k26, GLM-5.1-FP8). Falls back to OAH_MODEL_REF env var or server default.')
     args = parser.parse_args()
+
+    # Set OAH model ref: CLI arg > env var
+    if args.oah_model:
+        Config.OAH_MODEL_REF = args.oah_model
 
     # Initialize planner model using LiteLLM (skip when using OAH)
     if args.verbose:
@@ -943,7 +951,8 @@ if __name__ == "__main__":
         planner_model = None
         helper_model = None
         scene_model = None
-        print(f"Using OAH mode — skipping LiteLLM model initialization")
+        model_info = f"model={Config.OAH_MODEL_REF}" if Config.OAH_MODEL_REF else "model=server_default"
+        print(f"Using OAH mode — {model_info}")
     else:
         planner_model = LiteLLMWrapper(
             model_name=args.model,
