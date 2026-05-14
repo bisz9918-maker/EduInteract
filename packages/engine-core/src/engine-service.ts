@@ -276,6 +276,7 @@ export class EngineService {
       resolveModelForRun: (workspace, modelRef) => runtimeKernel.modelInputs.resolveModelForRun(workspace, modelRef),
       appendEvent: (input) => runtimeKernel.engineLifecycle.appendEvent(input),
       getRun: (runId) => this.getRun(runId),
+      listRunSteps: (runId) => this.#runStepRepository.listByRunId(runId),
       enqueueRun: (sessionId, runId, options) => runtimeKernel.engineLifecycle.enqueueRun(sessionId, runId, options),
       dispatchNextQueuedRun: (sessionId) => runtimeKernel.sessionRuntime.dispatchNextQueuedRun(sessionId),
       afterSuccessfulRun: async ({ workspace, session, run }) => {

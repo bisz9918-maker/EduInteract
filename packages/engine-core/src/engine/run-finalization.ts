@@ -1,13 +1,57 @@
-import type { ChatMessage, Message, ModelGenerateResponse, Run, Session } from "@oah/api-contracts";
+import type { ChatMessage, Message, ModelGenerateResponse, Run, RunStep, Session } from "@oah/api-contracts";
 
 import { assistantContentFromModelOutput } from "../execution-message-content.js";
 import type { ModelStepResult, SessionRepository, WorkspaceRecord } from "../types.js";
 
 type AssistantMessage = Extract<Message, { role: "assistant" }>;
 
+/**
+ * Fix up the usage reported by the AI SDK's `result.usage`.
+ *
+ * For multi-step tool-calling runs, the AI SDK's `streamText()` `result.usage`
+ * correctly reports cumulative `inputTokens` (growing context), but only
+ * reports the **last step's** `outputTokens` instead of the sum across all steps.
+ *
+ * We fix this by reading per-step usage from run_steps and
+ * summing all `outputTokens` values for `model_call` steps.
+ */
+function fixupUsageFromSteps(
+  reportedUsage: ModelGenerateResponse["usage"],
+  steps: RunStep[]
+): ModelGenerateResponse["usage"] {
+  if (!reportedUsage || reportedUsage.outputTokens === undefined) {
+    return reportedUsage;
+  }
+
+  let totalOutputTokens = 0;
+  let hasModelCallStep = false;
+
+  for (const step of steps) {
+    if (step.stepType !== "model_call") continue;
+    hasModelCallStep = true;
+    const stepOutput = (step.output as Record<string, unknown> | undefined)
+      ?.response as Record<string, unknown> | undefined;
+    const out = stepOutput?.outputTokens;
+    if (typeof out === "number") {
+      totalOutputTokens += out;
+    }
+  }
+
+  if (!hasModelCallStep || totalOutputTokens === reportedUsage.outputTokens) {
+    return reportedUsage;
+  }
+
+  return {
+    ...reportedUsage,
+    outputTokens: totalOutputTokens,
+    totalTokens: (reportedUsage.inputTokens ?? 0) + totalOutputTokens
+  };
+}
+
 export interface RunFinalizationServiceDependencies {
   sessionRepository: SessionRepository;
   getRun: (runId: string) => Promise<Run>;
+  listRunSteps: (runId: string) => Promise<RunStep[]>;
   ensureAssistantMessage: (
     session: Session,
     run: Run,
@@ -52,6 +96,7 @@ export interface RunFinalizationServiceDependencies {
 export class RunFinalizationService {
   readonly #sessionRepository: SessionRepository;
   readonly #getRun: RunFinalizationServiceDependencies["getRun"];
+  readonly #listRunSteps: RunFinalizationServiceDependencies["listRunSteps"];
   readonly #ensureAssistantMessage: RunFinalizationServiceDependencies["ensureAssistantMessage"];
   readonly #updateAssistantMessage: RunFinalizationServiceDependencies["updateAssistantMessage"];
   readonly #appendEvent: RunFinalizationServiceDependencies["appendEvent"];
@@ -68,6 +113,7 @@ export class RunFinalizationService {
   constructor(dependencies: RunFinalizationServiceDependencies) {
     this.#sessionRepository = dependencies.sessionRepository;
     this.#getRun = dependencies.getRun;
+    this.#listRunSteps = dependencies.listRunSteps;
     this.#ensureAssistantMessage = dependencies.ensureAssistantMessage;
     this.#updateAssistantMessage = dependencies.updateAssistantMessage;
     this.#appendEvent = dependencies.appendEvent;
@@ -124,9 +170,12 @@ export class RunFinalizationService {
     });
 
     const endedAt = this.#nowIso();
+    // Fix usage: AI SDK reports last step's outputTokens instead of sum across steps
+    const steps = await this.#listRunSteps(input.run.id);
+    const fixedUsage = fixupUsageFromSteps(input.completed.usage, steps);
     const updatedRun = await this.#setRunStatus(latestRun, "completed", {
       endedAt,
-      ...(input.completed.usage ? { usage: input.completed.usage } : {})
+      ...(fixedUsage ? { usage: fixedUsage } : {})
     });
     await this.#recordSystemStep(updatedRun, "run.completed", {
       status: updatedRun.status

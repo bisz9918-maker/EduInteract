@@ -67,6 +67,7 @@ export interface CreateEngineExecutionServicesDependencies {
   resolveModelForRun: ModelInputService["resolveModelForRun"];
   appendEvent: (input: Omit<SessionEvent, "id" | "cursor" | "createdAt">) => Promise<SessionEvent>;
   getRun: (runId: string) => Promise<Run>;
+  listRunSteps: (runId: string) => Promise<RunStep[]>;
   enqueueRun: (
     sessionId: string,
     runId: string,
@@ -213,6 +214,7 @@ export function createEngineExecutionServices(
   const runFinalization = new RunFinalizationService({
     sessionRepository: dependencies.sessionRepository,
     getRun: (runId) => dependencies.getRun(runId),
+    listRunSteps: (runId) => dependencies.listRunSteps(runId),
     ensureAssistantMessage: (session, run, currentMessage, allMessages, content, metadata) =>
       toolMessages.ensureAssistantMessage(session, run, currentMessage, allMessages, content, metadata),
     updateAssistantMessage: (message, content) =>
