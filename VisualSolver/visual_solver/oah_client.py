@@ -30,6 +30,7 @@ class OAHClient:
         workspace_template: str = "visual-solver-code",
         timeout: float = 1200.0,
         model_ref: Optional[str] = None,
+        cleanup: bool = True,
     ):
         self.api_url = api_url or os.getenv("OAH_API_URL", "")
         if not self.api_url:
@@ -38,6 +39,7 @@ class OAHClient:
         self.workspace_template = workspace_template
         self.timeout = timeout
         self.model_ref = model_ref
+        self.cleanup = cleanup
 
     def _request(self, method: str, path: str, body: Optional[bytes] = None,
                  headers: Optional[dict] = None, params: Optional[dict] = None) -> dict:
@@ -101,24 +103,16 @@ class OAHClient:
         except Exception as e:
             _log(f"Failed to delete workspace {workspace_id}: {e}")
 
-    def schedule_workspace_cleanup(self, workspace_id: str, delay_seconds: int = 7200) -> None:
-        """Schedule workspace deletion after a period of inactivity.
+    def delete_workspace_immediately(self, workspace_id: str) -> None:
+        """Delete workspace immediately after use.
 
-        Spawns a background daemon thread that sleeps for ``delay_seconds``
-        and then deletes the workspace.  This is a best-effort cleanup —
-        if the process exits before the timer fires the workspace will
-        remain (the OAH server's own lifecycle management should handle it).
+        Previous implementation used a 2-hour delayed daemon thread, but since
+        the Python process typically exits before the timer fires, workspaces
+        were never cleaned up, eventually exhausting inotify watchers and
+        crashing the OAH server.
         """
-        import threading
-
-        def _cleanup():
-            time.sleep(delay_seconds)
-            _log(f"Cleanup timer fired for workspace {workspace_id}, deleting...")
-            self.delete_workspace(workspace_id)
-
-        t = threading.Thread(target=_cleanup, daemon=True)
-        t.start()
-        _log(f"Scheduled cleanup of workspace {workspace_id} in {delay_seconds}s")
+        _log(f"Deleting workspace {workspace_id}...")
+        self.delete_workspace(workspace_id)
 
     # ── Session ────────────────────────────────────────────────────────────
 
@@ -296,7 +290,6 @@ class OAHClient:
         spec: dict,
         output_file: str = "scene.html",
         problem_image: Optional[Image.Image] = None,
-        delete_workspace_after: bool = True,
     ) -> dict:
         """Full pipeline: create workspace -> upload spec -> send message -> read output file.
 
@@ -350,8 +343,8 @@ class OAHClient:
             return {"html": html, "usage": result["usage"]}
 
         finally:
-            if delete_workspace_after and workspace_id:
-                self.schedule_workspace_cleanup(workspace_id, delay_seconds=7200)
+            if self.cleanup and workspace_id:
+                self.delete_workspace_immediately(workspace_id)
 
     # ── High-level: modify scene HTML via OAH ─────────────────────────────
 
@@ -361,7 +354,6 @@ class OAHClient:
         current_code: str,
         output_file: str = "modified_scene.html",
         problem_image: Optional[Image.Image] = None,
-        delete_workspace_after: bool = True,
     ) -> dict:
         """Modify an existing scene HTML via OAH code agent.
 
@@ -435,8 +427,8 @@ class OAHClient:
             return {"html": html, "usage": result["usage"]}
 
         finally:
-            if delete_workspace_after and workspace_id:
-                self.schedule_workspace_cleanup(workspace_id, delay_seconds=7200)
+            if self.cleanup and workspace_id:
+                self.delete_workspace_immediately(workspace_id)
 
     # ── High-level: generate scene outline via OAH ──────────────────────
 
@@ -445,7 +437,6 @@ class OAHClient:
         spec: dict,
         problem_image: Optional[Image.Image] = None,
         output_file: str = "scene_outline.txt",
-        delete_workspace_after: bool = True,
     ) -> dict:
         """Generate scene outline via OAH outline agent.
 
@@ -508,8 +499,8 @@ class OAHClient:
             return {"outline": outline, "usage": result["usage"]}
 
         finally:
-            if delete_workspace_after and workspace_id:
-                self.schedule_workspace_cleanup(workspace_id, delay_seconds=7200)
+            if self.cleanup and workspace_id:
+                self.delete_workspace_immediately(workspace_id)
 
     # ── High-level: generate implementation plan via OAH ──────────────────
 
@@ -518,7 +509,6 @@ class OAHClient:
         spec: dict,
         problem_image: Optional[Image.Image] = None,
         output_file: str = "implementation_plan.txt",
-        delete_workspace_after: bool = True,
     ) -> dict:
         """Generate scene implementation plan via OAH planner agent.
 
@@ -583,5 +573,5 @@ class OAHClient:
             return {"plan": plan, "usage": result["usage"]}
 
         finally:
-            if delete_workspace_after and workspace_id:
-                self.schedule_workspace_cleanup(workspace_id, delay_seconds=7200)
+            if self.cleanup and workspace_id:
+                self.delete_workspace_immediately(workspace_id)
