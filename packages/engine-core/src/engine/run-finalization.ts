@@ -19,11 +19,8 @@ function fixupUsageFromSteps(
   reportedUsage: ModelGenerateResponse["usage"],
   steps: RunStep[]
 ): ModelGenerateResponse["usage"] {
-  if (!reportedUsage || reportedUsage.outputTokens === undefined) {
-    return reportedUsage;
-  }
-
   let totalOutputTokens = 0;
+  let totalInputTokens = 0;
   let hasModelCallStep = false;
 
   for (const step of steps) {
@@ -31,20 +28,34 @@ function fixupUsageFromSteps(
     hasModelCallStep = true;
     const stepOutput = (step.output as Record<string, unknown> | undefined)
       ?.response as Record<string, unknown> | undefined;
-    const out = stepOutput?.outputTokens;
+    const stepUsage = stepOutput?.usage as Record<string, unknown> | undefined;
+    const out = stepUsage?.outputTokens;
+    const inp = stepUsage?.inputTokens;
     if (typeof out === "number") {
       totalOutputTokens += out;
     }
+    if (typeof inp === "number") {
+      totalInputTokens = Math.max(totalInputTokens, inp);
+    }
   }
 
-  if (!hasModelCallStep || totalOutputTokens === reportedUsage.outputTokens) {
+  if (!hasModelCallStep) {
     return reportedUsage;
   }
 
+  // Use step-level sums if reported usage is missing or obviously wrong
+  const reportedOut = reportedUsage?.outputTokens;
+  const needsFixup = reportedOut === undefined || reportedOut === 0 || reportedOut < totalOutputTokens;
+  if (!needsFixup) {
+    return reportedUsage;
+  }
+
+  const fixedInput = reportedUsage?.inputTokens ?? totalInputTokens;
   return {
     ...reportedUsage,
+    inputTokens: fixedInput,
     outputTokens: totalOutputTokens,
-    totalTokens: (reportedUsage.inputTokens ?? 0) + totalOutputTokens
+    totalTokens: fixedInput + totalOutputTokens
   };
 }
 
