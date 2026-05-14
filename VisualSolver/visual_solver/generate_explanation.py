@@ -449,8 +449,10 @@ class ExplanationGenerator:
         if not os.path.exists(code_token_file):
             if scene_model is not None and hasattr(scene_model, '_trace_tokens'):
                 code_tokens = dict(scene_model._trace_tokens.get(scene_trace_id, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}))
+            elif self.use_oah and hasattr(self.code_generator, '_oah_usage'):
+                code_tokens = self.code_generator._oah_usage.get(scene_trace_id, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
             else:
-                code_tokens = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "note": "Generated via OAH, tokens not tracked"}
+                code_tokens = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
             with open(code_token_file, 'w') as f:
                 json.dump(code_tokens, f, indent=2)
             print(f"Scene {curr_scene} code token usage saved to {code_token_file}")

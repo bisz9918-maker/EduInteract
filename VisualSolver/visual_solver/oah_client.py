@@ -26,12 +26,14 @@ class OAHClient:
     def __init__(
         self,
         api_url: Optional[str] = None,
+        token: Optional[str] = None,
         workspace_template: str = "visual-solver-code",
         timeout: float = 1200.0,
     ):
         self.api_url = api_url or os.getenv("OAH_API_URL", "")
         if not self.api_url:
             raise ValueError("OAH_API_URL is required (pass api_url or set env var)")
+        self.token = token or os.getenv("OAH_TOKEN", "")
         self.workspace_template = workspace_template
         self.timeout = timeout
 
@@ -44,6 +46,8 @@ class OAHClient:
 
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header("Accept", "application/json")
+        if self.token:
+            req.add_header("Authorization", f"Bearer {self.token}")
         if body is not None:
             if headers and "Content-Type" in headers:
                 req.add_header("Content-Type", headers["Content-Type"])
@@ -73,6 +77,8 @@ class OAHClient:
         if headers:
             for k, v in headers.items():
                 req.add_header(k, v)
+        if self.token:
+            req.add_header("Authorization", f"Bearer {self.token}")
 
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             return resp.read()
@@ -142,9 +148,17 @@ class OAHClient:
         _log(f"Sent multimodal message, run={run_id}")
         return run_id
 
-    def wait_for_run(self, run_id: str, max_seconds: int = 600, poll_interval: float = 2.0) -> str:
+    def wait_for_run(self, run_id: str, max_seconds: int = 600, poll_interval: float = 2.0) -> dict:
+        """Wait for a run to complete and return a dict with status and usage.
+
+        Returns:
+            dict with keys:
+                status: "completed" | "failed" | "cancelled"
+                usage: {"inputTokens": int, "outputTokens": int, "totalTokens": int} | {}
+        """
         start = time.monotonic()
         last_status = ""
+        run = {}
         while time.monotonic() - start < max_seconds:
             try:
                 run = self._request("GET", f"/api/v1/runs/{run_id}")
@@ -153,7 +167,10 @@ class OAHClient:
                     _log(f"Run {run_id} status: {status} ({time.monotonic()-start:.0f}s)")
                     last_status = status
                 if status in ("completed", "failed", "cancelled"):
-                    return status
+                    return {
+                        "status": status,
+                        "usage": run.get("usage", {}),
+                    }
             except Exception as e:
                 _log(f"Run poll error ({time.monotonic()-start:.0f}s): {e}")
             time.sleep(poll_interval)
@@ -165,7 +182,9 @@ class OAHClient:
             session_id,
             "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
         )
-        self.wait_for_run(run_id, max_seconds=int(self.timeout))
+        result = self.wait_for_run(run_id, max_seconds=int(self.timeout))
+        if result["status"] != "completed":
+            raise RuntimeError(f"Session init run ended with status: {result['status']}")
         _log("Session initialized")
 
     # ── File Upload / Read / Download ──────────────────────────────────────
@@ -245,8 +264,14 @@ class OAHClient:
         output_file: str = "scene.html",
         problem_image: Optional[Image.Image] = None,
         delete_workspace_after: bool = True,
-    ) -> str:
-        """Full pipeline: create workspace -> upload spec -> send message -> read output file."""
+    ) -> dict:
+        """Full pipeline: create workspace -> upload spec -> send message -> read output file.
+
+        Returns:
+            dict with keys:
+                html: str — the generated HTML content
+                usage: {"inputTokens": int, "outputTokens": int, "totalTokens": int}
+        """
         workspace_id = None
         try:
             _log(f"Step 1: Creating workspace...")
@@ -279,9 +304,9 @@ class OAHClient:
             run_id = self.send_message(session_id, msg)
 
             _log(f"Step 7: Waiting for agent run (timeout={self.timeout}s)...")
-            status = self.wait_for_run(run_id, max_seconds=int(self.timeout))
-            if status != "completed":
-                raise RuntimeError(f"Agent run ended with status: {status}")
+            result = self.wait_for_run(run_id, max_seconds=int(self.timeout))
+            if result["status"] != "completed":
+                raise RuntimeError(f"Agent run ended with status: {result['status']}")
 
             _log(f"Step 8: Reading {output_file}...")
             html = self.read_file_text(workspace_id, output_file, retries=5)
@@ -289,7 +314,7 @@ class OAHClient:
                 raise ValueError(f"{output_file} is empty after agent run")
 
             _log(f"Got {output_file}: {len(html)} chars")
-            return html
+            return {"html": html, "usage": result["usage"]}
 
         finally:
             if delete_workspace_after and workspace_id:
@@ -304,13 +329,18 @@ class OAHClient:
         output_file: str = "modified_scene.html",
         problem_image: Optional[Image.Image] = None,
         delete_workspace_after: bool = True,
-    ) -> str:
+    ) -> dict:
         """Modify an existing scene HTML via OAH code agent.
 
         spec should contain:
             task: "modify_scene"
             topic, scene_number, user_request, problem_text (optional)
         current_code: the existing HTML to be modified
+
+        Returns:
+            dict with keys:
+                html: str — the modified HTML content
+                usage: {"inputTokens": int, "outputTokens": int, "totalTokens": int}
         """
         import base64
 
@@ -359,9 +389,9 @@ class OAHClient:
                 run_id = self.send_message(session_id, msg_text)
 
             _log(f"Step 7: Waiting for modify run (timeout=1200s)...")
-            status = self.wait_for_run(run_id, max_seconds=1200)
-            if status != "completed":
-                raise RuntimeError(f"Modify run ended with status: {status}")
+            result = self.wait_for_run(run_id, max_seconds=1200)
+            if result["status"] != "completed":
+                raise RuntimeError(f"Modify run ended with status: {result['status']}")
 
             _log(f"Step 8: Reading {output_file}...")
             html = self.read_file_text(workspace_id, output_file, retries=5)
@@ -369,7 +399,7 @@ class OAHClient:
                 raise ValueError(f"{output_file} is empty after modify run")
 
             _log(f"Got {output_file}: {len(html)} chars")
-            return html
+            return {"html": html, "usage": result["usage"]}
 
         finally:
             if delete_workspace_after and workspace_id:
@@ -383,8 +413,14 @@ class OAHClient:
         problem_image: Optional[Image.Image] = None,
         output_file: str = "scene_outline.txt",
         delete_workspace_after: bool = True,
-    ) -> str:
-        """Generate scene outline via OAH outline agent."""
+    ) -> dict:
+        """Generate scene outline via OAH outline agent.
+
+        Returns:
+            dict with keys:
+                outline: str — the generated outline text
+                usage: {"inputTokens": int, "outputTokens": int, "totalTokens": int}
+        """
         import base64
 
         workspace_id = None
@@ -426,9 +462,9 @@ class OAHClient:
             run_id = self.send_message(session_id, msg_text)
 
             _log(f"Step 7: Waiting for outline run (timeout=1200s)...")
-            status = self.wait_for_run(run_id, max_seconds=1200)
-            if status != "completed":
-                raise RuntimeError(f"Outline run ended with status: {status}")
+            result = self.wait_for_run(run_id, max_seconds=1200)
+            if result["status"] != "completed":
+                raise RuntimeError(f"Outline run ended with status: {result['status']}")
 
             _log(f"Step 8: Reading {output_file}...")
             outline = self.read_file_text(workspace_id, output_file, retries=5)
@@ -436,7 +472,7 @@ class OAHClient:
                 raise ValueError(f"{output_file} is empty after outline run")
 
             _log(f"Got {output_file}: {len(outline)} chars")
-            return outline
+            return {"outline": outline, "usage": result["usage"]}
 
         finally:
             if delete_workspace_after and workspace_id:
@@ -450,11 +486,16 @@ class OAHClient:
         problem_image: Optional[Image.Image] = None,
         output_file: str = "implementation_plan.txt",
         delete_workspace_after: bool = True,
-    ) -> str:
+    ) -> dict:
         """Generate scene implementation plan via OAH planner agent.
 
         Same pipeline as generate_scene_html but uses the visual-solver-plan
         runtime template and produces a text plan instead of HTML.
+
+        Returns:
+            dict with keys:
+                plan: str — the generated implementation plan text
+                usage: {"inputTokens": int, "outputTokens": int, "totalTokens": int}
         """
         workspace_id = None
         try:
@@ -496,9 +537,9 @@ class OAHClient:
             run_id = self.send_message(session_id, msg)
 
             _log(f"Step 7: Waiting for planner run (timeout=1200s)...")
-            status = self.wait_for_run(run_id, max_seconds=1200)
-            if status != "completed":
-                raise RuntimeError(f"Planner run ended with status: {status}")
+            result = self.wait_for_run(run_id, max_seconds=1200)
+            if result["status"] != "completed":
+                raise RuntimeError(f"Planner run ended with status: {result['status']}")
 
             _log(f"Step 8: Reading {output_file}...")
             plan = self.read_file_text(workspace_id, output_file, retries=5)
@@ -506,7 +547,7 @@ class OAHClient:
                 raise ValueError(f"{output_file} is empty after planner run")
 
             _log(f"Got {output_file}: {len(plan)} chars")
-            return plan
+            return {"plan": plan, "usage": result["usage"]}
 
         finally:
             if delete_workspace_after and workspace_id:

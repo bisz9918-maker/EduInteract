@@ -28,6 +28,7 @@ class CodeGenerator:
         self.session_id = session_id
         self.use_oah = use_oah
         self.oah_api_url = oah_api_url
+        self._oah_usage = {}  # scene_trace_id -> usage dict
 
     async def _extract_code_with_retries(self, response_text: str, pattern: str,
                                           generation_name: str = None, trace_id: str = None,
@@ -64,7 +65,8 @@ class CodeGenerator:
                                            scene_implementation: str,
                                            scene_number: int,
                                            problem_image: Union[Image.Image, None] = None,
-                                           file_prefix: str = None) -> tuple:
+                                           file_prefix: str = None,
+                                           scene_trace_id: str = None) -> tuple:
         """Generate HTML code via OAH workspace agent (runs in thread to avoid event loop conflicts)."""
         import asyncio
         from visual_solver.oah_client import OAHClient
@@ -89,10 +91,20 @@ class CodeGenerator:
             )
 
         try:
-            html = await asyncio.to_thread(_sync_call)
+            result = await asyncio.to_thread(_sync_call)
         except Exception as e:
             print(f"[OAH] !!! OAH generation FAILED for scene {scene_number}: {e}")
             raise
+
+        html = result["html"]
+        usage = result.get("usage", {})
+        if usage and scene_trace_id:
+            self._oah_usage[scene_trace_id] = {
+                "input_tokens": usage.get("inputTokens", 0),
+                "output_tokens": usage.get("outputTokens", 0),
+                "total_tokens": usage.get("totalTokens", 0),
+            }
+            print(f"[OAH] Token usage for scene {scene_number}: {usage.get('totalTokens',0)} (in={usage.get('inputTokens',0)}, out={usage.get('outputTokens',0)})")
 
         print(f"[OAH] === OAH generation complete for scene {scene_number}: {len(html)} chars ===")
         return html, html
@@ -123,6 +135,7 @@ class CodeGenerator:
                 scene_number=scene_number,
                 problem_image=problem_image,
                 file_prefix=file_prefix,
+                scene_trace_id=scene_trace_id,
             )
 
         # ── LiteLLM fallback (original path) ───────────────────────────────

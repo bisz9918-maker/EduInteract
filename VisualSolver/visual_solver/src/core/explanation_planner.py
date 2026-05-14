@@ -54,6 +54,7 @@ class ExplanationPlanner:
         self.use_context_learning = use_context_learning
         self.use_oah = use_oah
         self.oah_api_url = oah_api_url
+        self._oah_usage = {}  # stage -> usage dict
         self.context_learning_path = context_learning_path
         # Initialize different types of context examples
         self.scene_plan_examples = self._load_context_examples('scene_plan') if use_context_learning else None
@@ -174,10 +175,12 @@ class ExplanationPlanner:
                 f.write(scene_outline)
             print(f"✓ Scene Outline (OAH) saved to {file_prefix}_scene_outline.txt")
 
-            # Save placeholder token usage
+            # Save token usage from OAH
             token_file = os.path.join(self.output_dir, file_prefix, f"{file_prefix}_scene_outline_tokens.json")
+            outline_usage = self._oah_usage.get("scene_outline", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
             with open(token_file, "w") as f:
-                json.dump({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "note": "Generated via OAH, tokens not tracked"}, f, indent=2)
+                json.dump(outline_usage, f, indent=2)
+            print(f"[OAH] Scene outline token usage saved to {token_file}")
 
             return scene_outline
 
@@ -253,10 +256,20 @@ class ExplanationPlanner:
             )
 
         try:
-            outline = await asyncio.to_thread(_sync_call)
+            result = await asyncio.to_thread(_sync_call)
         except Exception as e:
             print(f"[OAH] !!! OAH outline generation FAILED: {e}")
             raise
+
+        outline = result["outline"]
+        usage = result.get("usage", {})
+        if usage:
+            self._oah_usage["scene_outline"] = {
+                "input_tokens": usage.get("inputTokens", 0),
+                "output_tokens": usage.get("outputTokens", 0),
+                "total_tokens": usage.get("totalTokens", 0),
+            }
+            print(f"[OAH] Outline token usage: {usage.get('totalTokens',0)} (in={usage.get('inputTokens',0)}, out={usage.get('outputTokens',0)})")
 
         # Extract from XML tags if present
         outline_match = re.search(r'(<SCENE_OUTLINE>.*?</SCENE_OUTLINE>)', outline, re.DOTALL)
@@ -314,10 +327,12 @@ class ExplanationPlanner:
                 f.write(implementation_plan)
             print(f"✓ Scene {i} Implementation Plan (OAH) saved to {plan_file}")
 
-            # Save placeholder token usage
+            # Save token usage from OAH
             token_file = os.path.join(subplan_dir, f"scene{i}_implementation_tokens.json")
+            impl_usage = self._oah_usage.get(f"scene_{i}_implementation", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
             with open(token_file, "w") as f:
-                json.dump({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "note": "Generated via OAH, tokens not tracked"}, f, indent=2)
+                json.dump(impl_usage, f, indent=2)
+            print(f"[OAH] Scene {i} implementation token usage saved to {token_file}")
 
             return implementation_plan
 
@@ -421,10 +436,20 @@ class ExplanationPlanner:
             )
 
         try:
-            plan = await asyncio.to_thread(_sync_call)
+            result = await asyncio.to_thread(_sync_call)
         except Exception as e:
             print(f"[OAH] !!! OAH planning FAILED for scene {scene_number}: {e}")
             raise
+
+        plan = result["plan"]
+        usage = result.get("usage", {})
+        if usage:
+            self._oah_usage[f"scene_{scene_number}_implementation"] = {
+                "input_tokens": usage.get("inputTokens", 0),
+                "output_tokens": usage.get("outputTokens", 0),
+                "total_tokens": usage.get("totalTokens", 0),
+            }
+            print(f"[OAH] Planning token usage for scene {scene_number}: {usage.get('totalTokens',0)} (in={usage.get('inputTokens',0)}, out={usage.get('outputTokens',0)})")
 
         # Extract from XML tags if present
         plan_match = re.search(r'(<SCENE_VISION_STORYBOARD_AND_TECHNICAL_PLAN>.*?</SCENE_VISION_STORYBOARD_AND_TECHNICAL_PLAN>)', plan, re.DOTALL)
