@@ -212,6 +212,12 @@ export function createBashTool(context: NativeToolFactoryContext): EngineToolSet
 
         const command = input.command ?? "";
 
+        // In embedded sandbox mode, remap /workspace/ to the actual rootPath
+        // so agents that reference /workspace/ (as in Docker deployments) work correctly.
+        const remappedCommand = context.workspaceRoot !== "/workspace"
+          ? command.replace(/\/workspace\//g, `${context.workspaceRoot}/`).replace(/\/workspace\b/g, context.workspaceRoot)
+          : command;
+
         if (input.persistent_session_id) {
           if (input.run_in_background) {
             throw new AppError(
@@ -234,7 +240,7 @@ export function createBashTool(context: NativeToolFactoryContext): EngineToolSet
               workspace,
               sessionId: context.sessionId,
               terminalId: input.persistent_session_id,
-              command,
+              command: remappedCommand,
               mode: input.persistent_mode ?? "command",
               ...(input.append_newline !== undefined ? { appendNewline: input.append_newline } : {}),
               ...(input.timeout !== undefined ? { timeoutMs: input.timeout } : {}),
@@ -261,7 +267,7 @@ export function createBashTool(context: NativeToolFactoryContext): EngineToolSet
           const workspace = syntheticWorkspace(context.workspaceRoot);
           const background = await context.commandExecutor.runBackground({
             workspace,
-            command,
+            command: remappedCommand,
             sessionId: context.sessionId,
             description: input.description
           });
@@ -278,7 +284,7 @@ export function createBashTool(context: NativeToolFactoryContext): EngineToolSet
           const workspace = syntheticWorkspace(context.workspaceRoot);
           result = await context.commandExecutor.runForeground({
             workspace,
-            command,
+            command: remappedCommand,
             timeoutMs: input.timeout,
             ...(executionContext.abortSignal ? { signal: executionContext.abortSignal } : {})
           });

@@ -168,6 +168,10 @@ const proxyAuthorizationHeader = process.env.OAH_TOKEN?.trim()
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: "./",
+  build: {
+    outDir: "dist"
+  },
   resolve: {
     alias: {
       "@": workspacePath("./src"),
@@ -177,6 +181,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
+    allowedHosts: ["nat2-notebook-inspire.sii.edu.cn"],
     proxy: {
       "/api": {
         target: proxyTarget,
