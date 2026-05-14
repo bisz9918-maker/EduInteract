@@ -1,0 +1,253 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: open_agent_harness
+      POSTGRES_USER: oah
+      POSTGRES_PASSWORD: oah
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oah -d open_agent_harness"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: oahadmin
+      MINIO_ROOT_PASSWORD: oahadmin123
+      MINIO_REGION_NAME: us-east-1
+    command:
+      - server
+      - /data
+      - --address
+      - :9000
+      - --console-address
+      - :9001
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  oah-api:
+    image: openagentharness-oah-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-runtime
+      args:
+        BASE_BUILD_IMAGE: ${OAH_DOCKER_BUILD_BASE_IMAGE:-node:24-bookworm}
+        BASE_RUNTIME_IMAGE: ${OAH_DOCKER_RUNTIME_BASE_IMAGE:-debian:bookworm-slim}
+    restart: unless-stopped
+    command:
+      - node
+      - dist/index.js
+      - --config
+      - /config/server.docker.yaml
+      - --api-only
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=1024"
+      OAH_ALLOW_PRIVATE_INTERNAL_MODEL_ROUTES: "true"
+      OAH_INTERNAL_BASE_URL: "http://oah-api:8787"
+      OAH_NATIVE_WORKSPACE_SYNC: "0"
+      OAH_WORKSPACE_REGISTRY_POLL_INTERVAL_MS: "15000"
+      OAH_WORKSPACE_PREWARM_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8787:8787"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${OAH_DOCKER_API_CONFIG:?set OAH_DOCKER_API_CONFIG}:/config/server.docker.yaml:ro
+      - oah-api-workspaces:/data/workspaces
+      - oah-runtime-state:/data/runtime-state
+      - oah-runtimes:/data/runtimes:ro
+      - oah-models:/data/models:ro
+      - oah-tools:/data/tools:ro
+      - oah-skills:/data/skills:ro
+      - oah-archives:/data/archives:ro
+
+  oah-controller:
+    image: openagentharness-oah-controller:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: controller-runtime
+      args:
+        BASE_BUILD_IMAGE: ${OAH_DOCKER_BUILD_BASE_IMAGE:-node:24-bookworm}
+        BASE_RUNTIME_IMAGE: ${OAH_DOCKER_RUNTIME_BASE_IMAGE:-debian:bookworm-slim}
+    restart: unless-stopped
+    command:
+      - node
+      - dist/index.js
+      - --config
+      - /config/server.docker.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=80"
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+      OAH_DOCKER_API_CONFIG: ${OAH_DOCKER_API_CONFIG}
+      OAH_DOCKER_CONTROLLER_CONFIG: ${OAH_DOCKER_CONTROLLER_CONFIG}
+      OAH_DOCKER_SANDBOX_CONFIG: ${OAH_DOCKER_SANDBOX_CONFIG}
+      OAH_CONTROLLER_SCALE_INTERVAL_MS: "15000"
+      OAH_LOCAL_REPO_ROOT: ${OAH_LOCAL_REPO_ROOT}
+      OAH_LOCAL_DEPLOY_ROOT: ${OAH_LOCAL_DEPLOY_ROOT}
+    ports:
+      - "8789:8788"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${OAH_DOCKER_CONTROLLER_CONFIG:?set OAH_DOCKER_CONTROLLER_CONFIG}:/config/server.docker.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${OAH_LOCAL_REPO_ROOT:?set OAH_LOCAL_REPO_ROOT}:${OAH_LOCAL_REPO_ROOT:?set OAH_LOCAL_REPO_ROOT}:ro
+      - ${OAH_LOCAL_DEPLOY_ROOT:?set OAH_LOCAL_DEPLOY_ROOT}:${OAH_LOCAL_DEPLOY_ROOT:?set OAH_LOCAL_DEPLOY_ROOT}:ro
+
+  oah-sandbox:
+    image: openagentharness-oah-sandbox:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker-runtime
+      args:
+        BASE_BUILD_IMAGE: ${OAH_DOCKER_BUILD_BASE_IMAGE:-node:24-bookworm}
+        BASE_RUNTIME_IMAGE: ${OAH_DOCKER_RUNTIME_BASE_IMAGE:-debian:bookworm-slim}
+    restart: unless-stopped
+    command:
+      - sh
+      - -lc
+      - export OAH_INTERNAL_BASE_URL="http://$${HOSTNAME}:8787" && exec node dist/worker.js --config /config/server.docker.yaml
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=512"
+      OAH_ALLOW_PRIVATE_INTERNAL_ROUTES: "true"
+      OAH_NATIVE_WORKSPACE_SYNC: "0"
+      OAH_WORKSPACE_MATERIALIZATION_MAINTENANCE_INTERVAL_MS: "15000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    expose:
+      - "8787"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${OAH_DOCKER_SANDBOX_CONFIG:?set OAH_DOCKER_SANDBOX_CONFIG}:/config/server.docker.yaml:ro
+      - /data/workspaces
+      - oah-runtime-state:/data/runtime-state
+      - oah-runtimes:/data/runtimes:ro
+      - oah-models:/data/models:ro
+      - oah-tools:/data/tools:ro
+      - oah-skills:/data/skills:ro
+      - oah-archives:/data/archives:ro
+
+volumes:
+  pgdata:
+  redisdata:
+  minio-data:
+  oah-api-workspaces:
+  oah-runtime-state:
+  oah-runtimes:
+    driver: rclone
+    driver_opts:
+      type: s3
+      path: test-oah-server/runtime
+      s3_provider: Minio
+      s3_access_key_id: oahadmin
+      s3_secret_access_key: oahadmin123
+      s3_region: us-east-1
+      s3_endpoint: http://host.docker.internal:9000
+      s3_force_path_style: "true"
+      vfs_cache_mode: "off"
+      poll_interval: 0
+  oah-models:
+    driver: rclone
+    driver_opts:
+      type: s3
+      path: test-oah-server/model
+      s3_provider: Minio
+      s3_access_key_id: oahadmin
+      s3_secret_access_key: oahadmin123
+      s3_region: us-east-1
+      s3_endpoint: http://host.docker.internal:9000
+      s3_force_path_style: "true"
+      vfs_cache_mode: "off"
+      poll_interval: 0
+  oah-tools:
+    driver: rclone
+    driver_opts:
+      type: s3
+      path: test-oah-server/tool
+      s3_provider: Minio
+      s3_access_key_id: oahadmin
+      s3_secret_access_key: oahadmin123
+      s3_region: us-east-1
+      s3_endpoint: http://host.docker.internal:9000
+      s3_force_path_style: "true"
+      vfs_cache_mode: "off"
+      poll_interval: 0
+  oah-skills:
+    driver: rclone
+    driver_opts:
+      type: s3
+      path: test-oah-server/skill
+      s3_provider: Minio
+      s3_access_key_id: oahadmin
+      s3_secret_access_key: oahadmin123
+      s3_region: us-east-1
+      s3_endpoint: http://host.docker.internal:9000
+      s3_force_path_style: "true"
+      vfs_cache_mode: "off"
+      poll_interval: 0
+  oah-archives:
+    driver: rclone
+    driver_opts:
+      type: s3
+      path: test-oah-server/archive
+      s3_provider: Minio
+      s3_access_key_id: oahadmin
+      s3_secret_access_key: oahadmin123
+      s3_region: us-east-1
+      s3_endpoint: http://host.docker.internal:9000
+      s3_force_path_style: "true"
+      vfs_cache_mode: "off"
+      poll_interval: 0
