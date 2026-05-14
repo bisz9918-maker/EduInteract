@@ -217,28 +217,37 @@ export async function discoverProjectWorkspaces(input: {
 }
 
 export function openFsWatcher(targetPath: string, onChange: () => void, recursive = false): FSWatcher | undefined {
+  function withErrorHandler(watcher: FSWatcher): FSWatcher {
+    // Suppress ENOENT/ENOSPC errors when the watched directory is deleted
+    // or the system file-watcher limit is reached, instead of crashing.
+    watcher.on("error", () => {
+      try { watcher.close(); } catch { /* ignore */ }
+    });
+    return watcher;
+  }
+
   try {
-    return watch(
+    return withErrorHandler(watch(
       targetPath,
       {
         persistent: false,
         ...(recursive ? { recursive: true } : {})
       },
       () => onChange()
-    );
+    ));
   } catch {
     if (!recursive) {
       return undefined;
     }
 
     try {
-      return watch(
+      return withErrorHandler(watch(
         targetPath,
         {
           persistent: false
         },
         () => onChange()
-      );
+      ));
     } catch {
       return undefined;
     }
