@@ -4,7 +4,9 @@ import {
   generateText,
   stepCountIs,
   streamText,
-  type LanguageModel
+  type LanguageModel,
+  type LanguageModelMiddleware,
+  wrapLanguageModel
 } from "ai";
 
 import type { PlatformModelDefinition, PlatformModelRegistry } from "@oah/config";
@@ -34,6 +36,67 @@ import {
 } from "./runtime-helpers.js";
 import { prepareToolServers } from "./mcp-tools.js";
 import { formatSupportedModelProviders } from "./providers.js";
+
+/**
+ * Middleware that captures V2-style usage (promptTokens/completionTokens) from
+ * the provider's stream finish event and injects it as V3 providerMetadata,
+ * working around AI SDK's asLanguageModelUsage() which may lose token counts
+ * for openai-compatible providers in streaming mode.
+ */
+function createUsagePassthroughMiddleware(): LanguageModelMiddleware {
+  return {
+    specificationVersion: "v3",
+    wrapStream: async ({ doStream }) => {
+      const result = await doStream();
+      const originalStream = result.stream;
+
+      const transformedStream = new ReadableStream({
+        async start(controller) {
+          const reader = originalStream.getReader();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              // Fix V2-style usage from finish event: AI SDK's openai-compatible provider
+              // emits {inputTokens: number, outputTokens: number} (V2 format) but AI SDK's
+              // asLanguageModelUsage() expects V3 format {inputTokens: {total: number}, ...}.
+              // When V2 inputTokens/outputTokens are present, inject them as V3 format so
+              // the upstream streamText() can correctly build the Usage object.
+              if (value.type === "finish") {
+                const finishUsage = (value as Record<string, unknown>).usage as Record<string, unknown> | undefined;
+                if (finishUsage) {
+                  const flatInput = finishUsage.inputTokens as number | undefined;
+                  const flatOutput = finishUsage.outputTokens as number | undefined;
+                  const flatTotal = finishUsage.totalTokens as number | undefined;
+
+                  // If V2 flat fields exist but inputTokens is not already a V3 object
+                  if (flatInput != null && typeof flatInput === "number") {
+                    (value as Record<string, unknown>).usage = {
+                      inputTokens: { total: flatInput },
+                      outputTokens: { total: flatOutput ?? 0 },
+                      totalTokens: flatTotal ?? flatInput + (flatOutput ?? 0),
+                    };
+                  }
+                }
+              }
+
+              controller.enqueue(value);
+            }
+          } finally {
+            reader.releaseLock();
+          }
+          controller.close();
+        }
+      });
+
+      return {
+        ...result,
+        stream: transformedStream,
+      };
+    }
+  };
+}
 
 export { prepareToolServers } from "./mcp-tools.js";
 export {
@@ -306,7 +369,10 @@ export class AiSdkModelRuntime implements ModelGateway {
           ...(definition.key ? { apiKey: definition.key } : {}),
           includeUsage: true
         });
-        return createImageExtractionModel(provider(definition.name));
+        const baseModel = provider(definition.name);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const usageModel = wrapLanguageModel({ model: baseModel as any, middleware: createUsagePassthroughMiddleware() });
+        return createImageExtractionModel(usageModel);
       }
       default:
         throw new AppError(

@@ -185,6 +185,7 @@ function toRunRegistryEntry(row: RecordRow): Run {
     ...(optionalRowString(row, "error_code") ? { errorCode: rowString(row, "error_code") } : {}),
     ...(optionalRowString(row, "error_message") ? { errorMessage: rowString(row, "error_message") } : {}),
     ...(row.metadata !== undefined && row.metadata !== null ? { metadata: row.metadata as Run["metadata"] } : {}),
+    ...(row.usage !== undefined && row.usage !== null ? { usage: row.usage as Run["usage"] } : {}),
     createdAt: normalizeTimestamp(rowString(row, "created_at")) ?? rowString(row, "created_at")
   };
 }
@@ -244,11 +245,13 @@ async function ensureServiceRoutingRegistrySchema(pool: Pool): Promise<void> {
       error_code text,
       error_message text,
       metadata jsonb,
+      usage jsonb,
       created_at timestamptz not null
     )`,
     `create index if not exists run_registry_session_idx on run_registry (session_id, created_at desc, id desc)`,
     `create index if not exists run_registry_workspace_idx on run_registry (workspace_id, created_at desc, id desc)`,
-    `create index if not exists run_registry_recoverable_idx on run_registry (status, heartbeat_at, started_at, created_at)`
+    `create index if not exists run_registry_recoverable_idx on run_registry (status, heartbeat_at, started_at, created_at)`,
+    `alter table run_registry add column if not exists usage jsonb`,
   ];
 
   for (const statement of statements) {
@@ -322,6 +325,7 @@ async function migrateServiceRoutingRegistry(pool: Pool): Promise<void> {
        error_code = excluded.error_code,
        error_message = excluded.error_message,
        metadata = excluded.metadata,
+       usage = excluded.usage,
        created_at = excluded.created_at`
     : "do nothing";
 
@@ -383,6 +387,7 @@ async function migrateServiceRoutingRegistry(pool: Pool): Promise<void> {
        error_code,
        error_message,
        metadata,
+       usage,
        created_at
      )
      select
@@ -405,6 +410,7 @@ async function migrateServiceRoutingRegistry(pool: Pool): Promise<void> {
        r.error_code,
        r.error_message,
        r.metadata,
+       r.usage,
        r.created_at
      from runs r
      join workspaces w on w.id = r.workspace_id
@@ -609,6 +615,7 @@ class PostgresServiceRoutingRegistry {
          error_code,
          error_message,
          metadata,
+         usage,
          created_at::text
        from run_registry
        where id = $1
@@ -651,6 +658,7 @@ class PostgresServiceRoutingRegistry {
          error_code,
          error_message,
          metadata,
+         usage,
          created_at::text
        from run_registry
        where session_id = $1
@@ -683,6 +691,7 @@ class PostgresServiceRoutingRegistry {
          error_code,
          error_message,
          metadata,
+         usage,
          created_at::text
        from run_registry
        where status = any($1::text[])
@@ -717,9 +726,10 @@ class PostgresServiceRoutingRegistry {
          error_code,
          error_message,
          metadata,
+         usage,
          created_at
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
        on conflict (id) do update set
          workspace_id = excluded.workspace_id,
          session_id = excluded.session_id,
@@ -739,6 +749,7 @@ class PostgresServiceRoutingRegistry {
          error_code = excluded.error_code,
          error_message = excluded.error_message,
          metadata = excluded.metadata,
+       usage = excluded.usage,
          created_at = excluded.created_at`,
       [
         input.id,
@@ -760,6 +771,7 @@ class PostgresServiceRoutingRegistry {
         input.errorCode ?? null,
         input.errorMessage ?? null,
         input.metadata ?? null,
+        input.usage ?? null,
         input.createdAt
       ]
     );

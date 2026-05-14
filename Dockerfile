@@ -232,7 +232,7 @@ RUN cd /tmp && npm init -y && npm install playwright-core
 
 FROM runtime-common AS runtime-execution-base
 
-RUN apk add --no-cache python3 chromium chromium-swiftshader nss freetype harfbuzz
+RUN apk add --no-cache python3 chromium chromium-swiftshader nss freetype harfbuzz font-wqy-zenhei
 
 COPY --from=playwright-deps /tmp/node_modules /app/playwright_modules
 
