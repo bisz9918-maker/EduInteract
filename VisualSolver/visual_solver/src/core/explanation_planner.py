@@ -46,7 +46,7 @@ class ExplanationPlanner:
         use_langfuse (bool): Whether to use Langfuse logging. Defaults to True
     """
 
-    def __init__(self, planner_model, helper_model=None, output_dir="output", print_response=False, use_context_learning=False, context_learning_path="data/context_learning", use_rag=False, session_id=None, chroma_db_path="data/rag/chroma_db", manim_docs_path="data/rag/manim_docs", embedding_model="text-embedding-ada-002", use_langfuse=True, use_oah=False, oah_api_url=None, oah_model_ref=None):
+    def __init__(self, planner_model, helper_model=None, output_dir="output", print_response=False, use_context_learning=False, context_learning_path="data/context_learning", use_rag=False, session_id=None, chroma_db_path="data/rag/chroma_db", manim_docs_path="data/rag/manim_docs", embedding_model="text-embedding-ada-002", use_langfuse=True, use_oah=False, oah_api_url=None, oah_model_ref=None, oah_token=None):
         self.planner_model = planner_model
         self.helper_model = helper_model if helper_model is not None else planner_model
         self.output_dir = output_dir
@@ -55,6 +55,7 @@ class ExplanationPlanner:
         self.use_oah = use_oah
         self.oah_api_url = oah_api_url
         self.oah_model_ref = oah_model_ref
+        self.oah_token = oah_token
         self._oah_usage = {}  # stage -> usage dict
         self.context_learning_path = context_learning_path
         # Initialize different types of context examples
@@ -250,7 +251,7 @@ class ExplanationPlanner:
         print(f"[OAH] === Starting OAH outline generation ===")
 
         def _sync_call():
-            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref)
+            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token)
             return client.generate_scene_outline(
                 spec=spec,
                 problem_image=problem_image,
@@ -430,7 +431,7 @@ class ExplanationPlanner:
         print(f"[OAH] === Starting OAH planning for scene {scene_number} ===")
 
         def _sync_call():
-            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref)
+            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token)
             return client.generate_implementation_plan(
                 spec=spec,
                 problem_image=problem_image,

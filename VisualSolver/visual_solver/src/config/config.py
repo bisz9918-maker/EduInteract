@@ -16,6 +16,7 @@ class Config:
     OAH_API_URL = os.getenv('OAH_API_URL', '')
     OAH_WORKSPACE_TEMPLATE = os.getenv('OAH_WORKSPACE_TEMPLATE', 'visual-solver-code')
     OAH_MODEL_REF = os.getenv('OAH_MODEL_REF', '')
+    OAH_TOKEN = os.getenv('OAH_TOKEN', '') or os.getenv('OAH_LOCAL_API_TOKEN', '')
 
     # Kokoro TTS configurations
     KOKORO_MODEL_PATH = os.getenv('KOKORO_MODEL_PATH')

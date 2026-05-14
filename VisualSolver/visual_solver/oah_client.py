@@ -35,7 +35,7 @@ class OAHClient:
         self.api_url = api_url or os.getenv("OAH_API_URL", "")
         if not self.api_url:
             raise ValueError("OAH_API_URL is required (pass api_url or set env var)")
-        self.token = token or os.getenv("OAH_TOKEN", "")
+        self.token = token or os.getenv("OAH_TOKEN", "") or os.getenv("OAH_LOCAL_API_TOKEN", "")
         self.workspace_template = workspace_template
         self.timeout = timeout
         self.model_ref = model_ref

@@ -117,6 +117,7 @@ class ExplanationGenerator:
             use_oah=use_oah,
             oah_api_url=Config.OAH_API_URL if use_oah else None,
             oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
+            oah_token=Config.OAH_TOKEN if use_oah else None,
         )
         self.code_generator = CodeGenerator(
             scene_model=scene_model if scene_model is not None else planner_model,
@@ -135,6 +136,7 @@ class ExplanationGenerator:
             use_oah=use_oah,
             oah_api_url=Config.OAH_API_URL if use_oah else None,
             oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
+            oah_token=Config.OAH_TOKEN if use_oah else None,
         )
         self.explanation_renderer = HTMLRenderer(
             output_dir=output_dir,
@@ -926,7 +928,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_langfuse', action='store_true',
                        help='Enable Langfuse logging')
     parser.add_argument('--max_scene_concurrency', type=int, default=1, help='Maximum number of scenes to process concurrently')
-    parser.add_argument('--max_topic_concurrency', type=int, default=1,
+    parser.add_argument('--max_topic_concurrency', type=int, default=2,
                        help='Maximum number of topics to process concurrently')
     parser.add_argument('--only_plan', action='store_true', help='Only generate scene outline and implementation plans')
     parser.add_argument('--translate_to_chinese', action='store_true',
