@@ -165,6 +165,16 @@ export class RunProcessorService {
         resolveAbortStepStatus: () => (runTimedOut ? "failed" : "cancelled")
       });
     } catch (error) {
+      // Gracefully handle run-not-found: workspace may have been deleted
+      // by reconcile or external cleanup while this run was in the queue.
+      if (error instanceof AppError && error.code === "run_not_found") {
+        this.#logger?.warn?.("Run not found during processing (workspace may have been deleted).", {
+          runId: run.id,
+          triggerType: run.triggerType
+        });
+        return;
+      }
+
       if (abortController.signal.aborted) {
         if (this.#drainTimeoutRecoveredRuns.has(run.id)) {
           return;
