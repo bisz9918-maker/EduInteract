@@ -82,13 +82,16 @@ export function reconcileDiscoveredWorkspaces(
     persistedByKey.set(key, existing);
   }
 
-  return discoveredWorkspaces.map((workspace) => {
+  const matchedPersistedIds = new Set<string>();
+
+  const reconciled = discoveredWorkspaces.map((workspace) => {
     const persistedGroup = persistedByKey.get(workspaceDiscoveryKey(workspace)) ?? [];
     const persisted = persistedGroup.find((candidate) => candidate.id === workspace.id) ?? persistedGroup[0];
     if (!persisted) {
       return workspace;
     }
 
+    matchedPersistedIds.add(persisted.id);
     return {
       ...workspace,
       id: persisted.id,
@@ -103,6 +106,18 @@ export function reconcileDiscoveredWorkspaces(
       ...(persisted.externalRef ? { externalRef: persisted.externalRef } : {})
     };
   });
+
+  // Include active persisted workspaces that were not matched by discovery.
+  // These are workspaces created via API whose files may not yet be fully
+  // synced, so discoverProjectWorkspaces skips them. Without this, their
+  // records would be lost from the registry, breaking in-progress runs.
+  for (const workspace of persistedWorkspaces) {
+    if (workspace.status === "active" && !matchedPersistedIds.has(workspace.id)) {
+      reconciled.push(workspace);
+    }
+  }
+
+  return reconciled;
 }
 
 export function findManagedWorkspaceIdsToDelete(
