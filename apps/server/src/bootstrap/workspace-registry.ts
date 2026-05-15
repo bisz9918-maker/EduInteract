@@ -117,6 +117,7 @@ export function findManagedWorkspaceIdsToDelete(
 
   return persistedWorkspaces
     .filter((workspace) => isManagedWorkspace(workspace, paths))
+    .filter((workspace) => workspace.status !== "active")
     .filter((workspace) => {
       const key = workspaceDiscoveryKey(workspace);
       return !discoveredKeys.has(key) || !canonicalWorkspaceIds.has(workspace.id);
