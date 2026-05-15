@@ -220,6 +220,6 @@ export interface RunStepRepository {
 export interface SessionEventStore {
   append(input: Omit<SessionEvent, "id" | "cursor" | "createdAt">): Promise<SessionEvent>;
   deleteById(eventId: string): Promise<void>;
-  listSince(sessionId: string, cursor?: string, runId?: string, limit?: number): Promise<SessionEvent[]>;
+  listSince(sessionId: string, cursor?: string, runId?: string, limit?: number, excludeEventTypes?: ReadonlyArray<string>): Promise<SessionEvent[]>;
   subscribe(sessionId: string, listener: (event: SessionEvent) => void): () => void;
 }

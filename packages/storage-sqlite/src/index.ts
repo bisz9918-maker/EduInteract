@@ -29,6 +29,9 @@ import {
 } from "./repositories.js";
 import { defaultProjectDbPath, shadowDbPath, shouldPersistProjectDbInsideWorkspace } from "./shared.js";
 
+export { SQLitePersistenceCoordinator } from "./coordinator.js";
+export { SQLiteSessionEventStore } from "./repositories.js";
+
 export interface SQLiteRuntimePersistence {
   driver: "sqlite";
   workspaceRepository: WorkspaceRepository;
@@ -37,12 +40,13 @@ export interface SQLiteRuntimePersistence {
   engineMessageRepository: EngineMessageRepository;
   runRepository: RunRepository;
   runStepRepository: RunStepRepository;
-  sessionEventStore: SessionEventStore;
+  sessionEventStore: SQLiteSessionEventStore;
   sessionPendingRunQueueRepository: SessionPendingRunQueueRepository;
   toolCallAuditRepository: ToolCallAuditRepository;
   hookRunAuditRepository: HookRunAuditRepository;
   artifactRepository: ArtifactRepository;
   historyEventRepository: HistoryEventRepository;
+  coordinator: SQLitePersistenceCoordinator;
   listWorkspaceSnapshots(candidates: WorkspaceRecord[]): Promise<WorkspaceRecord[]>;
   listPersistedWorkspaces(): Promise<WorkspaceRecord[]>;
   close(): Promise<void>;
@@ -107,6 +111,7 @@ export async function createSQLiteRuntimePersistence(
     hookRunAuditRepository,
     artifactRepository,
     historyEventRepository,
+    coordinator,
     listWorkspaceSnapshots(candidates) {
       return coordinator.listWorkspaceSnapshots(candidates);
     },

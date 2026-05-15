@@ -86,6 +86,7 @@ let sandboxHostModulePromise: Promise<typeof import("./bootstrap/sandbox-host.js
 let workspaceMaterializationModulePromise: Promise<typeof import("./bootstrap/workspace-materialization.js")> | undefined;
 let nativeBridgeModulePromise: Promise<typeof import("@oah/native-bridge")> | undefined;
 let metadataRetentionModulePromise: Promise<typeof import("./metadata-retention.js")> | undefined;
+let sqliteMetadataRetentionModulePromise: Promise<typeof import("./sqlite-metadata-retention.js")> | undefined;
 
 function loadConfigWorkspaceModule(): Promise<typeof import("@oah/config/workspace")> {
   configWorkspaceModulePromise ??= import("@oah/config/workspace").catch(() =>
@@ -153,6 +154,11 @@ function loadStorageAdminModule(): Promise<typeof import("./storage-admin.js")> 
 function loadMetadataRetentionModule(): Promise<typeof import("./metadata-retention.js")> {
   metadataRetentionModulePromise ??= import("./metadata-retention.js");
   return metadataRetentionModulePromise;
+}
+
+function loadSqliteMetadataRetentionModule(): Promise<typeof import("./sqlite-metadata-retention.js")> {
+  sqliteMetadataRetentionModulePromise ??= import("./sqlite-metadata-retention.js");
+  return sqliteMetadataRetentionModulePromise;
 }
 
 function loadSQLiteStorageModule(): Promise<typeof import("@oah/storage-sqlite")> {
@@ -818,6 +824,16 @@ function resolvePostgresMetadataRetentionConfig(input: { processKind: "api" | "w
     historyEventRetentionDays: parseNonNegativeIntEnv("OAH_HISTORY_EVENT_RETENTION_DAYS", 7),
     sessionEventRetentionDays: parseNonNegativeIntEnv("OAH_SESSION_EVENT_RETENTION_DAYS", 14),
     runRetentionDays: parseNonNegativeIntEnv("OAH_RUN_RETENTION_DAYS", 0)
+  };
+}
+
+function resolveSqliteMetadataRetentionConfig() {
+  return {
+    enabled: parseBooleanEnv("OAH_SQLITE_METADATA_RETENTION_ENABLED", true),
+    intervalMs: parsePositiveIntEnv("OAH_SQLITE_METADATA_RETENTION_INTERVAL_MS", 60 * 60 * 1000),
+    batchLimit: parsePositiveIntEnv("OAH_SQLITE_METADATA_RETENTION_BATCH_LIMIT", 500),
+    deltaRetentionDays: parseNonNegativeIntEnv("OAH_SQLITE_DELTA_RETENTION_DAYS", 1),
+    vacuumIntervalRuns: parsePositiveIntEnv("OAH_SQLITE_VACUUM_INTERVAL_RUNS", 10)
   };
 }
 
@@ -1965,6 +1981,27 @@ export async function bootstrapRuntime(options: BootstrapOptions = {}): Promise<
         })
       : undefined;
   postgresMetadataRetentionService?.start();
+  const sqliteMetadataRetentionConfig = resolveSqliteMetadataRetentionConfig();
+  const sqliteMetadataRetentionService =
+    primaryStorageMode === "sqlite" && sqliteMetadataRetentionConfig.enabled && "coordinator" in persistence
+      ? new (await loadSqliteMetadataRetentionModule()).SQLiteMetadataRetentionService({
+          coordinator: (persistence as import("@oah/storage-sqlite").SQLiteRuntimePersistence).coordinator,
+          sessionEventStore: (persistence as import("@oah/storage-sqlite").SQLiteRuntimePersistence).sessionEventStore,
+          intervalMs: sqliteMetadataRetentionConfig.intervalMs,
+          batchLimit: sqliteMetadataRetentionConfig.batchLimit,
+          deltaRetentionDays: sqliteMetadataRetentionConfig.deltaRetentionDays,
+          vacuumIntervalRuns: sqliteMetadataRetentionConfig.vacuumIntervalRuns,
+          logger: {
+            info(message) {
+              console.info(message);
+            },
+            warn(message, error) {
+              console.warn(message, error);
+            }
+          }
+        })
+      : undefined;
+  sqliteMetadataRetentionService?.start();
   const closePersistence =
     "close" in persistence && typeof persistence.close === "function" ? () => persistence.close() : async () => undefined;
 
@@ -2490,11 +2527,13 @@ export async function bootstrapRuntime(options: BootstrapOptions = {}): Promise<
       await sandboxHost?.beginDrain();
       await workerRuntime?.beginDrain();
       await postgresMetadataRetentionService?.close();
+      await sqliteMetadataRetentionService?.close();
     },
     async close() {
       await Promise.all([
         workerRuntime?.close() ?? Promise.resolve(),
         postgresMetadataRetentionService?.close() ?? Promise.resolve(),
+        sqliteMetadataRetentionService?.close() ?? Promise.resolve(),
         adminCapabilities?.close() ?? Promise.resolve(),
         redisBus?.close() ?? Promise.resolve(),
         redisWorkerRegistry?.close() ?? Promise.resolve(),

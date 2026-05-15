@@ -33,7 +33,7 @@ import type {
   WorkspaceRepository
 } from "@oah/engine-core";
 import { AppError, createId, nowIso, parseCursor, parseMessagePageCursor } from "@oah/engine-core";
-import { and, asc, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, notInArray, or, sql } from "drizzle-orm";
 import type { OahDatabase, OahTransaction } from "./schema.js";
 import {
   archives,
@@ -807,7 +807,7 @@ export class PostgresSessionEventStore implements SessionEventStore {
     return event;
   }
 
-  async listSince(sessionId: string, cursor?: string, runId?: string, limit?: number): Promise<SessionEvent[]> {
+  async listSince(sessionId: string, cursor?: string, runId?: string, limit?: number, excludeEventTypes?: ReadonlyArray<string>): Promise<SessionEvent[]> {
     const parsedCursor = cursor ? Number.parseInt(cursor, 10) : -1;
     const normalizedCursor = Number.isFinite(parsedCursor) && parsedCursor >= -1 ? parsedCursor : -1;
     const readLimit = Math.max(
@@ -820,6 +820,9 @@ export class PostgresSessionEventStore implements SessionEventStore {
     const filters = [eq(sessionEvents.sessionId, sessionId), gt(sessionEvents.cursor, normalizedCursor)];
     if (runId) {
       filters.push(eq(sessionEvents.runId, runId));
+    }
+    if (excludeEventTypes && excludeEventTypes.length > 0) {
+      filters.push(notInArray(sessionEvents.event, [...excludeEventTypes]));
     }
 
     const rows = await this.db

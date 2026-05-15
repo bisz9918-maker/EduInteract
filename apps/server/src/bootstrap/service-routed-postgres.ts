@@ -1175,8 +1175,8 @@ class RoutedSessionEventStore implements SessionEventStore {
     await this.router.fanOutKnownBackends((backend) => backend.sessionEventStore.deleteById(eventId));
   }
 
-  async listSince(sessionId: string, cursor?: string, runId?: string, limit?: number): Promise<SessionEvent[]> {
-    return (await this.router.getBackendForSessionId(sessionId)).sessionEventStore.listSince(sessionId, cursor, runId, limit);
+  async listSince(sessionId: string, cursor?: string, runId?: string, limit?: number, excludeEventTypes?: ReadonlyArray<string>): Promise<SessionEvent[]> {
+    return (await this.router.getBackendForSessionId(sessionId)).sessionEventStore.listSince(sessionId, cursor, runId, limit, excludeEventTypes);
   }
 
   subscribe(sessionId: string, listener: (event: SessionEvent) => void): () => void {

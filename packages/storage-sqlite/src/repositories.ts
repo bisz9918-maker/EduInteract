@@ -660,33 +660,71 @@ export class SQLiteSessionEventStore implements SessionEventStore {
     return event;
   }
 
-  async listSince(sessionId: string, cursor?: string, runId?: string, limit?: number): Promise<SessionEvent[]> {
+  async listSince(sessionId: string, cursor?: string, runId?: string, limit?: number, excludeEventTypes?: ReadonlyArray<string>): Promise<SessionEvent[]> {
     const handle = await this.#coordinator.getSessionHandle(sessionId);
     const parsedCursor = cursor ? Number.parseInt(cursor, 10) : -1;
     const normalizedCursor = Number.isFinite(parsedCursor) && parsedCursor >= -1 ? parsedCursor : -1;
     const readLimit = Number.isFinite(limit) && limit !== undefined ? Math.max(1, Math.floor(limit)) : undefined;
+    const excludeClause = excludeEventTypes && excludeEventTypes.length > 0
+      ? `and json_extract(payload, '$.event') not in (${excludeEventTypes.map(() => '?').join(', ')})`
+      : '';
+    const excludeParams = excludeEventTypes && excludeEventTypes.length > 0 ? [...excludeEventTypes] : [];
     const rows = runId
       ? coerceRows<JsonRow>(
           handle.db
             .prepare(
               `select payload from session_events
                where session_id = ? and cursor > ? and run_id = ?
+               ${excludeClause}
                order by cursor asc
                ${readLimit ? "limit ?" : ""}`
             )
-            .all(...(readLimit ? [sessionId, normalizedCursor, runId, readLimit] : [sessionId, normalizedCursor, runId]))
+            .all(...(readLimit ? [sessionId, normalizedCursor, runId, ...excludeParams, readLimit] : [sessionId, normalizedCursor, runId, ...excludeParams]))
         )
       : coerceRows<JsonRow>(
           handle.db
             .prepare(
               `select payload from session_events
                where session_id = ? and cursor > ?
+               ${excludeClause}
                order by cursor asc
                ${readLimit ? "limit ?" : ""}`
             )
-            .all(...(readLimit ? [sessionId, normalizedCursor, readLimit] : [sessionId, normalizedCursor]))
+            .all(...(readLimit ? [sessionId, normalizedCursor, ...excludeParams, readLimit] : [sessionId, normalizedCursor, ...excludeParams]))
         );
     return rows.map((row) => parseJson<SessionEvent>(row.payload));
+  }
+
+  async deleteDeltasByRunIds(runIds: string[]): Promise<number> {
+    if (runIds.length === 0) return 0;
+
+    const runIdsByWorkspace = new Map<string, string[]>();
+    for (const runId of runIds) {
+      try {
+        const workspaceId = await this.#coordinator.getWorkspaceIdForRun(runId);
+        const existing = runIdsByWorkspace.get(workspaceId);
+        if (existing) { existing.push(runId); }
+        else { runIdsByWorkspace.set(workspaceId, [runId]); }
+      } catch {
+        // run may no longer exist, skip
+      }
+    }
+
+    let totalDeleted = 0;
+    for (const [workspaceId, workspaceRunIds] of runIdsByWorkspace) {
+      const handle = await this.#coordinator.getWorkspaceHandle(workspaceId);
+      const placeholders = workspaceRunIds.map(() => '?').join(', ');
+      runInTransaction(handle.db, () => {
+        const result = handle.db.prepare(
+          `delete from session_events
+           where run_id in (${placeholders})
+             and json_extract(payload, '$.event') = 'message.delta'`
+        ).run(...workspaceRunIds);
+        totalDeleted += Number(result.changes);
+      });
+    }
+
+    return totalDeleted;
   }
 
   async deleteById(eventId: string): Promise<void> {

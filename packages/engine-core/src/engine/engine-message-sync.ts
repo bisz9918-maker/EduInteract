@@ -33,7 +33,7 @@ export class EngineMessageSyncService {
       .then(async () => {
         const [messages, events, storedEngineMessages] = await Promise.all([
           this.#messageRepository.listBySessionId(sessionId),
-          this.#sessionEventStore.listSince(sessionId),
+          this.#sessionEventStore.listSince(sessionId, undefined, undefined, undefined, ["message.delta"]),
           this.#engineMessageRepository?.listBySessionId(sessionId) ?? Promise.resolve([])
         ]);
         const engineMessages = buildSessionEngineMessages({
@@ -74,7 +74,7 @@ export class EngineMessageSyncService {
   async buildEngineMessagesForSession(sessionId: string, persistedMessages?: Message[]): Promise<EngineMessage[]> {
     const [messages, events] = await Promise.all([
       persistedMessages ? Promise.resolve(persistedMessages) : this.#messageRepository.listBySessionId(sessionId),
-      this.#sessionEventStore.listSince(sessionId)
+      this.#sessionEventStore.listSince(sessionId, undefined, undefined, undefined, ["message.delta"])
     ]);
 
     return buildSessionEngineMessages({

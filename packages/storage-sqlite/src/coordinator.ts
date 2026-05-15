@@ -568,6 +568,38 @@ export class SQLitePersistenceCoordinator {
     throw new AppError(404, "session_event_not_found", `Session event ${eventId} was not found.`);
   }
 
+  async listTerminalRunIds(cutoff: string, limit: number): Promise<Array<{ runId: string; workspaceId: string }>> {
+    const results: Array<{ runId: string; workspaceId: string }> = [];
+    const workspaces = await this.listPersistedWorkspaces();
+
+    for (const workspace of workspaces) {
+      if (results.length >= limit) break;
+
+      try {
+        const handle = await this.ensureHandle(workspace);
+        const remaining = limit - results.length;
+        const rows = coerceRows<{ id: string }>(
+          handle.db.prepare(
+            `select id from runs
+             where status in ('completed', 'failed', 'cancelled')
+               and json_extract(payload, '$.endedAt') is not null
+               and json_extract(payload, '$.endedAt') < ?
+             order by json_extract(payload, '$.endedAt') asc
+             limit ?`
+          ).all(cutoff, remaining)
+        );
+
+        for (const row of rows) {
+          results.push({ runId: row.id, workspaceId: workspace.id });
+        }
+      } catch {
+        // workspace DB may be inaccessible, skip
+      }
+    }
+
+    return results;
+  }
+
   listRecoverableRunIds(staleBefore: string, limit: number): string[] {
     if (limit <= 0) {
       return [];

@@ -835,7 +835,7 @@ export class EngineService {
 
   async listSessionEvents(sessionId: string, cursor?: string, runId?: string, limit?: number): Promise<SessionEvent[]> {
     await this.getSession(sessionId);
-    return this.#sessionEventStore.listSince(sessionId, cursor, runId, limit);
+    return this.#sessionEventStore.listSince(sessionId, cursor, runId, limit, undefined);
   }
 
   subscribeSessionEvents(sessionId: string, listener: (event: SessionEvent) => void): () => void {
