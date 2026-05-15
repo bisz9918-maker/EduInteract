@@ -939,7 +939,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_langfuse', action='store_true',
                        help='Enable Langfuse logging')
     parser.add_argument('--max_scene_concurrency', type=int, default=1, help='Maximum number of scenes to process concurrently')
-    parser.add_argument('--max_topic_concurrency', type=int, default=2,
+    parser.add_argument('--max_topic_concurrency', type=int, default=5,
                        help='Maximum number of topics to process concurrently')
     parser.add_argument('--only_plan', action='store_true', help='Only generate scene outline and implementation plans')
     parser.add_argument('--translate_to_chinese', action='store_true',
