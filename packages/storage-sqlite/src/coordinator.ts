@@ -316,6 +316,7 @@ export class SQLitePersistenceCoordinator {
     const db = new DatabaseSync(dbPath);
     db.exec("pragma journal_mode = wal");
     db.exec("pragma busy_timeout = 5000");
+    db.exec("pragma mmap_size = 0");
     migrateLegacyMirrorSchemaIfNeeded(db);
     reconcilePersistedWorkspaceScope(db, workspace);
     normalizePersistedWorkspaceData(db);
@@ -338,6 +339,7 @@ export class SQLitePersistenceCoordinator {
     const db = new DatabaseSync(this.#registryDbPath);
     db.exec("pragma journal_mode = wal");
     db.exec("pragma busy_timeout = 5000");
+    db.exec("pragma mmap_size = 0");
     for (const statement of registrySchemaStatements) {
       db.exec(statement);
     }

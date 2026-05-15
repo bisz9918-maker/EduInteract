@@ -152,6 +152,18 @@ export async function prepareControlPlaneRuntime(options: {
       ].join(", ")}`
     );
   }
+  const canPruneShadowDirs = options.managesWorkspaceRegistry && !options.singleWorkspaceDefined;
+  if (canPruneShadowDirs) {
+    const bootPrunedShadowPaths = await pruneOrphanedShadowDirectories({
+      shadowRoot: options.sqliteShadowRoot,
+      persistedWorkspaces: persistedWorkspaceSnapshots
+    });
+    if (bootPrunedShadowPaths.length > 0) {
+      console.info(
+        `[oah-bootstrap] Pruned ${bootPrunedShadowPaths.length} orphaned shadow workspace state directory(ies): ${bootPrunedShadowPaths.join(", ")}`
+      );
+    }
+  }
   const bootDiscoveredWorkspaces = options.discoveredWorkspaces.filter(
     (workspace) => !bootPrunedWorkspaceRootPaths.has(path.resolve(workspace.rootPath))
   );
@@ -445,7 +457,7 @@ export async function prepareControlPlaneRuntime(options: {
           ].join(", ")}`
         );
       }
-      if (pruneManagedWorkspaceRootShells) {
+      if (canPruneShadowDirs) {
         const prunedShadowPaths = await pruneOrphanedShadowDirectories({
           shadowRoot: options.sqliteShadowRoot,
           persistedWorkspaces
