@@ -319,6 +319,13 @@ class OAHClient:
                     _log(f"Step fetch error: {e}")
 
             time.sleep(poll_interval)
+
+        # Timeout: save whatever steps we have before raising
+        try:
+            steps = self._fetch_run_steps(run_id)
+            self._save_run_trace(run_id, steps, {"status": "timeout", "usage": run.get("usage", {})})
+        except Exception:
+            pass
         raise TimeoutError(f"[OAH] Run {run_id} did not finish within {max_seconds}s")
 
     def init_session(self, session_id: str, max_retries: int = 2) -> None:
