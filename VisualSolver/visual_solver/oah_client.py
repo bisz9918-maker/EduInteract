@@ -323,19 +323,25 @@ class OAHClient:
 
     def init_session(self, session_id: str, max_retries: int = 2) -> None:
         _log("Initializing session (materialize workspace)...")
-        for attempt in range(max_retries + 1):
-            run_id = self.send_message(
-                session_id,
-                "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
-            )
-            result = self.wait_for_run(run_id, max_seconds=min(int(self.timeout), 300))
-            if result["status"] == "completed":
-                _log("Session initialized")
-                return
-            if attempt < max_retries:
-                _log(f"Session init failed (attempt {attempt+1}/{max_retries+1}), retrying...")
-                time.sleep(2)
-        raise RuntimeError(f"Session init run ended with status: {result['status']} after {max_retries+1} attempts")
+        # Temporarily disable trace saving during init so the real trace isn't overwritten
+        saved_trace_name = self.trace_name
+        self.trace_name = None
+        try:
+            for attempt in range(max_retries + 1):
+                run_id = self.send_message(
+                    session_id,
+                    "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
+                )
+                result = self.wait_for_run(run_id, max_seconds=min(int(self.timeout), 300))
+                if result["status"] == "completed":
+                    _log("Session initialized")
+                    return
+                if attempt < max_retries:
+                    _log(f"Session init failed (attempt {attempt+1}/{max_retries+1}), retrying...")
+                    time.sleep(2)
+            raise RuntimeError(f"Session init run ended with status: {result['status']} after {max_retries+1} attempts")
+        finally:
+            self.trace_name = saved_trace_name
 
     # ── File Upload / Read / Download ──────────────────────────────────────
 
