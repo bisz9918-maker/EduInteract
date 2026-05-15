@@ -28,7 +28,7 @@ class OAHClient:
         api_url: Optional[str] = None,
         token: Optional[str] = None,
         workspace_template: str = "visual-solver-code",
-        timeout: float = 1200.0,
+        timeout: float = 1800.0,
         model_ref: Optional[str] = None,
         cleanup: bool = True,
         trace_dir: Optional[str] = None,
@@ -549,8 +549,8 @@ class OAHClient:
             else:
                 run_id = self.send_message(session_id, msg_text)
 
-            _log(f"Step 7: Waiting for modify run (timeout=1200s)...")
-            result = self.wait_for_run(run_id, max_seconds=1200)
+            _log(f"Step 7: Waiting for modify run (timeout={self.timeout}s)...")
+            result = self.wait_for_run(run_id, max_seconds=int(self.timeout))
             if result["status"] != "completed":
                 raise RuntimeError(f"Modify run ended with status: {result['status']}")
 
@@ -621,8 +621,8 @@ class OAHClient:
             )
             run_id = self.send_message(session_id, msg_text)
 
-            _log(f"Step 7: Waiting for outline run (timeout=1200s)...")
-            result = self.wait_for_run(run_id, max_seconds=1200)
+            _log(f"Step 7: Waiting for outline run (timeout={self.timeout}s)...")
+            result = self.wait_for_run(run_id, max_seconds=int(self.timeout))
             if result["status"] != "completed":
                 raise RuntimeError(f"Outline run ended with status: {result['status']}")
 
@@ -695,8 +695,8 @@ class OAHClient:
             )
             run_id = self.send_message(session_id, msg)
 
-            _log(f"Step 7: Waiting for planner run (timeout=1200s)...")
-            result = self.wait_for_run(run_id, max_seconds=1200)
+            _log(f"Step 7: Waiting for planner run (timeout={self.timeout}s)...")
+            result = self.wait_for_run(run_id, max_seconds=int(self.timeout))
             if result["status"] != "completed":
                 raise RuntimeError(f"Planner run ended with status: {result['status']}")
 
