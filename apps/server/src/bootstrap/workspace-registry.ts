@@ -171,6 +171,27 @@ export async function pruneOrphanedManagedWorkspaceRootShells(input: {
   return removedPaths.sort((left, right) => left.localeCompare(right));
 }
 
+export async function pruneOrphanedShadowDirectories(input: {
+  shadowRoot: string;
+  persistedWorkspaces: Pick<WorkspaceRecord, "id">[];
+}): Promise<string[]> {
+  const persistedIds = new Set(input.persistedWorkspaces.map((w) => w.id));
+  const entries = await readdir(input.shadowRoot, { withFileTypes: true }).catch(() => []);
+  const removedPaths: string[] = [];
+
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && !persistedIds.has(entry.name))
+      .map(async (entry) => {
+        const dirPath = path.join(input.shadowRoot, entry.name);
+        await rm(dirPath, { recursive: true, force: true });
+        removedPaths.push(dirPath);
+      })
+  );
+
+  return removedPaths.sort((left, right) => left.localeCompare(right));
+}
+
 export async function discoverProjectWorkspaces(input: {
   workspaceDir: string;
   models: Awaited<ReturnType<typeof import("@oah/config").loadPlatformModels>>;

@@ -160,6 +160,14 @@ export class SQLitePersistenceCoordinator {
         rm(`${dbPath}-wal`, { force: true })
       ]);
     }
+
+    // Reclaim disk space from deleted rows in the registry database.
+    // Without VACUUM the DB file only grows, never shrinks.
+    try {
+      registryDb.exec("VACUUM");
+    } catch {
+      // VACUUM can fail if another transaction is in progress; that's fine.
+    }
   }
 
   async close(): Promise<void> {

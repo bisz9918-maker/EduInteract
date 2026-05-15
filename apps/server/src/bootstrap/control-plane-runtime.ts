@@ -23,6 +23,7 @@ import {
   isManagedWorkspaceRoot,
   openFsWatcher,
   pruneOrphanedManagedWorkspaceRootShells,
+  pruneOrphanedShadowDirectories,
   reconcileDiscoveredWorkspaces,
   type PlatformAgentRegistry
 } from "./workspace-registry.js";
@@ -443,6 +444,17 @@ export async function prepareControlPlaneRuntime(options: {
             ...prunedWorkspaceRootPaths
           ].join(", ")}`
         );
+      }
+      if (pruneManagedWorkspaceRootShells) {
+        const prunedShadowPaths = await pruneOrphanedShadowDirectories({
+          shadowRoot: options.sqliteShadowRoot,
+          persistedWorkspaces
+        });
+        if (prunedShadowPaths.length > 0) {
+          console.info(
+            `[oah-bootstrap] Pruned ${prunedShadowPaths.length} orphaned shadow workspace state directory(ies): ${prunedShadowPaths.join(", ")}`
+          );
+        }
       }
       const retainedProjectWorkspaces = latestProjectWorkspaces.filter(
         (workspace) => !prunedWorkspaceRootPaths.has(path.resolve(workspace.rootPath))
