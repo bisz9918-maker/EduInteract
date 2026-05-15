@@ -154,11 +154,13 @@ export class SQLitePersistenceCoordinator {
 
     const dbPath = this.dbPathForWorkspace(workspace);
     if (dbPath.startsWith(`${this.#shadowRoot}${path.sep}`) || dbPath === this.#shadowRoot) {
-      await Promise.all([
-        rm(path.dirname(dbPath), { recursive: true, force: true }),
-        rm(`${dbPath}-shm`, { force: true }),
-        rm(`${dbPath}-wal`, { force: true })
-      ]);
+      // The -shm/--wal files are children of path.dirname(dbPath), so the
+      // recursive rm below already covers them.  We delete them explicitly
+      // first (sequentially) so the recursive rm finds a cleaner directory
+      // and avoids ENOTEMPTY races from parallel deletion.
+      await rm(`${dbPath}-shm`, { force: true }).catch(() => {});
+      await rm(`${dbPath}-wal`, { force: true }).catch(() => {});
+      await rm(path.dirname(dbPath), { recursive: true, force: true });
     }
 
     // Reclaim disk space from deleted rows in the registry database.
