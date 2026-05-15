@@ -152,19 +152,31 @@ class OAHClient:
                     last_status = status
                 if status in ("completed", "failed", "cancelled"):
                     return status
+            except RuntimeError as e:
+                if "run_not_found" in str(e):
+                    _log(f"Run {run_id} not found (workspace may have been deleted), treating as failed")
+                    return "failed"
+                _log(f"Run poll error ({time.monotonic()-start:.0f}s): {e}")
             except Exception as e:
                 _log(f"Run poll error ({time.monotonic()-start:.0f}s): {e}")
             time.sleep(poll_interval)
         raise TimeoutError(f"[OAH] Run {run_id} did not finish within {max_seconds}s")
 
-    def init_session(self, session_id: str) -> None:
+    def init_session(self, session_id: str, max_retries: int = 2) -> None:
         _log("Initializing session (materialize workspace)...")
-        run_id = self.send_message(
-            session_id,
-            "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
-        )
-        self.wait_for_run(run_id, max_seconds=int(self.timeout))
-        _log("Session initialized")
+        for attempt in range(max_retries + 1):
+            run_id = self.send_message(
+                session_id,
+                "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
+            )
+            status = self.wait_for_run(run_id, max_seconds=min(int(self.timeout), 300))
+            if status == "completed":
+                _log("Session initialized")
+                return
+            if attempt < max_retries:
+                _log(f"Session init failed (attempt {attempt+1}/{max_retries+1}), retrying...")
+                time.sleep(2)
+        raise RuntimeError(f"Session init run ended with status: {status} after {max_retries+1} attempts")
 
     # ── File Upload / Read / Download ──────────────────────────────────────
 

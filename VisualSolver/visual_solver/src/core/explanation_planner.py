@@ -46,7 +46,7 @@ class ExplanationPlanner:
         use_langfuse (bool): Whether to use Langfuse logging. Defaults to True
     """
 
-    def __init__(self, planner_model, helper_model=None, output_dir="output", print_response=False, use_context_learning=False, context_learning_path="data/context_learning", use_rag=False, session_id=None, chroma_db_path="data/rag/chroma_db", manim_docs_path="data/rag/manim_docs", embedding_model="text-embedding-ada-002", use_langfuse=True, use_oah=False, oah_api_url=None, oah_model_ref=None, oah_token=None):
+    def __init__(self, planner_model, helper_model=None, output_dir="output", print_response=False, use_context_learning=False, context_learning_path="data/context_learning", use_rag=False, session_id=None, chroma_db_path="data/rag/chroma_db", manim_docs_path="data/rag/manim_docs", embedding_model="text-embedding-ada-002", use_langfuse=True, use_oah=False, oah_api_url=None, oah_model_ref=None, oah_token=None, trace_dir=None):
         self.planner_model = planner_model
         self.helper_model = helper_model if helper_model is not None else planner_model
         self.output_dir = output_dir
@@ -56,6 +56,7 @@ class ExplanationPlanner:
         self.oah_api_url = oah_api_url
         self.oah_model_ref = oah_model_ref
         self.oah_token = oah_token
+        self.trace_dir = trace_dir
         self._oah_usage = {}  # stage -> usage dict
         self.context_learning_path = context_learning_path
         # Initialize different types of context examples
@@ -146,7 +147,8 @@ class ExplanationPlanner:
                             topic: str,
                             description: str,
                             session_id: str,
-                            problem_image: Optional[Image.Image] = None) -> str:
+                            problem_image: Optional[Image.Image] = None,
+                            trace_name: Optional[str] = None) -> str:
         """Generate a scene outline based on the topic and description.
 
         Args:
@@ -169,6 +171,7 @@ class ExplanationPlanner:
                 topic=topic,
                 description=description,
                 problem_image=problem_image,
+                trace_name=trace_name,
             )
 
             # Save plan to file
@@ -239,7 +242,8 @@ class ExplanationPlanner:
     async def _generate_outline_via_oah(self,
                                          topic: str,
                                          description: str,
-                                         problem_image: Optional[Image.Image] = None) -> str:
+                                         problem_image: Optional[Image.Image] = None,
+                                         trace_name: Optional[str] = None) -> str:
         """Generate scene outline via OAH workspace outline agent."""
         from visual_solver.oah_client import OAHClient
 
@@ -251,7 +255,8 @@ class ExplanationPlanner:
         print(f"[OAH] === Starting OAH outline generation ===")
 
         def _sync_call():
-            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token)
+            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token,
+                               trace_dir=self.trace_dir, trace_name=trace_name)
             return client.generate_scene_outline(
                 spec=spec,
                 problem_image=problem_image,
@@ -281,7 +286,7 @@ class ExplanationPlanner:
         print(f"[OAH] === OAH outline generation complete: {len(outline)} chars ===")
         return outline
 
-    async def _generate_scene_implementation_single(self, topic: str, description: str, scene_outline_i: str, i: int, file_prefix: str, session_id: str, scene_trace_id: str, problem_image: Optional[Image.Image] = None) -> str:
+    async def _generate_scene_implementation_single(self, topic: str, description: str, scene_outline_i: str, i: int, file_prefix: str, session_id: str, scene_trace_id: str, problem_image: Optional[Image.Image] = None, trace_name: Optional[str] = None) -> str:
         """Generate implementation plan for a single scene using unified prompt.
 
         Args:
@@ -320,6 +325,7 @@ class ExplanationPlanner:
                 scene_outline_i=scene_outline_i,
                 scene_number=i,
                 problem_image=problem_image,
+                trace_name=trace_name,
             )
 
             # Save the implementation plan (keep existing file naming)
@@ -417,7 +423,8 @@ class ExplanationPlanner:
                                                 description: str,
                                                 scene_outline_i: str,
                                                 scene_number: int,
-                                                problem_image: Optional[Image.Image] = None) -> str:
+                                                problem_image: Optional[Image.Image] = None,
+                                                trace_name: Optional[str] = None) -> str:
         """Generate implementation plan via OAH workspace planner agent."""
         from visual_solver.oah_client import OAHClient
 
@@ -431,7 +438,8 @@ class ExplanationPlanner:
         print(f"[OAH] === Starting OAH planning for scene {scene_number} ===")
 
         def _sync_call():
-            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token)
+            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token,
+                               trace_dir=self.trace_dir, trace_name=trace_name)
             return client.generate_implementation_plan(
                 spec=spec,
                 problem_image=problem_image,
@@ -503,7 +511,8 @@ class ExplanationPlanner:
                                               description: str,
                                               plan: str,
                                               session_id: str,
-                                              scene_semaphore) -> List[str]:
+                                              scene_semaphore,
+                                              trace_prefix: Optional[str] = None) -> List[str]:
         """Generate detailed implementation plans for all scenes concurrently with controlled concurrency.
 
         Args:
@@ -526,7 +535,9 @@ class ExplanationPlanner:
                 print(f"Generating implementation plan for scene {i} in topic {topic}")
                 scene_outline_i = re.search(r'(<SCENE_{i}>.*?</SCENE_{i}>)'.format(i=i), scene_outline, re.DOTALL).group(1)
                 scene_trace_id = str(uuid.uuid4())  # Generate UUID here
-                return await self._generate_scene_implementation_single(topic, description, scene_outline_i, i, file_prefix, session_id, scene_trace_id)
+                stage_name = f"scene{i}_plan" if trace_prefix else None
+                tn = f"{trace_prefix}_{stage_name}" if trace_prefix and stage_name else None
+                return await self._generate_scene_implementation_single(topic, description, scene_outline_i, i, file_prefix, session_id, scene_trace_id, trace_name=tn)
 
         tasks = [generate_single_scene_implementation(i + 1) for i in range(scene_number)]
         all_scene_implementation_plans = await asyncio.gather(*tasks)

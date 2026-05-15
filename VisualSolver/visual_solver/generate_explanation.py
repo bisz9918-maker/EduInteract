@@ -90,12 +90,14 @@ class ExplanationGenerator:
                  trace_id=None,
                  max_scene_concurrency: int = 5,
                  translate_to_chinese: bool = False,
-                 use_oah: bool = False):
+                 use_oah: bool = False,
+                 trace_dir: Optional[str] = None):
         self.output_dir = output_dir
         self.verbose = verbose
         self.use_visual_fix_code = use_visual_fix_code
         self.translate_to_chinese = translate_to_chinese  # Add translation flag
         self.use_oah = use_oah
+        self.trace_dir = trace_dir
         self.session_id = self._load_or_create_session_id()  # Modified to load existing or create new
         self.scene_semaphore = asyncio.Semaphore(max_scene_concurrency)
         self.banned_reasonings = get_banned_reasonings()
@@ -118,6 +120,7 @@ class ExplanationGenerator:
             oah_api_url=Config.OAH_API_URL if use_oah else None,
             oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
             oah_token=Config.OAH_TOKEN if use_oah else None,
+            trace_dir=trace_dir if use_oah else None,
         )
         self.code_generator = CodeGenerator(
             scene_model=scene_model if scene_model is not None else planner_model,
@@ -137,6 +140,7 @@ class ExplanationGenerator:
             oah_api_url=Config.OAH_API_URL if use_oah else None,
             oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
             oah_token=Config.OAH_TOKEN if use_oah else None,
+            trace_dir=trace_dir if use_oah else None,
         )
         self.explanation_renderer = HTMLRenderer(
             output_dir=output_dir,
@@ -231,7 +235,8 @@ class ExplanationGenerator:
                                               topic: str,
                                               description: str,
                                               plan: str,
-                                              session_id: str) -> List[str]:
+                                              session_id: str,
+                                              trace_prefix: Optional[str] = None) -> List[str]:
         """
         Generate scene implementations concurrently using ExplanationPlanner.
 
@@ -240,11 +245,12 @@ class ExplanationGenerator:
             description (str): Description of the explanation content
             plan (str): The scene plan to implement
             session_id (str): Session identifier for tracking
+            trace_prefix: Prefix for trace file naming (e.g. "problem_0_kimi-k26")
 
         Returns:
             List[str]: List of generated scene implementations
         """
-        return await self.planner.generate_scene_implementation_concurrently(topic, description, plan, session_id, self.scene_semaphore) # Pass semaphore
+        return await self.planner.generate_scene_implementation_concurrently(topic, description, plan, session_id, self.scene_semaphore, trace_prefix=trace_prefix)
 
     def load_implementation_plans(self, topic: str) -> Dict[int, Optional[str]]:
         """
@@ -288,7 +294,7 @@ class ExplanationGenerator:
 
         return implementation_plans
 
-    async def process_scene(self, i: int, scene_outline: str, scene_implementation: str, topic: str, description: str, max_retries: int, file_prefix: str, session_id: str, scene_trace_id: str, problem_image: Optional[Image.Image] = None): # added scene_trace_id
+    async def process_scene(self, i: int, scene_outline: str, scene_implementation: str, topic: str, description: str, max_retries: int, file_prefix: str, session_id: str, scene_trace_id: str, problem_image: Optional[Image.Image] = None, trace_prefix: Optional[str] = None):
         """
         Process a single scene using CodeGenerator and ExplanationRenderer.
 
@@ -384,7 +390,8 @@ class ExplanationGenerator:
                 scene_trace_id=scene_trace_id,
                 session_id=session_id,
                 problem_image=problem_image,
-                file_prefix=file_prefix
+                file_prefix=file_prefix,
+                trace_name=f"{trace_prefix}_scene{curr_scene}_code" if trace_prefix else None,
             )
 
             with open(os.path.join(code_dir, f"{file_prefix}_scene{curr_scene}_v{curr_version}_init_log.txt"), "w") as f:
@@ -475,7 +482,7 @@ class ExplanationGenerator:
         """Deprecated: HTML flow does not produce MP4 files."""
         print("⚠️  combine_explanations() is deprecated in HTML flow. No action taken.")
 
-    async def _generate_scene_implementation_single(self, topic: str, description: str, scene_outline_i: str, i: int, file_prefix: str, session_id: str, scene_trace_id: str, problem_image: Optional[Image.Image] = None) -> str:
+    async def _generate_scene_implementation_single(self, topic: str, description: str, scene_outline_i: str, i: int, file_prefix: str, session_id: str, scene_trace_id: str, problem_image: Optional[Image.Image] = None, trace_name: Optional[str] = None) -> str:
         """
         Generate detailed implementation plan for a single scene using ExplanationPlanner.
 
@@ -492,9 +499,9 @@ class ExplanationGenerator:
         Returns:
             str: Generated implementation plan
         """
-        return await self.planner._generate_scene_implementation_single(topic, description, scene_outline_i, i, file_prefix, session_id, scene_trace_id, problem_image=problem_image)
+        return await self.planner._generate_scene_implementation_single(topic, description, scene_outline_i, i, file_prefix, session_id, scene_trace_id, problem_image=problem_image, trace_name=trace_name)
 
-    async def generate_html_diagrams(self, topic: str, description: str, max_retries: int, only_plan: bool = False, problem_image: Optional[Image.Image] = None):
+    async def generate_html_diagrams(self, topic: str, description: str, max_retries: int, only_plan: bool = False, problem_image: Optional[Image.Image] = None, trace_prefix: Optional[str] = None):
         """Generate a Markdown document with last-frame PNG diagrams.
 
         Pipeline:
@@ -542,7 +549,8 @@ class ExplanationGenerator:
                 print(f"Detected relevant plugins: {self.planner.relevant_plugins}")
         else:
             print(f"Generating new scene outline for topic: {topic}")
-            scene_outline = await self.planner.generate_scene_outline(topic, description, session_id, problem_image=problem_image)
+            scene_outline = await self.planner.generate_scene_outline(topic, description, session_id, problem_image=problem_image,
+                                                                       trace_name=f"{trace_prefix}_outline" if trace_prefix else None)
             os.makedirs(os.path.join(self.output_dir, file_prefix), exist_ok=True)
             with open(scene_outline_path, "w") as f:
                 f.write(scene_outline)
@@ -625,8 +633,10 @@ class ExplanationGenerator:
                 if scene_match:
                     scene_outline_i = scene_match.group(1)
                     scene_trace_id = str(uuid.uuid4())
+                    plan_trace_name = f"{trace_prefix}_scene{scene_num}_plan" if trace_prefix else None
                     plan = await self._generate_scene_implementation_single(
-                        topic, description, scene_outline_i, scene_num, file_prefix, session_id, scene_trace_id, problem_image=problem_image
+                        topic, description, scene_outline_i, scene_num, file_prefix, session_id, scene_trace_id, problem_image=problem_image,
+                        trace_name=plan_trace_name
                     )
 
             if plan is None:
@@ -649,7 +659,8 @@ class ExplanationGenerator:
 
             await self.process_scene(
                 scene_num - 1, scene_outline, plan, topic, description,
-                max_retries, file_prefix, session_id, scene_trace_id, problem_image=problem_image
+                max_retries, file_prefix, session_id, scene_trace_id, problem_image=problem_image,
+                trace_prefix=trace_prefix
             )
 
         if only_plan:
@@ -937,6 +948,8 @@ if __name__ == "__main__":
                        help='Use OAH workspace agent for code generation instead of direct LiteLLM call')
     parser.add_argument('--oah_model', type=str, default=None,
                        help='Model ref to use in OAH sessions (e.g. kimi-k26, GLM-5.1-FP8). Falls back to OAH_MODEL_REF env var or server default.')
+    parser.add_argument('--trace_dir', type=str, default=None,
+                       help='Directory to save OAH run trace JSON files (default: <output_dir>/traces)')
     args = parser.parse_args()
 
     # Set OAH model ref: CLI arg > env var
@@ -1017,6 +1030,7 @@ if __name__ == "__main__":
         max_scene_concurrency=args.max_scene_concurrency,
         translate_to_chinese=args.translate_to_chinese,
         use_oah=args.use_oah,
+        trace_dir=args.trace_dir or (os.path.join(args.output_dir, "traces") if args.use_oah else None),
     )
 
     topic_semaphore = asyncio.Semaphore(args.max_topic_concurrency)
@@ -1088,12 +1102,18 @@ if __name__ == "__main__":
             problem_start_time = time.perf_counter()
 
             try:
+                # Build trace_prefix for OAH run trace files: problem_{idx}_{model}
+                trace_prefix = None
+                if args.use_oah:
+                    model_slug = re.sub(r'[^a-zA-Z0-9_-]+', '_', Config.OAH_MODEL_REF or "default")
+                    trace_prefix = f"problem_{idx}_{model_slug}"
                 await explanation_generator.generate_html_diagrams(
                     topic,
                     description,
                     max_retries=args.max_retries,
                     only_plan=args.only_plan,
                     problem_image=problem_image,
+                    trace_prefix=trace_prefix,
                 )
             except Exception as e:
                 print(f"✗ Problem {idx} ({topic}) failed and will be skipped: {e}")

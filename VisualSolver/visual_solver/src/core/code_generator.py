@@ -19,7 +19,7 @@ class CodeGenerator:
                  chroma_db_path="rag/chroma_db", manim_docs_path="rag/manim_docs",
                  embedding_model="azure/text-embedding-3-large", use_visual_fix_code=False,
                  use_langfuse=True, session_id=None, use_oah=False, oah_api_url=None, oah_model_ref=None,
-                 oah_token=None):
+                 oah_token=None, trace_dir=None):
         self.scene_model = scene_model
         self.helper_model = helper_model
         self.output_dir = output_dir
@@ -31,6 +31,7 @@ class CodeGenerator:
         self.oah_api_url = oah_api_url
         self.oah_model_ref = oah_model_ref
         self.oah_token = oah_token
+        self.trace_dir = trace_dir
         self._oah_usage = {}  # scene_trace_id -> usage dict
 
     async def _extract_code_with_retries(self, response_text: str, pattern: str,
@@ -69,7 +70,8 @@ class CodeGenerator:
                                            scene_number: int,
                                            problem_image: Union[Image.Image, None] = None,
                                            file_prefix: str = None,
-                                           scene_trace_id: str = None) -> tuple:
+                                           scene_trace_id: str = None,
+                                           trace_name: Optional[str] = None) -> tuple:
         """Generate HTML code via OAH workspace agent (runs in thread to avoid event loop conflicts)."""
         import asyncio
         from visual_solver.oah_client import OAHClient
@@ -85,7 +87,8 @@ class CodeGenerator:
         print(f"[OAH] === Starting OAH generation for scene {scene_number} ===")
 
         def _sync_call():
-            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token)
+            client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token,
+                               trace_dir=self.trace_dir, trace_name=trace_name)
             return client.generate_scene_html(
                 spec=spec,
                 output_file=spec["output_file"],
@@ -121,7 +124,8 @@ class CodeGenerator:
                                  scene_trace_id: str = None,
                                  session_id: str = None,
                                  problem_image: Union[Image.Image, None] = None,
-                                 file_prefix: str = None) -> tuple:
+                                 file_prefix: str = None,
+                                 trace_name: Optional[str] = None) -> tuple:
         """Generate HTML/CSS/JS code for a scene.
 
         Returns:
@@ -138,6 +142,7 @@ class CodeGenerator:
                 problem_image=problem_image,
                 file_prefix=file_prefix,
                 scene_trace_id=scene_trace_id,
+                trace_name=trace_name,
             )
 
         # ── LiteLLM fallback (original path) ───────────────────────────────

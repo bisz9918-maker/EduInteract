@@ -11,7 +11,7 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
-from typing import Optional
+from typing import Optional, List
 from io import BytesIO
 from PIL import Image
 
@@ -31,6 +31,8 @@ class OAHClient:
         timeout: float = 1200.0,
         model_ref: Optional[str] = None,
         cleanup: bool = True,
+        trace_dir: Optional[str] = None,
+        trace_name: Optional[str] = None,
     ):
         self.api_url = api_url or os.getenv("OAH_API_URL", "")
         if not self.api_url:
@@ -40,6 +42,8 @@ class OAHClient:
         self.timeout = timeout
         self.model_ref = model_ref
         self.cleanup = cleanup
+        self.trace_dir = trace_dir
+        self.trace_name = trace_name
 
     def _request(self, method: str, path: str, body: Optional[bytes] = None,
                  headers: Optional[dict] = None, params: Optional[dict] = None) -> dict:
@@ -175,8 +179,91 @@ class OAHClient:
         _log(f"Sent multimodal message, run={run_id}")
         return run_id
 
+    # ── Run Steps & Tracing ──────────────────────────────────────────────────
+
+    def _fetch_run_steps(self, run_id: str, page_size: int = 100) -> List[dict]:
+        """Fetch all steps for a run (paginated)."""
+        all_steps: list[dict] = []
+        cursor: Optional[str] = None
+        while True:
+            params: dict = {"pageSize": str(page_size)}
+            if cursor:
+                params["cursor"] = cursor
+            try:
+                data = self._request("GET", f"/api/v1/runs/{run_id}/steps", params=params)
+            except Exception as e:
+                _log(f"Failed to fetch steps for run {run_id}: {e}")
+                return all_steps
+            items = data.get("items", [])
+            all_steps.extend(items)
+            if not data.get("hasMore"):
+                break
+            cursor = data.get("nextCursor")
+            if not cursor:
+                break
+        return all_steps
+
+    @staticmethod
+    def _summarize_step(step: dict) -> str:
+        """Return a one-line summary of a run step for logging."""
+        stype = step.get("stepType", "?")
+        name = step.get("name", "")
+        status = step.get("status", "")
+        parts = [f"[{stype}]"]
+        if name:
+            parts.append(name)
+        if status:
+            parts.append(f"({status})")
+
+        # Show truncated input/output hints
+        inp = step.get("input", {})
+        out = step.get("output", {})
+        if stype == "tool_call" and inp:
+            tool_name = inp.get("toolName", "")
+            args_preview = str(inp.get("args", ""))[:80]
+            if tool_name:
+                parts.append(f"tool={tool_name} args={args_preview}")
+        elif stype == "tool_result" and out:
+            result_preview = str(out.get("result", ""))[:80]
+            parts.append(f"result={result_preview}")
+        elif stype == "model_call":
+            if inp and "request" in inp:
+                req = inp["request"]
+                n_msgs = len(req.get("messages", []))
+                parts.append(f"messages={n_msgs}")
+            if out and "response" in out:
+                resp = out["response"]
+                finish = resp.get("stopReason", "")
+                if finish:
+                    parts.append(f"stop={finish}")
+
+        return " ".join(parts)
+
+    def _save_run_trace(self, run_id: str, steps: List[dict], run_data: dict) -> None:
+        """Save full run step trace as JSON to trace_dir/trace_name.json."""
+        if not self.trace_dir or not self.trace_name:
+            return
+        os.makedirs(self.trace_dir, exist_ok=True)
+        trace_path = os.path.join(self.trace_dir, f"{self.trace_name}.json")
+        trace = {
+            "run_id": run_id,
+            "trace_name": self.trace_name,
+            "model_ref": self.model_ref,
+            "status": run_data.get("status"),
+            "usage": run_data.get("usage", {}),
+            "created_at": run_data.get("createdAt"),
+            "updated_at": run_data.get("updatedAt"),
+            "steps": steps,
+        }
+        with open(trace_path, "w", encoding="utf-8") as f:
+            json.dump(trace, f, ensure_ascii=False, indent=2, default=str)
+        _log(f"Saved run trace: {trace_path}")
+
     def wait_for_run(self, run_id: str, max_seconds: int = 600, poll_interval: float = 2.0) -> dict:
         """Wait for a run to complete and return a dict with status and usage.
+
+        During polling, periodically fetches run steps and logs new ones.
+        On completion, saves the full step trace to trace_dir if configured.
 
         Returns:
             dict with keys:
@@ -185,7 +272,11 @@ class OAHClient:
         """
         start = time.monotonic()
         last_status = ""
+        last_logged_step_seq = -1
         run = {}
+        step_fetch_interval = 10.0  # fetch steps every 10s
+        last_step_fetch = 0.0
+
         while time.monotonic() - start < max_seconds:
             try:
                 run = self._request("GET", f"/api/v1/runs/{run_id}")
@@ -194,25 +285,57 @@ class OAHClient:
                     _log(f"Run {run_id} status: {status} ({time.monotonic()-start:.0f}s)")
                     last_status = status
                 if status in ("completed", "failed", "cancelled"):
+                    # Fetch final steps and save trace
+                    steps = self._fetch_run_steps(run_id)
+                    for s in steps:
+                        seq = s.get("seq", 0)
+                        if seq > last_logged_step_seq:
+                            _log(f"  Step {seq}: {self._summarize_step(s)}")
+                    self._save_run_trace(run_id, steps, run)
                     return {
                         "status": status,
                         "usage": run.get("usage", {}),
                     }
+            except RuntimeError as e:
+                if "run_not_found" in str(e):
+                    _log(f"Run {run_id} not found (workspace may have been deleted), treating as failed")
+                    return {"status": "failed", "usage": {}}
+                _log(f"Run poll error ({time.monotonic()-start:.0f}s): {e}")
             except Exception as e:
                 _log(f"Run poll error ({time.monotonic()-start:.0f}s): {e}")
+
+            # Periodically fetch and log new steps
+            now = time.monotonic()
+            if now - last_step_fetch >= step_fetch_interval:
+                last_step_fetch = now
+                try:
+                    steps = self._fetch_run_steps(run_id)
+                    new_steps = [s for s in steps if s.get("seq", 0) > last_logged_step_seq]
+                    for s in new_steps:
+                        seq = s.get("seq", 0)
+                        _log(f"  Step {seq}: {self._summarize_step(s)}")
+                        last_logged_step_seq = max(last_logged_step_seq, seq)
+                except Exception as e:
+                    _log(f"Step fetch error: {e}")
+
             time.sleep(poll_interval)
         raise TimeoutError(f"[OAH] Run {run_id} did not finish within {max_seconds}s")
 
-    def init_session(self, session_id: str) -> None:
+    def init_session(self, session_id: str, max_retries: int = 2) -> None:
         _log("Initializing session (materialize workspace)...")
-        run_id = self.send_message(
-            session_id,
-            "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
-        )
-        result = self.wait_for_run(run_id, max_seconds=int(self.timeout))
-        if result["status"] != "completed":
-            raise RuntimeError(f"Session init run ended with status: {result['status']}")
-        _log("Session initialized")
+        for attempt in range(max_retries + 1):
+            run_id = self.send_message(
+                session_id,
+                "初始化会话，暂时不要调用任何工具，只需回复【已就绪】。",
+            )
+            result = self.wait_for_run(run_id, max_seconds=min(int(self.timeout), 300))
+            if result["status"] == "completed":
+                _log("Session initialized")
+                return
+            if attempt < max_retries:
+                _log(f"Session init failed (attempt {attempt+1}/{max_retries+1}), retrying...")
+                time.sleep(2)
+        raise RuntimeError(f"Session init run ended with status: {result['status']} after {max_retries+1} attempts")
 
     # ── File Upload / Read / Download ──────────────────────────────────────
 
