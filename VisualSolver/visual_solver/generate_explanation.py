@@ -939,7 +939,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_langfuse', action='store_true',
                        help='Enable Langfuse logging')
     parser.add_argument('--max_scene_concurrency', type=int, default=1, help='Maximum number of scenes to process concurrently')
-    parser.add_argument('--max_topic_concurrency', type=int, default=5,
+    parser.add_argument('--max_topic_concurrency', type=int, default=3,
                        help='Maximum number of topics to process concurrently')
     parser.add_argument('--only_plan', action='store_true', help='Only generate scene outline and implementation plans')
     parser.add_argument('--translate_to_chinese', action='store_true',
@@ -948,6 +948,8 @@ if __name__ == "__main__":
                        help='Use OAH workspace agent for code generation instead of direct LiteLLM call')
     parser.add_argument('--oah_model', type=str, default=None,
                        help='Model ref to use in OAH sessions (e.g. kimi-k26, GLM-5.1-FP8). Falls back to OAH_MODEL_REF env var or server default.')
+    parser.add_argument('--oah_url', type=str, default=None,
+                       help='OAH API URL (e.g. http://127.0.0.1:8787). Falls back to OAH_API_URL env var.')
     parser.add_argument('--trace_dir', type=str, default=None,
                        help='Directory to save OAH run trace JSON files (default: <output_dir>/traces)')
     args = parser.parse_args()
@@ -955,6 +957,10 @@ if __name__ == "__main__":
     # Set OAH model ref: CLI arg > env var
     if args.oah_model:
         Config.OAH_MODEL_REF = args.oah_model
+
+    # Set OAH API URL: CLI arg > env var
+    if args.oah_url:
+        Config.OAH_API_URL = args.oah_url
 
     # Initialize planner model using LiteLLM (skip when using OAH)
     if args.verbose:
@@ -968,6 +974,19 @@ if __name__ == "__main__":
         scene_model = None
         model_info = f"model={Config.OAH_MODEL_REF}" if Config.OAH_MODEL_REF else "model=server_default"
         print(f"Using OAH mode — {model_info}")
+
+        # Clean up orphaned workspaces from previous crashed runs
+        from visual_solver.oah_client import OAHClient
+        try:
+            _cleanup_client = OAHClient(
+                api_url=Config.OAH_API_URL,
+                token=Config.OAH_TOKEN,
+                model_ref=Config.OAH_MODEL_REF,
+                cleanup=False,
+            )
+            _cleanup_client.cleanup_all_workspaces()
+        except Exception as e:
+            print(f"Warning: OAH workspace cleanup at startup failed: {e}")
     else:
         planner_model = LiteLLMWrapper(
             model_name=args.model,
@@ -1117,6 +1136,19 @@ if __name__ == "__main__":
                 )
             except Exception as e:
                 print(f"✗ Problem {idx} ({topic}) failed and will be skipped: {e}")
+                # Clean up any orphaned workspaces left by the failed run
+                if args.use_oah:
+                    try:
+                        from visual_solver.oah_client import OAHClient
+                        _err_client = OAHClient(
+                            api_url=Config.OAH_API_URL,
+                            token=Config.OAH_TOKEN,
+                            model_ref=Config.OAH_MODEL_REF,
+                            cleanup=False,
+                        )
+                        _err_client.cleanup_all_workspaces()
+                    except Exception:
+                        pass
                 return
 
             # Calculate and log problem processing time

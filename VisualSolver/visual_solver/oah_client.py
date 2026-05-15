@@ -107,6 +107,32 @@ class OAHClient:
         except Exception as e:
             _log(f"Failed to delete workspace {workspace_id}: {e}")
 
+    def cleanup_all_workspaces(self) -> int:
+        """Delete all existing workspaces on the OAH server.
+
+        Call this at startup to remove orphaned workspaces from previous
+        crashed runs that could otherwise accumulate in SQLite and cause
+        OOM crashes.
+
+        Returns:
+            int: Number of workspaces deleted.
+        """
+        deleted = 0
+        try:
+            data = self._request("GET", "/api/v1/workspaces", params={"pageSize": "200"})
+            workspaces = data.get("items", data) if isinstance(data, dict) else data
+            if isinstance(workspaces, list):
+                for ws in workspaces:
+                    ws_id = ws.get("id") if isinstance(ws, dict) else ws
+                    if ws_id:
+                        self.delete_workspace(ws_id)
+                        deleted += 1
+            if deleted > 0:
+                _log(f"Cleaned up {deleted} orphaned workspace(s)")
+        except Exception as e:
+            _log(f"Workspace cleanup failed (server may be starting): {e}")
+        return deleted
+
     def delete_workspace_immediately(self, workspace_id: str) -> None:
         """Delete workspace immediately after use.
 
