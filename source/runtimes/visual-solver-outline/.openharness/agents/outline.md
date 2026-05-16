@@ -24,7 +24,7 @@ switch: []
 subagents: []
 policy:
   max_steps: 20
-  run_timeout_seconds: 300
+  run_timeout_seconds: 900
   tool_timeout_seconds: 60
   parallel_tool_calls: false
 ---
