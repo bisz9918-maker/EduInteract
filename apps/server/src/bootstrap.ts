@@ -1322,7 +1322,15 @@ export async function bootstrapRuntime(options: BootstrapOptions = {}): Promise<
       })
     : await sqliteStorageModule!.createSQLiteRuntimePersistence({
         shadowRoot: sqliteShadowRoot,
-        projectDbLocation: config.storage.sqlite?.project_db_location
+        projectDbLocation: config.storage.sqlite?.project_db_location,
+        eviction: config.storage.sqlite?.eviction ? Object.fromEntries(
+          Object.entries({
+            maxWorkspaceRecords: config.storage.sqlite.eviction.max_workspace_records,
+            maxOpenHandles: config.storage.sqlite.eviction.max_open_handles,
+            maxSessionIndexEntries: config.storage.sqlite.eviction.max_session_index_entries,
+            maxRunIndexEntries: config.storage.sqlite.eviction.max_run_index_entries,
+          }).filter(([, v]) => v !== undefined)
+        ) as import("@oah/storage-sqlite").CoordinatorEvictionOptions : undefined
       });
   const primaryStorageMode = "driver" in persistence && persistence.driver === "sqlite" ? "sqlite" : "postgres";
   const postgresMetadataRetentionConfig = resolvePostgresMetadataRetentionConfig({

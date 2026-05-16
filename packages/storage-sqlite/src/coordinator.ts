@@ -15,6 +15,14 @@ import type {
   RunRegistryEntryRow,
   SessionEventRegistryEntryRow
 } from "./shared.js";
+import { BoundedLRUMap } from "./bounded-lru-map.js";
+
+export interface CoordinatorEvictionOptions {
+  maxWorkspaceRecords?: number;
+  maxOpenHandles?: number;
+  maxSessionIndexEntries?: number;
+  maxRunIndexEntries?: number;
+}
 import {
   applyPrimarySchema,
   coerceRows,
@@ -74,16 +82,44 @@ export class SQLitePersistenceCoordinator {
   readonly #shadowRoot: string;
   readonly #projectDbLocation: "shadow" | "workspace";
   readonly #registryDbPath: string;
-  readonly #workspaceRecords = new Map<string, WorkspaceRecord>();
-  readonly #handles = new Map<string, DatabaseHandle>();
-  readonly #sessionIndex = new Map<string, string>();
-  readonly #runIndex = new Map<string, string>();
+  readonly #evictionOptions: CoordinatorEvictionOptions;
+  readonly #workspaceRecords: BoundedLRUMap<string, WorkspaceRecord>;
+  readonly #handles: BoundedLRUMap<string, DatabaseHandle>;
+  readonly #sessionIndex: BoundedLRUMap<string, string>;
+  readonly #runIndex: BoundedLRUMap<string, string>;
+  readonly #activeWorkspaceRefs = new Map<string, number>();
   #registryDb: DatabaseSync | undefined;
 
-  constructor(shadowRoot: string, options: { projectDbLocation?: "shadow" | "workspace" | undefined } = {}) {
+  constructor(shadowRoot: string, options: { projectDbLocation?: "shadow" | "workspace" | undefined; eviction?: CoordinatorEvictionOptions | undefined } = {}) {
     this.#shadowRoot = shadowRoot;
     this.#projectDbLocation = options.projectDbLocation ?? "workspace";
     this.#registryDbPath = path.join(shadowRoot, "workspace-registry.db");
+    this.#evictionOptions = options.eviction ?? {};
+
+    const isPinned = (key: string) => !this.#activeWorkspaceRefs.has(key);
+
+    this.#handles = new BoundedLRUMap<string, DatabaseHandle>({
+      maxSize: this.#evictionOptions.maxOpenHandles ?? Infinity,
+      canEvict: isPinned,
+      onEvict: (_key, handle) => { handle.db.close(); }
+    });
+
+    this.#workspaceRecords = new BoundedLRUMap<string, WorkspaceRecord>({
+      maxSize: this.#evictionOptions.maxWorkspaceRecords ?? Infinity,
+      canEvict: isPinned,
+      onEvict: (workspaceId) => {
+        const handle = this.#handles.get(workspaceId);
+        if (handle) { handle.db.close(); this.#handles.delete(workspaceId); }
+        this.deleteWorkspaceIndexes(workspaceId);
+      }
+    });
+
+    this.#sessionIndex = new BoundedLRUMap<string, string>({
+      maxSize: this.#evictionOptions.maxSessionIndexEntries ?? Infinity,
+    });
+    this.#runIndex = new BoundedLRUMap<string, string>({
+      maxSize: this.#evictionOptions.maxRunIndexEntries ?? Infinity,
+    });
   }
 
   async upsertWorkspace(workspace: WorkspaceRecord): Promise<void> {
@@ -129,7 +165,7 @@ export class SQLitePersistenceCoordinator {
   }
 
   async deleteWorkspace(workspaceId: string): Promise<void> {
-    const workspace = this.#workspaceRecords.get(workspaceId);
+    let workspace = this.#workspaceRecords.get(workspaceId);
     this.#workspaceRecords.delete(workspaceId);
     this.deleteWorkspaceIndexes(workspaceId);
 
@@ -148,6 +184,9 @@ export class SQLitePersistenceCoordinator {
       registryDb.prepare("delete from run_registry where workspace_id = ?").run(workspaceId);
     });
 
+    if (!workspace) {
+      workspace = await this.loadWorkspaceRecordFromRegistry(workspaceId);
+    }
     if (!workspace) {
       return;
     }
@@ -181,13 +220,46 @@ export class SQLitePersistenceCoordinator {
     this.#registryDb = undefined;
   }
 
+  pinWorkspace(workspaceId: string): void {
+    const count = this.#activeWorkspaceRefs.get(workspaceId) ?? 0;
+    this.#activeWorkspaceRefs.set(workspaceId, count + 1);
+  }
+
+  unpinWorkspace(workspaceId: string): void {
+    const count = this.#activeWorkspaceRefs.get(workspaceId);
+    if (count !== undefined && count > 1) {
+      this.#activeWorkspaceRefs.set(workspaceId, count - 1);
+    } else {
+      this.#activeWorkspaceRefs.delete(workspaceId);
+    }
+  }
+
+  async loadWorkspaceRecordFromRegistry(workspaceId: string): Promise<WorkspaceRecord | undefined> {
+    const registryDb = await this.ensureRegistryDb();
+    const row = registryDb
+      .prepare("select payload from workspace_registry where id = ? limit 1")
+      .get(workspaceId) as JsonRow | undefined;
+    if (!row?.payload) return undefined;
+    return JSON.parse(row.payload) as WorkspaceRecord;
+  }
+
   async getWorkspaceHandle(workspaceId: string): Promise<DatabaseHandle> {
-    const workspace = this.#workspaceRecords.get(workspaceId);
+    let workspace = this.#workspaceRecords.get(workspaceId);
+    if (!workspace) {
+      workspace = await this.loadWorkspaceRecordFromRegistry(workspaceId);
+      if (workspace) {
+        this.#workspaceRecords.set(workspaceId, workspace);
+      }
+    }
     if (!workspace) {
       throw new AppError(404, "workspace_not_found", `Workspace ${workspaceId} was not found.`);
     }
-
-    return this.ensureHandle(workspace);
+    this.pinWorkspace(workspaceId);
+    try {
+      return await this.ensureHandle(workspace);
+    } finally {
+      this.unpinWorkspace(workspaceId);
+    }
   }
 
   async getWorkspaceIdForSession(sessionId: string): Promise<string> {
@@ -202,7 +274,8 @@ export class SQLitePersistenceCoordinator {
       return persisted;
     }
 
-    for (const workspace of this.#workspaceRecords.values()) {
+    for (const workspace of await this.listPersistedWorkspaces()) {
+      this.#workspaceRecords.set(workspace.id, workspace);
       const handle = await this.ensureHandle(workspace);
       const row = handle.db.prepare("select id from sessions where id = ? limit 1").get(sessionId) as IdRow | undefined;
       if (row?.id) {
@@ -226,7 +299,8 @@ export class SQLitePersistenceCoordinator {
       return persisted;
     }
 
-    for (const workspace of this.#workspaceRecords.values()) {
+    for (const workspace of await this.listPersistedWorkspaces()) {
+      this.#workspaceRecords.set(workspace.id, workspace);
       const handle = await this.ensureHandle(workspace);
       const row = handle.db
         .prepare("select id, status, heartbeat_at, started_at, created_at from runs where id = ? limit 1")
@@ -520,6 +594,12 @@ export class SQLitePersistenceCoordinator {
       return row.workspaceId;
     }
 
+    const loaded = await this.loadWorkspaceRecordFromRegistry(row.workspaceId);
+    if (loaded) {
+      this.#workspaceRecords.set(row.workspaceId, loaded);
+      return row.workspaceId;
+    }
+
     registryDb.prepare(`delete from ${table} where id = ?`).run(id);
     return undefined;
   }
@@ -538,7 +618,8 @@ export class SQLitePersistenceCoordinator {
       return persisted;
     }
 
-    for (const workspace of this.#workspaceRecords.values()) {
+    for (const workspace of await this.listPersistedWorkspaces()) {
+      this.#workspaceRecords.set(workspace.id, workspace);
       const handle = await this.ensureHandle(workspace);
       const row = handle.db.prepare("select id from messages where id = ? limit 1").get(messageId) as IdRow | undefined;
       if (row?.id) {
@@ -556,7 +637,8 @@ export class SQLitePersistenceCoordinator {
       return persisted;
     }
 
-    for (const workspace of this.#workspaceRecords.values()) {
+    for (const workspace of await this.listPersistedWorkspaces()) {
+      this.#workspaceRecords.set(workspace.id, workspace);
       const handle = await this.ensureHandle(workspace);
       const row = handle.db.prepare("select id from session_events where id = ? limit 1").get(eventId) as IdRow | undefined;
       if (row?.id) {

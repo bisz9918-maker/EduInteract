@@ -19,6 +19,12 @@ export interface ServerConfig {
     sqlite?:
       | {
           project_db_location?: "shadow" | "workspace" | undefined;
+          eviction?: {
+            max_workspace_records?: number | undefined;
+            max_open_handles?: number | undefined;
+            max_session_index_entries?: number | undefined;
+            max_run_index_entries?: number | undefined;
+          } | undefined;
         }
       | undefined;
   };

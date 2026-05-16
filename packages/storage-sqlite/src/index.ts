@@ -14,6 +14,7 @@ import type {
   WorkspaceRepository
 } from "@oah/engine-core";
 import { SQLitePersistenceCoordinator, SQLiteWorkspaceRepository } from "./coordinator.js";
+import type { CoordinatorEvictionOptions } from "./coordinator.js";
 import {
   SQLiteArtifactRepository,
   SQLiteHistoryEventRepository,
@@ -30,6 +31,7 @@ import {
 import { defaultProjectDbPath, shadowDbPath, shouldPersistProjectDbInsideWorkspace } from "./shared.js";
 
 export { SQLitePersistenceCoordinator } from "./coordinator.js";
+export type { CoordinatorEvictionOptions } from "./coordinator.js";
 export { SQLiteSessionEventStore } from "./repositories.js";
 
 export interface SQLiteRuntimePersistence {
@@ -55,6 +57,7 @@ export interface SQLiteRuntimePersistence {
 export interface CreateSQLiteRuntimePersistenceOptions {
   shadowRoot: string;
   projectDbLocation?: "shadow" | "workspace" | undefined;
+  eviction?: CoordinatorEvictionOptions | undefined;
 }
 
 export function sqliteWorkspaceHistoryDbPath(
@@ -72,7 +75,8 @@ export async function createSQLiteRuntimePersistence(
   options: CreateSQLiteRuntimePersistenceOptions
 ): Promise<SQLiteRuntimePersistence> {
   const coordinator = new SQLitePersistenceCoordinator(options.shadowRoot, {
-    projectDbLocation: options.projectDbLocation
+    projectDbLocation: options.projectDbLocation,
+    eviction: options.eviction
   });
   const workspaceRepository = new SQLiteWorkspaceRepository({
     onUpsert: async (workspace) => {
