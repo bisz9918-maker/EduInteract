@@ -80,7 +80,15 @@ export class RunProcessorService {
   }
 
   async processRun(runId: string): Promise<void> {
-    let run = await this.#getRun(runId);
+    let run: Run | null = null;
+    try {
+      run = await this.#getRun(runId);
+    } catch (error) {
+      if (error instanceof AppError && (error.code === "run_not_found" || error.code === "workspace_not_found")) {
+        return;
+      }
+      throw error;
+    }
     if (!run) return;
     const workspace = await this.#getWorkspaceRecord(run.workspaceId);
     const session = run.sessionId ? await this.#getSession(run.sessionId) : undefined;
@@ -218,7 +226,15 @@ export class RunProcessorService {
         return;
       }
 
-      const currentRun = await this.#getRun(run.id);
+      let currentRun: Run | null = null;
+      try {
+        currentRun = await this.#getRun(run.id);
+      } catch (error) {
+        if (error instanceof AppError && (error.code === "run_not_found" || error.code === "workspace_not_found")) {
+          return;
+        }
+        throw error;
+      }
       if (!currentRun) return;
       const execution = this.#ensureExecutionServices();
       this.#logger?.error?.("Runtime run failed.", {
