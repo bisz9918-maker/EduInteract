@@ -81,6 +81,7 @@ export class RunProcessorService {
 
   async processRun(runId: string): Promise<void> {
     let run = await this.#getRun(runId);
+    if (!run) return;
     const workspace = await this.#getWorkspaceRecord(run.workspaceId);
     const session = run.sessionId ? await this.#getSession(run.sessionId) : undefined;
     if (run.cancelRequestedAt) {
@@ -218,6 +219,7 @@ export class RunProcessorService {
       }
 
       const currentRun = await this.#getRun(run.id);
+      if (!currentRun) return;
       const execution = this.#ensureExecutionServices();
       this.#logger?.error?.("Runtime run failed.", {
         workspaceId: executionWorkspace.id,

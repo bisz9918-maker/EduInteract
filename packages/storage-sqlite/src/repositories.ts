@@ -514,7 +514,7 @@ export class SQLiteRunRepository implements RunRepository {
       const row = handle.db.prepare("select payload from runs where id = ? limit 1").get(id) as JsonRow | undefined;
       return row?.payload ? parseJson<Run>(row.payload) : null;
     } catch (error) {
-      if (error instanceof AppError && error.code === "run_not_found") {
+      if (error instanceof AppError && (error.code === "run_not_found" || error.code === "workspace_not_found")) {
         return null;
       }
       throw error;

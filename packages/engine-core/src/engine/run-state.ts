@@ -98,7 +98,7 @@ export class RunStateService {
     try {
       run = await this.#getRun(runId);
     } catch (error) {
-      if (error instanceof AppError && error.code === "run_not_found") {
+      if (error instanceof AppError && (error.code === "run_not_found" || error.code === "workspace_not_found")) {
         return;
       }
       throw error;
@@ -115,7 +115,7 @@ export class RunStateService {
     try {
       run = await this.#getRun(runId);
     } catch (error) {
-      if (error instanceof AppError && error.code === "run_not_found") {
+      if (error instanceof AppError && (error.code === "run_not_found" || error.code === "workspace_not_found")) {
         return;
       }
       throw error;
