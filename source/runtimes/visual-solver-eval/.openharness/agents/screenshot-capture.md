@@ -159,18 +159,18 @@ policy:
 
 ### Playwright 环境信息
 
-- Playwright 模块：`/app/playwright_modules/playwright-core`
-- Chromium：`/usr/lib/chromium/chromium`
-- 启动参数：`executablePath: '/usr/lib/chromium/chromium'`, `args: ['--no-sandbox', '--disable-gpu']`
+- Playwright 模块路径：`/app/playwright_modules/node_modules/playwright-core`
+- Chromium 路径：`/usr/bin/google-chrome-stable`
+- 启动参数：`executablePath: '/usr/bin/google-chrome-stable', args: ['--no-sandbox', '--disable-gpu']`
 
 ### 推荐脚本模板（单 scene 多操作）
 
 ```javascript
-const { chromium } = require('/app/playwright_modules/playwright-core');
+const { chromium } = require('/app/playwright_modules/node_modules/playwright-core');
 const WS_DIR = 'WORKSPACE_DIR';
 (async () => {
   const browser = await chromium.launch({
-    executablePath: '/usr/lib/chromium/chromium',
+    executablePath: '/usr/bin/google-chrome-stable',
     headless: true,
     args: ['--no-sandbox', '--disable-gpu']
   });
