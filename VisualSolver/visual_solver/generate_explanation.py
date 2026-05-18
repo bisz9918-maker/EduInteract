@@ -1136,19 +1136,6 @@ if __name__ == "__main__":
                 )
             except Exception as e:
                 print(f"✗ Problem {idx} ({topic}) failed and will be skipped: {e}")
-                # Clean up any orphaned workspaces left by the failed run
-                if args.use_oah:
-                    try:
-                        from visual_solver.oah_client import OAHClient
-                        _err_client = OAHClient(
-                            api_url=Config.OAH_API_URL,
-                            token=Config.OAH_TOKEN,
-                            model_ref=Config.OAH_MODEL_REF,
-                            cleanup=False,
-                        )
-                        _err_client.cleanup_all_workspaces()
-                    except Exception:
-                        pass
                 return
 
             # Calculate and log problem processing time
