@@ -91,6 +91,32 @@ def _req(method, path, body=None, headers=None, params=None):
         raise RuntimeError(f"OAH API error: {e.code} {e.reason} — {body_text[:500]}")
 
 
+def _delete_workspace(ws_id):
+    """Delete a workspace, ignoring errors."""
+    try:
+        _req("DELETE", f"/api/v1/workspaces/{ws_id}")
+        print(f"  workspace {ws_id} deleted")
+    except Exception as e:
+        print(f"  WARNING: failed to delete workspace {ws_id}: {e}")
+
+
+def _cleanup_all_workspaces():
+    """Delete ALL existing workspaces on the OAH instance."""
+    try:
+        data = _req("GET", "/api/v1/workspaces")
+        workspaces = data if isinstance(data, list) else data.get("items", data.get("workspaces", []))
+        if not workspaces:
+            print("No existing workspaces to clean up.")
+            return
+        print(f"Cleaning up {len(workspaces)} existing workspace(s)...")
+        for ws in workspaces:
+            ws_id = ws.get("id") or ws.get("workspace_id")
+            if ws_id:
+                _delete_workspace(ws_id)
+    except Exception as e:
+        print(f"WARNING: failed to list/cleanup workspaces: {e}")
+
+
 def _upload_buffer(ws_id, data_bytes, ws_path):
     _req("PUT", f"/api/v1/sandboxes/{ws_id}/files/upload",
          body=data_bytes,
@@ -437,137 +463,141 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     ws_id = ws["id"]
     print(f"  workspace: {ws_id}")
 
-    # Wait for sandbox to be ready (container may need time to start)
-    print("  Waiting for sandbox to be ready...")
-    for attempt in range(10):
-        try:
-            _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content", params={"path": "."})
-            print(f"  Sandbox ready ({attempt+1} attempts)")
-            break
-        except Exception:
-            time.sleep(2)
-    else:
-        print("  WARNING: Sandbox may not be ready, proceeding anyway")
+    try:
+        # Wait for sandbox to be ready (container may need time to start)
+        print("  Waiting for sandbox to be ready...")
+        for attempt in range(10):
+            try:
+                _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content", params={"path": "."})
+                print(f"  Sandbox ready ({attempt+1} attempts)")
+                break
+            except Exception:
+                time.sleep(2)
+        else:
+            print("  WARNING: Sandbox may not be ready, proceeding anyway")
 
-    # Upload topic image
-    img_bytes = image_path.read_bytes()
-    _upload_buffer(ws_id, img_bytes, "topic.png")
+        # Upload topic image
+        img_bytes = image_path.read_bytes()
+        _upload_buffer(ws_id, img_bytes, "topic.png")
 
-    # Build and upload spec.json
-    spec = {
-        "topic": topic,
-        "description": bm_entry.get("question", "") if bm_entry else "",
-        "image_file": "topic.png",
-        "scenes": [
-            {"scene_number": n, "output_file": f"scene{n}.html"}
-            for n, _ in scenes
-        ]
-    }
-    if bm_entry and "format_answer" in bm_entry:
-        spec["standard_answer"] = bm_entry["format_answer"]
-    if solution_path:
-        spec["solution_file"] = "solution.html"
-    _upload_buffer(ws_id, json.dumps(spec, ensure_ascii=False).encode("utf-8"), "spec.json")
+        # Build and upload spec.json
+        spec = {
+            "topic": topic,
+            "description": bm_entry.get("question", "") if bm_entry else "",
+            "image_file": "topic.png",
+            "scenes": [
+                {"scene_number": n, "output_file": f"scene{n}.html"}
+                for n, _ in scenes
+            ]
+        }
+        if bm_entry and "format_answer" in bm_entry:
+            spec["standard_answer"] = bm_entry["format_answer"]
+        if solution_path:
+            spec["solution_file"] = "solution.html"
+        _upload_buffer(ws_id, json.dumps(spec, ensure_ascii=False).encode("utf-8"), "spec.json")
 
-    # Upload all scene HTML files
-    for scene_n, scene_html_path in scenes:
-        html_bytes = scene_html_path.read_bytes()
-        _upload_buffer(ws_id, html_bytes, f"scene{scene_n}.html")
+        # Upload all scene HTML files
+        for scene_n, scene_html_path in scenes:
+            html_bytes = scene_html_path.read_bytes()
+            _upload_buffer(ws_id, html_bytes, f"scene{scene_n}.html")
 
-    # Upload solution.html if exists
-    if solution_path:
-        sol_bytes = solution_path.read_bytes()
-        _upload_buffer(ws_id, sol_bytes, "solution.html")
+        # Upload solution.html if exists
+        if solution_path:
+            sol_bytes = solution_path.read_bytes()
+            _upload_buffer(ws_id, sol_bytes, "solution.html")
 
-    # Wait for all files to sync
-    print("Waiting for file sync...")
-    _wait_file(ws_id, "spec.json")
-    _wait_file(ws_id, "topic.png")
-    for scene_n, _ in scenes:
-        _wait_file(ws_id, f"scene{scene_n}.html")
-    if solution_path:
-        _wait_file(ws_id, "solution.html")
+        # Wait for all files to sync
+        print("Waiting for file sync...")
+        _wait_file(ws_id, "spec.json")
+        _wait_file(ws_id, "topic.png")
+        for scene_n, _ in scenes:
+            _wait_file(ws_id, f"scene{scene_n}.html")
+        if solution_path:
+            _wait_file(ws_id, "solution.html")
 
-    # ── Step 0: Screenshot capture ──
-    print("\n" + "=" * 60)
-    print("截图采集 (agent: screenshot-capture)")
-    print("=" * 60)
-    capture_ok = _run_screenshot_capture(
-        ws_id, topic, scenes, image_path,
-        trace_dir=trace_dir,
-    )
-    if not capture_ok:
-        print("WARNING: screenshot capture failed, eval agents may lack capture data")
-
-    # ── Dimension 1-4: Agent evaluation ──
-    agent_dims = [
-        ("problem-alignment-eval", "内容准确性", "dim1_result.txt", "dim1_accuracy"),
-        ("interactive-functionality-eval", "交互功能性", "dim2_result.txt", "dim2_interaction"),
-        ("visual-quality-eval", "视觉可读性", "dim3_result.txt", "dim3_visual"),
-        ("pedagogical-effectiveness-eval", "教育适配性", "dim4_result.txt", "dim4_pedagogy"),
-    ]
-
-    # Create eval output directory
-    eval_dir = output_dir / topic
-    eval_dir.mkdir(parents=True, exist_ok=True)
-    print(f"  eval output: {eval_dir}")
-
-    dim_scores = {}   # {dim_key: score}
-    dim_reasons = {}  # {dim_key: reasoning}
-
-    for agent_name, dim_name, result_file, dim_tag in agent_dims:
-        # Skip dimension if already evaluated (check saved result file)
-        existing_result = eval_dir / result_file
-        if not force and existing_result.exists():
-            existing_content = existing_result.read_text(encoding="utf-8").strip()
-            if existing_content:
-                existing_score, existing_reasoning = parse_topic_score(existing_content, dim_tag)
-                if existing_score > 0:
-                    dim_scores[dim_tag] = existing_score
-                    dim_reasons[dim_tag] = existing_reasoning
-                    print(f"  SKIP {dim_name}: already evaluated ({existing_score}/5)")
-                    continue
-
-        xml_content = eval_agent_dimension(
-            ws_id, agent_name, dim_name, result_file,
-            topic, "", scenes, image_path,
-            trace_dir=trace_dir, dim_tag=dim_tag,
+        # ── Step 0: Screenshot capture ──
+        print("\n" + "=" * 60)
+        print("截图采集 (agent: screenshot-capture)")
+        print("=" * 60)
+        capture_ok = _run_screenshot_capture(
+            ws_id, topic, scenes, image_path,
+            trace_dir=trace_dir,
         )
-        score, reasoning = parse_topic_score(xml_content, dim_tag)
-        dim_scores[dim_tag] = score
-        dim_reasons[dim_tag] = reasoning
-        print(f"  {dim_name}: {score}/5 — {reasoning[:80]}")
+        if not capture_ok:
+            print("WARNING: screenshot capture failed, eval agents may lack capture data")
 
-        # Save raw agent output
-        if xml_content:
-            raw_path = eval_dir / result_file
-            raw_path.write_text(xml_content, encoding="utf-8")
-            print(f"  saved {raw_path}")
+        # ── Dimension 1-4: Agent evaluation ──
+        agent_dims = [
+            ("problem-alignment-eval", "内容准确性", "dim1_result.txt", "dim1_accuracy"),
+            ("interactive-functionality-eval", "交互功能性", "dim2_result.txt", "dim2_interaction"),
+            ("visual-quality-eval", "视觉可读性", "dim3_result.txt", "dim3_visual"),
+            ("pedagogical-effectiveness-eval", "教育适配性", "dim4_result.txt", "dim4_pedagogy"),
+        ]
 
-    # ── Compute total score ──
-    print("\n" + "=" * 60)
-    print("汇总评分")
-    print("=" * 60)
+        # Create eval output directory
+        eval_dir = output_dir / topic
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        print(f"  eval output: {eval_dir}")
 
-    total_score = geometric_mean(list(dim_scores.values()))
+        dim_scores = {}   # {dim_key: score}
+        dim_reasons = {}  # {dim_key: reasoning}
 
-    dim_labels = {
-        "dim1_accuracy": "内容准确性",
-        "dim2_interaction": "交互功能性",
-        "dim3_visual": "视觉可读性",
-        "dim4_pedagogy": "教育适配性",
-    }
-    print(f"\n{'维度':<12} {'分数':>6}")
-    print("-" * 20)
-    for dim_tag in [d[3] for d in agent_dims]:
-        print(f"{dim_labels[dim_tag]:<12} {dim_scores[dim_tag]:>6.2f}")
-    print("-" * 20)
-    print(f"{'总分':<12} {total_score:>6.2f}")
+        for agent_name, dim_name, result_file, dim_tag in agent_dims:
+            # Skip dimension if already evaluated (check saved result file)
+            existing_result = eval_dir / result_file
+            if not force and existing_result.exists():
+                existing_content = existing_result.read_text(encoding="utf-8").strip()
+                if existing_content:
+                    existing_score, existing_reasoning = parse_topic_score(existing_content, dim_tag)
+                    if existing_score > 0:
+                        dim_scores[dim_tag] = existing_score
+                        dim_reasons[dim_tag] = existing_reasoning
+                        print(f"  SKIP {dim_name}: already evaluated ({existing_score}/5)")
+                        continue
 
-    _write_report(eval_dir, topic, bm_entry.get("question", "") if bm_entry else "",
-                  render_details, dim_scores, dim_reasons, total_score)
+            xml_content = eval_agent_dimension(
+                ws_id, agent_name, dim_name, result_file,
+                topic, "", scenes, image_path,
+                trace_dir=trace_dir, dim_tag=dim_tag,
+            )
+            score, reasoning = parse_topic_score(xml_content, dim_tag)
+            dim_scores[dim_tag] = score
+            dim_reasons[dim_tag] = reasoning
+            print(f"  {dim_name}: {score}/5 — {reasoning[:80]}")
 
-    return {"topic": topic, "status": "completed", "total_score": total_score, **{k: v for k, v in dim_scores.items()}}
+            # Save raw agent output
+            if xml_content:
+                raw_path = eval_dir / result_file
+                raw_path.write_text(xml_content, encoding="utf-8")
+                print(f"  saved {raw_path}")
+
+        # ── Compute total score ──
+        print("\n" + "=" * 60)
+        print("汇总评分")
+        print("=" * 60)
+
+        total_score = geometric_mean(list(dim_scores.values()))
+
+        dim_labels = {
+            "dim1_accuracy": "内容准确性",
+            "dim2_interaction": "交互功能性",
+            "dim3_visual": "视觉可读性",
+            "dim4_pedagogy": "教育适配性",
+        }
+        print(f"\n{'维度':<12} {'分数':>6}")
+        print("-" * 20)
+        for dim_tag in [d[3] for d in agent_dims]:
+            print(f"{dim_labels[dim_tag]:<12} {dim_scores[dim_tag]:>6.2f}")
+        print("-" * 20)
+        print(f"{'总分':<12} {total_score:>6.2f}")
+
+        _write_report(eval_dir, topic, bm_entry.get("question", "") if bm_entry else "",
+                      render_details, dim_scores, dim_reasons, total_score)
+
+        return {"topic": topic, "status": "completed", "total_score": total_score, **{k: v for k, v in dim_scores.items()}}
+    finally:
+        # ── Cleanup: delete workspace (always, even on error) ──
+        _delete_workspace(ws_id)
 
 
 def _write_report(eval_dir, topic, ocr_text, render_details, dim_scores, dim_reasons=None, total_score=0.0):
@@ -644,6 +674,10 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None,
     benchmark = load_benchmark()
 
     print(f"Workers: {workers}, OAH: {API_URL}")
+
+    # Pre-batch cleanup: delete all existing workspaces
+    print("\nPre-batch cleanup: removing all existing workspaces...")
+    _cleanup_all_workspaces()
 
     results = []
     if workers <= 1:
