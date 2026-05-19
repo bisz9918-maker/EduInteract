@@ -70,8 +70,8 @@ def extract_problem_index(topic: str) -> int | None:
 
 # ── OAH API helpers ──────────────────────────────────────────────
 
-def _req(method, path, body=None, headers=None, params=None, api_url=None):
-    url = f"{api_url or API_URL}{path}"
+def _req(method, path, body=None, headers=None, params=None):
+    url = f"{API_URL}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
     data = json.dumps(body).encode() if isinstance(body, (dict, list)) else body
@@ -91,20 +91,18 @@ def _req(method, path, body=None, headers=None, params=None, api_url=None):
         raise RuntimeError(f"OAH API error: {e.code} {e.reason} — {body_text[:500]}")
 
 
-def _upload_buffer(ws_id, data_bytes, ws_path, api_url=None):
+def _upload_buffer(ws_id, data_bytes, ws_path):
     _req("PUT", f"/api/v1/sandboxes/{ws_id}/files/upload",
          body=data_bytes,
          headers={"Content-Type": "application/octet-stream"},
-         params={"path": ws_path, "overwrite": "true"},
-         api_url=api_url)
+         params={"path": ws_path, "overwrite": "true"})
     print(f"  uploaded {ws_path} ({len(data_bytes)} bytes)")
 
 
-def _wait_file(ws_id, path, retries=10, interval=3, api_url=None):
+def _wait_file(ws_id, path, retries=10, interval=3):
     for i in range(retries):
         try:
-            d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content", params={"path": path},
-                     api_url=api_url)
+            d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content", params={"path": path})
             if d.get("content", "").strip():
                 print(f"  {path} synced ({i+1} attempts)")
                 return True
@@ -186,13 +184,12 @@ def check_render(scenes):
 # ── Agent-based evaluation ───────────────────────────────────────
 
 def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
-                         trace_dir: Optional[str] = None, dim_tag: str = "", max_retries: int = 2,
-                         api_url: Optional[str] = None):
+                         trace_dir: Optional[str] = None, dim_tag: str = "", max_retries: int = 2):
     """Run an agent evaluation for one dimension. Retries on execution failure (None result)."""
     for attempt in range(1, max_retries + 1):
         result = _eval_agent_dimension_once(
             ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
-            trace_dir=trace_dir, dim_tag=dim_tag, attempt=attempt, api_url=api_url,
+            trace_dir=trace_dir, dim_tag=dim_tag, attempt=attempt,
         )
         if result is not None:
             return result
@@ -203,8 +200,7 @@ def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_te
 
 
 def _eval_agent_dimension_once(ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
-                               trace_dir: Optional[str] = None, dim_tag: str = "", attempt: int = 1,
-                               api_url: Optional[str] = None):
+                               trace_dir: Optional[str] = None, dim_tag: str = "", attempt: int = 1):
     """Single attempt of agent evaluation."""
     print(f"\n--- {dim_name} (agent: {agent_name})" + (f" [attempt {attempt}]" if attempt > 1 else "") + " ---")
 
@@ -213,7 +209,7 @@ def _eval_agent_dimension_once(ws_id, agent_name, dim_name, result_file, topic, 
     if attempt > 1:
         trace_name = f"{topic}_{dim_tag}_retry{attempt}" if dim_tag else None
     client = OAHClient(
-        api_url=api_url or API_URL,
+        api_url=API_URL,
         workspace_template=RUNTIME,
         trace_dir=trace_dir,
         trace_name=trace_name,
@@ -256,7 +252,7 @@ def _eval_agent_dimension_once(ws_id, agent_name, dim_name, result_file, topic, 
     # Read result file
     try:
         d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content",
-                 params={"path": result_file}, api_url=api_url)
+                 params={"path": result_file})
         content = d.get("content", "")
         if content.strip():
             print(f"  {result_file} ({len(content)} chars)")
@@ -272,15 +268,14 @@ def _eval_agent_dimension_once(ws_id, agent_name, dim_name, result_file, topic, 
 # ── Screenshot capture agent ───────────────────────────────────────
 
 def _run_screenshot_capture(ws_id, topic, scenes, image_path,
-                            trace_dir: Optional[str] = None, max_retries: int = 2,
-                            api_url: Optional[str] = None) -> bool:
+                            trace_dir: Optional[str] = None, max_retries: int = 2) -> bool:
     """Run screenshot-capture agent to produce capture_manifest.json and screenshots."""
     for attempt in range(1, max_retries + 1):
         trace_name = f"{topic}_screenshot_capture"
         if attempt > 1:
             trace_name += f"_retry{attempt}"
         client = OAHClient(
-            api_url=api_url or API_URL,
+            api_url=API_URL,
             workspace_template=RUNTIME,
             trace_dir=trace_dir,
             trace_name=trace_name,
@@ -321,7 +316,7 @@ def _run_screenshot_capture(ws_id, topic, scenes, image_path,
         # Verify capture_manifest.json exists
         try:
             d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content",
-                     params={"path": "capture_manifest.json"}, api_url=api_url)
+                     params={"path": "capture_manifest.json"})
             content = d.get("content", "")
             if content.strip():
                 manifest = json.loads(content)
@@ -375,7 +370,7 @@ def geometric_mean(values):
 # ── Main evaluation flow ─────────────────────────────────────────
 
 def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optional[str] = None,
-               benchmark: list[dict] | None = None, force: bool = False, api_url: Optional[str] = None):
+               benchmark: list[dict] | None = None, force: bool = False):
     topic_dir = input_dir / topic
     if not topic_dir.exists():
         print(f"ERROR: topic dir not found: {topic_dir}")
@@ -438,7 +433,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     ws = _req("POST", "/api/v1/workspaces", {
         "name": f"eval-{topic}-{int(time.time())}",
         "runtime": RUNTIME
-    }, api_url=api_url)
+    })
     ws_id = ws["id"]
     print(f"  workspace: {ws_id}")
 
@@ -446,8 +441,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     print("  Waiting for sandbox to be ready...")
     for attempt in range(10):
         try:
-            _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content", params={"path": "."},
-                 api_url=api_url)
+            _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content", params={"path": "."})
             print(f"  Sandbox ready ({attempt+1} attempts)")
             break
         except Exception:
@@ -457,7 +451,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
 
     # Upload topic image
     img_bytes = image_path.read_bytes()
-    _upload_buffer(ws_id, img_bytes, "topic.png", api_url=api_url)
+    _upload_buffer(ws_id, img_bytes, "topic.png")
 
     # Build and upload spec.json
     spec = {
@@ -473,26 +467,26 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
         spec["standard_answer"] = bm_entry["format_answer"]
     if solution_path:
         spec["solution_file"] = "solution.html"
-    _upload_buffer(ws_id, json.dumps(spec, ensure_ascii=False).encode("utf-8"), "spec.json", api_url=api_url)
+    _upload_buffer(ws_id, json.dumps(spec, ensure_ascii=False).encode("utf-8"), "spec.json")
 
     # Upload all scene HTML files
     for scene_n, scene_html_path in scenes:
         html_bytes = scene_html_path.read_bytes()
-        _upload_buffer(ws_id, html_bytes, f"scene{scene_n}.html", api_url=api_url)
+        _upload_buffer(ws_id, html_bytes, f"scene{scene_n}.html")
 
     # Upload solution.html if exists
     if solution_path:
         sol_bytes = solution_path.read_bytes()
-        _upload_buffer(ws_id, sol_bytes, "solution.html", api_url=api_url)
+        _upload_buffer(ws_id, sol_bytes, "solution.html")
 
     # Wait for all files to sync
     print("Waiting for file sync...")
-    _wait_file(ws_id, "spec.json", api_url=api_url)
-    _wait_file(ws_id, "topic.png", api_url=api_url)
+    _wait_file(ws_id, "spec.json")
+    _wait_file(ws_id, "topic.png")
     for scene_n, _ in scenes:
-        _wait_file(ws_id, f"scene{scene_n}.html", api_url=api_url)
+        _wait_file(ws_id, f"scene{scene_n}.html")
     if solution_path:
-        _wait_file(ws_id, "solution.html", api_url=api_url)
+        _wait_file(ws_id, "solution.html")
 
     # ── Step 0: Screenshot capture ──
     print("\n" + "=" * 60)
@@ -500,7 +494,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     print("=" * 60)
     capture_ok = _run_screenshot_capture(
         ws_id, topic, scenes, image_path,
-        trace_dir=trace_dir, api_url=api_url,
+        trace_dir=trace_dir,
     )
     if not capture_ok:
         print("WARNING: screenshot capture failed, eval agents may lack capture data")
@@ -537,7 +531,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
         xml_content = eval_agent_dimension(
             ws_id, agent_name, dim_name, result_file,
             topic, "", scenes, image_path,
-            trace_dir=trace_dir, dim_tag=dim_tag, api_url=api_url,
+            trace_dir=trace_dir, dim_tag=dim_tag,
         )
         score, reasoning = parse_topic_score(xml_content, dim_tag)
         dim_scores[dim_tag] = score
@@ -631,35 +625,9 @@ def find_problem_dirs(input_dir: Path) -> list[str]:
     return problems
 
 
-def parse_oah_urls(oah_url: Optional[str], workers: int) -> list[str]:
-    """Parse OAH API URLs for concurrent workers.
-
-    If --oah_url is a single base URL (e.g. http://127.0.0.1:8787), generate
-    URLs for workers by incrementing port: 8787, 8788, ...
-    If multiple URLs are comma-separated, use them directly.
-    """
-    if not oah_url:
-        oah_url = API_URL
-
-    urls = [u.strip() for u in oah_url.split(",") if u.strip()]
-    if len(urls) >= workers:
-        return urls[:workers]
-
-    # Expand single URL by incrementing port
-    base = urls[0] if urls else API_URL
-    parsed = urllib.parse.urlparse(base)
-    base_port = int(parsed.port or 8787)
-    result = []
-    for i in range(workers):
-        port = base_port + i
-        u = f"{parsed.scheme}://{parsed.hostname}:{port}"
-        result.append(u)
-    return result
-
-
 def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None,
                trace_dir: Optional[str] = None, force: bool = False,
-               workers: int = 1, oah_url: Optional[str] = None):
+               workers: int = 1):
     """批量评测 input_dir 下所有（或指定）问题，结果输出到 output_dir。"""
     if problem:
         problems = [problem]
@@ -675,9 +643,7 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None,
     # Load benchmark once for all problems
     benchmark = load_benchmark()
 
-    # Resolve OAH API URLs for each worker
-    oah_urls = parse_oah_urls(oah_url, workers)
-    print(f"Workers: {workers}, OAH instances: {oah_urls}")
+    print(f"Workers: {workers}, OAH: {API_URL}")
 
     results = []
     if workers <= 1:
@@ -688,26 +654,24 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None,
             print(f"{'#' * 70}")
             try:
                 result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir,
-                                    benchmark=benchmark, force=force, api_url=oah_urls[0])
+                                    benchmark=benchmark, force=force)
                 results.append(result)
             except Exception as e:
                 print(f"ERROR evaluating {topic}: {e}")
                 results.append({"topic": topic, "status": "error", "error": str(e), "total_score": 0.0})
     else:
-        # Concurrent mode
-        def _run_topic(idx_topic):
-            idx, topic = idx_topic
-            api_url = oah_urls[idx % len(oah_urls)]
+        # Concurrent mode — all workers share the same OAH instance
+        def _run_topic(topic):
             try:
                 result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir,
-                                    benchmark=benchmark, force=force, api_url=api_url)
+                                    benchmark=benchmark, force=force)
                 return result
             except Exception as e:
                 print(f"ERROR evaluating {topic}: {e}")
                 return {"topic": topic, "status": "error", "error": str(e), "total_score": 0.0}
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {executor.submit(_run_topic, (i, t)): t for i, t in enumerate(problems)}
+            futures = {executor.submit(_run_topic, t): t for t in problems}
             for future in as_completed(futures):
                 topic = futures[future]
                 try:
@@ -775,7 +739,7 @@ def main():
     trace_dir = args.trace_dir or str(output_dir / "traces")
 
     eval_batch(input_dir, output_dir, problem=args.problem, trace_dir=trace_dir,
-               force=args.force, workers=args.workers, oah_url=args.oah_url)
+               force=args.force, workers=args.workers)
 
 
 if __name__ == "__main__":
