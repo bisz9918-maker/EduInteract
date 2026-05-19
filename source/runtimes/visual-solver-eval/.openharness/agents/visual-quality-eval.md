@@ -39,7 +39,7 @@ policy:
 
 | 文件 | 说明 |
 |------|------|
-| `spec.json` | 包含 `topic`、`description`、`image_file`、`scenes` |
+| `spec.json` | 包含 `topic`、`description`、`image_file`、`standard_answer`（标准答案）、`scenes` |
 | `capture_manifest.json` | 截图采集清单，包含每个截图对应的操作详情 |
 | `capture_scene{N}_*.png` | screenshot-capture agent 已采集的截图（含交互前后对比） |
 

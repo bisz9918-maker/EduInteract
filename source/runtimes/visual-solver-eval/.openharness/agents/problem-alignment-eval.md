@@ -38,7 +38,7 @@ policy:
 
 | 文件 | 说明 |
 |------|------|
-| `spec.json` | 包含 `topic`、`description`、`image_file`、`solution_file`、`scenes` |
+| `spec.json` | 包含 `topic`、`description`、`image_file`、`solution_file`、`standard_answer`（标准答案）、`scenes` |
 | `capture_manifest.json` | 截图采集清单，包含每个截图对应的操作详情 |
 | `{image_file}` | 题目原图 |
 | `{solution_file}` | 解题过程的文字讲解 |
@@ -78,6 +78,8 @@ policy:
 - 图形类型是否匹配题意
 - 解题过程是否正确：步骤是否合理、推理是否严谨、中间结果是否正确
 - 交互操作后的图示内容是否仍然准确（参考交互截图）
+
+**参考标准答案校验**：如果 `spec.json` 中包含 `standard_answer` 字段，请将图示中的数值、结论与标准答案进行比对，作为评判内容正确性的重要依据。标准答案是题目给出的标准解答，图示中呈现的最终结果应与之一致。
 
 **注意**：
 - 本维度只评测"图示内容是否与题意对齐"，不评测视觉质量（由 visual-quality-eval 负责）
