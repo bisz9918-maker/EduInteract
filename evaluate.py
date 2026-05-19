@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-4维度评测 HTML 图示（渲染检查为前置门控）：
+5维度评测 HTML 图示（渲染检查为前置门控）：
   门控: 图示是否能渲染（宿主机本地，仅 pass/fail）
-  维度1: 内容准确性（agent: accuracy-eval）
-  维度2: 交互功能性（agent: interaction-eval）
-  维度3: 视觉可读性（agent: visual-eval）
-  维度4: 教育适配性（agent: pedagogy-eval）
+  维度1: 内容准确性（agent: problem-alignment-eval）
+  维度2: 交互功能性（agent: interactive-functionality-eval）
+  维度3: 视觉可读性（agent: visual-quality-eval）
+  维度4: 教育适配性（agent: pedagogical-effectiveness-eval）
+  维度5: 逻辑连贯性（agent: logic-coherence-eval）
 
 每个维度 agent 给出整个题目的 0-5 分，总分 = 4个维度分的几何平均。
 渲染检查不通过则总分0。
@@ -449,7 +450,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
                       dim_scores={}, total_score=0.0)
         return {"topic": topic, "status": "render_failed", "total_score": 0.0}
 
-    print("\n前置检查通过，开始4维度评测")
+    print("\n前置检查通过，开始5维度评测")
 
     # ── Create workspace and upload files ──
     print("\n" + "=" * 60)
@@ -526,12 +527,13 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
         if not capture_ok:
             print("WARNING: screenshot capture failed, eval agents may lack capture data")
 
-        # ── Dimension 1-4: Agent evaluation ──
+        # ── Dimension 1-5: Agent evaluation ──
         agent_dims = [
             ("problem-alignment-eval", "内容准确性", "dim1_result.txt", "dim1_accuracy"),
             ("interactive-functionality-eval", "交互功能性", "dim2_result.txt", "dim2_interaction"),
             ("visual-quality-eval", "视觉可读性", "dim3_result.txt", "dim3_visual"),
             ("pedagogical-effectiveness-eval", "教育适配性", "dim4_result.txt", "dim4_pedagogy"),
+            ("logic-coherence-eval", "逻辑连贯性", "dim5_result.txt", "dim5_logic_coherence"),
         ]
 
         # Create eval output directory
@@ -583,6 +585,7 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
             "dim2_interaction": "交互功能性",
             "dim3_visual": "视觉可读性",
             "dim4_pedagogy": "教育适配性",
+            "dim5_logic_coherence": "逻辑连贯性",
         }
         print(f"\n{'维度':<12} {'分数':>6}")
         print("-" * 20)
@@ -622,9 +625,10 @@ def _write_report(eval_dir, topic, ocr_text, render_details, dim_scores, dim_rea
             "dim2_interaction": "交互功能性",
             "dim3_visual": "视觉可读性",
             "dim4_pedagogy": "教育适配性",
+            "dim5_logic_coherence": "逻辑连贯性",
         }
         report_lines.append('  <dimensions>')
-        for dim_tag in ["dim1_accuracy", "dim2_interaction", "dim3_visual", "dim4_pedagogy"]:
+        for dim_tag in ["dim1_accuracy", "dim2_interaction", "dim3_visual", "dim4_pedagogy", "dim5_logic_coherence"]:
             score = dim_scores.get(dim_tag, 0.0)
             reasoning = dim_reasons.get(dim_tag, "") if dim_reasons else ""
             # Escape XML special chars in reasoning
