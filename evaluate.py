@@ -28,6 +28,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from pathlib import Path
+from typing import Optional
 
 # Force unbuffered output so progress is visible immediately
 sys.stdout.reconfigure(line_buffering=True)
@@ -45,6 +46,8 @@ if load_dotenv:
 API_URL = os.getenv("OAH_API_URL", "http://localhost:8787")
 OAH_URL = API_URL
 RUNTIME = "visual-solver-eval"
+
+from visual_solver.oah_client import OAHClient
 
 
 # ── OAH API helpers ──────────────────────────────────────────────
@@ -90,20 +93,6 @@ def _wait_file(ws_id, path, retries=10, interval=3):
         time.sleep(interval)
     print(f"  WARNING: {path} not synced after {retries} retries")
     return False
-
-
-def _wait_run(run_id, max_s=600, poll=3):
-    t0 = time.monotonic()
-    last = ""
-    while time.monotonic() - t0 < max_s:
-        st = _req("GET", f"/api/v1/runs/{run_id}").get("status", "")
-        if st != last:
-            print(f"  run status: {st} ({time.monotonic()-t0:.0f}s)")
-            last = st
-        if st in ("completed", "failed", "cancelled"):
-            return st
-        time.sleep(poll)
-    raise TimeoutError(f"Run {run_id} timed out")
 
 
 # ── File discovery ──────────────────────────────────────────────
@@ -176,17 +165,22 @@ def check_render(scenes):
 
 # ── Agent-based evaluation ───────────────────────────────────────
 
-def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path):
+def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
+                         trace_dir: Optional[str] = None, dim_tag: str = ""):
     """Run an agent evaluation for one dimension."""
     print(f"\n--- {dim_name} (agent: {agent_name}) ---")
 
+    # Create OAHClient with trace saving
+    trace_name = f"{topic}_{dim_tag}" if dim_tag else None
+    client = OAHClient(
+        api_url=API_URL,
+        workspace_template=RUNTIME,
+        trace_dir=trace_dir,
+        trace_name=trace_name,
+    )
+
     # Create session with specific agent
-    ses = _req("POST", f"/api/v1/workspaces/{ws_id}/sessions", {
-        "title": f"{dim_name} evaluation",
-        "agentName": agent_name
-    })
-    ses_id = ses["id"]
-    print(f"  session: {ses_id} (agent: {agent_name})")
+    ses_id = client.create_session(ws_id, title=f"{dim_name} evaluation", agent_name=agent_name)
 
     # Build message content with topic image
     from PIL import Image as PILImage
@@ -208,12 +202,11 @@ def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_te
         {"type": "image", "image": img_b64, "mediaType": "image/png"},
     ]
 
-    run = _req("POST", f"/api/v1/sessions/{ses_id}/messages",
-               {"content": content_parts})
-    print(f"  run: {run['runId']}")
+    run_id = client.send_multimodal_message(ses_id, content_parts)
 
-    # Wait for completion
-    st = _wait_run(run["runId"], max_s=600)
+    # Wait for completion (saves trace automatically via OAHClient)
+    result = client.wait_for_run(run_id, max_seconds=600)
+    st = result["status"]
     print(f"  result: {st}")
 
     if st != "completed":
@@ -268,7 +261,7 @@ def geometric_mean(values):
 
 # ── Main evaluation flow ─────────────────────────────────────────
 
-def eval_topic(topic: str, input_dir: Path, output_dir: Path):
+def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optional[str] = None):
     topic_dir = input_dir / topic
     if not topic_dir.exists():
         print(f"ERROR: topic dir not found: {topic_dir}")
@@ -386,7 +379,8 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path):
     for agent_name, dim_name, result_file, dim_tag in agent_dims:
         xml_content = eval_agent_dimension(
             ws_id, agent_name, dim_name, result_file,
-            topic, "", scenes, image_path
+            topic, "", scenes, image_path,
+            trace_dir=trace_dir, dim_tag=dim_tag,
         )
         score, reasoning = parse_topic_score(xml_content, dim_tag)
         dim_scores[dim_tag] = score
@@ -479,7 +473,7 @@ def find_problem_dirs(input_dir: Path) -> list[str]:
     return problems
 
 
-def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None):
+def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, trace_dir: Optional[str] = None):
     """批量评测 input_dir 下所有（或指定）问题，结果输出到 output_dir。"""
     if problem:
         problems = [problem]
@@ -498,7 +492,7 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None):
         print(f"# 评测进度: {i+1}/{len(problems)} — {topic}")
         print(f"{'#' * 70}")
         try:
-            result = eval_topic(topic, input_dir, output_dir)
+            result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir)
             results.append(result)
         except Exception as e:
             print(f"ERROR evaluating {topic}: {e}")
@@ -539,6 +533,8 @@ def main():
                         help="只评测指定问题 (如 problem_0_physics_g9)")
     parser.add_argument("--oah_url", type=str, default=None,
                         help="OAH API 地址 (如 http://127.0.0.1:8790)")
+    parser.add_argument("--trace_dir", type=str, default=None,
+                        help="run trace 输出目录 (默认: <output_dir>/traces)")
     args = parser.parse_args()
 
     if args.oah_url:
@@ -547,7 +543,9 @@ def main():
     input_dir = args.input_dir if args.input_dir.is_absolute() else ROOT / args.input_dir
     output_dir = args.output_dir if args.output_dir.is_absolute() else ROOT / args.output_dir
 
-    eval_batch(input_dir, output_dir, problem=args.problem)
+    trace_dir = args.trace_dir or str(output_dir / "traces")
+
+    eval_batch(input_dir, output_dir, problem=args.problem, trace_dir=trace_dir)
 
 
 if __name__ == "__main__":
