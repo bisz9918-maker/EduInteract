@@ -369,10 +369,10 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path):
 
     # ── Dimension 1-4: Agent evaluation ──
     agent_dims = [
-        ("accuracy-eval", "内容准确性", "dim1_result.txt", "dim1_accuracy"),
-        ("interaction-eval", "交互功能性", "dim2_result.txt", "dim2_interaction"),
-        ("visual-eval", "视觉可读性", "dim3_result.txt", "dim3_visual"),
-        ("pedagogy-eval", "教育适配性", "dim4_result.txt", "dim4_pedagogy"),
+        ("problem-alignment-eval", "内容准确性", "dim1_result.txt", "dim1_accuracy"),
+        ("interactive-functionality-eval", "交互功能性", "dim2_result.txt", "dim2_interaction"),
+        ("visual-quality-eval", "视觉可读性", "dim3_result.txt", "dim3_visual"),
+        ("pedagogical-effectiveness-eval", "教育适配性", "dim4_result.txt", "dim4_pedagogy"),
     ]
 
     # Create eval output directory
