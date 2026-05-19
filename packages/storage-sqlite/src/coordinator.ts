@@ -38,6 +38,30 @@ import {
   shouldPersistProjectDbInsideWorkspace
 } from "./shared.js";
 
+const SQLITE_BUSY_CODES = new Set(["ERR_SQLITE_ERROR", "SQLITE_BUSY"]);
+
+function isSqliteBusyError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as any).code;
+  const errcode = (err as any).errcode;
+  return SQLITE_BUSY_CODES.has(code) || errcode === 5 || errcode === "SQLITE_BUSY";
+}
+
+async function retryOnBusy<T>(fn: () => T, maxRetries = 3, baseDelayMs = 200): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return fn();
+    } catch (err) {
+      if (isSqliteBusyError(err) && attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 100;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export class SQLiteWorkspaceRepository implements WorkspaceRepository {
   readonly #items = new Map<string, WorkspaceRecord>();
   readonly #onUpsert: (workspace: WorkspaceRecord) => Promise<void>;
@@ -389,7 +413,8 @@ export class SQLitePersistenceCoordinator {
     await mkdir(path.dirname(dbPath), { recursive: true });
     const db = new DatabaseSync(dbPath);
     db.exec("pragma journal_mode = wal");
-    db.exec("pragma busy_timeout = 5000");
+    db.exec("pragma busy_timeout = 30000");
+    db.exec("pragma synchronous = normal");
     db.exec("pragma mmap_size = 0");
     migrateLegacyMirrorSchemaIfNeeded(db);
     reconcilePersistedWorkspaceScope(db, workspace);
@@ -412,7 +437,8 @@ export class SQLitePersistenceCoordinator {
     await mkdir(path.dirname(this.#registryDbPath), { recursive: true });
     const db = new DatabaseSync(this.#registryDbPath);
     db.exec("pragma journal_mode = wal");
-    db.exec("pragma busy_timeout = 5000");
+    db.exec("pragma busy_timeout = 30000");
+    db.exec("pragma synchronous = normal");
     db.exec("pragma mmap_size = 0");
     for (const statement of registrySchemaStatements) {
       db.exec(statement);
@@ -517,41 +543,47 @@ export class SQLitePersistenceCoordinator {
   async indexSession(sessionId: string, workspaceId: string): Promise<void> {
     this.#sessionIndex.set(sessionId, workspaceId);
     const registryDb = await this.ensureRegistryDb();
-    registryDb
-      .prepare(
-        `insert into session_registry (id, workspace_id, updated_at)
-         values (?, ?, ?)
-         on conflict(id) do update set
-           workspace_id = excluded.workspace_id,
-           updated_at = excluded.updated_at`
-      )
-      .run(sessionId, workspaceId, nowIso());
+    await retryOnBusy(() =>
+      registryDb
+        .prepare(
+          `insert into session_registry (id, workspace_id, updated_at)
+           values (?, ?, ?)
+           on conflict(id) do update set
+             workspace_id = excluded.workspace_id,
+             updated_at = excluded.updated_at`
+        )
+        .run(sessionId, workspaceId, nowIso())
+    );
   }
 
   async indexMessage(messageId: string, workspaceId: string): Promise<void> {
     const registryDb = await this.ensureRegistryDb();
-    registryDb
-      .prepare(
-        `insert into message_registry (id, workspace_id, updated_at)
-         values (?, ?, ?)
-         on conflict(id) do update set
-           workspace_id = excluded.workspace_id,
-           updated_at = excluded.updated_at`
-      )
-      .run(messageId, workspaceId, nowIso());
+    await retryOnBusy(() =>
+      registryDb
+        .prepare(
+          `insert into message_registry (id, workspace_id, updated_at)
+           values (?, ?, ?)
+           on conflict(id) do update set
+             workspace_id = excluded.workspace_id,
+             updated_at = excluded.updated_at`
+        )
+        .run(messageId, workspaceId, nowIso())
+    );
   }
 
   async indexSessionEvent(eventId: string, workspaceId: string): Promise<void> {
     const registryDb = await this.ensureRegistryDb();
-    registryDb
-      .prepare(
-        `insert into session_event_registry (id, workspace_id, updated_at)
-         values (?, ?, ?)
-         on conflict(id) do update set
-           workspace_id = excluded.workspace_id,
-           updated_at = excluded.updated_at`
-      )
-      .run(eventId, workspaceId, nowIso());
+    await retryOnBusy(() =>
+      registryDb
+        .prepare(
+          `insert into session_event_registry (id, workspace_id, updated_at)
+           values (?, ?, ?)
+           on conflict(id) do update set
+             workspace_id = excluded.workspace_id,
+             updated_at = excluded.updated_at`
+        )
+        .run(eventId, workspaceId, nowIso())
+    );
   }
 
   forgetSession(sessionId: string): void {
@@ -565,17 +597,19 @@ export class SQLitePersistenceCoordinator {
   ): Promise<void> {
     this.#runIndex.set(run.id, run.workspaceId);
     const registryDb = await this.ensureRegistryDb();
-    registryDb
-      .prepare(
-        `insert into run_registry (id, workspace_id, status, recover_at, updated_at)
-         values (?, ?, ?, ?, ?)
-         on conflict(id) do update set
-           workspace_id = excluded.workspace_id,
-           status = excluded.status,
-           recover_at = excluded.recover_at,
-           updated_at = excluded.updated_at`
-      )
-      .run(run.id, run.workspaceId, run.status, this.runRecoverAt(run), nowIso());
+    await retryOnBusy(() =>
+      registryDb
+        .prepare(
+          `insert into run_registry (id, workspace_id, status, recover_at, updated_at)
+           values (?, ?, ?, ?, ?)
+           on conflict(id) do update set
+             workspace_id = excluded.workspace_id,
+             status = excluded.status,
+             recover_at = excluded.recover_at,
+             updated_at = excluded.updated_at`
+        )
+        .run(run.id, run.workspaceId, run.status, this.runRecoverAt(run), nowIso())
+    );
   }
 
   async lookupWorkspaceIdInRegistry(
