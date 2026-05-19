@@ -4,9 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STATIC_DIR = path.resolve(__dirname, "../oah/apps/web/dist");
-const API_TARGET = "http://127.0.0.1:8787";
-const PORT = 5173;
+const STATIC_DIR = path.resolve(__dirname, "../apps/web/dist");
+const API_TARGET = process.env.OAH_WEB_PROXY_TARGET || "http://127.0.0.1:8787";
+const PORT = parseInt(process.env.OAH_WEB_PORT || "5173", 10);
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -40,14 +40,15 @@ function matchApiPath(url) {
 }
 
 function proxyRequest(req, res, apiPath) {
+  const targetUrl = new URL(API_TARGET);
   const url = new URL(apiPath, API_TARGET);
 
   const options = {
-    hostname: "127.0.0.1",
-    port: 8787,
+    hostname: targetUrl.hostname,
+    port: parseInt(targetUrl.port, 10),
     path: url.pathname + url.search,
     method: req.method,
-    headers: { ...req.headers, host: "127.0.0.1:8787" },
+    headers: { ...req.headers, host: `${targetUrl.hostname}:${targetUrl.port}` },
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
@@ -143,8 +144,8 @@ const server = http.createServer((req, res) => {
  * If the URL looks like /ws-xxx/proxy/5173/assets/..., extract /ws-xxx/proxy/5173 as prefix.
  */
 function detectPrefix(url) {
-  // Look for a pattern like /<something>/proxy/<port>/
-  const m = url.match(/^(\/[^/]+\/proxy\/\d+)\//);
+  // Look for a pattern like /.../proxy/<port>/ anywhere in the path
+  const m = url.match(/^(.*\/proxy\/\d+)\//);
   return m ? m[1] : "";
 }
 
