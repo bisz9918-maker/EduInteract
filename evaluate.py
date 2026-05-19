@@ -183,12 +183,30 @@ def check_render(scenes):
 # ── Agent-based evaluation ───────────────────────────────────────
 
 def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
-                         trace_dir: Optional[str] = None, dim_tag: str = ""):
-    """Run an agent evaluation for one dimension."""
-    print(f"\n--- {dim_name} (agent: {agent_name}) ---")
+                         trace_dir: Optional[str] = None, dim_tag: str = "", max_retries: int = 2):
+    """Run an agent evaluation for one dimension. Retries on execution failure (None result)."""
+    for attempt in range(1, max_retries + 1):
+        result = _eval_agent_dimension_once(
+            ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
+            trace_dir=trace_dir, dim_tag=dim_tag, attempt=attempt,
+        )
+        if result is not None:
+            return result
+        if attempt < max_retries:
+            print(f"  {dim_name} returned None, retrying ({attempt}/{max_retries})...")
+    print(f"  {dim_name} failed after {max_retries} attempts")
+    return None
+
+
+def _eval_agent_dimension_once(ws_id, agent_name, dim_name, result_file, topic, ocr_text, scenes, image_path,
+                               trace_dir: Optional[str] = None, dim_tag: str = "", attempt: int = 1):
+    """Single attempt of agent evaluation."""
+    print(f"\n--- {dim_name} (agent: {agent_name})" + (f" [attempt {attempt}]" if attempt > 1 else "") + " ---")
 
     # Create OAHClient with trace saving
     trace_name = f"{topic}_{dim_tag}" if dim_tag else None
+    if attempt > 1:
+        trace_name = f"{topic}_{dim_tag}_retry{attempt}" if dim_tag else None
     client = OAHClient(
         api_url=API_URL,
         workspace_template=RUNTIME,
@@ -249,62 +267,73 @@ def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_te
 # ── Screenshot capture agent ───────────────────────────────────────
 
 def _run_screenshot_capture(ws_id, topic, scenes, image_path,
-                            trace_dir: Optional[str] = None) -> bool:
+                            trace_dir: Optional[str] = None, max_retries: int = 2) -> bool:
     """Run screenshot-capture agent to produce capture_manifest.json and screenshots."""
-    trace_name = f"{topic}_screenshot_capture"
-    client = OAHClient(
-        api_url=API_URL,
-        workspace_template=RUNTIME,
-        trace_dir=trace_dir,
-        trace_name=trace_name,
-    )
+    for attempt in range(1, max_retries + 1):
+        trace_name = f"{topic}_screenshot_capture"
+        if attempt > 1:
+            trace_name += f"_retry{attempt}"
+        client = OAHClient(
+            api_url=API_URL,
+            workspace_template=RUNTIME,
+            trace_dir=trace_dir,
+            trace_name=trace_name,
+        )
 
-    ses_id = client.create_session(ws_id, title="截图采集", agent_name="screenshot-capture")
+        ses_id = client.create_session(ws_id, title="截图采集", agent_name="screenshot-capture")
 
-    from PIL import Image as PILImage
-    import io
-    img = PILImage.open(image_path)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        from PIL import Image as PILImage
+        import io
+        img = PILImage.open(image_path)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
-    scene_list = ", ".join(f"scene{s[0]}" for s in scenes)
-    msg_text = (
-        f"请对题目 {topic} 的所有 scene 进行截图采集（初始状态+交互操作截图）。"
-        f"请读取 spec.json 了解详情，"
-        f"完成后将结果写入 capture_manifest.json。"
-    )
-    content_parts = [
-        {"type": "text", "text": msg_text},
-        {"type": "image", "image": img_b64, "mediaType": "image/png"},
-    ]
+        msg_text = (
+            f"请对题目 {topic} 的所有 scene 进行截图采集（初始状态+交互操作截图）。"
+            f"请读取 spec.json 了解详情，"
+            f"完成后将结果写入 capture_manifest.json。"
+        )
+        content_parts = [
+            {"type": "text", "text": msg_text},
+            {"type": "image", "image": img_b64, "mediaType": "image/png"},
+        ]
 
-    run_id = client.send_multimodal_message(ses_id, content_parts)
+        run_id = client.send_multimodal_message(ses_id, content_parts)
 
-    result = client.wait_for_run(run_id, max_seconds=600)
-    st = result["status"]
-    print(f"  screenshot-capture result: {st}")
+        result = client.wait_for_run(run_id, max_seconds=600)
+        st = result["status"]
+        print(f"  screenshot-capture result: {st}" + (f" (attempt {attempt})" if attempt > 1 else ""))
 
-    if st != "completed":
-        print(f"  screenshot-capture failed")
-        return False
-
-    # Verify capture_manifest.json exists
-    try:
-        d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content",
-                 params={"path": "capture_manifest.json"})
-        content = d.get("content", "")
-        if content.strip():
-            manifest = json.loads(content)
-            n_shots = sum(len(s.get("screenshots", [])) for s in manifest.get("scenes", []))
-            print(f"  capture_manifest.json OK ({n_shots} screenshots recorded)")
-            return True
-        else:
-            print("  capture_manifest.json is empty")
+        if st != "completed":
+            if attempt < max_retries:
+                print(f"  screenshot-capture failed, retrying ({attempt}/{max_retries})...")
+                continue
+            print(f"  screenshot-capture failed after {max_retries} attempts")
             return False
-    except Exception as e:
-        print(f"  Failed to read capture_manifest.json: {e}")
-        return False
+
+        # Verify capture_manifest.json exists
+        try:
+            d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content",
+                     params={"path": "capture_manifest.json"})
+            content = d.get("content", "")
+            if content.strip():
+                manifest = json.loads(content)
+                n_shots = sum(len(s.get("screenshots", [])) for s in manifest.get("scenes", []))
+                print(f"  capture_manifest.json OK ({n_shots} screenshots recorded)")
+                return True
+            else:
+                print("  capture_manifest.json is empty")
+                if attempt < max_retries:
+                    continue
+                return False
+        except Exception as e:
+            print(f"  Failed to read capture_manifest.json: {e}")
+            if attempt < max_retries:
+                continue
+            return False
+
+    return False
 
 
 # ── Parse agent XML results ──────────────────────────────────────
@@ -340,7 +369,7 @@ def geometric_mean(values):
 # ── Main evaluation flow ─────────────────────────────────────────
 
 def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optional[str] = None,
-               benchmark: list[dict] | None = None):
+               benchmark: list[dict] | None = None, force: bool = False):
     topic_dir = input_dir / topic
     if not topic_dir.exists():
         print(f"ERROR: topic dir not found: {topic_dir}")
@@ -350,6 +379,13 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     if not image_path.exists():
         print(f"ERROR: image not found: {image_path}")
         return {"topic": topic, "status": "error", "error": "image not found", "total_score": 0.0}
+
+    # Skip if already evaluated (unless --force)
+    eval_dir = output_dir / topic
+    report_path = eval_dir / "evaluation_report.xml"
+    if not force and report_path.exists():
+        print(f"SKIP: {topic} already evaluated ({report_path} exists)")
+        return {"topic": topic, "status": "skipped", "total_score": 0.0}
 
     # Find all scenes and solution
     scenes = find_scenes(topic_dir)
@@ -479,6 +515,18 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     dim_reasons = {}  # {dim_key: reasoning}
 
     for agent_name, dim_name, result_file, dim_tag in agent_dims:
+        # Skip dimension if already evaluated (check saved result file)
+        existing_result = eval_dir / result_file
+        if not force and existing_result.exists():
+            existing_content = existing_result.read_text(encoding="utf-8").strip()
+            if existing_content:
+                existing_score, existing_reasoning = parse_topic_score(existing_content, dim_tag)
+                if existing_score > 0:
+                    dim_scores[dim_tag] = existing_score
+                    dim_reasons[dim_tag] = existing_reasoning
+                    print(f"  SKIP {dim_name}: already evaluated ({existing_score}/5)")
+                    continue
+
         xml_content = eval_agent_dimension(
             ws_id, agent_name, dim_name, result_file,
             topic, "", scenes, image_path,
@@ -576,7 +624,8 @@ def find_problem_dirs(input_dir: Path) -> list[str]:
     return problems
 
 
-def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, trace_dir: Optional[str] = None):
+def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None,
+               trace_dir: Optional[str] = None, force: bool = False):
     """批量评测 input_dir 下所有（或指定）问题，结果输出到 output_dir。"""
     if problem:
         problems = [problem]
@@ -598,7 +647,8 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, tr
         print(f"# 评测进度: {i+1}/{len(problems)} — {topic}")
         print(f"{'#' * 70}")
         try:
-            result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir, benchmark=benchmark)
+            result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir,
+                                benchmark=benchmark, force=force)
             results.append(result)
         except Exception as e:
             print(f"ERROR evaluating {topic}: {e}")
@@ -607,6 +657,7 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, tr
     # Write summary
     total = len(results)
     completed = sum(1 for r in results if r["status"] == "completed")
+    skipped = sum(1 for r in results if r["status"] == "skipped")
     render_failed = sum(1 for r in results if r["status"] == "render_failed")
     errors = sum(1 for r in results if r["status"] == "error")
     avg_score = sum(r["total_score"] for r in results if r["status"] == "completed") / max(completed, 1)
@@ -614,6 +665,7 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, tr
     summary = {
         "total": total,
         "completed": completed,
+        "skipped": skipped,
         "render_failed": render_failed,
         "errors": errors,
         "average_score": round(avg_score, 2),
@@ -622,7 +674,7 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, tr
     summary_path = output_dir / "evaluation_summary.json"
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n{'=' * 60}")
-    print(f"评测完成: {completed}/{total} 成功, {render_failed} 渲染失败, {errors} 错误")
+    print(f"评测完成: {completed}/{total} 成功, {skipped} 跳过, {render_failed} 渲染失败, {errors} 错误")
     print(f"平均分: {avg_score:.2f}")
     print(f"汇总报告: {summary_path}")
     print(f"{'=' * 60}")
@@ -641,6 +693,8 @@ def main():
                         help="OAH API 地址 (如 http://127.0.0.1:8790)")
     parser.add_argument("--trace_dir", type=str, default=None,
                         help="run trace 输出目录 (默认: <output_dir>/traces)")
+    parser.add_argument("--force", action="store_true",
+                        help="强制重新评测，跳过已完成的题目/维度")
     args = parser.parse_args()
 
     if args.oah_url:
@@ -651,7 +705,7 @@ def main():
 
     trace_dir = args.trace_dir or str(output_dir / "traces")
 
-    eval_batch(input_dir, output_dir, problem=args.problem, trace_dir=trace_dir)
+    eval_batch(input_dir, output_dir, problem=args.problem, trace_dir=trace_dir, force=args.force)
 
 
 if __name__ == "__main__":
