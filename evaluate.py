@@ -49,6 +49,23 @@ RUNTIME = "visual-solver-eval"
 
 from visual_solver.oah_client import OAHClient
 
+BENCHMARK_PATH = ROOT / "data" / "benchmark" / "benchmark.json"
+
+
+# ── Benchmark helpers ─────────────────────────────────────────────
+
+def load_benchmark() -> list[dict]:
+    if not BENCHMARK_PATH.exists():
+        print(f"WARNING: benchmark not found: {BENCHMARK_PATH}")
+        return []
+    with open(BENCHMARK_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def extract_problem_index(topic: str) -> int | None:
+    m = re.match(r"problem_(\d+)_", topic)
+    return int(m.group(1)) if m else None
+
 
 # ── OAH API helpers ──────────────────────────────────────────────
 
@@ -229,6 +246,67 @@ def eval_agent_dimension(ws_id, agent_name, dim_name, result_file, topic, ocr_te
         return None
 
 
+# ── Screenshot capture agent ───────────────────────────────────────
+
+def _run_screenshot_capture(ws_id, topic, scenes, image_path,
+                            trace_dir: Optional[str] = None) -> bool:
+    """Run screenshot-capture agent to produce capture_manifest.json and screenshots."""
+    trace_name = f"{topic}_screenshot_capture"
+    client = OAHClient(
+        api_url=API_URL,
+        workspace_template=RUNTIME,
+        trace_dir=trace_dir,
+        trace_name=trace_name,
+    )
+
+    ses_id = client.create_session(ws_id, title="截图采集", agent_name="screenshot-capture")
+
+    from PIL import Image as PILImage
+    import io
+    img = PILImage.open(image_path)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+    scene_list = ", ".join(f"scene{s[0]}" for s in scenes)
+    msg_text = (
+        f"请对题目 {topic} 的所有 scene 进行截图采集（初始状态+交互操作截图）。"
+        f"请读取 spec.json 了解详情，"
+        f"完成后将结果写入 capture_manifest.json。"
+    )
+    content_parts = [
+        {"type": "text", "text": msg_text},
+        {"type": "image", "image": img_b64, "mediaType": "image/png"},
+    ]
+
+    run_id = client.send_multimodal_message(ses_id, content_parts)
+
+    result = client.wait_for_run(run_id, max_seconds=600)
+    st = result["status"]
+    print(f"  screenshot-capture result: {st}")
+
+    if st != "completed":
+        print(f"  screenshot-capture failed")
+        return False
+
+    # Verify capture_manifest.json exists
+    try:
+        d = _req("GET", f"/api/v1/sandboxes/{ws_id}/files/content",
+                 params={"path": "capture_manifest.json"})
+        content = d.get("content", "")
+        if content.strip():
+            manifest = json.loads(content)
+            n_shots = sum(len(s.get("screenshots", [])) for s in manifest.get("scenes", []))
+            print(f"  capture_manifest.json OK ({n_shots} screenshots recorded)")
+            return True
+        else:
+            print("  capture_manifest.json is empty")
+            return False
+    except Exception as e:
+        print(f"  Failed to read capture_manifest.json: {e}")
+        return False
+
+
 # ── Parse agent XML results ──────────────────────────────────────
 
 def parse_topic_score(xml_content, dim_tag):
@@ -261,7 +339,8 @@ def geometric_mean(values):
 
 # ── Main evaluation flow ─────────────────────────────────────────
 
-def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optional[str] = None):
+def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optional[str] = None,
+               benchmark: list[dict] | None = None):
     topic_dir = input_dir / topic
     if not topic_dir.exists():
         print(f"ERROR: topic dir not found: {topic_dir}")
@@ -282,6 +361,16 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     print(f"Found {len(scenes)} scenes: {[s[0] for s in scenes]}")
     if solution_path:
         print(f"Found solution: {solution_path.name}")
+
+    # Load benchmark data for this problem
+    bm_entry = None
+    if benchmark:
+        idx = extract_problem_index(topic)
+        if idx is not None and idx < len(benchmark):
+            bm_entry = benchmark[idx]
+            print(f"  benchmark entry found (index={idx})")
+        else:
+            print(f"  WARNING: no benchmark entry for index={idx}")
 
     # ── Gate: Render check ──
     print("\n" + "=" * 60)
@@ -330,13 +419,15 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     # Build and upload spec.json
     spec = {
         "topic": topic,
-        "description": "",
+        "description": bm_entry.get("question", "") if bm_entry else "",
         "image_file": "topic.png",
         "scenes": [
             {"scene_number": n, "output_file": f"scene{n}.html"}
             for n, _ in scenes
         ]
     }
+    if bm_entry and "format_answer" in bm_entry:
+        spec["standard_answer"] = bm_entry["format_answer"]
     if solution_path:
         spec["solution_file"] = "solution.html"
     _upload_buffer(ws_id, json.dumps(spec, ensure_ascii=False).encode("utf-8"), "spec.json")
@@ -359,6 +450,17 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
         _wait_file(ws_id, f"scene{scene_n}.html")
     if solution_path:
         _wait_file(ws_id, "solution.html")
+
+    # ── Step 0: Screenshot capture ──
+    print("\n" + "=" * 60)
+    print("截图采集 (agent: screenshot-capture)")
+    print("=" * 60)
+    capture_ok = _run_screenshot_capture(
+        ws_id, topic, scenes, image_path,
+        trace_dir=trace_dir,
+    )
+    if not capture_ok:
+        print("WARNING: screenshot capture failed, eval agents may lack capture data")
 
     # ── Dimension 1-4: Agent evaluation ──
     agent_dims = [
@@ -413,7 +515,8 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     print("-" * 20)
     print(f"{'总分':<12} {total_score:>6.2f}")
 
-    _write_report(eval_dir, topic, "", render_details, dim_scores, dim_reasons, total_score)
+    _write_report(eval_dir, topic, bm_entry.get("question", "") if bm_entry else "",
+                  render_details, dim_scores, dim_reasons, total_score)
 
     return {"topic": topic, "status": "completed", "total_score": total_score, **{k: v for k, v in dim_scores.items()}}
 
@@ -486,13 +589,16 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None, tr
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Load benchmark once for all problems
+    benchmark = load_benchmark()
+
     results = []
     for i, topic in enumerate(problems):
         print(f"\n{'#' * 70}")
         print(f"# 评测进度: {i+1}/{len(problems)} — {topic}")
         print(f"{'#' * 70}")
         try:
-            result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir)
+            result = eval_topic(topic, input_dir, output_dir, trace_dir=trace_dir, benchmark=benchmark)
             results.append(result)
         except Exception as e:
             print(f"ERROR evaluating {topic}: {e}")
