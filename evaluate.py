@@ -168,13 +168,17 @@ def check_render(scenes):
     details = {}
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
+        # Block external HTTP requests (CDN scripts/fonts) that may hang in headless
+        context = browser.new_context()
+        context.route("**/*", lambda route: route.abort() if route.request.url.startswith("http") else route.continue_())
+
         for scene_n, html_path in scenes:
-            page = browser.new_page()
+            page = context.new_page()
             try:
-                page.goto(f"file://{html_path.resolve()}", wait_until="domcontentloaded", timeout=10000)
-                time.sleep(2)
+                page.goto(f"file://{html_path.resolve()}", wait_until="domcontentloaded", timeout=15000)
+                time.sleep(3)
                 screenshot_path = html_path.parent / f"_check_scene{scene_n}.png"
-                page.screenshot(path=str(screenshot_path))
+                page.screenshot(path=str(screenshot_path), timeout=10000)
 
                 from PIL import Image as PILImage
                 import numpy as np
@@ -202,6 +206,7 @@ def check_render(scenes):
                 }
             finally:
                 page.close()
+        context.close()
         browser.close()
 
     all_passed = all(d.get("rendered") for d in details.values())
