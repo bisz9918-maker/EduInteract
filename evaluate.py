@@ -268,7 +268,7 @@ def _eval_agent_dimension_once(ws_id, agent_name, dim_name, result_file, topic, 
     run_id = client.send_multimodal_message(ses_id, content_parts)
 
     # Wait for completion (saves trace automatically via OAHClient)
-    result = client.wait_for_run(run_id, max_seconds=600)
+    result = client.wait_for_run(run_id, max_seconds=3000)
     st = result["status"]
     print(f"  result: {st}")
 
@@ -329,7 +329,7 @@ def _run_screenshot_capture(ws_id, topic, scenes, image_path,
 
         run_id = client.send_multimodal_message(ses_id, content_parts)
 
-        result = client.wait_for_run(run_id, max_seconds=600)
+        result = client.wait_for_run(run_id, max_seconds=3000)
         st = result["status"]
         print(f"  screenshot-capture result: {st}" + (f" (attempt {attempt})" if attempt > 1 else ""))
 
@@ -412,8 +412,17 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     eval_dir = output_dir / topic
     report_path = eval_dir / "evaluation_report.xml"
     if not force and report_path.exists():
-        print(f"SKIP: {topic} already evaluated ({report_path} exists)")
-        return {"topic": topic, "status": "skipped", "total_score": 0.0}
+        # Read total_score from existing report
+        saved_score = 0.0
+        try:
+            report_text = report_path.read_text(encoding="utf-8")
+            score_match = re.search(r"<total_score>([\d.]+)</total_score>", report_text)
+            if score_match:
+                saved_score = float(score_match.group(1))
+        except Exception:
+            pass
+        print(f"SKIP: {topic} already evaluated (score={saved_score})")
+        return {"topic": topic, "status": "skipped", "total_score": saved_score}
 
     # Find all scenes and solution
     scenes = find_scenes(topic_dir)
