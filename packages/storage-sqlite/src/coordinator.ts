@@ -411,17 +411,20 @@ export class SQLitePersistenceCoordinator {
     }
 
     await mkdir(path.dirname(dbPath), { recursive: true });
-    const db = new DatabaseSync(dbPath);
-    db.exec("pragma journal_mode = wal");
-    db.exec("pragma busy_timeout = 30000");
-    db.exec("pragma synchronous = normal");
-    db.exec("pragma mmap_size = 0");
-    migrateLegacyMirrorSchemaIfNeeded(db);
-    reconcilePersistedWorkspaceScope(db, workspace);
-    normalizePersistedWorkspaceData(db);
-    const handle = { dbPath, db };
-    this.#handles.set(workspace.id, handle);
-    await this.reindexWorkspace(db, workspace.id);
+    const handle = await retryOnBusy(() => {
+      const db = new DatabaseSync(dbPath);
+      db.exec("pragma journal_mode = wal");
+      db.exec("pragma busy_timeout = 30000");
+      db.exec("pragma synchronous = normal");
+      db.exec("pragma mmap_size = 0");
+      migrateLegacyMirrorSchemaIfNeeded(db);
+      reconcilePersistedWorkspaceScope(db, workspace);
+      normalizePersistedWorkspaceData(db);
+      const h = { dbPath, db };
+      this.#handles.set(workspace.id, h);
+      return h;
+    });
+    await this.reindexWorkspace(handle.db, workspace.id);
     return handle;
   }
 
