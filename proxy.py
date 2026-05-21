@@ -445,9 +445,10 @@ async def handle_stream_with_retry(
     collected_content = ""
     response_status = 200
     stream_started = False
+    last_valid_usage = None
 
     async def generate():
-        nonlocal collected_content, response_status, stream_started
+        nonlocal collected_content, response_status, stream_started, last_valid_usage
 
         while True:
             try:
@@ -500,11 +501,15 @@ async def handle_stream_with_retry(
                                         if content:
                                             collected_content += content
                                         usage = data.get("usage")
-                                        if isinstance(usage, dict) and "total" not in usage:
-                                            if "total_tokens" in usage:
-                                                usage["total"] = usage["total_tokens"]
-                                            elif "prompt_tokens" in usage:
-                                                usage["total"] = usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
+                                        if isinstance(usage, dict):
+                                            # Track the last valid usage for fallback
+                                            if usage.get("total_tokens") is not None or usage.get("prompt_tokens") is not None:
+                                                last_valid_usage = dict(usage)
+                                            if "total" not in usage:
+                                                if "total_tokens" in usage:
+                                                    usage["total"] = usage["total_tokens"]
+                                                elif "prompt_tokens" in usage:
+                                                    usage["total"] = usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
                                             data["usage"] = usage
                                             modified = True
                                         if modified:
@@ -520,6 +525,21 @@ async def handle_stream_with_retry(
                                 yield raw_chunk
 
                         stats.successful_requests += 1
+                        # vLLM sometimes returns empty usage {} in the final stream chunk.
+                        # If we have a previously seen valid usage, emit a corrected final chunk.
+                        # This ensures OAH always gets accurate token counts.
+                        if last_valid_usage:
+                            if "total" not in last_valid_usage:
+                                if "total_tokens" in last_valid_usage:
+                                    last_valid_usage["total"] = last_valid_usage["total_tokens"]
+                            if last_valid_usage.get("prompt_tokens") is not None:
+                                fallback_chunk = json.dumps({
+                                    "id": "usage-fallback",
+                                    "object": "chat.completion.chunk",
+                                    "choices": [],
+                                    "usage": last_valid_usage
+                                }, ensure_ascii=False)
+                                yield f"data: {fallback_chunk}\n\n".encode()
                         break
 
             except RetryConfig.RETRYABLE_EXCEPTIONS as e:
