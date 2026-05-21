@@ -28,7 +28,7 @@ class OAHClient:
         api_url: Optional[str] = None,
         token: Optional[str] = None,
         workspace_template: str = "visual-solver-code",
-        timeout: float = 1800.0,
+        timeout: float = 3600.0,
         model_ref: Optional[str] = None,
         cleanup: bool = True,
         trace_dir: Optional[str] = None,
@@ -265,18 +265,46 @@ class OAHClient:
 
         return " ".join(parts)
 
+    @staticmethod
+    def _aggregate_step_usage(steps: List[dict]) -> dict:
+        """Sum token usage across all completed model_call steps.
+
+        AI SDK's streamText only returns the last step's inputTokens in run-level
+        usage, undercounting actual API cost by 50%+. Step-level usage in
+        output.response.usage has the real per-call token counts.
+        """
+        agg = {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
+        for step in steps:
+            if step.get("stepType") != "model_call" or step.get("status") != "completed":
+                continue
+            resp_usage = step.get("output", {}).get("response", {}).get("usage")
+            if isinstance(resp_usage, dict):
+                agg["inputTokens"] += resp_usage.get("inputTokens", 0) or 0
+                agg["outputTokens"] += resp_usage.get("outputTokens", 0) or 0
+                agg["totalTokens"] += resp_usage.get("totalTokens", 0) or 0
+        return agg
+
     def _save_run_trace(self, run_id: str, steps: List[dict], run_data: dict) -> None:
         """Save full run step trace as JSON to trace_dir/trace_name.json."""
         if not self.trace_dir or not self.trace_name:
             return
         os.makedirs(self.trace_dir, exist_ok=True)
         trace_path = os.path.join(self.trace_dir, f"{self.trace_name}.json")
+
+        # Use step-aggregated usage (accurate) over run-level usage (undercounts)
+        run_usage = run_data.get("usage", {})
+        agg_usage = self._aggregate_step_usage(steps)
+        if agg_usage["totalTokens"] > 0:
+            usage = agg_usage
+        else:
+            usage = run_usage
+
         trace = {
             "run_id": run_id,
             "trace_name": self.trace_name,
             "model_ref": self.model_ref,
             "status": run_data.get("status"),
-            "usage": run_data.get("usage", {}),
+            "usage": usage,
             "created_at": run_data.get("createdAt"),
             "updated_at": run_data.get("updatedAt"),
             "steps": steps,
@@ -320,7 +348,7 @@ class OAHClient:
                     self._save_run_trace(run_id, steps, run)
                     return {
                         "status": status,
-                        "usage": run.get("usage", {}),
+                        "usage": self._aggregate_step_usage(steps) if steps else run.get("usage", {}),
                     }
             except RuntimeError as e:
                 if "run_not_found" in str(e):
