@@ -25,8 +25,8 @@ skills: []
 switch: []
 subagents: []
 policy:
-  max_steps: 35
-  run_timeout_seconds: 1800
+  max_steps: 200
+  run_timeout_seconds: 36000
   tool_timeout_seconds: 30
   parallel_tool_calls: false
 ---
