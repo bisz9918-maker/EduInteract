@@ -43,9 +43,38 @@ import { formatSupportedModelProviders } from "./providers.js";
  * working around AI SDK's asLanguageModelUsage() which may lose token counts
  * for openai-compatible providers in streaming mode.
  */
+/**
+ * Normalize V2-style flat usage {inputTokens: number} to V3 format
+ * {inputTokens: {total: number}} that AI SDK v6 expects.
+ */
+function normalizeUsageV2ToV3(usage: Record<string, unknown> | undefined): void {
+  if (!usage) return;
+  const flatInput = usage.inputTokens as number | undefined;
+  const flatOutput = usage.outputTokens as number | undefined;
+  const flatTotal = usage.totalTokens as number | undefined;
+
+  if (flatInput != null && typeof flatInput === "number") {
+    usage.inputTokens = { total: flatInput };
+    usage.outputTokens = { total: flatOutput ?? 0 };
+    usage.totalTokens = flatTotal ?? flatInput + (flatOutput ?? 0);
+  }
+}
+
 function createUsagePassthroughMiddleware(): LanguageModelMiddleware {
   return {
     specificationVersion: "v3",
+    wrapGenerate: async ({ doGenerate }) => {
+      const result = await doGenerate();
+
+      // Fix V2-style usage from generateText: openai-compatible provider
+      // returns {inputTokens: number, outputTokens: number} (V2 format) but
+      // AI SDK v6 expects V3 format {inputTokens: {total: number}, ...}.
+      if (result.usage) {
+        normalizeUsageV2ToV3(result.usage as Record<string, unknown>);
+      }
+
+      return result;
+    },
     wrapStream: async ({ doStream }) => {
       const result = await doStream();
       const originalStream = result.stream;
@@ -58,27 +87,9 @@ function createUsagePassthroughMiddleware(): LanguageModelMiddleware {
               const { done, value } = await reader.read();
               if (done) break;
 
-              // Fix V2-style usage from finish event: AI SDK's openai-compatible provider
-              // emits {inputTokens: number, outputTokens: number} (V2 format) but AI SDK's
-              // asLanguageModelUsage() expects V3 format {inputTokens: {total: number}, ...}.
-              // When V2 inputTokens/outputTokens are present, inject them as V3 format so
-              // the upstream streamText() can correctly build the Usage object.
               if (value.type === "finish") {
                 const finishUsage = (value as Record<string, unknown>).usage as Record<string, unknown> | undefined;
-                if (finishUsage) {
-                  const flatInput = finishUsage.inputTokens as number | undefined;
-                  const flatOutput = finishUsage.outputTokens as number | undefined;
-                  const flatTotal = finishUsage.totalTokens as number | undefined;
-
-                  // If V2 flat fields exist but inputTokens is not already a V3 object
-                  if (flatInput != null && typeof flatInput === "number") {
-                    (value as Record<string, unknown>).usage = {
-                      inputTokens: { total: flatInput },
-                      outputTokens: { total: flatOutput ?? 0 },
-                      totalTokens: flatTotal ?? flatInput + (flatOutput ?? 0),
-                    };
-                  }
-                }
+                normalizeUsageV2ToV3(finishUsage);
               }
 
               controller.enqueue(value);
