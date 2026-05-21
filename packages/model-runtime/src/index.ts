@@ -57,6 +57,11 @@ function normalizeUsageV2ToV3(usage: Record<string, unknown> | undefined): void 
     usage.inputTokens = { total: flatInput };
     usage.outputTokens = { total: flatOutput ?? 0 };
     usage.totalTokens = flatTotal ?? flatInput + (flatOutput ?? 0);
+  } else if (usage.inputTokens == null || typeof usage.inputTokens !== "object") {
+    // Empty or missing usage — inject V3 defaults so asLanguageModelUsage won't crash
+    usage.inputTokens = { total: flatInput ?? 0 };
+    usage.outputTokens = { total: flatOutput ?? 0 };
+    usage.totalTokens = flatTotal ?? 0;
   }
 }
 
@@ -66,9 +71,6 @@ function createUsagePassthroughMiddleware(): LanguageModelMiddleware {
     wrapGenerate: async ({ doGenerate }) => {
       const result = await doGenerate();
 
-      // Fix V2-style usage from generateText: openai-compatible provider
-      // returns {inputTokens: number, outputTokens: number} (V2 format) but
-      // AI SDK v6 expects V3 format {inputTokens: {total: number}, ...}.
       if (result.usage) {
         normalizeUsageV2ToV3(result.usage as Record<string, unknown>);
       }
