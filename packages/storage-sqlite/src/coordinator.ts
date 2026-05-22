@@ -410,7 +410,14 @@ export class SQLitePersistenceCoordinator {
       cached.db.close();
     }
 
-    await mkdir(path.dirname(dbPath), { recursive: true });
+    try {
+      await mkdir(path.dirname(dbPath), { recursive: true });
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new AppError(404, "workspace_not_found", `Workspace ${workspace.id} data directory was removed.`);
+      }
+      throw err;
+    }
     const handle = await retryOnBusy(() => {
       const db = new DatabaseSync(dbPath);
       db.exec("pragma journal_mode = wal");
