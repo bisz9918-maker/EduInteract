@@ -91,13 +91,15 @@ class ExplanationGenerator:
                  max_scene_concurrency: int = 5,
                  translate_to_chinese: bool = False,
                  use_oah: bool = False,
-                 trace_dir: Optional[str] = None):
+                 trace_dir: Optional[str] = None,
+                 oah_timeout: float = 7200.0):
         self.output_dir = output_dir
         self.verbose = verbose
         self.use_visual_fix_code = use_visual_fix_code
         self.translate_to_chinese = translate_to_chinese  # Add translation flag
         self.use_oah = use_oah
         self.trace_dir = trace_dir
+        self.oah_timeout = oah_timeout
         self.session_id = self._load_or_create_session_id()  # Modified to load existing or create new
         self.scene_semaphore = asyncio.Semaphore(max_scene_concurrency)
         self.banned_reasonings = get_banned_reasonings()
@@ -121,6 +123,7 @@ class ExplanationGenerator:
             oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
             oah_token=Config.OAH_TOKEN if use_oah else None,
             trace_dir=trace_dir if use_oah else None,
+            oah_timeout=oah_timeout,
         )
         self.code_generator = CodeGenerator(
             scene_model=scene_model if scene_model is not None else planner_model,
@@ -141,6 +144,7 @@ class ExplanationGenerator:
             oah_model_ref=Config.OAH_MODEL_REF if use_oah else None,
             oah_token=Config.OAH_TOKEN if use_oah else None,
             trace_dir=trace_dir if use_oah else None,
+            oah_timeout=oah_timeout,
         )
         self.explanation_renderer = HTMLRenderer(
             output_dir=output_dir,
@@ -952,6 +956,11 @@ if __name__ == "__main__":
                        help='OAH API URL (e.g. http://127.0.0.1:8787). Falls back to OAH_API_URL env var.')
     parser.add_argument('--trace_dir', type=str, default=None,
                        help='Directory to save OAH run trace JSON files (default: <output_dir>/traces)')
+    parser.add_argument('--mark_failed', action='store_true',
+                       help='Mark model-caused failures with .generation_failed file so they are skipped on rerun. '
+                            'Transient OAH errors (e.g. workspace_not_found) are NOT marked and will be retried.')
+    parser.add_argument('--oah_timeout', type=float, default=7200.0,
+                       help='Timeout in seconds for each OAH agent run (default: 7200)')
     args = parser.parse_args()
 
     # Set OAH model ref: CLI arg > env var
@@ -1050,6 +1059,7 @@ if __name__ == "__main__":
         translate_to_chinese=args.translate_to_chinese,
         use_oah=args.use_oah,
         trace_dir=args.trace_dir or (os.path.join(args.output_dir, "traces") if args.use_oah else None),
+        oah_timeout=args.oah_timeout,
     )
 
     topic_semaphore = asyncio.Semaphore(args.max_topic_concurrency)
@@ -1096,6 +1106,11 @@ if __name__ == "__main__":
         type_slug = re.sub(r"[^a-z0-9_]+", "_", problem_type)
         return f"problem_{idx}_{type_slug}"
 
+    def _is_transient_error(exc: Exception) -> bool:
+        """Check if an exception is a transient OAH infrastructure error that should allow retry."""
+        msg = str(exc).lower()
+        return "workspace_not_found" in msg or "connection refused" in msg or "session_not_found" in msg
+
     async def _process_one_problem(prob: Dict, idx: int) -> None:
         topic = _build_topic(prob, idx)
         description = _build_description(prob)
@@ -1103,14 +1118,23 @@ if __name__ == "__main__":
         if problem_image:
             description += "\n(Note: The attached image is the original diagram illustrating the problem setup.)"
 
+        file_prefix = re.sub(r'[^a-z0-9_]+', '_', topic.lower())
+        output_topic_dir = os.path.join(explanation_generator.output_dir, file_prefix)
+
+        # Skip problems previously marked as permanently failed (only when --mark_failed is active)
+        failed_marker = os.path.join(output_topic_dir, ".generation_failed")
+        if args.mark_failed and os.path.exists(failed_marker):
+            with open(failed_marker, "r") as f:
+                reason = f.read().strip()
+            print(f"⊘ Problem {idx} ({topic}) skipped: previously failed — {reason}")
+            return
+
         async with topic_semaphore:
             print(f"Processing problem index {idx}: {topic}")
             if problem_image:
                 print(f"Problem has diagram image (size: {problem_image.size})")
 
                 # Save the original problem image to output directory
-                file_prefix = re.sub(r'[^a-z0-9_]+', '_', topic.lower())
-                output_topic_dir = os.path.join(explanation_generator.output_dir, file_prefix)
                 os.makedirs(output_topic_dir, exist_ok=True)
 
                 problem_image_path = os.path.join(output_topic_dir, "problem_diagram.png")
@@ -1135,7 +1159,15 @@ if __name__ == "__main__":
                     trace_prefix=trace_prefix,
                 )
             except Exception as e:
-                print(f"✗ Problem {idx} ({topic}) failed and will be skipped: {e}")
+                if args.mark_failed and not _is_transient_error(e):
+                    # Model-caused failure: mark so it won't be retried
+                    os.makedirs(output_topic_dir, exist_ok=True)
+                    with open(failed_marker, "w") as f:
+                        f.write(str(e))
+                    print(f"✗ Problem {idx} ({topic}) failed and marked (will not retry): {e}")
+                else:
+                    # Transient error or mark_failed disabled: allow retry on next run
+                    print(f"✗ Problem {idx} ({topic}) failed and will be skipped: {e}")
                 return
 
             # Calculate and log problem processing time

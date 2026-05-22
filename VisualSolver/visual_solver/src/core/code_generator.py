@@ -19,7 +19,7 @@ class CodeGenerator:
                  chroma_db_path="rag/chroma_db", manim_docs_path="rag/manim_docs",
                  embedding_model="azure/text-embedding-3-large", use_visual_fix_code=False,
                  use_langfuse=True, session_id=None, use_oah=False, oah_api_url=None, oah_model_ref=None,
-                 oah_token=None, trace_dir=None):
+                 oah_token=None, trace_dir=None, oah_timeout=3600.0):
         self.scene_model = scene_model
         self.helper_model = helper_model
         self.output_dir = output_dir
@@ -32,6 +32,7 @@ class CodeGenerator:
         self.oah_model_ref = oah_model_ref
         self.oah_token = oah_token
         self.trace_dir = trace_dir
+        self.oah_timeout = oah_timeout
         self._oah_usage = {}  # scene_trace_id -> usage dict
 
     async def _extract_code_with_retries(self, response_text: str, pattern: str,
@@ -88,7 +89,7 @@ class CodeGenerator:
 
         def _sync_call():
             client = OAHClient(api_url=self.oah_api_url, model_ref=self.oah_model_ref, token=self.oah_token,
-                               trace_dir=self.trace_dir, trace_name=trace_name)
+                               trace_dir=self.trace_dir, trace_name=trace_name, timeout=self.oah_timeout)
             return client.generate_scene_html(
                 spec=spec,
                 output_file=spec["output_file"],
