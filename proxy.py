@@ -17,14 +17,19 @@ from fastapi.responses import Response, StreamingResponse
 
 # ============ 配置 ============
 # 默认后端（未匹配 MODEL_ROUTES 时使用）
-CUSTOM_API_BASE="https://dbabckehahbochapkqjba599o8g895cj.openapi-qb-ai.sii.edu.cn/v1"
+CUSTOM_API_BASE="https://qobqj89deqk5chm9heeqm59eo8dpekkg.openapi-qb-ai.sii.edu.cn/v1"
 CUSTOM_API_KEY="PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU="
 
 # 模型名映射：自定义短名 → {api_base, api_key, model}
 # 客户端请求 model="custom" 时，自动替换为真实模型名并路由到对应后端
 MODEL_ROUTES = {
     "Kimi-K2.6": {
-        "api_base": "https://dbabckehahbochapkqjba599o8g895cj.openapi-qb-ai.sii.edu.cn/v1",
+        "api_base": "https://qobqj89deqk5chm9heeqm59eo8dpekkg.openapi-qb-ai.sii.edu.cn/v1",
+        "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
+        "model": "/inspire/qb-ilm/project/ai4education/public/models/Kimi-K2.6",
+    },
+    "kimi-k26": {
+        "api_base": "https://qobqj89deqk5chm9heeqm59eo8dpekkg.openapi-qb-ai.sii.edu.cn/v1",
         "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
         "model": "/inspire/qb-ilm/project/ai4education/public/models/Kimi-K2.6",
     },
@@ -249,8 +254,16 @@ async def proxy_request(request: Request, path: str):
 
         requested_model = request_body.get("model", "")
         ctx.requested_model = requested_model
-        if requested_model in MODEL_ROUTES:
-            route = MODEL_ROUTES[requested_model]
+        # Try exact match first, then case-insensitive suffix match
+        # OAH sends "workspace/kimi-k26" but routes use "Kimi-K2.6"
+        route = MODEL_ROUTES.get(requested_model)
+        if not route:
+            req_lower = requested_model.lower()
+            for alias, r in MODEL_ROUTES.items():
+                if req_lower.endswith("/" + alias.lower()) or req_lower == alias.lower():
+                    route = r
+                    break
+        if route:
             request_body["model"] = route["model"]
             ctx.routed_model = route["model"]
             route_api_base = route["api_base"]

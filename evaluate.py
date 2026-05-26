@@ -168,9 +168,15 @@ def check_render(scenes):
     details = {}
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        # Block external HTTP requests (CDN scripts/fonts) that may hang in headless
+        # Allow CDN requests for rendering; only block non-essential resources
+        BLOCKED_RESOURCE_TYPES = {"image"}  # block images to speed up, allow scripts/styles/fonts
+        def _route_handler(route):
+            if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+                route.abort()
+            else:
+                route.continue_()
         context = browser.new_context()
-        context.route("**/*", lambda route: route.abort() if route.request.url.startswith("http") else route.continue_())
+        context.route("**/*", _route_handler)
 
         for scene_n, html_path in scenes:
             page = context.new_page()
@@ -371,6 +377,26 @@ def _run_screenshot_capture(ws_id, topic, scenes, image_path,
 
 # ── Parse agent XML results ──────────────────────────────────────
 
+def _read_existing_report(report_path: Path) -> dict | None:
+    """Parse an existing evaluation_report.xml and return structured result dict."""
+    if not report_path.exists():
+        return None
+    try:
+        text = report_path.read_text(encoding="utf-8")
+        result = {}
+        m = re.search(r"<total_score>([\d.]+)</total_score>", text)
+        if m:
+            result["total_score"] = float(m.group(1))
+        dim_tags = ["dim1_accuracy", "dim2_interaction", "dim3_visual", "dim4_pedagogy", "dim5_logic_coherence"]
+        for tag in dim_tags:
+            m = re.search(rf'<{tag}\s+score="([\d.]+)"', text)
+            if m:
+                result[tag] = float(m.group(1))
+        return result
+    except Exception:
+        return None
+
+
 def parse_topic_score(xml_content, dim_tag):
     """Parse a per-topic score from agent XML output. Returns (score, reasoning)."""
     if not xml_content:
@@ -417,17 +443,21 @@ def eval_topic(topic: str, input_dir: Path, output_dir: Path, trace_dir: Optiona
     eval_dir = output_dir / topic
     report_path = eval_dir / "evaluation_report.xml"
     if not force and report_path.exists():
-        # Read total_score from existing report
-        saved_score = 0.0
-        try:
-            report_text = report_path.read_text(encoding="utf-8")
-            score_match = re.search(r"<total_score>([\d.]+)</total_score>", report_text)
-            if score_match:
-                saved_score = float(score_match.group(1))
-        except Exception:
-            pass
-        print(f"SKIP: {topic} already evaluated (score={saved_score})")
-        return {"topic": topic, "status": "skipped", "total_score": saved_score}
+        existing = _read_existing_report(report_path)
+        if existing:
+            print(f"SKIP: {topic} already evaluated (score={existing.get('total_score', 0.0)})")
+            return {"topic": topic, "status": "skipped", **existing}
+        else:
+            saved_score = 0.0
+            try:
+                report_text = report_path.read_text(encoding="utf-8")
+                score_match = re.search(r"<total_score>([\d.]+)</total_score>", report_text)
+                if score_match:
+                    saved_score = float(score_match.group(1))
+            except Exception:
+                pass
+            print(f"SKIP: {topic} already evaluated (score={saved_score})")
+            return {"topic": topic, "status": "skipped", "total_score": saved_score}
 
     # Find all scenes and solution
     scenes = find_scenes(topic_dir)
@@ -743,7 +773,8 @@ def eval_batch(input_dir: Path, output_dir: Path, problem: str | None = None,
     skipped = sum(1 for r in results if r["status"] == "skipped")
     render_failed = sum(1 for r in results if r["status"] == "render_failed")
     errors = sum(1 for r in results if r["status"] == "error")
-    avg_score = sum(r["total_score"] for r in results if r["status"] == "completed") / max(completed, 1)
+    scored = [r for r in results if r["status"] in ("completed", "skipped") and r.get("total_score", 0) > 0]
+    avg_score = sum(r["total_score"] for r in scored) / max(len(scored), 1)
 
     summary = {
         "total": total,
