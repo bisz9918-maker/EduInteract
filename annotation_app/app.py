@@ -1,10 +1,9 @@
 import json
-import os
 import re
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file, abort, make_response
 import markdown as md
+from flask import Flask, jsonify, request, send_file, abort, make_response
 
 app = Flask(__name__, static_folder="static")
 
@@ -15,23 +14,132 @@ def no_cache(resp):
     return resp
 
 BASE_DIR = Path(__file__).parent.parent
-SAMPLED_JSON = BASE_DIR / "output" / "30_samples.json"
-ANNOTATIONS_JSON = BASE_DIR / "output" / "human_annotations.json"
+OUTPUT_DIR = BASE_DIR / "output"
+ANNOTATIONS_JSON = Path(__file__).parent / "human_annotations.json"
+
+EXP_TO_MODEL = {
+    "exp_Gemini-3.1-Pro": "Gemini-3.1-Pro",
+    "exp_kimik26": "Kimi-K2.6",
+    "exp_qwen35_122b": "Qwen3.5-122B",
+    "exp_qwen35_397b": "Qwen3.5-397B",
+    "exp_qwen36_27b": "Qwen3.6-27B",
+}
+
+EVAL_TO_EXP = {
+    "evaluate_Gemini-3.1-Pro": "exp_Gemini-3.1-Pro",
+    "evaluate_kimi26": "exp_kimik26",
+    "evaluate_qwen35_122b": "exp_qwen35_122b",
+    "evaluate_qwen35_397b": "exp_qwen35_397b",
+    "evaluate_qwen36_27b": "exp_qwen36_27b",
+}
+
+MODELS_ORDER = ["Gemini-3.1-Pro", "Kimi-K2.6", "Qwen3.5-397B", "Qwen3.5-122B", "Qwen3.6-27B"]
 
 DIMENSIONS = [
-    ("logical_coherence",                  "讲解的逻辑连贯性"),
-    ("diagram_match",                      "图示与题目的匹配度"),
-    ("understandability_and_teaching_effect", "讲解的易懂性和教学效果"),
-    ("layout_and_visual_clarity",          "排版和视觉呈现的清晰度"),
-    ("element_layout_quality",             "图片元素布局质量"),
-    ("visual_consistency",                 "视觉一致性"),
-    ("text_diagram_synergy",               "图文协同的流畅性"),
+    ("prob_align", "Problem Alignment (题图匹配)"),
+    ("interact", "Interactive Functionality (交互功能)"),
+    ("visual", "Visual Quality (视觉质量)"),
+    ("pedagogy", "Pedagogical Effectiveness (教学效果)"),
+    ("logic", "Logical Coherence (逻辑连贯)"),
 ]
 
-with open(SAMPLED_JSON, encoding="utf-8") as f:
-    SAMPLED = json.load(f)
 
-KEYS = list(SAMPLED.keys())
+def render_markdown(text: str) -> str:
+    """Render markdown to HTML, preserving LaTeX math."""
+    math_blocks = []
+
+    def save_math(m):
+        math_blocks.append(m.group(0))
+        return f"MATHPLACEHOLDER{len(math_blocks)-1}END"
+
+    # Protect block math \[...\] and $$...$$
+    text = re.sub(r'\\\[[\s\S]*?\\\]', save_math, text)
+    text = re.sub(r'\$\$[\s\S]*?\$\$', save_math, text)
+    # Protect inline math \(...\) and $...$
+    text = re.sub(r'\\\(.*?\\\)', save_math, text)
+    text = re.sub(r'(?<!\$)\$(?!\$)([^\$\n]+?)(?<!\$)\$(?!\$)', save_math, text)
+
+    html = md.markdown(text, extensions=["tables", "fenced_code"])
+
+    # Restore math
+    for i, block in enumerate(math_blocks):
+        html = html.replace(f"MATHPLACEHOLDER{i}END", block)
+
+    return html
+
+
+def build_samples() -> dict:
+    """Scan output dirs and collect evaluated topics with HTML scenes."""
+    samples = {}
+    for eval_dir_name, exp_dir_name in EVAL_TO_EXP.items():
+        eval_dir = OUTPUT_DIR / eval_dir_name
+        exp_dir = OUTPUT_DIR / exp_dir_name
+        if not eval_dir.exists() or not exp_dir.exists():
+            continue
+        model = EXP_TO_MODEL.get(exp_dir_name, exp_dir_name)
+
+        for topic_dir in sorted(eval_dir.iterdir()):
+            if not topic_dir.is_dir() or not topic_dir.name.startswith("problem_"):
+                continue
+            report_path = topic_dir / "evaluation_report.xml"
+            if not report_path.exists():
+                continue
+            topic = topic_dir.name
+            key = f"{model}/{topic}"
+
+            # Collect scene HTML files from exp dir
+            doc_dir = exp_dir / topic / "doc"
+            scenes = sorted([f.name for f in doc_dir.glob("scene*.html")]) if doc_dir.exists() else []
+
+            # Parse evaluation scores
+            scores = {}
+            text = report_path.read_text(encoding="utf-8")
+            for tag, idx in [("dim1_accuracy", 1), ("dim2_interaction", 2),
+                             ("dim3_visual", 3), ("dim4_pedagogy", 4),
+                             ("dim5_logic_coherence", 5)]:
+                m = re.search(rf'<{tag}\s+score="([\d.]+)"', text)
+                if m:
+                    scores[f"dim{idx}"] = float(m.group(1))
+
+            # Get full outline as rendered HTML
+            outline_html = ""
+            outline_files = list((exp_dir / topic).glob("*_scene_outline.txt"))
+            if outline_files:
+                outline_text = outline_files[0].read_text(encoding="utf-8")
+                # Extract all TEXT_k blocks
+                text_blocks = re.findall(r'<TEXT_\d+>(.*?)</TEXT_\d+>', outline_text, re.DOTALL)
+                if text_blocks:
+                    full_md = "\n\n---\n\n".join(b.strip() for b in text_blocks)
+                    # Dedent: remove common leading whitespace per line
+                    lines = full_md.split('\n')
+                    cleaned = []
+                    for line in lines:
+                        # Strip up to 4 spaces of common indent
+                        cleaned.append(line.lstrip())
+                    full_md = '\n'.join(cleaned)
+                    outline_html = render_markdown(full_md)
+
+            # Problem diagram
+            diagram_path = ""
+            diagram_file = exp_dir / topic / "problem_diagram.png"
+            if diagram_file.exists():
+                diagram_path = str(diagram_file)
+
+            samples[key] = {
+                "model": model,
+                "topic": topic,
+                "scenes": scenes,
+                "auto_scores": scores,
+                "outline_html": outline_html,
+                "diagram_path": diagram_path,
+                "exp_dir": str(exp_dir / topic),
+            }
+
+    return samples
+
+
+SAMPLES = build_samples()
+KEYS = list(SAMPLES.keys())
 
 if ANNOTATIONS_JSON.exists():
     with open(ANNOTATIONS_JSON, encoding="utf-8") as f:
@@ -45,51 +153,11 @@ def save_annotations():
         json.dump(annotations, f, ensure_ascii=False, indent=2)
 
 
-def render_doc(doc_path: str) -> str:
-    """Read solution_chinese.md (fallback to solution.md), resolve image tags to API URLs, return HTML."""
-    p = Path(doc_path)
-    chinese = p.parent / "solution_chinese.md"
-    if chinese.exists():
-        p = chinese
-    if not p.exists():
-        return f"<p style='color:red'>文件不存在: {doc_path}</p>"
-    text = p.read_text(encoding="utf-8")
-
-    # 1. 保护数学公式，避免 markdown 解析器破坏 \ ( ) 等字符
-    math_blocks = []
-    def save_math(m):
-        math_blocks.append(m.group(0))
-        return f"MATHPLACEHOLDER{len(math_blocks)-1}END"
-    # 先保护块级公式 \[...\] 和 $$...$$，再保护行内 \(...\) 和 $...$
-    text = re.sub(r'\\\[[\s\S]*?\\\]', save_math, text)
-    text = re.sub(r'\$\$[\s\S]*?\$\$', save_math, text)
-    text = re.sub(r'\\\(.*?\\\)', save_math, text)
-    text = re.sub(r'\$[^\$\n]+?\$', save_math, text)
-
-    # 2. 替换图片路径
-    doc_dir = p.parent
-    def replace_img(m):
-        alt = m.group(1)
-        src = m.group(2)
-        img_path = doc_dir / src
-        return f'![{alt}](image?path={img_path})'
-    text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', replace_img, text)
-
-    # 3. Markdown → HTML
-    html = md.markdown(text, extensions=["tables", "fenced_code"])
-
-    # 4. 还原数学公式
-    for i, block in enumerate(math_blocks):
-        html = html.replace(f"MATHPLACEHOLDER{i}END", block)
-
-    return html
-
-
 # ── API ────────────────────────────────────────────────────────────────────────
 
 @app.get("/api/keys")
 def api_keys():
-    return jsonify({"keys": KEYS, "dimensions": DIMENSIONS})
+    return jsonify({"keys": KEYS, "dimensions": DIMENSIONS, "models": MODELS_ORDER})
 
 
 @app.get("/api/annotations")
@@ -99,12 +167,20 @@ def api_annotations():
 
 @app.get("/api/doc/<path:key>")
 def api_doc(key):
-    if key not in SAMPLED:
+    if key not in SAMPLES:
         abort(404)
-    doc_path = SAMPLED[key]["document"]
-    html = render_doc(doc_path)
-    auto_scores = SAMPLED[key]["evaluation"]
-    return jsonify({"html": html, "auto_scores": auto_scores, "doc_path": doc_path})
+    s = SAMPLES[key]
+    # Build URLs for scene HTML files
+    scene_urls = [f"/html?key={key}&scene={sn}" for sn in s["scenes"]]
+    return jsonify({
+        "model": s["model"],
+        "topic": s["topic"],
+        "outline_html": s["outline_html"],
+        "diagram_url": f"/diagram?key={key}" if s["diagram_path"] else "",
+        "scenes": scene_urls,
+        "scene_names": s["scenes"],
+        "auto_scores": s["auto_scores"],
+    })
 
 
 @app.post("/api/annotate")
@@ -113,11 +189,117 @@ def api_annotate():
     key = data.get("key")
     scores = data.get("scores")
     annotator = data.get("annotator", "")
-    if not key or key not in SAMPLED:
+    if not key or key not in SAMPLES:
         abort(400)
     annotations[key] = {"annotator": annotator, "scores": scores}
     save_annotations()
     return jsonify({"ok": True, "total_annotated": len(annotations)})
+
+
+def _fix_scene_html(data: bytes) -> bytes:
+    """Fix LLM-generated scene HTML for correct MathJax rendering.
+
+    Two issues:
+    1. JS template literals eat backslash escapes: \\frac → \\f(form-feed)+rac.
+       Fix: move step text from template literals into <script type="text/template">
+       tags (not executed by JS, backslashes preserved), then read via textContent.
+    2. No MathJax config for $ delimiters — default only supports \\(\\).
+       Fix: inject MathJax config before the script tag.
+    """
+    import re
+    text = data.decode("utf-8", errors="replace")
+
+    # --- Fix 1: move template strings to <script type="text/template"> ---
+    # Find stepsMath = [...];
+    m = re.search(r'stepsMath\s*=\s*\[(.*?)\];', text, re.DOTALL)
+    if m:
+        body = m.group(1)
+        # Extract each template string
+        step_contents = []
+        for sm in re.finditer(r'`([^`]*)`', body):
+            content = sm.group(1)
+            # Restore control chars to LaTeX commands
+            content = content.replace("\x0crac", "\\frac")
+            content = content.replace("\x09imes", "\\times")
+            content = content.replace("\x09herefore", "\\therefore")
+            content = content.replace("\x09ext", "\\text")
+            content = content.replace("\x09riangle", "\\triangle")
+            content = content.replace("\x08ecause", "\\because")
+            content = content.replace("\x0c", "\\f")
+            content = content.replace("\x09", "\\t")
+            content = content.replace("\x08", "\\b")
+            step_contents.append(content)
+
+        # Build <script type="text/template"> blocks
+        template_blocks = []
+        for i, content in enumerate(step_contents):
+            template_blocks.append(
+                f'<script type="text/template" id="step-{i}">{content}</script>'
+            )
+        template_html = "\n".join(template_blocks)
+
+        # Replace stepsMath array with code that reads from template blocks
+        new_stepsmath = (
+            "stepsMath = Array.from(document.querySelectorAll("
+            "'script[type=\"text/template\"][id^=\"step-\"]'))"
+            ".map(s => s.textContent);"
+        )
+
+        # Insert template blocks before the <script> that contains stepsMath
+        script_open = text.rfind("<script>", 0, m.start())
+        if script_open < 0:
+            script_open = text.rfind("<script>\n", 0, m.start())
+
+        result = text[:script_open] + template_html + "\n" + text[script_open:m.start()] + new_stepsmath + text[m.end():]
+        text = result
+
+    # --- Fix 2: inject MathJax config for $ delimiters ---
+    mathjax_config = (
+        '<script>\nMathJax = {\n'
+        '  tex: { inlineMath: [["\\\\(", "\\\\")"], ["$", "$"]],'
+        ' displayMath: [["\\\\[", "\\\\]"], ["$$", "$$"]] },\n'
+        '  options: { skipHtmlTags: ["script","noscript","style","textarea","pre"] }\n'
+        '};\n</script>\n'
+    )
+    if "MathJax =" not in text and "MathJax=" not in text:
+        text = text.replace(
+            '<script src="https://cdn.jsdelivr.net/npm/mathjax@3',
+            mathjax_config + '<script src="https://cdn.jsdelivr.net/npm/mathjax@3',
+            1,
+        )
+
+    return text.encode("utf-8")
+
+
+@app.get("/html")
+def serve_html():
+    key = request.args.get("key", "")
+    scene = request.args.get("scene", "")
+    if key not in SAMPLES:
+        abort(404)
+    exp_dir = Path(SAMPLES[key]["exp_dir"])
+    html_path = exp_dir / "doc" / scene
+    if not html_path.exists():
+        abort(404)
+    data = html_path.read_bytes()
+    needs_fix = any(b in data for b in (0x08, 0x09, 0x0C)) or b"MathJax =" not in data
+    if needs_fix:
+        data = _fix_scene_html(data)
+        resp = make_response(data)
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        return resp
+    return send_file(html_path)
+
+
+@app.get("/diagram")
+def serve_diagram():
+    key = request.args.get("key", "")
+    if key not in SAMPLES or not SAMPLES[key]["diagram_path"]:
+        abort(404)
+    p = Path(SAMPLES[key]["diagram_path"])
+    if not p.exists():
+        abort(404)
+    return send_file(p)
 
 
 @app.get("/image")
