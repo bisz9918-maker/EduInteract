@@ -201,7 +201,7 @@ def _fix_scene_html(data: bytes) -> bytes:
 
     Issues:
     1. JS strings eat backslash escapes: \\frac → \\f(form-feed)+rac in template
-       literals; \\triangle → \\t(tab)+riangle in double-quoted strings.
+       literals; \\triangle → \\t(tab)+riangle in quoted strings.
        Fix: replace JS strings containing LaTeX with
        document.getElementById("...").textContent reading from
        <script type="text/template"> tags (not executed, backslashes preserved).
@@ -211,7 +211,6 @@ def _fix_scene_html(data: bytes) -> bytes:
     import re
     text = data.decode("utf-8", errors="replace")
     tpl_counter = [0]
-    tpl_inserts = []  # (position, tag_html)
 
     def _restore_ctrl(content: str) -> str:
         """Restore control chars produced by JS escape interpretation."""
@@ -219,7 +218,7 @@ def _fix_scene_html(data: bytes) -> bytes:
         content = content.replace("\x09imes", "\\times")
         content = content.replace("\x09herefore", "\\therefore")
         content = content.replace("\x09ext", "\\text")
-        content = content.replace("\x09riangle", "\\triangle")
+        content = content.replace("\x09iangle", "\\triangle")
         content = content.replace("\x08ecause", "\\because")
         content = content.replace("\x0c", "\\f")
         content = content.replace("\x09", "\\t")
@@ -232,6 +231,7 @@ def _fix_scene_html(data: bytes) -> bytes:
         if re.search(r"\\(?:frac|triangle|therefore|because|times)\b", s):
             return True
         return False
+
 
     # --- Fix 1a: move stepsMath template strings to template tags ---
     m = re.search(r"stepsMath\s*=\s*\[(.*?)\];", text, re.DOTALL)
@@ -252,31 +252,34 @@ def _fix_scene_html(data: bytes) -> bytes:
             script_open = text.rfind("<script>\n", 0, m.start())
         text = text[:script_open] + template_html + "\n" + text[script_open:m.start()] + new_stepsmath + text[m.end():]
 
-    # --- Fix 1b: replace double-quoted strings with LaTeX ---
-    # Use escaped-quote-aware regex to match JS "..." strings correctly
-    # Step 1: collect all matches, Step 2: replace from end to start,
-    # Step 3: insert template tags (find by js_read text)
-    dbl_matches = []
-    for m_dbl in re.finditer(r'"((?:[^"\\]|\\.)*)"', text):
-        if _has_latex(m_dbl.group(1)):
-            content = m_dbl.group(1)
-            restored = content.replace("\\\\", "\x00BS\x00")
-            restored = restored.replace('\\"', '"')
-            restored = restored.replace("\\n", "\n")
-            restored = restored.replace("\\t", "\t")
-            restored = restored.replace("\x00BS\x00", "\\")
-            restored = _restore_ctrl(restored)
-            tid = f"tpl-{tpl_counter[0]}"
-            tpl_counter[0] += 1
-            js_read = f'document.getElementById("{tid}").textContent'
-            dbl_matches.append((m_dbl.start(), m_dbl.end(), js_read, restored, tid))
+    # --- Fix 1b: replace single/double-quoted strings with LaTeX ---
+    # The raw file content already has correct single-backslash LaTeX.
+    # Putting it in <script type="text/template"> bypasses JS string
+    # interpretation entirely, so NO unescaping needed—just restore
+    # any control chars that JS already consumed.
+    # Also convert \(...\) → $...$ and \[...\] → $$...$$ in template
+    # content because typeWriter's char-by-char rendering breaks MathJax,
+    # and $ delimiters work reliably with direct innerHTML assignment.
+    replacements = []
+    for quote_char, pattern in [('"', r'"((?:[^"\\]|\\.)*)"'), ("'", r"'((?:[^'\\]|\\.)*')")]:
+        for m_str in re.finditer(pattern, text):
+            content = m_str.group(1)
+            if _has_latex(content):
+                restored = _restore_ctrl(content)
+                # Convert \(...\) → $...$ and \[...\] → $$...$$
+                restored = re.sub(r'\\\((.+?)\\\)', r'$\1$', restored)
+                restored = re.sub(r'\\\[(.+?)\\\]', r'$$\1$$', restored)
+                tid = f"tpl-{tpl_counter[0]}"
+                tpl_counter[0] += 1
+                js_read = f'document.getElementById("{tid}").textContent'
+                replacements.append((m_str.start(), m_str.end(), js_read, restored, tid))
 
-    # Replace quoted strings from end to start (preserves earlier positions)
-    for start, end, js_read, restored, tid in reversed(dbl_matches):
+    # Replace from end to start to preserve positions
+    for start, end, js_read, restored, tid in reversed(replacements):
         text = text[:start] + js_read + text[end:]
 
-    # Insert template tags (find js_read positions after replacement)
-    for start, end, js_read, restored, tid in reversed(dbl_matches):
+    # Insert template tags (find js_read text, insert before nearest <script>)
+    for start, end, js_read, restored, tid in reversed(replacements):
         tag = f'<script type="text/template" id="{tid}">{restored}</script>\n'
         search_pos = text.find(js_read)
         if search_pos >= 0:
@@ -284,11 +287,52 @@ def _fix_scene_html(data: bytes) -> bytes:
             if script_pos >= 0:
                 text = text[:script_pos] + tag + text[script_pos:]
 
-    # --- Fix 2: inject MathJax config for $ delimiters ---
+    # --- Fix 1c: replace typeWriter calls with direct innerHTML ---
+    # typeWriter renders char-by-char which breaks MathJax rendering.
+    # Replace with direct innerHTML + MathJax.typesetPromise.
+    # Must NOT match function definitions like
+    # "async function typeWriter(text, element, animId)".
+    def _replace_typewriter_calls(text):
+        pattern = r'typeWriter\(\s*text\s*,\s*(\w+)\s*,\s*\w+\s*\)'
+        result = []
+        last_end = 0
+        for m in re.finditer(pattern, text):
+            before = text[:m.start()].rstrip()
+            if before.endswith('function'):
+                # Skip function definition
+                result.append(text[last_end:m.end()])
+            else:
+                el = m.group(1)
+                replacement = f'{el}.innerHTML = text; if (window.MathJax) MathJax.typesetPromise([{el}])'
+                result.append(text[last_end:m.start()] + replacement)
+            last_end = m.end()
+        result.append(text[last_end:])
+        return ''.join(result)
+
+    text = _replace_typewriter_calls(text)
+
+    # --- Fix 1d: restore control chars in HTML content ---
+    # Some scene files have broken LaTeX directly in HTML (not in JS strings).
+    # Also convert \(...\) → $...$ and \[...\] → $$...$$ for reliable MathJax.
+    if any(c in text for c in ("\x08", "\x09", "\x0c")):
+        text = text.replace("\x0crac", "\\frac")
+        text = text.replace("\x09imes", "\\times")
+        text = text.replace("\x09herefore", "\\therefore")
+        text = text.replace("\x09ext", "\\text")
+        text = text.replace("\x09iangle", "\\triangle")
+        text = text.replace("\x08ecause", "\\because")
+        text = text.replace("\x0c", "\\f")
+        text = text.replace("\x09", "\\t")
+        text = text.replace("\x08", "\\b")
+        text = re.sub(r'\\\((.+?)\\\)', r'$\1$', text)
+        text = re.sub(r'\\\[(.+?)\\\]', r'$$\1$$', text)
+
+    # --- Fix 2: inject MathJax config for $ and \( delimiters ---
+    # HTML source needs \\( so JS interprets it as \( (the MathJax delimiter)
     mathjax_config = (
         "<script>\nMathJax = {\n"
-        "  tex: { inlineMath: [['\\(', '\\)'], ['$', '$']],"
-        " displayMath: [['\\[', '\\]'], ['$$', '$$']] },\n"
+        "  tex: { inlineMath: [['\\\\(', '\\\\)'], ['$', '$']],"
+        " displayMath: [['\\\\[', '\\\\]'], ['$$', '$$']] },\n"
         "  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }\n"
         "};\n</script>\n"
     )
@@ -313,17 +357,12 @@ def serve_html():
     if not html_path.exists():
         abort(404)
     data = html_path.read_bytes()
-    needs_fix = any(b in data for b in (0x08, 0x09, 0x0C)) or b"MathJax =" not in data
-    if not needs_fix:
-        # Check for double-quoted strings with LaTeX commands
-        text = data.decode("utf-8", errors="replace")
-        needs_fix = bool(re.search(r'"(?:[^"\\]|\\.)*\\(?:frac|triangle|therefore|because|times)\b', text))
-    if needs_fix:
-        data = _fix_scene_html(data)
-        resp = make_response(data)
-        resp.headers["Content-Type"] = "text/html; charset=utf-8"
-        return resp
-    return send_file(html_path)
+    # Always apply fix: ensures MathJax config, \(→$ conversion, and
+    # control char restoration for all scene HTML files
+    data = _fix_scene_html(data)
+    resp = make_response(data)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    return resp
 
 
 @app.get("/diagram")
