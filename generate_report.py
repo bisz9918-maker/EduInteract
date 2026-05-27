@@ -203,7 +203,7 @@ def collect_model(exp_dir_name: str) -> dict | None:
     for tag in dim_tags:
         vals = [r["evaluation"][tag] for r in scored if tag in r.get("evaluation", {})]
         if vals:
-            summary["avg_dim_scores"][tag] = round(sum(vals) / len(vals), 2)
+            summary["avg_dim_scores"][tag] = round(sum(vals) / denom, 2)
 
     for r in scored:
         stages = r.get("tokens", {}).get("stages", {})
@@ -371,43 +371,149 @@ def _setup_font():
     plt.rcParams["mathtext.fontset"] = "stix"
 
 
-def plot_radar(scores_rows: list[dict], results_dir: Path):
-    """5-dimension radar chart of model scores."""
-    _setup_font()
-
-    models = [r for r in scores_rows if r["平均总分"] > 0]
-    dims = ["dim1_accuracy", "dim2_interaction", "dim3_visual",
-            "dim4_pedagogy", "dim5_logic_coherence"]
-    dim_labels = ["Accuracy", "Interaction", "Visual", "Pedagogy", "Logic\nCoherence"]
-
-    n = len(dims)
+def _draw_radar_subplot(ax, labels, model_values, model_names, colors, title):
+    """Draw a single radar subplot."""
+    n = len(labels)
     angles = np.linspace(0, 2 * np.pi, n, endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
-    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
-
-    for idx, row in enumerate(models):
-        values = [float(row[d]) for d in dims]
-        values += values[:1]
-        ax.plot(angles, values, "o-", linewidth=2, label=row["模型"],
-                color=colors[idx % len(colors)], markersize=6)
-        ax.fill(angles, values, alpha=0.08, color=colors[idx % len(colors)])
+    for idx, (values, name) in enumerate(zip(model_values, model_names)):
+        vals = values + values[:1]
+        ax.plot(angles, vals, "o-", linewidth=1.8, label=name,
+                color=colors[idx % len(colors)], markersize=5)
+        ax.fill(angles, vals, alpha=0.06, color=colors[idx % len(colors)])
 
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(dim_labels, fontsize=11, fontweight="bold")
+    ax.set_xticklabels(labels, fontsize=9, fontweight="bold")
     ax.set_ylim(0, 5.5)
     ax.set_yticks([1, 2, 3, 4, 5])
-    ax.set_yticklabels(["1", "2", "3", "4", "5"], fontsize=9)
+    ax.set_yticklabels(["1", "2", "3", "4", "5"], fontsize=8)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.1),
-              fontsize=10, frameon=True, fancybox=True, shadow=True)
-    ax.set_title("Evaluation Dimension Radar Chart", fontsize=14, fontweight="bold", pad=20)
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=18)
 
+
+def compute_group_scores(all_data: dict, group_key: str) -> dict:
+    """Compute per-model average total_score grouped by grade or subject.
+    Denominator = scored topics + no-code topics (same as build_breakdown_csvs).
+    Topics with code but score=0 are excluded from denominator.
+    Returns {group_label: {model: overall_avg_score}}
+    """
+    EXP_MAP = {v: k for k, v in MODEL_MAP.items()}
+    MODELS = [m for m in MODEL_MAP.values()
+              if m not in ("Ministral-3-14B", "Mistral-Large-3-675B")]
+
+    GRADE_LABELS = {"g6": "Primary", "g9": "Junior", "g12": "Senior"}
+    SUBJECT_LABELS = {
+        "physics": "Physics", "chemistry": "Chemistry", "math": "Math",
+        "biology": "Biology", "geography": "Geography",
+    }
+    label_map = GRADE_LABELS if group_key == "grade" else SUBJECT_LABELS
+    order = ["g6", "g9", "g12"] if group_key == "grade" else \
+            ["physics", "chemistry", "math", "biology", "geography"]
+
+    result = {}
+    for gk in order:
+        group_label = label_map[gk]
+        result[group_label] = {}
+        for model in MODELS:
+            data = all_data[model]
+            exp_dir = OUTPUT_DIR / EXP_MAP[model]
+            scored_sum = 0.0
+            scored_n = 0
+            no_code = 0
+            for td in data["topics"]:
+                parts = td["topic"].split("_")
+                grade, subject = parts[3], parts[2]
+                val = grade if group_key == "grade" else subject
+                if val != gk:
+                    continue
+                score = td.get("evaluation", {}).get("total_score", 0)
+                doc_files = list((exp_dir / td["topic"] / "doc").glob("scene*.html"))
+                if score > 0:
+                    scored_sum += score
+                    scored_n += 1
+                elif not doc_files:
+                    no_code += 1
+            denom = scored_n + no_code
+            avg = scored_sum / denom if denom > 0 else 0
+            result[group_label][model] = round(avg, 2)
+    return result
+
+
+def plot_radar(scores_rows: list[dict], all_data: dict, results_dir: Path):
+    """Three side-by-side radar charts: by dimension, by subject, by grade."""
+    _setup_font()
+
+    models = [r for r in scores_rows if r["平均总分"] > 0]
+    model_names = [r["模型"] for r in models]
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+
+    # ── Left: By Dimension ──
+    dims = ["dim1_accuracy", "dim2_interaction", "dim3_visual",
+            "dim4_pedagogy", "dim5_logic_coherence"]
+    dim_labels = ["Prob.\nAlign.", "Interact.", "Visual\nQual.", "Pedagogy", "Logic\nCoh."]
+    dim_values = [[float(r[d]) for d in dims] for r in models]
+
+    # ── Middle: By Subject ──
+    subject_data = compute_group_scores(all_data, "subject")
+    subject_labels = ["Physics", "Chemistry", "Math", "Biology", "Geography"]
+    subject_values = []
+    for r in models:
+        model = r["模型"]
+        vals = [subject_data.get(s, {}).get(model, 0) for s in subject_labels]
+        subject_values.append(vals)
+
+    # ── Right: By Grade ──
+    grade_data = compute_group_scores(all_data, "grade")
+    grade_labels = ["Primary", "Junior", "Senior"]
+    grade_values = []
+    for r in models:
+        model = r["模型"]
+        vals = [grade_data.get(g, {}).get(model, 0) for g in grade_labels]
+        grade_values.append(vals)
+
+    # ── Draw 3 subplots ──
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6.5),
+                              subplot_kw=dict(polar=True))
+
+    _draw_radar_subplot(axes[0], dim_labels, dim_values, model_names,
+                        colors, "By Evaluation Dimension")
+    _draw_radar_subplot(axes[1], subject_labels, subject_values, model_names,
+                        colors, "By Subject")
+    _draw_radar_subplot(axes[2], grade_labels, grade_values, model_names,
+                        colors, "By Grade Level")
+
+    # Shared legend
+    handles = [plt.Line2D([0], [0], color=colors[i], linewidth=2, marker="o",
+               markersize=5, label=model_names[i])
+               for i in range(len(model_names))]
+    fig.legend(handles=handles, loc="lower center", ncol=len(model_names),
+               fontsize=10, frameon=True, fancybox=True, shadow=True,
+               bbox_to_anchor=(0.5, -0.02))
+
+    plt.tight_layout(rect=[0, 0.06, 1, 1])
     out = results_dir / "radar_chart.png"
     plt.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close()
     print(f"  {out.name}")
+
+    # Also save PDF for LaTeX
+    out_pdf = results_dir / "radar_chart.pdf"
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6.5),
+                              subplot_kw=dict(polar=True))
+    _draw_radar_subplot(axes[0], dim_labels, dim_values, model_names,
+                        colors, "By Evaluation Dimension")
+    _draw_radar_subplot(axes[1], subject_labels, subject_values, model_names,
+                        colors, "By Subject")
+    _draw_radar_subplot(axes[2], grade_labels, grade_values, model_names,
+                        colors, "By Grade Level")
+    fig.legend(handles=handles, loc="lower center", ncol=len(model_names),
+               fontsize=10, frameon=True, fancybox=True, shadow=True,
+               bbox_to_anchor=(0.5, -0.02))
+    plt.tight_layout(rect=[0, 0.06, 1, 1])
+    plt.savefig(out_pdf, bbox_inches="tight", facecolor="white")
+    plt.close()
+    print(f"  {out_pdf.name}")
 
 
 def plot_token_bar(token_rows: list[dict], results_dir: Path):
@@ -522,6 +628,30 @@ def plot_cost_vs_quality(scores_rows: list[dict], token_rows: list[dict],
     plt.close()
     print(f"  {out.name}")
 
+    # Also save PDF for LaTeX
+    out_pdf = results_dir / "cost_vs_quality.pdf"
+    fig, ax = plt.subplots(figsize=(9, 7))
+    for model in models_sorted:
+        cost, score = data[model]
+        color = color_map.get(model, "#333")
+        ax.scatter(cost, score, s=200, color=color, zorder=5,
+                   edgecolors="white", linewidths=1.5)
+        ax.annotate(model, xy=(cost, score), xytext=(8, 5),
+                    textcoords="offset points", fontsize=10,
+                    fontweight="bold", color=color)
+    ax.set_xlabel("Average Cost per Problem (USD)", fontsize=13, fontweight="bold")
+    ax.set_ylabel("Overall Score", fontsize=13, fontweight="bold")
+    ax.set_xlim(0, max(c for c, _ in data.values()) * 1.25)
+    ax.set_ylim(2.5, 5.0)
+    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.set_title("Cost vs. Quality Trade-off", fontsize=15, fontweight="bold", pad=12)
+    ax.axhline(y=med_s, color="gray", linestyle=":", alpha=0.4)
+    ax.axvline(x=med_c, color="gray", linestyle=":", alpha=0.4)
+    plt.tight_layout()
+    plt.savefig(out_pdf, bbox_inches="tight", facecolor="white")
+    plt.close()
+    print(f"  {out_pdf.name}")
+
 
 # ═══════════════════════════════════════════════════════════
 #  Main
@@ -617,9 +747,25 @@ def main():
     build_breakdown_csvs(all_data, results_dir)
 
     print("[4/4] Generating charts ...")
-    plot_radar(scores_rows, results_dir)
+    plot_radar(scores_rows, all_data, results_dir)
     plot_token_bar(token_rows, results_dir)
     plot_cost_vs_quality(scores_rows, token_rows, results_dir)
+
+    # Copy charts to paper fig directory
+    paper_fig = Path(__file__).parent.parent / "EduIllustrate_paper" / "fig"
+    if paper_fig.exists():
+        import shutil
+        chart_files = [
+            ("radar_chart", ["png", "pdf"]),
+            ("token_bar_chart", ["png"]),
+            ("cost_vs_quality", ["png", "pdf"]),
+        ]
+        for name, exts in chart_files:
+            for ext in exts:
+                src = results_dir / f"{name}.{ext}"
+                if src.exists():
+                    shutil.copy2(src, paper_fig / f"{name}.{ext}")
+                    print(f"  Copied {name}.{ext} -> {paper_fig}/")
 
     print(f"\nAll results saved to {results_dir}/")
 

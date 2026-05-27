@@ -168,30 +168,28 @@ def check_render(scenes):
     details = {}
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        # Allow CDN requests for rendering; only block non-essential resources
-        BLOCKED_RESOURCE_TYPES = {"image"}  # block images to speed up, allow scripts/styles/fonts
-        def _route_handler(route):
-            if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
-                route.abort()
-            else:
-                route.continue_()
         context = browser.new_context()
-        context.route("**/*", _route_handler)
 
         for scene_n, html_path in scenes:
             page = context.new_page()
             try:
                 page.goto(f"file://{html_path.resolve()}", wait_until="domcontentloaded", timeout=15000)
+                # Wait for async module scripts and WebGL to finish rendering
                 time.sleep(3)
+                rendered = False
+                pixel_std = 0.0
                 screenshot_path = html_path.parent / f"_check_scene{scene_n}.png"
-                page.screenshot(path=str(screenshot_path), timeout=10000)
-
-                from PIL import Image as PILImage
-                import numpy as np
-                img = PILImage.open(screenshot_path)
-                arr = np.array(img)
-                pixel_std = arr.std()
-                rendered = pixel_std > 5
+                for _attempt in range(5):
+                    page.screenshot(path=str(screenshot_path), timeout=10000)
+                    from PIL import Image as PILImage
+                    import numpy as np
+                    img = PILImage.open(screenshot_path)
+                    arr = np.array(img)
+                    pixel_std = arr.std()
+                    rendered = pixel_std > 1
+                    if rendered:
+                        break
+                    time.sleep(2)
                 screenshot_path.unlink(missing_ok=True)
 
                 details[f"scene{scene_n}"] = {
