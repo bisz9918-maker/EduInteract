@@ -199,67 +199,98 @@ def api_annotate():
 def _fix_scene_html(data: bytes) -> bytes:
     """Fix LLM-generated scene HTML for correct MathJax rendering.
 
-    Two issues:
-    1. JS template literals eat backslash escapes: \\frac → \\f(form-feed)+rac.
-       Fix: move step text from template literals into <script type="text/template">
-       tags (not executed by JS, backslashes preserved), then read via textContent.
+    Issues:
+    1. JS strings eat backslash escapes: \\frac → \\f(form-feed)+rac in template
+       literals; \\triangle → \\t(tab)+riangle in double-quoted strings.
+       Fix: replace JS strings containing LaTeX with
+       document.getElementById("...").textContent reading from
+       <script type="text/template"> tags (not executed, backslashes preserved).
     2. No MathJax config for $ delimiters — default only supports \\(\\).
        Fix: inject MathJax config before the script tag.
     """
     import re
     text = data.decode("utf-8", errors="replace")
+    tpl_counter = [0]
+    tpl_inserts = []  # (position, tag_html)
 
-    # --- Fix 1: move template strings to <script type="text/template"> ---
-    # Find stepsMath = [...];
-    m = re.search(r'stepsMath\s*=\s*\[(.*?)\];', text, re.DOTALL)
+    def _restore_ctrl(content: str) -> str:
+        """Restore control chars produced by JS escape interpretation."""
+        content = content.replace("\x0crac", "\\frac")
+        content = content.replace("\x09imes", "\\times")
+        content = content.replace("\x09herefore", "\\therefore")
+        content = content.replace("\x09ext", "\\text")
+        content = content.replace("\x09riangle", "\\triangle")
+        content = content.replace("\x08ecause", "\\because")
+        content = content.replace("\x0c", "\\f")
+        content = content.replace("\x09", "\\t")
+        content = content.replace("\x08", "\\b")
+        return content
+
+    def _has_latex(s: str) -> bool:
+        if any(c in s for c in ("\x08", "\x09", "\x0c")):
+            return True
+        if re.search(r"\\(?:frac|triangle|therefore|because|times)\b", s):
+            return True
+        return False
+
+    # --- Fix 1a: move stepsMath template strings to template tags ---
+    m = re.search(r"stepsMath\s*=\s*\[(.*?)\];", text, re.DOTALL)
     if m:
         body = m.group(1)
-        # Extract each template string
-        step_contents = []
-        for sm in re.finditer(r'`([^`]*)`', body):
-            content = sm.group(1)
-            # Restore control chars to LaTeX commands
-            content = content.replace("\x0crac", "\\frac")
-            content = content.replace("\x09imes", "\\times")
-            content = content.replace("\x09herefore", "\\therefore")
-            content = content.replace("\x09ext", "\\text")
-            content = content.replace("\x09riangle", "\\triangle")
-            content = content.replace("\x08ecause", "\\because")
-            content = content.replace("\x0c", "\\f")
-            content = content.replace("\x09", "\\t")
-            content = content.replace("\x08", "\\b")
-            step_contents.append(content)
-
-        # Build <script type="text/template"> blocks
+        step_contents = [_restore_ctrl(sm.group(1)) for sm in re.finditer(r"`([^`]*)`", body)]
         template_blocks = []
         for i, content in enumerate(step_contents):
-            template_blocks.append(
-                f'<script type="text/template" id="step-{i}">{content}</script>'
-            )
+            template_blocks.append(f'<script type="text/template" id="step-{i}">{content}</script>')
         template_html = "\n".join(template_blocks)
-
-        # Replace stepsMath array with code that reads from template blocks
         new_stepsmath = (
             "stepsMath = Array.from(document.querySelectorAll("
             "'script[type=\"text/template\"][id^=\"step-\"]'))"
             ".map(s => s.textContent);"
         )
-
-        # Insert template blocks before the <script> that contains stepsMath
         script_open = text.rfind("<script>", 0, m.start())
         if script_open < 0:
             script_open = text.rfind("<script>\n", 0, m.start())
+        text = text[:script_open] + template_html + "\n" + text[script_open:m.start()] + new_stepsmath + text[m.end():]
 
-        result = text[:script_open] + template_html + "\n" + text[script_open:m.start()] + new_stepsmath + text[m.end():]
-        text = result
+    # --- Fix 1b: replace double-quoted strings with LaTeX ---
+    # Use escaped-quote-aware regex to match JS "..." strings correctly
+    # Step 1: collect all matches, Step 2: replace from end to start,
+    # Step 3: insert template tags (find by js_read text)
+    dbl_matches = []
+    for m_dbl in re.finditer(r'"((?:[^"\\]|\\.)*)"', text):
+        if _has_latex(m_dbl.group(1)):
+            content = m_dbl.group(1)
+            restored = content.replace("\\\\", "\x00BS\x00")
+            restored = restored.replace('\\"', '"')
+            restored = restored.replace("\\n", "\n")
+            restored = restored.replace("\\t", "\t")
+            restored = restored.replace("\x00BS\x00", "\\")
+            restored = _restore_ctrl(restored)
+            tid = f"tpl-{tpl_counter[0]}"
+            tpl_counter[0] += 1
+            js_read = f'document.getElementById("{tid}").textContent'
+            dbl_matches.append((m_dbl.start(), m_dbl.end(), js_read, restored, tid))
+
+    # Replace quoted strings from end to start (preserves earlier positions)
+    for start, end, js_read, restored, tid in reversed(dbl_matches):
+        text = text[:start] + js_read + text[end:]
+
+    # Insert template tags (find js_read positions after replacement)
+    for start, end, js_read, restored, tid in reversed(dbl_matches):
+        tag = f'<script type="text/template" id="{tid}">{restored}</script>\n'
+        search_pos = text.find(js_read)
+        if search_pos >= 0:
+            script_pos = text.rfind("<script>", 0, search_pos)
+            if script_pos >= 0:
+                text = text[:script_pos] + tag + text[script_pos:]
 
     # --- Fix 2: inject MathJax config for $ delimiters ---
     mathjax_config = (
-        '<script>\nMathJax = {\n'
-        '  tex: { inlineMath: [["\\\\(", "\\\\")"], ["$", "$"]],'
-        ' displayMath: [["\\\\[", "\\\\]"], ["$$", "$$"]] },\n'
-        '  options: { skipHtmlTags: ["script","noscript","style","textarea","pre"] }\n'
-        '};\n</script>\n'
+        "<script>\nMathJax = {\n"
+        "  tex: { inlineMath: [['\\(', '\\)'], ['$', '$']],"
+        " displayMath: [['\\[', '\\]'], ['$$', '$$']] },\n"
+        "  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }\n"
+        "};\n</script>\n"
     )
     if "MathJax =" not in text and "MathJax=" not in text:
         text = text.replace(
@@ -283,6 +314,10 @@ def serve_html():
         abort(404)
     data = html_path.read_bytes()
     needs_fix = any(b in data for b in (0x08, 0x09, 0x0C)) or b"MathJax =" not in data
+    if not needs_fix:
+        # Check for double-quoted strings with LaTeX commands
+        text = data.decode("utf-8", errors="replace")
+        needs_fix = bool(re.search(r'"(?:[^"\\]|\\.)*\\(?:frac|triangle|therefore|because|times)\b', text))
     if needs_fix:
         data = _fix_scene_html(data)
         resp = make_response(data)
