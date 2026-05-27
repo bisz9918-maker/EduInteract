@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 批量处理 Zipped_Items 图片：OCR 识别 + 生成图示
-用法: python3 batch_generate.py [--start 0] [--end 109] [--model Kimi-K25]
+用法: python3 batch_generate.py --oah_url http://127.0.0.1:8787 --oah_model kimi-k26 [--model Kimi-K25]
 """
 import argparse
 import asyncio
@@ -34,6 +34,7 @@ from PIL import Image
 from visual_solver import ExplanationGenerator
 from visual_solver.mllm_tools.litellm import LiteLLMWrapper
 from visual_solver.src.utils.utils import parse_scene_outline_tokens
+from visual_solver.src.config.config import Config
 
 # 修复 LiteLLMWrapper.__init__ 属性初始化顺序
 _orig_llm_init = LiteLLMWrapper.__init__
@@ -78,9 +79,10 @@ def ocr_image(image: Image.Image) -> str:
         return data.get("result", "").strip()
 
     # openai mode (default)
+    ocr_model = os.getenv("OCR_MODEL", "ocr2.0")
     api_url = ocr_url.rstrip("/") + "/chat/completions"
     payload = json.dumps({
-        "model": "ocr2.0",
+        "model": ocr_model,
         "messages": [
             {
                 "role": "user",
@@ -90,16 +92,17 @@ def ocr_image(image: Image.Image) -> str:
                 ],
             }
         ],
+        "max_tokens": 2048,
     }).encode()
     req = urllib.request.Request(
         api_url,
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {ocr_key}",
+            **({"Authorization": f"Bearer {ocr_key}"} if ocr_key and ocr_key != "unused" else {}),
         },
     )
-    with urllib.request.urlopen(req, timeout=60, context=_ssl_ctx) as resp:
+    with urllib.request.urlopen(req, timeout=120, context=_ssl_ctx) as resp:
         data = json.loads(resp.read())
     return data["choices"][0]["message"]["content"].strip()
 
@@ -206,9 +209,19 @@ def main():
     parser.add_argument("--model", default=os.getenv("TEACHER_MODEL_DEFAULT", "Kimi-K25"))
     parser.add_argument("--start", type=int, default=0, help="起始索引 (含)")
     parser.add_argument("--end", type=int, default=-1, help="结束索引 (不含), -1 表示全部")
+    parser.add_argument("--oah_url", type=str, default=None,
+                        help="OAH API URL (e.g. http://127.0.0.1:8787). Falls back to OAH_API_URL env var.")
+    parser.add_argument("--oah_model", type=str, default=None,
+                        help="Model ref to use in OAH sessions (e.g. kimi-k26). Falls back to OAH_MODEL_REF env var.")
     parser.add_argument("--no-skip", action="store_true", help="不跳过已完成的题目")
     parser.add_argument("--concurrency", type=int, default=1, help="并发处理题目数 (默认1)")
     args = parser.parse_args()
+
+    # Set OAH config: CLI arg > env var
+    if args.oah_url:
+        Config.OAH_API_URL = args.oah_url
+    if args.oah_model:
+        Config.OAH_MODEL_REF = args.oah_model
 
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
