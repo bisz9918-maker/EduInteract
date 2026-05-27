@@ -179,7 +179,7 @@ export async function pruneOrphanedManagedWorkspaceRootShells(input: {
           return;
         }
 
-        await rm(rootPath, { recursive: true, force: true });
+        await rm(rootPath, { recursive: true, force: true }).catch(() => {});
         removedPaths.push(rootPath);
       })
   );
@@ -200,7 +200,7 @@ export async function pruneOrphanedShadowDirectories(input: {
       .filter((entry) => entry.isDirectory() && !persistedIds.has(entry.name))
       .map(async (entry) => {
         const dirPath = path.join(input.shadowRoot, entry.name);
-        await rm(dirPath, { recursive: true, force: true });
+        await rm(dirPath, { recursive: true, force: true }).catch(() => {});
         removedPaths.push(dirPath);
       })
   );

@@ -223,7 +223,7 @@ export class SQLitePersistenceCoordinator {
       // and avoids ENOTEMPTY races from parallel deletion.
       await rm(`${dbPath}-shm`, { force: true }).catch(() => {});
       await rm(`${dbPath}-wal`, { force: true }).catch(() => {});
-      await rm(path.dirname(dbPath), { recursive: true, force: true });
+      await rm(path.dirname(dbPath), { recursive: true, force: true }).catch(() => {});
     }
 
     // Reclaim disk space from deleted rows in the registry database.
@@ -418,21 +418,30 @@ export class SQLitePersistenceCoordinator {
       }
       throw err;
     }
-    const handle = await retryOnBusy(() => {
-      const db = new DatabaseSync(dbPath);
-      db.exec("pragma journal_mode = wal");
-      db.exec("pragma busy_timeout = 30000");
-      db.exec("pragma synchronous = normal");
-      db.exec("pragma mmap_size = 0");
-      migrateLegacyMirrorSchemaIfNeeded(db);
-      reconcilePersistedWorkspaceScope(db, workspace);
-      normalizePersistedWorkspaceData(db);
-      const h = { dbPath, db };
-      this.#handles.set(workspace.id, h);
-      return h;
-    });
-    await this.reindexWorkspace(handle.db, workspace.id);
-    return handle;
+    let handle: DatabaseHandle;
+    try {
+      handle = await retryOnBusy(() => {
+        const db = new DatabaseSync(dbPath);
+        db.exec("pragma journal_mode = wal");
+        db.exec("pragma busy_timeout = 30000");
+        db.exec("pragma synchronous = normal");
+        db.exec("pragma mmap_size = 0");
+        migrateLegacyMirrorSchemaIfNeeded(db);
+        reconcilePersistedWorkspaceScope(db, workspace);
+        normalizePersistedWorkspaceData(db);
+        const h = { dbPath, db };
+        this.#handles.set(workspace.id, h);
+        return h;
+      });
+    } catch (err: unknown) {
+      if (err instanceof Error && "errcode" in err && (err as { errcode: number }).errcode === 14) {
+        await this.deleteWorkspace(workspace.id);
+        throw new AppError(404, "workspace_not_found", `Workspace ${workspace.id} database was removed.`);
+      }
+      throw err;
+    }
+    await this.reindexWorkspace(handle!.db, workspace.id);
+    return handle!;
   }
 
   listWorkspaceRecords(): WorkspaceRecord[] {
