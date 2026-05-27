@@ -108,7 +108,7 @@ def ocr_image(image: Image.Image) -> str:
 
 
 # ── 生成器工厂 ──────────────────────────────────────────────────────────────
-def make_generator(model: str, output_dir: str) -> ExplanationGenerator:
+def make_generator(model: str, output_dir: str, trace_dir: str = None, oah_timeout: float = 7200.0) -> ExplanationGenerator:
     llm = LiteLLMWrapper(
         model_name=model,
         temperature=0.7,
@@ -126,14 +126,32 @@ def make_generator(model: str, output_dir: str) -> ExplanationGenerator:
         use_langfuse=False,
         max_scene_concurrency=3,
         use_oah=True,
+        trace_dir=trace_dir,
+        oah_timeout=oah_timeout,
     )
 
 
 # ── 单题处理 ──────────────────────────────────────────────────────────────
-async def process_one(image_path: Path, output_dir: str, model: str, skip_existing: bool = True) -> bool:
+def _is_transient_error(exc: Exception) -> bool:
+    """Check if an exception is a transient OAH infrastructure error that should allow retry."""
+    msg = str(exc).lower()
+    return "workspace_not_found" in msg or "connection refused" in msg or "session_not_found" in msg
+
+
+async def process_one(image_path: Path, output_dir: str, model: str,
+                      skip_existing: bool = True, mark_failed: bool = False,
+                      trace_dir: str = None, oah_timeout: float = 7200.0) -> bool:
     stem = image_path.stem  # e.g. G7VH1T1
     file_prefix = re.sub(r'[^a-z0-9_]+', '_', stem.lower())
     scene_outline_path = Path(output_dir) / file_prefix / f"{file_prefix}_scene_outline.txt"
+    out_prefix_dir = Path(output_dir) / file_prefix
+    failed_marker = out_prefix_dir / ".generation_failed"
+
+    # Skip problems previously marked as permanently failed
+    if mark_failed and failed_marker.exists():
+        reason = failed_marker.read_text().strip()
+        print(f"  ⊘ {stem} skipped: previously failed — {reason}")
+        return True  # counted as skipped, not failed
 
     if skip_existing and scene_outline_path.exists():
         # 检查所有 scene 是否都已渲染成功
@@ -158,7 +176,6 @@ async def process_one(image_path: Path, output_dir: str, model: str, skip_existi
         return False
 
     # 1b. 复制题目图片到输出目录
-    out_prefix_dir = Path(output_dir) / file_prefix
     out_prefix_dir.mkdir(parents=True, exist_ok=True)
     dest = out_prefix_dir / f"{file_prefix}{image_path.suffix}"
     if not dest.exists():
@@ -181,8 +198,9 @@ async def process_one(image_path: Path, output_dir: str, model: str, skip_existi
 
     # 3. 生成图示
     print(f"  🎨 生成图示中...")
+    problem_start = time.perf_counter()
     try:
-        gen = make_generator(model, output_dir)
+        gen = make_generator(model, output_dir, trace_dir=trace_dir, oah_timeout=oah_timeout)
         await gen.generate_html_diagrams(
             topic=stem,
             description=text,
@@ -190,14 +208,35 @@ async def process_one(image_path: Path, output_dir: str, model: str, skip_existi
             problem_image=image,
         )
     except Exception as e:
-        print(f"  ❌ 生成失败: {e}")
+        if mark_failed and not _is_transient_error(e):
+            out_prefix_dir.mkdir(parents=True, exist_ok=True)
+            failed_marker.write_text(str(e))
+            print(f"  ✗ {stem} failed and marked (will not retry): {e}")
+        else:
+            print(f"  ✗ {stem} failed (will retry on next run): {e}")
         return False
+
+    elapsed = time.perf_counter() - problem_start
 
     # 4. 验证结果
     scene_dir = Path(output_dir) / file_prefix
     succ_files = list(scene_dir.glob("scene*/succ_rendered.txt"))
     html_files = list(scene_dir.glob("scene*/code/*_v*.html"))
-    print(f"  ✅ 完成: {len(succ_files)} scenes, {len(html_files)} HTML files")
+    print(f"  ✅ 完成: {len(succ_files)} scenes, {len(html_files)} HTML files ({elapsed:.1f}s)")
+
+    # Save timing
+    timing_file = out_prefix_dir / "timing.json"
+    timing_data = {}
+    if timing_file.exists():
+        try:
+            timing_data = json.loads(timing_file.read_text())
+        except Exception:
+            pass
+    timing_data["total_time_seconds"] = elapsed
+    timing_data["total_time_minutes"] = elapsed / 60
+    timing_data["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    timing_file.write_text(json.dumps(timing_data, indent=2, ensure_ascii=False))
+
     return True
 
 
@@ -215,6 +254,13 @@ def main():
                         help="Model ref to use in OAH sessions (e.g. kimi-k26). Falls back to OAH_MODEL_REF env var.")
     parser.add_argument("--no-skip", action="store_true", help="不跳过已完成的题目")
     parser.add_argument("--concurrency", type=int, default=1, help="并发处理题目数 (默认1)")
+    parser.add_argument("--mark_failed", action="store_true",
+                        help="标记模型导致的失败为 .generation_failed，后续运行不再重试。"
+                             "瞬态错误（workspace_not_found 等）不会被标记，允许重试。")
+    parser.add_argument("--trace_dir", type=str, default=None,
+                        help="保存 OAH 运行轨迹 JSON 的目录 (默认: <output_dir>/traces)")
+    parser.add_argument("--oah_timeout", type=float, default=7200.0,
+                        help="每个 OAH agent 运行的超时秒数 (默认: 7200)")
     args = parser.parse_args()
 
     # Set OAH config: CLI arg > env var
@@ -222,6 +268,19 @@ def main():
         Config.OAH_API_URL = args.oah_url
     if args.oah_model:
         Config.OAH_MODEL_REF = args.oah_model
+
+    # Startup: clean up orphaned workspaces from previous crashed runs
+    from visual_solver.oah_client import OAHClient
+    try:
+        _cleanup_client = OAHClient(
+            api_url=Config.OAH_API_URL,
+            token=Config.OAH_TOKEN,
+            model_ref=Config.OAH_MODEL_REF,
+            cleanup=False,
+        )
+        _cleanup_client.cleanup_all_workspaces()
+    except Exception as e:
+        print(f"Warning: OAH workspace cleanup at startup failed: {e}")
 
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
@@ -266,6 +325,9 @@ def main():
                     str(output_dir),
                     args.model,
                     skip_existing=not args.no_skip,
+                    mark_failed=args.mark_failed,
+                    trace_dir=args.trace_dir or (str(output_dir / "traces")),
+                    oah_timeout=args.oah_timeout,
                 )
                 if result is True:
                     file_prefix = re.sub(r'[^a-z0-9_]+', '_', img_path.stem.lower())
