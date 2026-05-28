@@ -76,7 +76,8 @@ def ocr_image(image: Image.Image) -> str:
         )
         with urllib.request.urlopen(req, timeout=60, context=_ssl_ctx) as resp:
             data = json.loads(resp.read())
-        return data.get("result", "").strip()
+        result = data.get("result", "")
+        return result.strip() if result else ""
 
     # openai mode (default)
     ocr_model = os.getenv("OCR_MODEL", "ocr2.0")
@@ -104,7 +105,8 @@ def ocr_image(image: Image.Image) -> str:
     )
     with urllib.request.urlopen(req, timeout=120, context=_ssl_ctx) as resp:
         data = json.loads(resp.read())
-    return data["choices"][0]["message"]["content"].strip()
+    content = data["choices"][0]["message"]["content"]
+    return content.strip() if content else ""
 
 
 # ── 生成器工厂 ──────────────────────────────────────────────────────────────
