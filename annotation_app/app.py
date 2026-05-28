@@ -232,8 +232,8 @@ def _fix_scene_html(data: bytes) -> bytes:
         # (backslash + letter → JS drops the backslash for unknown escapes)
         if re.search(r"\\(?:frac|triangle|therefore|because|times|angle|circ|cong|perp|parallel|approx|neq|leq|geq|cdot|cdot|sqrt|overline|underline|overrightarrow|left|right|displaystyle|textstyle|lim|sum|prod|int|infty|partial|nabla|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|quad|qquad|hfill|vfill|quad|text|mathrm|mathbf|mathit|mathsf|mathtt|mathcal|mathbb|mathfrak|boldsymbol|vec|hat|bar|dot|ddot|tilde|widehat|widetilde|overleftarrow|overrightarrow|overline|underline|boxed|cancel|bf|it|rm|sf|tt|cal|footnotesize|small|normalsize|large|Large|huge|Huge)\b", s):
             return True
-        # Also detect $...$ or $$...$$ which likely contain LaTeX
-        if re.search(r'\$[^$]+\$', s):
+        # Also detect $...$ which likely contain LaTeX (require backslash inside)
+        if re.search(r'\$[^$]*\\[^$]+\$', s):
             return True
         return False
 
