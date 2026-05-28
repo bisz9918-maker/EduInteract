@@ -143,9 +143,19 @@ KEYS = list(SAMPLES.keys())
 
 if ANNOTATIONS_JSON.exists():
     with open(ANNOTATIONS_JSON, encoding="utf-8") as f:
-        annotations = json.load(f)
+        _raw = json.load(f)
 else:
-    annotations = {}
+    _raw = {}
+
+# Migration: old format {key: {annotator, scores}} -> {key: {annotator_name: {scores}}}
+annotations = {}
+for k, v in _raw.items():
+    if isinstance(v, dict) and "annotator" in v and "scores" in v:
+        # Old format — migrate
+        name = v["annotator"] or "unknown"
+        annotations[k] = {name: v["scores"]}
+    else:
+        annotations[k] = v
 
 
 def save_annotations():
@@ -162,6 +172,14 @@ def api_keys():
 
 @app.get("/api/annotations")
 def api_annotations():
+    annotator = request.args.get("annotator", "")
+    if annotator:
+        # Return only this annotator's work: {key: {scores}} for matching keys
+        filtered = {}
+        for k, annotators in annotations.items():
+            if annotator in annotators:
+                filtered[k] = annotators[annotator]
+        return jsonify(filtered)
     return jsonify(annotations)
 
 
@@ -191,9 +209,13 @@ def api_annotate():
     annotator = data.get("annotator", "")
     if not key or key not in SAMPLES:
         abort(400)
-    annotations[key] = {"annotator": annotator, "scores": scores}
+    if key not in annotations:
+        annotations[key] = {}
+    annotations[key][annotator] = scores
     save_annotations()
-    return jsonify({"ok": True, "total_annotated": len(annotations)})
+    # Count how many keys this annotator has completed
+    done = sum(1 for v in annotations.values() if annotator in v)
+    return jsonify({"ok": True, "total_annotated": done, "total_keys": len(KEYS)})
 
 
 def _fix_scene_html(data: bytes) -> bytes:

@@ -425,9 +425,9 @@ function fillSavedScores(key) {
   clearScores();
   var saved = annotations[key];
   if (!saved) return;
-  var scores = saved.scores || saved;
+  // saved is {dim_key: score, ...} (already filtered for current annotator)
   DIMS.forEach(function(d) {
-    if (scores[d.key] !== undefined) pickScore(d.key, scores[d.key]);
+    if (saved[d.key] !== undefined) pickScore(d.key, saved[d.key]);
   });
 }
 
@@ -528,10 +528,10 @@ qs('#btn-save').addEventListener('click', function() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    annotations[currentKey] = { annotator: annotatorName, scores: Object.assign({}, currentScores) };
+    annotations[currentKey] = Object.assign({}, currentScores);
     refreshSidebarItem(currentKey);
     setProgress();
-    qs('#save-msg').textContent = '已保存（共 ' + data.total_annotated + ' 条）';
+    qs('#save-msg').textContent = '已保存（共 ' + data.total_annotated + ' / ' + data.total_keys + ' 条）';
     setTimeout(function() { qs('#save-msg').textContent = ''; }, 2500);
   });
 });
@@ -557,7 +557,7 @@ qs('#btn-next').addEventListener('click', function() {
 function init() {
   Promise.all([
     fetch(apiURL('api/keys'), { cache: 'no-store' }).then(function(r) { return r.json(); }),
-    fetch(apiURL('api/annotations'), { cache: 'no-store' }).then(function(r) { return r.json(); })
+    fetch(apiURL('api/annotations?annotator=' + encodeURIComponent(annotatorName)), { cache: 'no-store' }).then(function(r) { return r.json(); })
   ]).then(function(results) {
     var keysData = results[0];
     var annoData = results[1];
@@ -568,6 +568,7 @@ function init() {
     });
     if (keysData.models) keysData.models.forEach(function(m) { MODELS.push(m); });
 
+    // annoData is {key: {scores}} filtered for this annotator
     annotations = annoData;
 
     buildSidebar();
