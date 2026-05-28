@@ -215,18 +215,24 @@ def _fix_scene_html(data: bytes) -> bytes:
     def _restore_ctrl(content: str) -> str:
         """Restore control chars produced by JS escape interpretation."""
         content = content.replace("\x0crac", "\\frac")
+        content = content.replace("\x0dightarrow", "\\rightarrow")
+        content = content.replace("\x0dight", "\\right")
+        content = content.replace("\x0aightarrow", "\\rightarrow")
+        content = content.replace("\x0aight", "\\right")
         content = content.replace("\x09imes", "\\times")
         content = content.replace("\x09herefore", "\\therefore")
         content = content.replace("\x09ext", "\\text")
         content = content.replace("\x09iangle", "\\triangle")
         content = content.replace("\x08ecause", "\\because")
         content = content.replace("\x0c", "\\f")
+        content = content.replace("\x0d", "\\r")
+        content = content.replace("\x0a", "\\n")
         content = content.replace("\x09", "\\t")
         content = content.replace("\x08", "\\b")
         return content
 
     def _has_latex(s: str) -> bool:
-        if any(c in s for c in ("\x08", "\x09", "\x0c")):
+        if any(c in s for c in ("\x08", "\x09", "\x0c", "\x0a", "\x0d")):
             return True
         # Common LaTeX commands that JS string interpretation would break
         # (backslash + letter → JS drops the backslash for unknown escapes)
@@ -268,11 +274,20 @@ def _fix_scene_html(data: bytes) -> bytes:
     # content because typeWriter's char-by-char rendering breaks MathJax,
     # and $ delimiters work reliably with direct innerHTML assignment.
     replacements = []
-    script_blocks = [(m.start(), m.end()) for m in re.finditer(r'<script[^>]*>.*?</script>', text, re.DOTALL)]
+    script_blocks = [(m.start(), m.end(), m.group(0)) for m in re.finditer(r'<script[^>]*>.*?</script>', text, re.DOTALL)]
     for quote_char, pattern in [('"', r'"((?:[^"\\]|\\.)*?)"'), ("'", r"'((?:[^'\\]|\\.)*?)'")]:
         for m_str in re.finditer(pattern, text):
-            # Only consider matches inside <script> blocks
-            if not any(s_start <= m_str.start() < s_end for s_start, s_end in script_blocks):
+            # Only consider matches inside non-module <script> blocks
+            in_script = None
+            for s_start, s_end, s_text in script_blocks:
+                if s_start <= m_str.start() < s_end:
+                    in_script = s_text
+                    break
+            if not in_script:
+                continue
+            # Skip ES module scripts — they have their own scope and
+            # template literal handling differs from regular scripts
+            if 'type="module"' in in_script[:80] or "type='module'" in in_script[:80]:
                 continue
             content = m_str.group(1)
             if _has_latex(content):
@@ -324,7 +339,10 @@ def _fix_scene_html(data: bytes) -> bytes:
 
     # --- Fix 1d: restore control chars in HTML content ---
     # Some scene files have broken LaTeX directly in HTML (not in JS strings).
-    # Also convert \(...\) → $...$ and \[...\] → $$...$$ for reliable MathJax.
+    # \r/\n in LaTeX commands like \rightarrow, \right must be restored, but
+    # we cannot blindly replace all \n/\r since they are legitimate line breaks.
+    # Strategy: restore known LaTeX word fragments first, then handle remaining
+    # control chars only within $...$ or \(...\) delimiters.
     if any(c in text for c in ("\x08", "\x09", "\x0c")):
         text = text.replace("\x0crac", "\\frac")
         text = text.replace("\x09imes", "\\times")
@@ -337,6 +355,33 @@ def _fix_scene_html(data: bytes) -> bytes:
         text = text.replace("\x08", "\\b")
         text = re.sub(r'\\\((.+?)\\\)', r'$\1$', text)
         text = re.sub(r'\\\[(.+?)\\\]', r'$$\1$$', text)
+
+    # Fix \r/\n inside LaTeX: restore \right, \rightarrow etc.
+    # Must do this BEFORE general $...$ conversion so the patterns match.
+    # These replacements are safe across the whole text since the patterns
+    # are specific LaTeX words that never appear legitimately as control chars.
+    if "\x0dight" in text or "\x0aight" in text:
+        text = text.replace("\x0dightarrow", "\\rightarrow")
+        text = text.replace("\x0dight", "\\right")
+        text = text.replace("\x0aightarrow", "\\rightarrow")
+        text = text.replace("\x0aight", "\\right")
+    # For remaining \r/\n inside $ delimiters in HTML content (not <script> blocks):
+    # only fix short inline math that doesn't span HTML tags or JS template literals.
+    # We process only the non-script portions to avoid corrupting JS template literals
+    # like `translate(${x}, 0)`.
+    script_ranges = [(m.start(), m.end()) for m in re.finditer(r'<script[^>]*>.*?</script>', text, re.DOTALL)]
+    def _in_script(pos):
+        return any(s <= pos < e for s, e in script_ranges)
+    def _fix_newlines_in_dollars(m):
+        if _in_script(m.start()):
+            return m.group(0)  # Don't touch $ inside <script> blocks
+        content = m.group(1)
+        if '<' in content or '>' in content:
+            return m.group(0)  # Skip if it spans HTML tags
+        content = content.replace("\x0d", "\\r")
+        content = content.replace("\x0a", "\\n")
+        return f'${content}$'
+    text = re.sub(r'\$([^$]*[\x0a\x0d][^$]*)\$', _fix_newlines_in_dollars, text)
 
     # --- Fix 2: inject MathJax config for $ and \( delimiters ---
     # HTML source needs \\( so JS interprets it as \( (the MathJax delimiter)
