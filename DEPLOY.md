@@ -371,3 +371,183 @@ OAH 内置的 Read 工具使用 `.toString("utf8")` 读取文件，无法处理 
 ### `maybeToUrl()` data URI bug
 
 OAH `packages/model-gateway/src/gateway-helpers.ts` 中的 `maybeToUrl()` 函数会把 `data:image/png;base64,...` 格式的 URI 转成 URL 对象，导致模型 provider 报错。修复方式：在函数开头添加 `if (value.startsWith("data:")) return value;`。
+
+---
+
+## 11. 多实例部署
+
+当单个 OAH 实例无法承载并发任务量时（如批量生成、批量评测），可以在同一节点上部署多个 OAH 实例，每个实例绑定不同端口，独立运行。
+
+### 架构
+
+```
+                    ┌─────────────────────┐
+                    │  source/ (共享只读)  │
+                    │  ├─ models/          │
+                    │  ├─ runtimes/        │
+                    │  └─ tools/           │
+                    └─────────┬───────────┘
+                              │ 读取
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+   ┌──────▼──────┐    ┌──────▼──────┐    ┌──────▼──────┐
+   │ instance_1  │    │ instance_2  │    │ instance_N  │
+   │ port: 8787  │    │ port: 8788  │    │ port: 878X  │
+   │ SQLite DB   │    │ SQLite DB   │    │ SQLite DB   │
+   │ workspaces/ │    │ workspaces/ │    │ workspaces/ │
+   └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+每个实例拥有独立的：
+- **端口** — 8787, 8788, 8789, ...
+- **SQLite 数据库** — `<instance>/state/data/`
+- **workspace 文件** — `<instance>/workspaces/`
+- **daemon 配置** — `<instance>/daemon.yaml`
+
+所有实例共享同一套 `source/`（models, runtimes, tools）只读数据。
+
+### 创建新实例
+
+复制已有实例目录，修改端口和路径：
+
+```bash
+cd test_oah_server2
+
+# 以 instance_1 为模板创建 instance_3
+cp -r oah_instance_1 oah_instance_3
+
+# 修改 daemon.yaml 中的 3 处差异：
+# 1. server.port: 8787 → 8789
+# 2. deployment.display_name: "OAP local daemon 1" → "OAP local daemon 3"
+# 3. paths.workspace_dir: ../oah_instance_1/workspaces → ../oah_instance_3/workspaces
+# 4. paths.runtime_state_dir: ../oah_instance_1/state → ../oah_instance_3/state
+
+sed -i 's/port: 8787/port: 8789/' oah_instance_3/daemon.yaml
+sed -i 's/daemon 1/daemon 3/' oah_instance_3/daemon.yaml
+sed -i 's|../oah_instance_1/|../oah_instance_3/|g' oah_instance_3/daemon.yaml
+
+# 清除旧状态
+rm -rf oah_instance_3/state/* oah_instance_3/workspaces/* oah_instance_3/run/*
+```
+
+### 批量启动/停止
+
+使用 `scripts/start_instances.sh`：
+
+```bash
+# 启动所有实例（默认 1-6）
+bash scripts/start_instances.sh start
+
+# 停止所有实例
+bash scripts/start_instances.sh stop
+
+# 重启
+bash scripts/start_instances.sh restart
+```
+
+> **注意**：脚本默认启动实例 1-6。如需更多实例，编辑脚本中的 `for i in 1 2 3 4 5 6` 行。
+
+脚本启动前会自动调用 `scripts/cleanup_state.sh` 清除各实例的 SQLite 数据库，避免历史数据累积导致 OOM。
+
+### 单独启停实例
+
+```bash
+OAH_DIR=/path/to/oah
+
+# 启动单个实例
+nohup pnpm --dir "$OAH_DIR" exec tsx \
+  --tsconfig "$OAH_DIR/apps/server/tsconfig.json" \
+  "$OAH_DIR/apps/server/src/index.ts" \
+  -- --config /path/to/test_oah_server2/oah_instance_3/daemon.yaml \
+  > logs/instance_3.log 2>&1 &
+
+# 停止单个实例（读取 PID 文件）
+kill $(cat oah_instance_3/state/data/daemon.pid) 2>/dev/null
+```
+
+### 任务分配
+
+多实例之间**不共享状态**，需要调用方自行分配实例。常见方式：
+
+```bash
+# 方式 1：不同批次使用不同实例
+nohup python batch_generate.py --oah_url http://127.0.0.1:8787 --oah_model kimi-k26 ... &
+nohup python batch_generate.py --oah_url http://127.0.0.1:8788 --oah_model qwen3.5-397b ... &
+
+# 方式 2：同批次内按范围拆分到不同实例
+nohup python batch_generate.py --oah_url http://127.0.0.1:8787 --start 0 --end 50 ... &
+nohup python batch_generate.py --oah_url http://127.0.0.1:8788 --start 50 --end 100 ... &
+```
+
+### Eviction 配置调优
+
+OAH 的 SQLite 存储有 eviction 机制：当记录数超过 `max_workspace_records` 时，自动 evict 旧的 workspace。**如果正在使用的 workspace 被 evict，会导致 `workspace_not_found` 错误，任务级联失败。**
+
+默认配置 `max_workspace_records: 200`，对于并发批量任务不够用。每个题目大约创建 4-6 个 workspace（outline + plan + code per scene），3 个并发题目即需要 12-18 个活跃 workspace，加上残留记录很容易超过 200。
+
+推荐配置：
+
+```yaml
+storage:
+  sqlite:
+    project_db_location: shadow
+    eviction:
+      max_workspace_records: 1000   # 默认 200，并发批量任务建议 1000+
+      max_open_handles: 500         # 默认 100，建议同步提高
+      max_session_index_entries: 5000
+      max_run_index_entries: 10000
+```
+
+修改后需重启 OAH 实例生效。
+
+### 清理 Workspace
+
+每个实例独立清理：
+
+```bash
+# 清理单个实例的所有 workspace
+INSTANCE_PORT=8787
+curl -s http://127.0.0.1:$INSTANCE_PORT/api/v1/workspaces | \
+  python3 -c "import sys,json; [print(w['id']) for w in json.load(sys.stdin).get('items',[])]" | \
+  xargs -I{} curl -s -X DELETE "http://127.0.0.1:$INSTANCE_PORT/api/v1/workspaces/{}"
+
+# 批量清理所有实例
+for port in 8787 8788 8789 8790 8791 8792 8793 8794 8795 8796 8797; do
+  echo "Cleaning instance on port $port..."
+  curl -s http://127.0.0.1:$port/api/v1/workspaces | \
+    python3 -c "import sys,json; [print(w['id']) for w in json.load(sys.stdin).get('items',[])]" 2>/dev/null | \
+    xargs -I{} curl -s -X DELETE "http://127.0.0.1:$port/api/v1/workspaces/{}" 2>/dev/null
+done
+```
+
+> **重要**：`cleanup_all_workspaces()` 会删除所有 workspace，包括其他进程正在使用的。在并发场景下，仅应在**没有其他任务运行时**调用（如 batch 进程启动前）。
+
+### 监控
+
+```bash
+# 查看所有实例的 workspace 数量和状态
+for port in 8787 8788 8789 8790; do
+  count=$(curl -s http://127.0.0.1:$port/api/v1/workspaces 2>/dev/null | \
+    python3 -c "import sys,json; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null || echo "?")
+  echo "Instance $port: $count workspaces"
+done
+
+# 检查 SQLite 数据库大小
+du -sh oah_instance_*/state/data/workspace-state/*.db
+
+# 检查实例进程
+for port in 8787 8788 8789 8790; do
+  pid=$(lsof -ti:$port 2>/dev/null | head -1)
+  echo "Instance $port: ${pid:-STOPPED}"
+done
+```
+
+### 已知问题
+
+1. **SQLite 数据库膨胀** — 长期运行后 `session_event_registry` 表会增长到数十万行（DB 可达 80MB+），启动时 V8 读取会 OOM。解决方案：定期执行 `scripts/cleanup_state.sh` 或在 `start_instances.sh start` 时自动清理。
+
+2. **孤儿 workspace 累积** — 如果 batch 进程异常退出（kill -9、OOM），workspace 不会被 `finally` 块清理，留在 OAH 中占用记录配额。解决方案：每次 batch 启动时调用 `cleanup_all_workspaces()`。
+
+3. **Eviction 误杀活跃 workspace** — 当 `max_workspace_records` 不足时，OAH 会 evict 正在被并发任务使用的 workspace。解决方案：提高 `max_workspace_records` 到 1000+。
+
+4. **`start_instances.sh` 范围硬编码** — 默认只启动实例 1-6，新增实例需手动修改脚本。

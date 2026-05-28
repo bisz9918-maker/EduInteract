@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# Start 6 OAH daemon instances with increased V8 heap size.
-# Usage: bash scripts/start_instances.sh [start|stop|restart]
+# Start OAH daemon instances with increased V8 heap size.
+# Usage: bash scripts/start_instances.sh [start|stop|restart] [INSTANCE_RANGE]
+# Example: bash scripts/start_instances.sh start 1-11
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OAH_DIR="${OAH_DIR:-$BASE_DIR/../oah}"
 NODE_OPTIONS="--max-old-space-size=131072"
 export NODE_OPTIONS
+
+# Parse instance range: "1-6" means instances 1,2,3,4,5,6
+INSTANCE_RANGE="${2:-1-6}"
+RANGE_START="${INSTANCE_RANGE%-*}"
+RANGE_END="${INSTANCE_RANGE#*-}"
+INSTANCES=($(seq "$RANGE_START" "$RANGE_END"))
 
 start_instance() {
     local i=$1
@@ -48,15 +55,15 @@ case "${1:-start}" in
         bash "$BASE_DIR/scripts/cleanup_state.sh"
         echo ""
         mkdir -p "$BASE_DIR/logs"
-        echo "Starting OAH instances with NODE_OPTIONS=$NODE_OPTIONS"
-        for i in 1 2 3 4 5 6; do
+        echo "Starting OAH instances ${INSTANCE_RANGE} with NODE_OPTIONS=$NODE_OPTIONS"
+        for i in "${INSTANCES[@]}"; do
             start_instance "$i"
         done
         echo ""
         echo "All instances started. Use 'bash $0 stop' to stop them."
         ;;
     stop)
-        for i in 1 2 3 4 5 6; do
+        for i in "${INSTANCES[@]}"; do
             stop_instance "$i"
         done
         echo "All instances stopped."
