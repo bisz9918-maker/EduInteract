@@ -201,11 +201,15 @@ async def process_one(image_path: Path, output_dir: str, model: str,
     problem_start = time.perf_counter()
     try:
         gen = make_generator(model, output_dir, trace_dir=trace_dir, oah_timeout=oah_timeout)
+        # Build trace_prefix for OAH run trace files
+        model_slug = re.sub(r'[^a-zA-Z0-9_-]+', '_', Config.OAH_MODEL_REF or "default")
+        trace_prefix = f"{file_prefix}_{model_slug}"
         await gen.generate_html_diagrams(
             topic=stem,
             description=text,
             max_retries=2,
             problem_image=image,
+            trace_prefix=trace_prefix,
         )
     except Exception as e:
         if mark_failed and not _is_transient_error(e):
@@ -269,7 +273,8 @@ def main():
     if args.oah_model:
         Config.OAH_MODEL_REF = args.oah_model
 
-    # Startup: clean up orphaned workspaces from previous crashed runs
+    # Startup: clean up orphaned workspaces from previous crashed runs.
+    # Safe because no concurrent tasks are running yet.
     from visual_solver.oah_client import OAHClient
     try:
         _cleanup_client = OAHClient(
@@ -278,9 +283,16 @@ def main():
             model_ref=Config.OAH_MODEL_REF,
             cleanup=False,
         )
-        _cleanup_client.cleanup_all_workspaces()
+        deleted = _cleanup_client.cleanup_all_workspaces()
+        if deleted > 0:
+            print(f"Startup cleanup: removed {deleted} orphaned workspace(s)")
     except Exception as e:
         print(f"Warning: OAH workspace cleanup at startup failed: {e}")
+
+    # Resolve trace_dir (must be done before process_one runs)
+    trace_dir = args.trace_dir or str(Path(args.output_dir) / "traces")
+    Path(trace_dir).mkdir(parents=True, exist_ok=True)
+    print(f"Trace dir: {trace_dir}")
 
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
@@ -326,7 +338,7 @@ def main():
                     args.model,
                     skip_existing=not args.no_skip,
                     mark_failed=args.mark_failed,
-                    trace_dir=args.trace_dir or (str(output_dir / "traces")),
+                    trace_dir=trace_dir,
                     oah_timeout=args.oah_timeout,
                 )
                 if result is True:
