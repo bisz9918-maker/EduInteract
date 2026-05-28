@@ -228,7 +228,12 @@ def _fix_scene_html(data: bytes) -> bytes:
     def _has_latex(s: str) -> bool:
         if any(c in s for c in ("\x08", "\x09", "\x0c")):
             return True
-        if re.search(r"\\(?:frac|triangle|therefore|because|times)\b", s):
+        # Common LaTeX commands that JS string interpretation would break
+        # (backslash + letter → JS drops the backslash for unknown escapes)
+        if re.search(r"\\(?:frac|triangle|therefore|because|times|angle|circ|cong|perp|parallel|approx|neq|leq|geq|cdot|cdot|sqrt|overline|underline|overrightarrow|left|right|displaystyle|textstyle|lim|sum|prod|int|infty|partial|nabla|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|quad|qquad|hfill|vfill|quad|text|mathrm|mathbf|mathit|mathsf|mathtt|mathcal|mathbb|mathfrak|boldsymbol|vec|hat|bar|dot|ddot|tilde|widehat|widetilde|overleftarrow|overrightarrow|overline|underline|boxed|cancel|bf|it|rm|sf|tt|cal|footnotesize|small|normalsize|large|Large|huge|Huge)\b", s):
+            return True
+        # Also detect $...$ or $$...$$ which likely contain LaTeX
+        if re.search(r'\$[^$]+\$', s):
             return True
         return False
 
@@ -261,7 +266,7 @@ def _fix_scene_html(data: bytes) -> bytes:
     # content because typeWriter's char-by-char rendering breaks MathJax,
     # and $ delimiters work reliably with direct innerHTML assignment.
     replacements = []
-    for quote_char, pattern in [('"', r'"((?:[^"\\]|\\.)*)"'), ("'", r"'((?:[^'\\]|\\.)*')")]:
+    for quote_char, pattern in [('"', r'"((?:[^"\\]|\\.)*?)"'), ("'", r"'((?:[^'\\]|\\.)*?)'")]:
         for m_str in re.finditer(pattern, text):
             content = m_str.group(1)
             if _has_latex(content):
