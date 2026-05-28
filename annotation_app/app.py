@@ -258,6 +258,8 @@ def _fix_scene_html(data: bytes) -> bytes:
         text = text[:script_open] + template_html + "\n" + text[script_open:m.start()] + new_stepsmath + text[m.end():]
 
     # --- Fix 1b: replace single/double-quoted strings with LaTeX ---
+    # Only search inside <script> blocks to avoid matching quotes in
+    # HTML/SVG content (e.g. <text>A'</text>).
     # The raw file content already has correct single-backslash LaTeX.
     # Putting it in <script type="text/template"> bypasses JS string
     # interpretation entirely, so NO unescaping needed—just restore
@@ -266,8 +268,12 @@ def _fix_scene_html(data: bytes) -> bytes:
     # content because typeWriter's char-by-char rendering breaks MathJax,
     # and $ delimiters work reliably with direct innerHTML assignment.
     replacements = []
+    script_blocks = [(m.start(), m.end()) for m in re.finditer(r'<script[^>]*>.*?</script>', text, re.DOTALL)]
     for quote_char, pattern in [('"', r'"((?:[^"\\]|\\.)*?)"'), ("'", r"'((?:[^'\\]|\\.)*?)'")]:
         for m_str in re.finditer(pattern, text):
+            # Only consider matches inside <script> blocks
+            if not any(s_start <= m_str.start() < s_end for s_start, s_end in script_blocks):
+                continue
             content = m_str.group(1)
             if _has_latex(content):
                 restored = _restore_ctrl(content)
