@@ -231,8 +231,9 @@ def _fix_scene_html(data: bytes) -> bytes:
         content = content.replace("\x08", "\\b")
         return content
 
-    def _has_latex(s: str) -> bool:
-        if any(c in s for c in ("\x08", "\x09", "\x0c", "\x0a", "\x0d")):
+    def _has_latex(s: str, allow_newlines: bool = False) -> bool:
+        ctrl_chars = ("\x08", "\x09", "\x0c") if allow_newlines else ("\x08", "\x09", "\x0c", "\x0a", "\x0d")
+        if any(c in s for c in ctrl_chars):
             return True
         # Common LaTeX commands that JS string interpretation would break
         # (backslash + letter → JS drops the backslash for unknown escapes)
@@ -275,6 +276,10 @@ def _fix_scene_html(data: bytes) -> bytes:
     # and $ delimiters work reliably with direct innerHTML assignment.
     replacements = []
     script_blocks = [(m.start(), m.end(), m.group(0)) for m in re.finditer(r'<script[^>]*>.*?</script>', text, re.DOTALL)]
+    # Collect all double-quote string ranges first, so we can skip
+    # single-quote matches that fall inside them (e.g. "$T'$" where
+    # the apostrophe in T' should not be treated as a string delimiter).
+    dq_ranges = [(m.start(), m.end()) for m in re.finditer(r'"((?:[^"\\]|\\.)*?)"', text)]
     for quote_char, pattern in [('"', r'"((?:[^"\\]|\\.)*?)"'), ("'", r"'((?:[^'\\]|\\.)*?)'")]:
         for m_str in re.finditer(pattern, text):
             # Only consider matches inside non-module <script> blocks
@@ -289,8 +294,25 @@ def _fix_scene_html(data: bytes) -> bytes:
             # template literal handling differs from regular scripts
             if 'type="module"' in in_script[:80] or "type='module'" in in_script[:80]:
                 continue
+            # Skip single-quote matches that overlap with a double-quote string.
+            # E.g. in "text with $T'$ more text", the ' in T' should NOT
+            # be treated as a single-quote string boundary. Also catches
+            # cases where a SQ match starts outside but ends inside a DQ string.
             content = m_str.group(1)
-            if _has_latex(content):
+            if quote_char == "'":
+                overlaps_dq = any(m_str.start() < dq_e and m_str.end() > dq_s for dq_s, dq_e in dq_ranges)
+                if overlaps_dq:
+                    continue
+                # Skip single-quote matches that span multiple lines or contain
+                # HTML tags — these are almost certainly fragments from a broken
+                # string (e.g. 'E} \perp \vec{BD}\)</span>' extracted from
+                # '\(\vec{A'E}...') rather than legitimate JS string literals.
+                if '\n' in content or '<' in content:
+                    continue
+            # Inside <script> blocks, \x0a/\x0d are legitimate line breaks,
+            # not LaTeX corruption. Only check for \x08/\x09/\x0c and LaTeX commands.
+            has_latex = _has_latex(content, allow_newlines=True)
+            if has_latex:
                 restored = _restore_ctrl(content)
                 # Convert \(...\) → $...$ and \[...\] → $$...$$
                 restored = re.sub(r'\\\((.+?)\\\)', r'$\1$', restored)
