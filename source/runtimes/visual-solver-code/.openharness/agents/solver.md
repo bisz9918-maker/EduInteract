@@ -87,7 +87,7 @@ policy:
 使用方式：用 `Bash` 写入并执行 Node.js 脚本，流程如下：
 1. 启动浏览器，打开 HTML 文件（`file://` 协议）
 2. 等待页面加载完成（`waitForLoadState('networkidle')`）
-3. 截取初始状态截图，用 `Read` 查看截图**仔细检查视觉问题**：
+3. 截取初始状态截图保存到 workspace 目录（如 `screenshot_initial.png`），**必须立即用 `Read` 工具查看截图**，仔细检查视觉问题：
    - 元素是否位置混乱、偏移不当？
    - 元素尺寸是否过大或过小（文字、图形、按钮）？
    - 标签是否压在图形上、挡住关键内容？
@@ -95,9 +95,10 @@ policy:
    - 如发现以上问题，**直接修改代码调整**，不必遵守计划坐标
 4. **执行全面元素重叠检测**（见下方检测脚本），发现重叠立即修复
 5. 执行交互操作（点击按钮、拖拽元素、调节滑块等），**必须等待 500ms（`page.waitForTimeout(500)`）再截图**，因为点击按钮后可能有动画或渲染延迟，立即截图会捕获到过渡中间态
-6. 每一步交互后再次截图查看并执行元素重叠检测，因为交互可能使元素移动导致新的重叠或不协调
-7. 用 `Read` 查看交互后的截图，检查交互是否正确响应、视觉元素是否正确变化、布局是否仍协调
-8. 发现问题后回到迭代修复循环
+6. 每一步交互后截图保存到 workspace 目录，**必须用 `Read` 查看截图**，检查交互是否正确响应、视觉元素是否正确变化、布局是否仍协调
+7. 发现问题后回到迭代修复循环
+
+**⚠️ 关键规则：禁止仅凭文字检测报告修改代码。每次截图后必须用 `Read` 查看截图再决定如何修改。仅根据 OVERLAP/CROWDED 文字报告盲改代码，无法发现视觉层面的真实问题（如元素错位、尺寸不当、配色不协调等），且容易陷入反复修改同一问题却无法修复的死循环。截图路径必须保存在 workspace 目录下（与 scene1.html 同级），不要保存到 /tmp/。**
 
 ##### 全面元素重叠检测脚本
 
@@ -118,7 +119,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
   async function checkOverlap(stepName) {
     const issues = await page.evaluate(() => {
       const results = [];
-      const MIN_TEXT_GAP = 12;    // 文字元素间最小间距(px)
+      const MIN_TEXT_GAP = 3;     // 文字元素间最小间距(px)
       const MIN_SHAPE_GAP = 8;    // 图形元素间最小间距(px)
       const EDGE_MARGIN = 20;     // 距边缘最小间距(px)
 
@@ -221,7 +222,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
   }
 
   // ===== Step 0: 初始状态 =====
-  await page.screenshot({ path: 'check_initial.png' });
+  await page.screenshot({ path: 'screenshot_initial.png' });
   let allIssues = await checkOverlap('step0-initial');
 
   // ===== 动态检测交互类型并测试 =====
@@ -233,7 +234,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
     for (const val of [25, 50, 75, 100]) {
       await slider.fill(String(val));
       await page.waitForTimeout(300);
-      await page.screenshot({ path: `check_slider${val}.png` });
+      await page.screenshot({ path: `screenshot_slider${val}.png` });
       const issues = await checkOverlap(`slider${val}`);
       allIssues = allIssues.concat(issues);
     }
@@ -245,7 +246,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
       while (!(await nextBtn.isDisabled())) {
         await nextBtn.click();
         await page.waitForTimeout(500);
-        await page.screenshot({ path: `check_step${step}.png` });
+        await page.screenshot({ path: `screenshot_step${step}.png` });
         const issues = await checkOverlap(`step${step}`);
         allIssues = allIssues.concat(issues);
         step++;
@@ -255,7 +256,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
       for (let i = 0; i < buttons.length; i++) {
         await buttons[i].click();
         await page.waitForTimeout(500);
-        await page.screenshot({ path: `check_state${i}.png` });
+        await page.screenshot({ path: `screenshot_state${i}.png` });
         const issues = await checkOverlap(`state${i}`);
         allIssues = allIssues.concat(issues);
       }
@@ -276,7 +277,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
 检测项说明：
 - **OVERLAP(TEXT)**：两个文字标签重叠，**必须修复**
 - **OVERLAP(TEXT+SHAPE)**：文字被图形遮挡超过 30%，**必须修复**
-- **CROWDED**：两个文字标签间距 < 12px，**应当修复**
+- **CROWDED**：两个文字标签间距 < 3px，**应当修复**
 - **CLIPPED**：文字被画布裁切，**应当修复**
 
 发现 OVERLAP 问题时**必须**立即修复 HTML 代码后重新检测，CROWDED/CLIPPED 问题尽量修复。
@@ -315,7 +316,7 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
     - 最外层容器固定 `width: 800px; height: 500px`；图示区与控件栏**合计**不得超过 800×500px
     - SVG 图示区固定 `width="800" height="500"`（800×500px），禁止 `height: auto`
     - 控件栏（按钮/滑块，≤3个）放在 SVG **内部底部**（用 `position: absolute` 定位在 SVG 区域底部），不额外撑高容器；整个页面严格 800×500px
-7. **不重叠**：元素间距 ≥ 12px，距边缘 ≥ 20px，所有元素完全可见。所有重叠问题必须通过 Playwright 自检发现并修复。
+7. **不重叠**：元素间不得重叠，距边缘 ≥ 20px，所有元素完全可见。所有重叠问题必须通过 Playwright 自检发现并修复，**修复后必须用 `Read` 查看截图确认效果**。
 8. **数值标注不压线**：线段长度等数值必须在线段**侧面偏移**（约15px），不得放在线段中点正上方压住线段。
 9. **交互实现**：仅实现技术实现计划中选定的交互方式，不要混用多种交互。具体实现：
     - **分步按钮导航**：维护 `currentStep` 状态变量，`requestAnimationFrame` 驱动步骤间过渡动画（200–400ms）；底部放置「◀ 上一步」「下一步 ▶」按钮，教师可随时前进或回退
@@ -325,7 +326,9 @@ const { chromium } = require('/app/playwright_modules/node_modules/playwright-co
 10. **动画后重叠检测**：交互和动画可能导致元素移动到新位置产生重叠。所有涉及元素位置变化的动画/交互，在最终状态必须仍满足不重叠规则。如果动画结束位置会导致重叠，必须调整元素布局或缩小动画范围。
 11. **元素显隐控制**：切换步骤/状态时，必须通过 `classList.add/remove` 或直接设置 `style.display` **和** `style.opacity` 来控制元素可见性。禁止仅依赖 CSS class 的 `display: none` 而在 JS 中只改 `display` 不清除 class，否则 `opacity: 0` 等残留属性会导致元素不可见。推荐做法：用一个统一的 `show(el)`/`hide(el)` 工具函数同时处理 `display` 和 `opacity`
 12. **ID 隔离**：所有交互元素 ID 以 `scene{scene_number}-` 为前缀；JS 中用 `getElementById("scene{scene_number}-xxx")` 精确选取，**禁止用全局 `querySelectorAll('.class-name')` 跨场景选择**。
-13. **止损机制**：如果连续 3 次迭代修复同一 OVERLAP 问题仍未通过，记录剩余问题并结束，避免死循环浪费 token。
+13. **止损机制**：
+    - 单个问题止损：如果连续 3 次迭代修复同一 OVERLAP 问题仍未通过，记录剩余问题并结束
+    - 不要在同一个 CROWDED/间距问题上反复尝试，截图确认视觉效果可接受即可，不必追求文字检测报告完全清零
 14. **初始状态**：页面加载时显示题目基础条件，等待教师触发交互；所有动画结果/高亮/结论的 opacity 初始为 0，不得预先显示。
 15. **MathJax 渲染数学**：通过 CDN 引入 MathJax 3.x，用 `$...$` 表示行内公式，`$$...$$` 表示独立公式
 16. **SVG 绘制图示**：使用内联 SVG 绘制几何图形、坐标系、函数图像等
