@@ -106,7 +106,7 @@ def ocr_image(image: Image.Image) -> str:
     with urllib.request.urlopen(req, timeout=120, context=_ssl_ctx) as resp:
         data = json.loads(resp.read())
     content = data["choices"][0]["message"]["content"]
-    return content.strip() if content else ""
+    return content.strip() if content else ""  # content may be None
 
 
 # ── 生成器工厂 ──────────────────────────────────────────────────────────────
