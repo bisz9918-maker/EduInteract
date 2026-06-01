@@ -167,9 +167,7 @@ def _convert_content_part(p):
     elif ptype == "image-data":
         return [{
             "type": "image_url",
-            "image_url": {
-                "url": f"data:{p.get('mediaType', 'image/png')};base64,{p.get('data', '')}"
-            }
+            "image_url": f"data:{p.get('mediaType', 'image/png')};base64,{p.get('data', '')}"
         }]
 
     elif ptype == "tool-call":
@@ -194,7 +192,7 @@ def _convert_content_part(p):
                         if value.startswith("data:image"):
                             parts.append({
                                 "type": "image_url",
-                                "image_url": {"url": value}
+                                "image_url": value
                             })
                         else:
                             parts.append({"type": "text", "text": value})
@@ -208,9 +206,7 @@ def _convert_content_part(p):
                             elif vt == "image-data":
                                 parts.append({
                                     "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{vp.get('mediaType', 'image/png')};base64,{vp.get('data', '')}"
-                                    }
+                                    "image_url": f"data:{vp.get('mediaType', 'image/png')};base64,{vp.get('data', '')}"
                                 })
                     else:
                         parts.append({"type": "text", "text": json.dumps(value, ensure_ascii=False)[:2000]})
@@ -220,7 +216,7 @@ def _convert_content_part(p):
             if result.startswith("data:image"):
                 parts.append({
                     "type": "image_url",
-                    "image_url": {"url": result}
+                    "image_url": result
                 })
             else:
                 parts.append({"type": "text", "text": result})
