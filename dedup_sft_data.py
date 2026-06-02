@@ -69,8 +69,58 @@ def _find_check_positions(messages):
     return positions
 
 
+def _is_screenshot_read_call(msg):
+    """Check if an assistant message contains a Read tool call targeting a screenshot."""
+    if msg.get("role") != "assistant":
+        return False
+    tool_calls = msg.get("tool_calls") or []
+    for tc in tool_calls:
+        if tc.get("type") != "function":
+            continue
+        func = tc.get("function", {})
+        if func.get("name") != "Read":
+            continue
+        args = func.get("arguments", "")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        if isinstance(args, dict):
+            fp = args.get("file_path", "")
+            if "screenshot" in fp.lower() or fp.lower().endswith(".png"):
+                return True
+    return False
+
+
+def _is_write_call(msg):
+    """Check if an assistant message contains a Write/Edit tool call (code fix action)."""
+    if msg.get("role") != "assistant":
+        return False
+    tool_calls = msg.get("tool_calls") or []
+    for tc in tool_calls:
+        if tc.get("type") != "function":
+            continue
+        func = tc.get("function", {})
+        name = func.get("name", "")
+        if name in ("Write", "Edit", "write_file", "edit_file"):
+            return True
+    return False
+
+
 def dedup_fix_loops(messages):
     """Remove consecutive similar fix loops, keeping first occurrence.
+
+    Preserves Read(screenshot) actions and their surrounding context within
+    deduplicated loops, to reinforce screenshot-reading behavior in SFT data.
+
+    Example:
+      [Write修复1] [Check→5:OVERLAP] [Read(screenshot)] [分析图片] [Write修复2]
+      [Check→5:OVERLAP] [Write修复3] [Check→5:OVERLAP] [Write修复4] [Check→2:CROWDED]
+      → [Write修复1] [Check→5:OVERLAP] [Read(screenshot)] [分析图片] [Write修复4] [Check→2:CROWDED]
+
+    The Read(screenshot) + 分析图片 are kept (up to but not including Write修复2).
+    Write修复2 and Check→5:OVERLAP are removed, then we jump to the next different check.
 
     Algorithm:
     1. Find all "check points" with layout issue summaries
@@ -78,6 +128,9 @@ def dedup_fix_loops(messages):
     3. For each group with >1 same-summary checks:
        - Keep the first check and the fix attempt that produced it
        - Remove subsequent same-summary checks AND the fix attempts between them
+       - EXCEPTION: within removed ranges, preserve messages from Read(screenshot)
+         up to (but not including) the next Write/Edit call — this preserves the
+         screenshot-reading context while removing the redundant fix attempt
     4. Messages after the last check in any group are always kept
     """
     if len(messages) < 10:
@@ -112,6 +165,28 @@ def dedup_fix_loops(messages):
 
     if not to_remove:
         return messages
+
+    # Preserve Read(screenshot) + surrounding context within removed ranges.
+    # For each Read(screenshot) found in a removed range, preserve from that
+    # message up to (but not including) the next Write/Edit call.
+    # This keeps the screenshot-reading context while removing redundant fixes.
+    preserve = set()
+
+    for idx in sorted(to_remove):
+        if idx in preserve:
+            continue
+        msg = messages[idx]
+        if _is_screenshot_read_call(msg):
+            # Preserve this message and subsequent ones until a Write/Edit is found
+            preserve.add(idx)
+            for follow_idx in range(idx + 1, len(messages)):
+                if follow_idx not in to_remove:
+                    break
+                if _is_write_call(messages[follow_idx]):
+                    break  # Don't include the Write call itself
+                preserve.add(follow_idx)
+
+    to_remove -= preserve
 
     return [m for idx, m in enumerate(messages) if idx not in to_remove]
 
