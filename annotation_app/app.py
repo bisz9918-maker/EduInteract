@@ -42,12 +42,43 @@ EVAL_TO_EXP = {
 MODELS_ORDER = ["Gemini-3.1-Pro", "Kimi-K2.6", "Qwen3.5-397B", "Qwen3.5-122B", "Qwen3.6-27B"]
 
 # 5-dimension scoring for interactive items
+# Each: (key, display_name, scoring_guide)
 DIMENSIONS = [
-    ("prob_align", "Problem Alignment (题图匹配)"),
-    ("interact", "Interactive Functionality (交互功能)"),
-    ("visual", "Visual Quality (视觉质量)"),
-    ("pedagogy", "Pedagogical Effectiveness (教学效果)"),
-    ("logic", "Logical Coherence (逻辑连贯)"),
+    ("prob_align", "题图匹配 (Problem Alignment)",
+     "图示内容是否与题意对齐？\n"
+     "5: 关键元素全部呈现，数值/比例/角度准确，解题过程正确\n"
+     "4: 内容基本正确，有轻微标注偏差但不影响理解\n"
+     "3: 部分关键元素缺失或有数值错误，但不严重偏离题意\n"
+     "2: 多处内容错误或与题意不符，解题过程有明显漏洞\n"
+     "1: 内容严重错误或与题意无关"),
+    ("interact", "交互功能 (Interactive Functionality)",
+     "交互功能是否正常有效？\n"
+     "5: 所有应有交互功能均正常，响应流畅自然\n"
+     "4: 交互功能基本正常，偶有反馈不够明显\n"
+     "3: 部分交互有响应但效果不理想，或缺少部分应有交互\n"
+     "2: 交互功能严重不足，大多操作无可见响应\n"
+     "1: 完全无交互功能，或应有交互但完全不可用"),
+    ("visual", "视觉质量 (Visual Quality)",
+     "元素质量、布局、风格一致性如何？\n"
+     "5: 元素精良清晰，布局合理，跨scene和交互前后风格完全一致\n"
+     "4: 元素质量良好，布局基本合理，风格基本一致但有微小差异\n"
+     "3: 部分元素模糊/重叠，布局偏挤或偏空，scene间风格有差异\n"
+     "2: 元素质量差（文字重叠、线条断裂），布局混乱，风格不一致\n"
+     "1: 完全不可读，或风格严重不一致"),
+    ("pedagogy", "教学效果 (Pedagogical Effectiveness)",
+     "教学设计质量如何？\n"
+     "5: 认知引导优秀，步骤循序渐进，交互有助于理解因果关系，自主探索空间充足\n"
+     "4: 教学设计良好，引导清晰，但探索空间或节奏稍有不足\n"
+     "3: 基本能辅助理解，但步骤节奏不合理或缺少操作提示\n"
+     "2: 教学设计差，信息过载或步骤跳跃，交互仅为炫技无教学意义\n"
+     "1: 可能误导学生，或与教学目标无关"),
+    ("logic", "逻辑连贯 (Logical Coherence)",
+     "scene间递进关系和交互状态一致性如何？\n"
+     "5: scene递进合理（已知→推导→结论），交互操作后状态符合几何/物理约束\n"
+     "4: 逻辑基本连贯，偶有轻微跳跃但整体通顺\n"
+     "3: scene间衔接不够自然，或交互后个别状态不太合理\n"
+     "2: 存在明显逻辑断裂或交互状态矛盾（如拖动后图形断裂）\n"
+     "1: scene完全脱节，交互操作导致严重逻辑错误"),
 ]
 
 # Questions for static items (compared with interactive)
