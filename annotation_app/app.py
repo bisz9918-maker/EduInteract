@@ -264,7 +264,11 @@ def build_selected_samples() -> tuple:
         # Static diagram and scenes from Gemini-3-Pro dir
         static_diagram = ""
         static_scenes = []
-        static_outline_html = ""
+        # Use Chinese outline from the first interactive model (same topic content)
+        shared_outline_html = ""
+        if model_entries:
+            first_internal = SAMPLES.get(model_entries[0][1], {})
+            shared_outline_html = first_internal.get("outline_html", "")
         if STATIC_DIAGRAM_DIR.exists():
             topic_static = STATIC_DIAGRAM_DIR / topic
             diag = topic_static / "problem_diagram.png"
@@ -273,24 +277,13 @@ def build_selected_samples() -> tuple:
             doc_dir = topic_static / "doc"
             if doc_dir.exists():
                 static_scenes = sorted([f.name for f in doc_dir.glob("scene*.png")])
-            # Get outline from static dir
-            outline_files = list(topic_static.glob("*_scene_outline.txt"))
-            if outline_files:
-                outline_text = outline_files[0].read_text(encoding="utf-8")
-                text_blocks = re.findall(r'<TEXT_\d+>(.*?)</TEXT_\d+>', outline_text, re.DOTALL)
-                if text_blocks:
-                    full_md = "\n\n---\n\n".join(b.strip() for b in text_blocks)
-                    lines = full_md.split('\n')
-                    cleaned = [line.lstrip() for line in lines]
-                    full_md = '\n'.join(cleaned)
-                    static_outline_html = render_markdown(full_md)
 
         selected[anon_key_static] = {
             "type": "static",
             "topic": topic,
             "static_diagram": static_diagram,
             "static_scenes": static_scenes,
-            "outline_html": static_outline_html,
+            "outline_html": shared_outline_html,
         }
         keys.append(anon_key_static)
 
