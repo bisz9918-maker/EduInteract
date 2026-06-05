@@ -71,7 +71,7 @@ body {
 
 /* ── 左侧列表 ── */
 #sidebar {
-  width: 220px;
+  width: 260px;
   background: #fff;
   border-right: 1px solid #e2e8f0;
   display: flex;
@@ -88,7 +88,7 @@ body {
   flex-shrink: 0;
 }
 #sidebar-list { overflow-y: auto; flex: 1; }
-.model-group-header {
+.topic-group-header {
   padding: 8px 12px;
   font-size: .72rem;
   font-weight: 700;
@@ -110,6 +110,7 @@ body {
 }
 .sidebar-item:hover { background: #ebf4ff; }
 .sidebar-item.active { background: #bee3f8; font-weight: 600; }
+.sidebar-item.static-item { color: #6b46c1; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #e2e8f0; flex-shrink: 0; }
 .sidebar-item.done .dot { background: #48bb78; }
 
@@ -154,7 +155,7 @@ body {
 #problem-content th { background: #edf2f7; }
 #problem-content code { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 4px; font-size: .82em; }
 
-/* ── 图示区域（每个 scene 自然高度，整体随 doc-panel 滚动） ── */
+/* ── 场景区域 ── */
 #scenes-section {
   flex-shrink: 0;
   display: flex;
@@ -180,15 +181,31 @@ body {
   color: #718096; background: rgba(247,250,252,.9);
   padding: 2px 6px; border-radius: 3px; z-index: 1;
 }
-.scene-frame iframe {
-  width: 100%; height: 100%; border: none;
+
+/* ── 静态图片展示 ── */
+.static-scene-frame {
+  border: 2px solid #d6bcfa;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  position: relative;
+}
+.static-scene-frame img {
+  width: 100%;
+  display: block;
+}
+.static-scene-label {
+  position: absolute; top: 4px; left: 8px;
+  font-size: .65rem; font-weight: 700;
+  color: #6b46c1; background: rgba(247,250,252,.9);
+  padding: 2px 6px; border-radius: 3px; z-index: 1;
 }
 
 #placeholder { color: #a0aec0; text-align: center; padding-top: 80px; font-size: .95rem; }
 
 /* ── 右侧评分 ── */
 #score-panel {
-  width: 250px;
+  width: 280px;
   background: #fff;
   border-left: 1px solid #e2e8f0;
   display: flex;
@@ -207,8 +224,8 @@ body {
 }
 #dim-list { overflow-y: auto; flex: 1; }
 .dim-block { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
-.dim-name { font-size: .75rem; font-weight: 600; color: #2d3748; margin-bottom: 2px; }
-.auto-score { font-size: .68rem; color: #718096; margin-bottom: 4px; }
+.dim-name { font-size: .75rem; font-weight: 600; color: #2d3748; margin-bottom: 4px; }
+.dim-desc { font-size: .65rem; color: #718096; margin-bottom: 4px; line-height: 1.3; }
 .btn-group { display: flex; gap: 2px; }
 .score-btn {
   flex: 1; padding: 4px 0;
@@ -279,7 +296,7 @@ body {
   </div>
 
   <div id="score-panel">
-    <div id="score-header">评分（0-5 分）</div>
+    <div id="score-header">评分（1-5 分）</div>
     <div id="dim-list"></div>
     <div id="action-bar">
       <button id="btn-save" disabled>保存打分</button>
@@ -292,10 +309,11 @@ body {
 <script>
 var KEYS = [];
 var DIMS = [];
-var MODELS = [];
+var QUESTIONS = [];
 var annotations = {};
 var currentKey = null;
 var currentScores = {};
+var currentScoringMode = '';  // 'dimensions' or 'questions'
 var annotatorName = '';
 
 function qs(sel) { return document.querySelector(sel); }
@@ -335,30 +353,46 @@ function setProgress() {
   qs('#progress-bar').style.width = (total ? (done / total * 100).toFixed(1) : 0) + '%';
 }
 
+// ── Extract topic from key ──
+// e.g. "problem_101_math_g9_1" -> "problem_101_math_g9"
+//      "problem_101_math_g9_static" -> "problem_101_math_g9"
+function topicFromKey(key) {
+  if (key.endsWith('_static')) return key.replace(/_static$/, '');
+  return key.replace(/_\d+$/, '');
+}
+
+// ── Format topic for display ──
+function formatTopic(topic) {
+  return topic.replace(/^problem_/, '').replace(/_/g, ' ');
+}
+
 // ── 侧边栏 ──
 function buildSidebar() {
   var list = qs('#sidebar-list');
   list.innerHTML = '';
   qs('#total-count').textContent = KEYS.length;
 
-  var currentModel = '';
+  var currentTopic = '';
   KEYS.forEach(function(key) {
-    var model = key.split('/')[0];
-    if (model !== currentModel) {
-      currentModel = model;
+    var topic = topicFromKey(key);
+    if (topic !== currentTopic) {
+      currentTopic = topic;
       var header = document.createElement('div');
-      header.className = 'model-group-header';
-      header.textContent = model;
+      header.className = 'topic-group-header';
+      header.textContent = formatTopic(topic);
       list.appendChild(header);
     }
-    var topic = key.split('/')[1];
+
+    var isStatic = key.endsWith('_static');
+    var suffix = isStatic ? 'static' : key.split('_').pop();
+
     var div = document.createElement('div');
-    div.className = 'sidebar-item' + (annotations[key] ? ' done' : '');
+    div.className = 'sidebar-item' + (annotations[key] ? ' done' : '') + (isStatic ? ' static-item' : '');
     div.dataset.key = key;
     var dot = document.createElement('span');
     dot.className = 'dot';
     var label = document.createElement('span');
-    label.textContent = topic.replace(/^problem_/, '');
+    label.textContent = isStatic ? '📊 static (静态图示)' : '_' + suffix;
     div.appendChild(dot);
     div.appendChild(label);
     div.addEventListener('click', function() { selectKey(key); });
@@ -369,35 +403,55 @@ function buildSidebar() {
 function refreshSidebarItem(key) {
   var el = qs('.sidebar-item[data-key="' + key + '"]');
   if (!el) return;
+  var isStatic = key.endsWith('_static');
   el.className = 'sidebar-item' +
     (annotations[key] ? ' done' : '') +
-    (key === currentKey ? ' active' : '');
+    (key === currentKey ? ' active' : '') +
+    (isStatic ? ' static-item' : '');
 }
 
 // ── 评分面板 ──
-function buildDimPanel() {
+function buildDimPanel(scoringMode) {
+  currentScoringMode = scoringMode;
   var list = qs('#dim-list');
   list.innerHTML = '';
-  DIMS.forEach(function(dim) {
+
+  var items = (scoringMode === 'dimensions') ? DIMS : QUESTIONS;
+  qs('#score-header').textContent = (scoringMode === 'dimensions')
+    ? '5维评分（1-5 分）'
+    : '交互式问题（1-5 分）';
+
+  items.forEach(function(item) {
+    var key = item[0];
+    var name = item[1];
+
     var block = document.createElement('div');
     block.className = 'dim-block';
-    block.id = 'dim-' + dim.key;
+    block.id = 'dim-' + key;
     var btns = '';
-    for (var s = 0; s <= 5; s++) {
-      btns += '<button class="score-btn" data-dim="' + dim.key + '" data-val="' + s + '">' + s + '</button>';
+    for (var s = 1; s <= 5; s++) {
+      btns += '<button class="score-btn" data-dim="' + key + '" data-val="' + s + '">' + s + '</button>';
     }
-    block.innerHTML =
-      '<div class="dim-name">' + dim.name + '</div>' +
-      '<div class="auto-score" id="auto-' + dim.key + '">自动评分: —</div>' +
-      '<div class="btn-group">' + btns + '</div>';
+
+    // For questions, show the question text as desc
+    if (scoringMode === 'questions') {
+      block.innerHTML =
+        '<div class="dim-name">Q: ' + name.split('(')[0].trim() + '</div>' +
+        '<div class="dim-desc">' + (name.match(/\(.*\)/) ? name.match(/\(.*\)/)[0] : '') + '</div>' +
+        '<div class="btn-group">' + btns + '</div>';
+    } else {
+      block.innerHTML =
+        '<div class="dim-name">' + name + '</div>' +
+        '<div class="btn-group">' + btns + '</div>';
+    }
     list.appendChild(block);
   });
 
-  qs('#dim-list').addEventListener('click', function(e) {
+  qs('#dim-list').onclick = function(e) {
     var btn = e.target.closest('.score-btn');
     if (!btn) return;
     pickScore(btn.dataset.dim, parseInt(btn.dataset.val));
-  });
+  };
 }
 
 function pickScore(dimKey, val) {
@@ -410,7 +464,8 @@ function pickScore(dimKey, val) {
 }
 
 function checkReady() {
-  var allSet = DIMS.every(function(d) { return currentScores[d.key] !== undefined; });
+  var items = (currentScoringMode === 'dimensions') ? DIMS : QUESTIONS;
+  var allSet = items.every(function(d) { return currentScores[d[0]] !== undefined; });
   qs('#btn-save').disabled = !allSet;
 }
 
@@ -425,9 +480,9 @@ function fillSavedScores(key) {
   clearScores();
   var saved = annotations[key];
   if (!saved) return;
-  // saved is {dim_key: score, ...} (already filtered for current annotator)
-  DIMS.forEach(function(d) {
-    if (saved[d.key] !== undefined) pickScore(d.key, saved[d.key]);
+  var items = (currentScoringMode === 'dimensions') ? DIMS : QUESTIONS;
+  items.forEach(function(d) {
+    if (saved[d[0]] !== undefined) pickScore(d[0], saved[d[0]]);
   });
 }
 
@@ -442,17 +497,23 @@ function selectKey(key) {
   qs('#placeholder').style.display = 'none';
   qs('#problem-section').style.display = 'block';
   qs('#scenes-section').style.display = 'flex';
-  qs('#problem-title').textContent = key.split('/')[1].replace(/_/g, ' ');
+
+  var topic = topicFromKey(key);
+  var isStatic = key.endsWith('_static');
+  var displayTitle = formatTopic(topic) + (isStatic ? ' - static' : ' - ' + key.split('_').pop());
+  qs('#problem-title').textContent = displayTitle;
   qs('#problem-content').innerHTML = '<p style="color:#a0aec0">加载中...</p>';
   qs('#scenes-section').innerHTML = '';
-
-  fillSavedScores(key);
 
   fetch(apiURL('api/doc/' + encodeURIComponent(key)))
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      // Build scoring panel based on type
+      buildDimPanel(data.scoring_mode);
+      fillSavedScores(key);
+
       // Problem title
-      qs('#problem-title').textContent = data.topic.replace(/_/g, ' ');
+      qs('#problem-title').textContent = data.display_name;
 
       // Rendered outline HTML
       var html = data.outline_html;
@@ -466,51 +527,61 @@ function selectKey(key) {
         MathJax.typesetPromise([qs('#problem-content')]);
       }
 
-      // Scene iframes
       var scenesDiv = qs('#scenes-section');
       scenesDiv.innerHTML = '';
-      data.scenes.forEach(function(url, i) {
-        var frame = document.createElement('div');
-        frame.className = 'scene-frame';
-        var label = document.createElement('div');
-        label.className = 'scene-label';
-        label.textContent = data.scene_names[i] || ('Scene ' + (i+1));
-        var iframe = document.createElement('iframe');
-        iframe.src = BASE + url;
-        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-        iframe.style.width = '100%';
-        iframe.style.border = 'none';
-        iframe.style.display = 'block';
-        iframe.style.minHeight = '400px';
-        // Auto-resize iframe to content height after load
-        iframe.addEventListener('load', function() {
-          try {
-            var h = iframe.contentDocument.documentElement.scrollHeight;
-            if (h > 100) iframe.style.height = h + 'px';
-          } catch(e) {
-            iframe.style.height = '500px';
-          }
-        });
-        frame.appendChild(label);
-        frame.appendChild(iframe);
-        scenesDiv.appendChild(frame);
-      });
 
-      // Auto scores
-      var dimMap = {
-        'dim1': 'prob_align',
-        'dim2': 'interact',
-        'dim3': 'visual',
-        'dim4': 'pedagogy',
-        'dim5': 'logic'
-      };
-      DIMS.forEach(function(d) {
-        var autoEl = qs('#auto-' + d.key);
-        if (!autoEl) return;
-        var dimKey = Object.keys(dimMap).find(function(k) { return dimMap[k] === d.key; });
-        var score = data.auto_scores[dimKey];
-        autoEl.textContent = score !== undefined ? ('自动评分: ' + score.toFixed(2)) : '自动评分: —';
-      });
+      if (data.type === 'interactive') {
+        // Show interactive scene iframes
+        data.scenes.forEach(function(url, i) {
+          var frame = document.createElement('div');
+          frame.className = 'scene-frame';
+          var label = document.createElement('div');
+          label.className = 'scene-label';
+          label.textContent = data.scene_names[i] || ('Scene ' + (i+1));
+          var iframe = document.createElement('iframe');
+          iframe.src = BASE + url;
+          iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+          iframe.style.width = '100%';
+          iframe.style.border = 'none';
+          iframe.style.display = 'block';
+          iframe.style.minHeight = '400px';
+          iframe.addEventListener('load', function() {
+            try {
+              var h = iframe.contentDocument.documentElement.scrollHeight;
+              if (h > 100) iframe.style.height = h + 'px';
+            } catch(e) {
+              iframe.style.height = '500px';
+            }
+          });
+          frame.appendChild(label);
+          frame.appendChild(iframe);
+          scenesDiv.appendChild(frame);
+        });
+      } else {
+        // Show static scene images
+        var staticScenes = data.static_scenes || [];
+        staticScenes.forEach(function(url, i) {
+          var frame = document.createElement('div');
+          frame.className = 'static-scene-frame';
+          var label = document.createElement('div');
+          label.className = 'static-scene-label';
+          label.textContent = data.static_scene_names[i] || ('Scene ' + (i+1));
+          var img = document.createElement('img');
+          img.src = BASE + url;
+          img.alt = 'Static Scene ' + (i+1);
+          frame.appendChild(label);
+          frame.appendChild(img);
+          scenesDiv.appendChild(frame);
+        });
+
+        // If no static scenes, show a message
+        if (staticScenes.length === 0) {
+          var msg = document.createElement('div');
+          msg.style.cssText = 'padding: 40px; text-align: center; color: #a0aec0;';
+          msg.textContent = '该题目无静态图示';
+          scenesDiv.appendChild(msg);
+        }
+      }
     })
     .catch(function(err) {
       qs('#problem-content').innerHTML = '<span style="color:red">加载失败: ' + err + '</span>';
@@ -564,15 +635,16 @@ function init() {
 
     keysData.keys.forEach(function(k) { KEYS.push(k); });
     keysData.dimensions.forEach(function(pair) {
-      DIMS.push({ key: pair[0], name: pair[1] });
+      DIMS.push(pair);
     });
-    if (keysData.models) keysData.models.forEach(function(m) { MODELS.push(m); });
+    keysData.questions.forEach(function(pair) {
+      QUESTIONS.push(pair);
+    });
 
     // annoData is {key: {scores}} filtered for this annotator
     annotations = annoData;
 
     buildSidebar();
-    buildDimPanel();
     setProgress();
 
     var first = KEYS.find(function(k) { return !annotations[k]; }) || KEYS[0];

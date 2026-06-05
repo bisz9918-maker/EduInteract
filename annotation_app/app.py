@@ -17,6 +17,12 @@ BASE_DIR = Path(__file__).parent.parent
 OUTPUT_DIR = BASE_DIR / "output"
 ANNOTATIONS_JSON = Path(__file__).parent / "human_annotations.json"
 
+# Static diagram directory (Gemini-3-Pro unified reference)
+STATIC_DIAGRAM_DIR = Path(
+    "/inspire/hdd/project/ai4education/bishuzhen-CZXS24220022/"
+    "edubench/TheoremExplainAgent/output/exp_gemini-3-pro-preview"
+)
+
 EXP_TO_MODEL = {
     "exp_Gemini-3.1-Pro": "Gemini-3.1-Pro",
     "exp_kimik26": "Kimi-K2.6",
@@ -35,12 +41,22 @@ EVAL_TO_EXP = {
 
 MODELS_ORDER = ["Gemini-3.1-Pro", "Kimi-K2.6", "Qwen3.5-397B", "Qwen3.5-122B", "Qwen3.6-27B"]
 
+# 5-dimension scoring for interactive items
 DIMENSIONS = [
     ("prob_align", "Problem Alignment (题图匹配)"),
     ("interact", "Interactive Functionality (交互功能)"),
     ("visual", "Visual Quality (视觉质量)"),
     ("pedagogy", "Pedagogical Effectiveness (教学效果)"),
     ("logic", "Logical Coherence (逻辑连贯)"),
+]
+
+# Questions for static items (compared with interactive)
+QUESTIONS = [
+    ("comprehension", "交互式图示与静态图示相比，更有助于理解题目吗？(1=静态更好, 3=差不多, 5=交互式更好)"),
+    ("interaction", "交互功能是否有效增强了学习体验？(1=完全无效, 5=非常有效)"),
+    ("visual", "交互式图示的视觉呈现质量如何？(1=很差, 5=很好)"),
+    ("accuracy", "交互式图示的内容是否准确反映了题目要求？(1=严重偏差, 5=完全准确)"),
+    ("overall", "您对交互式图示的整体评价？(1=很差, 5=很好)"),
 ]
 
 
@@ -138,8 +154,126 @@ def build_samples() -> dict:
     return samples
 
 
+# ── Original samples (internal use, keep for data lookup) ──
 SAMPLES = build_samples()
-KEYS = list(SAMPLES.keys())
+
+
+def select_divergent_problems(n: int = 30) -> list:
+    """Select n problems with the largest score divergence across models.
+
+    Reads evaluation_summary.json from each model's evaluate dir,
+    computes max(total_score) - min(total_score) per topic,
+    and returns the top n topic names sorted by divergence (descending).
+    Only includes topics that appear in 4+ models with valid scores.
+    """
+    # Collect total_score per topic across models
+    # Note: items with status "skipped" still have valid total_score
+    topic_scores = {}  # topic -> [total_score, ...]
+    for eval_dir_name in EVAL_TO_EXP:
+        summary_path = OUTPUT_DIR / eval_dir_name / "evaluation_summary.json"
+        if not summary_path.exists():
+            continue
+        with open(summary_path, encoding="utf-8") as f:
+            summary = json.load(f)
+        for item in summary.get("results", []):
+            if item.get("status") == "error":
+                continue
+            topic = item.get("topic", "")
+            total = item.get("total_score")
+            if total is None:
+                continue
+            topic_scores.setdefault(topic, []).append(total)
+
+    # Filter: must have 4+ models with scores
+    candidates = []
+    for topic, scores in topic_scores.items():
+        if len(scores) >= 4:
+            divergence = max(scores) - min(scores)
+            candidates.append((topic, divergence))
+
+    # Sort by divergence descending
+    candidates.sort(key=lambda x: x[1], reverse=True)
+    return [c[0] for c in candidates[:n]]
+
+
+def build_selected_samples() -> tuple:
+    """Build the selected samples dict with anonymous keys.
+
+    Returns:
+        selected: dict mapping anonymous key -> sample data
+        keys: ordered list of anonymous keys (grouped by topic)
+    """
+    selected_topics = select_divergent_problems(30)
+    selected = {}
+    keys = []
+
+    for topic in selected_topics:
+        # Collect all models that have this topic
+        model_entries = []
+        for model in MODELS_ORDER:
+            internal_key = f"{model}/{topic}"
+            if internal_key in SAMPLES:
+                model_entries.append((model, internal_key))
+
+        # Add interactive entries: _1, _2, _3, ...
+        for idx, (model, internal_key) in enumerate(model_entries, start=1):
+            anon_key = f"{topic}_{idx}"
+            # Collect static scene images for this topic
+            static_scenes = []
+            if STATIC_DIAGRAM_DIR.exists():
+                static_doc = STATIC_DIAGRAM_DIR / topic / "doc"
+                if static_doc.exists():
+                    static_scenes = sorted([f.name for f in static_doc.glob("scene*.png")])
+
+            selected[anon_key] = {
+                "type": "interactive",
+                "internal_key": internal_key,
+                "topic": topic,
+                "index": idx,
+                "static_scenes": static_scenes,
+            }
+            keys.append(anon_key)
+
+        # Add static entry: _static
+        anon_key_static = f"{topic}_static"
+        # Static diagram and scenes from Gemini-3-Pro dir
+        static_diagram = ""
+        static_scenes = []
+        static_outline_html = ""
+        if STATIC_DIAGRAM_DIR.exists():
+            topic_static = STATIC_DIAGRAM_DIR / topic
+            diag = topic_static / "problem_diagram.png"
+            if diag.exists():
+                static_diagram = str(diag)
+            doc_dir = topic_static / "doc"
+            if doc_dir.exists():
+                static_scenes = sorted([f.name for f in doc_dir.glob("scene*.png")])
+            # Get outline from static dir
+            outline_files = list(topic_static.glob("*_scene_outline.txt"))
+            if outline_files:
+                outline_text = outline_files[0].read_text(encoding="utf-8")
+                text_blocks = re.findall(r'<TEXT_\d+>(.*?)</TEXT_\d+>', outline_text, re.DOTALL)
+                if text_blocks:
+                    full_md = "\n\n---\n\n".join(b.strip() for b in text_blocks)
+                    lines = full_md.split('\n')
+                    cleaned = [line.lstrip() for line in lines]
+                    full_md = '\n'.join(cleaned)
+                    static_outline_html = render_markdown(full_md)
+
+        selected[anon_key_static] = {
+            "type": "static",
+            "topic": topic,
+            "static_diagram": static_diagram,
+            "static_scenes": static_scenes,
+            "outline_html": static_outline_html,
+        }
+        keys.append(anon_key_static)
+
+    return selected, keys
+
+
+SELECTED, KEYS = build_selected_samples()
+
 
 if ANNOTATIONS_JSON.exists():
     with open(ANNOTATIONS_JSON, encoding="utf-8") as f:
@@ -167,7 +301,11 @@ def save_annotations():
 
 @app.get("/api/keys")
 def api_keys():
-    return jsonify({"keys": KEYS, "dimensions": DIMENSIONS, "models": MODELS_ORDER})
+    return jsonify({
+        "keys": KEYS,
+        "dimensions": DIMENSIONS,
+        "questions": QUESTIONS,
+    })
 
 
 @app.get("/api/annotations")
@@ -185,20 +323,41 @@ def api_annotations():
 
 @app.get("/api/doc/<path:key>")
 def api_doc(key):
-    if key not in SAMPLES:
+    if key not in SELECTED:
         abort(404)
-    s = SAMPLES[key]
-    # Build URLs for scene HTML files
-    scene_urls = [f"/html?key={key}&scene={sn}" for sn in s["scenes"]]
-    return jsonify({
-        "model": s["model"],
-        "topic": s["topic"],
-        "outline_html": s["outline_html"],
-        "diagram_url": f"/diagram?key={key}" if s["diagram_path"] else "",
-        "scenes": scene_urls,
-        "scene_names": s["scenes"],
-        "auto_scores": s["auto_scores"],
-    })
+    s = SELECTED[key]
+
+    if s["type"] == "interactive":
+        # Look up original sample data
+        internal = SAMPLES.get(s["internal_key"])
+        if not internal:
+            abort(404)
+        # Build URLs for scene HTML files (use internal key for /html route)
+        scene_urls = [f"/html?key={s['internal_key']}&scene={sn}" for sn in internal["scenes"]]
+        return jsonify({
+            "type": "interactive",
+            "topic": s["topic"],
+            "display_name": s["topic"].replace("_", " ") + " - " + str(s["index"]),
+            "outline_html": internal["outline_html"],
+            "diagram_url": f"/diagram?key={s['internal_key']}" if internal["diagram_path"] else "",
+            "scenes": scene_urls,
+            "scene_names": internal["scenes"],
+            "scoring_mode": "dimensions",
+        })
+    else:
+        # Static item
+        # Build URLs for static scene images
+        static_scene_urls = [f"/static_scene?key={key}&scene={sn}" for sn in s["static_scenes"]]
+        return jsonify({
+            "type": "static",
+            "topic": s["topic"],
+            "display_name": s["topic"].replace("_", " ") + " - static",
+            "outline_html": s.get("outline_html", ""),
+            "diagram_url": f"/static_diagram?key={key}" if s.get("static_diagram") else "",
+            "static_scenes": static_scene_urls,
+            "static_scene_names": s["static_scenes"],
+            "scoring_mode": "questions",
+        })
 
 
 @app.post("/api/annotate")
@@ -207,7 +366,7 @@ def api_annotate():
     key = data.get("key")
     scores = data.get("scores")
     annotator = data.get("annotator", "")
-    if not key or key not in SAMPLES:
+    if not key or key not in SELECTED:
         abort(400)
     if key not in annotations:
         annotations[key] = {}
@@ -474,6 +633,35 @@ def serve_diagram():
     if not p.exists():
         abort(404)
     return send_file(p)
+
+
+@app.get("/static_diagram")
+def serve_static_diagram():
+    """Serve the Gemini-3-Pro static problem diagram."""
+    key = request.args.get("key", "")
+    if key not in SELECTED or SELECTED[key]["type"] != "static":
+        abort(404)
+    diag = SELECTED[key].get("static_diagram", "")
+    if not diag:
+        abort(404)
+    p = Path(diag)
+    if not p.exists():
+        abort(404)
+    return send_file(p)
+
+
+@app.get("/static_scene")
+def serve_static_scene():
+    """Serve a Gemini-3-Pro static scene image."""
+    key = request.args.get("key", "")
+    scene = request.args.get("scene", "")
+    if key not in SELECTED or SELECTED[key]["type"] != "static":
+        abort(404)
+    topic = SELECTED[key]["topic"]
+    scene_path = STATIC_DIAGRAM_DIR / topic / "doc" / scene
+    if not scene_path.exists() or scene_path.suffix.lower() not in (".png", ".jpg", ".jpeg"):
+        abort(404)
+    return send_file(scene_path)
 
 
 @app.get("/image")
