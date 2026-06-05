@@ -168,6 +168,7 @@ def select_divergent_problems(n: int = 30) -> list:
     """
     # Collect total_score per topic across models
     # Note: items with status "skipped" still have valid total_score
+    # Exclude scores of 0 (indicates evaluation failure, not real quality)
     topic_scores = {}  # topic -> [total_score, ...]
     for eval_dir_name in EVAL_TO_EXP:
         summary_path = OUTPUT_DIR / eval_dir_name / "evaluation_summary.json"
@@ -180,11 +181,11 @@ def select_divergent_problems(n: int = 30) -> list:
                 continue
             topic = item.get("topic", "")
             total = item.get("total_score")
-            if total is None:
+            if total is None or total == 0:
                 continue
             topic_scores.setdefault(topic, []).append(total)
 
-    # Filter: must have 4+ models with scores
+    # Filter: must have 4+ models with valid (non-zero) scores
     candidates = []
     for topic, scores in topic_scores.items():
         if len(scores) >= 4:
@@ -204,13 +205,37 @@ def build_selected_samples() -> tuple:
         keys: ordered list of anonymous keys (grouped by topic)
     """
     selected_topics = select_divergent_problems(30)
+
+    # Build lookup of valid (non-zero) total_scores per model per topic
+    # so we can skip models that scored 0 for a topic
+    valid_model_topics = set()  # (model, topic) pairs with non-zero score
+    for eval_dir_name in EVAL_TO_EXP:
+        model = EXP_TO_MODEL.get(EVAL_TO_EXP.get(eval_dir_name, ""), "")
+        if not model:
+            continue
+        summary_path = OUTPUT_DIR / eval_dir_name / "evaluation_summary.json"
+        if not summary_path.exists():
+            continue
+        with open(summary_path, encoding="utf-8") as f:
+            summary = json.load(f)
+        for item in summary.get("results", []):
+            if item.get("status") == "error":
+                continue
+            topic = item.get("topic", "")
+            total = item.get("total_score")
+            if total is None or total == 0:
+                continue
+            valid_model_topics.add((model, topic))
+
     selected = {}
     keys = []
 
     for topic in selected_topics:
-        # Collect all models that have this topic
+        # Collect all models that have this topic with valid (non-zero) score
         model_entries = []
         for model in MODELS_ORDER:
+            if (model, topic) not in valid_model_topics:
+                continue
             internal_key = f"{model}/{topic}"
             if internal_key in SAMPLES:
                 model_entries.append((model, internal_key))
