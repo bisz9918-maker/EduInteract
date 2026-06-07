@@ -17,19 +17,19 @@ from fastapi.responses import Response, StreamingResponse
 
 # ============ 配置 ============
 # 默认后端（未匹配 MODEL_ROUTES 时使用）
-CUSTOM_API_BASE="https://hjm9oeee5phcc8jgjbhbedmh5odm59bd.openapi-qb-ai.sii.edu.cn/v1"
+CUSTOM_API_BASE="https://bpdabke8gkkbc9oqjggjqeqebhdkjegm.openapi-qb-ai.sii.edu.cn/v1"
 CUSTOM_API_KEY="PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU="
 
 # 模型名映射：自定义短名 → {api_base, api_key, model}
 # 客户端请求 model="custom" 时，自动替换为真实模型名并路由到对应后端
 MODEL_ROUTES = {
     "Kimi-K2.6": {
-        "api_base": "https://hjm9oeee5phcc8jgjbhbedmh5odm59bd.openapi-qb-ai.sii.edu.cn/v1",
+        "api_base": "https://bpdabke8gkkbc9oqjggjqeqebhdkjegm.openapi-qb-ai.sii.edu.cn/v1",
         "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
         "model": "/inspire/qb-ilm/project/ai4education/public/models/Kimi-K2.6",
     },
     "kimi-k26": {
-        "api_base": "https://hjm9oeee5phcc8jgjbhbedmh5odm59bd.openapi-qb-ai.sii.edu.cn/v1",
+        "api_base": "https://bpdabke8gkkbc9oqjggjqeqebhdkjegm.openapi-qb-ai.sii.edu.cn/v1",
         "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
         "model": "/inspire/qb-ilm/project/ai4education/public/models/Kimi-K2.6",
     },
@@ -77,6 +77,16 @@ MODEL_ROUTES = {
         "api_base": "https://api.innospark.cn/v1",
         "api_key": "sk-chGbcRbWRfGH1r8FmbJzd1mRpfE4G7MkKA4OToH16KdV2J8v",
         "model": "gpt-5.4-pro",
+        },
+    "Qwen3.5-9B-edu-sft-64k":{
+        "api_base": "https://gbh8ja5jq998c59qj8jk9dbegqmqdpjp.openapi-qb-ai.sii.edu.cn/v1",
+        "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
+        "model": "/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact/EduDistributedRL/ckpt-edu-Qwen3.5-9B-sft-64k/hf_iter_0001399",
+        },
+    "Qwen3.5-9B":{
+        "api_base": "https://qejepempoojqcbqejqp5kd9jgpckqdqo.openapi-qb-ai.sii.edu.cn/v1",
+        "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
+        "model": "/inspire/qb-ilm/project/ai4education/public/models/Qwen/Qwen3.5-9B",
         },
 
 }

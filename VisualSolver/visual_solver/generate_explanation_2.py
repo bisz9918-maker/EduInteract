@@ -1121,7 +1121,10 @@ if __name__ == "__main__":
     def _build_topic(prob: Dict, idx: int) -> str:
         problem_type = (prob.get("subject") or "math").strip().lower()
         type_slug = re.sub(r"[^a-z0-9_]+", "_", problem_type)
-        return f"problem_{idx}_{type_slug}"
+        # Use original index field from data (not enumerate idx) so output dir name
+        # matches the index in benchmark/K12_Vista.jsonl for correct evaluation lookup
+        orig_index = prob.get("index", idx)
+        return f"problem_{orig_index}_{type_slug}"
 
     def _is_transient_error(exc: Exception) -> bool:
         """Check if an exception is a transient OAH infrastructure error that should allow retry."""
@@ -1166,7 +1169,7 @@ if __name__ == "__main__":
                 trace_prefix = None
                 if args.use_oah:
                     model_slug = re.sub(r'[^a-zA-Z0-9_-]+', '_', Config.OAH_MODEL_REF or "default")
-                    trace_prefix = f"problem_{idx}_{model_slug}"
+                    trace_prefix = f"problem_{prob.get('index', idx)}_{model_slug}"
                 await explanation_generator.generate_html_diagrams(
                     topic,
                     description,

@@ -53,6 +53,31 @@ MODEL_CONFIGS = {
         "exp_dir": "exp_kimik26",
         "trace_prefix": "kimi-k26",
     },
+    # K12 Vista 四科（trace 在各自目录，topic_name 含学科后缀）
+    "Kimi-K2.6-k12-math-g12": {
+        "results_file": "Kimi-K2.6-k12-vista.json",
+        "exp_dir": "k12_vista_math_g12",
+        "trace_prefix": "kimi-k26",
+        "topic_filter": "math_g12",
+    },
+    "Kimi-K2.6-k12-math-g9": {
+        "results_file": "Kimi-K2.6-k12-vista.json",
+        "exp_dir": "k12_vista_math_g9",
+        "trace_prefix": "kimi-k26",
+        "topic_filter": "math_g9",
+    },
+    "Kimi-K2.6-k12-physics-g12": {
+        "results_file": "Kimi-K2.6-k12-vista.json",
+        "exp_dir": "k12_vista_physics_g12",
+        "trace_prefix": "kimi-k26",
+        "topic_filter": "physics_g12",
+    },
+    "Kimi-K2.6-k12-physics-g9": {
+        "results_file": "Kimi-K2.6-k12-vista.json",
+        "exp_dir": "k12_vista_physics_g9",
+        "trace_prefix": "kimi-k26",
+        "topic_filter": "physics_g9",
+    },
 }
 
 # ============================================================
@@ -64,19 +89,31 @@ def get_qualified_problems():
     """从 results JSON 中筛选 total_score > 4 的 (model, problem_id) 对。"""
     qualified = {}  # (model, problem_id) → {"total_score": float, "scenes": [...]}
 
+    # Cache for shared results files (multiple configs may read the same file)
+    results_cache = {}
+
     for model, cfg in MODEL_CONFIGS.items():
         results_path = os.path.join(BASE_DIR, "results", cfg["results_file"])
         if not os.path.exists(results_path):
             print(f"  [WARN] {results_path} not found, skipping {model}")
             continue
 
-        data = json.load(open(results_path, encoding="utf-8"))
+        if results_path not in results_cache:
+            results_cache[results_path] = json.load(open(results_path, encoding="utf-8"))
+        data = results_cache[results_path]
         topics = data.get("topics", [])
+
+        # topic_filter: only include topics whose name contains this suffix
+        topic_filter = cfg.get("topic_filter")
 
         for topic in topics:
             topic_name = topic.get("topic", "")
             evaluation = topic.get("evaluation", {})
             total_score = evaluation.get("total_score", 0)
+
+            # Apply topic filter if configured
+            if topic_filter and topic_filter not in topic_name:
+                continue
 
             if total_score > SCORE_THRESHOLD:
                 # topic_name: "problem_0_physics_g9" → problem_id = 0
@@ -229,25 +266,49 @@ def _convert_content_part(p):
 
 
 def _convert_message(msg):
-    """将 trace 中的单条 message 转为 SFT 格式。"""
+    """将 trace 中的单条 message 转为 SFT 格式列表。
+
+    当一条 trace 消息同时包含 tool-call 和 tool-result 时，
+    需要拆分成独立的 assistant (含 tool call) 和 tool (含 result) 消息，
+    以符合 OpenAI SFT 格式要求。
+
+    返回 list[dict]，每项是一条 SFT 消息。
+    """
     role = msg.get("role", "")
     content = msg.get("content", "")
 
     if isinstance(content, list):
-        sft_parts = []
+        # Separate tool-result parts from others
+        main_parts = []   # text / image / tool-call
+        tool_result_parts = []  # tool-result
+
         for p in content:
             converted = _convert_content_part(p)
-            # _convert_content_part 现在返回 list[dict]
-            sft_parts.extend(converted)
-        if not sft_parts:
-            return None
-        if len(sft_parts) == 1 and sft_parts[0].get("type") == "text":
-            return {"role": role, "content": sft_parts[0]["text"]}
-        return {"role": role, "content": sft_parts}
+            if not converted:
+                continue
+            if isinstance(p, dict) and p.get("type") == "tool-result":
+                tool_result_parts.extend(converted)
+            else:
+                main_parts.extend(converted)
+
+        results = []
+
+        # Main message (assistant with text/image/tool-call)
+        if main_parts:
+            if len(main_parts) == 1 and main_parts[0].get("type") == "text":
+                results.append({"role": role, "content": main_parts[0]["text"]})
+            else:
+                results.append({"role": role, "content": main_parts})
+
+        # Separate tool result message
+        if tool_result_parts:
+            results.append({"role": "tool", "content": tool_result_parts})
+
+        return results if results else [None]
 
     if not content:
-        return None
-    return {"role": role, "content": str(content)}
+        return [None]
+    return [{"role": role, "content": str(content)}]
 
 
 def _extract_assistant_reply(step):
@@ -311,12 +372,13 @@ def extract_conversation_from_trace(trace_path):
     if last_assistant is not None:
         all_raw.append(last_assistant)
 
-    # 转换为 SFT 格式
+    # 转换为 SFT 格式（_convert_message 现在返回 list）
     sft_messages = []
     for msg in all_raw:
-        sft_msg = _convert_message(msg)
-        if sft_msg is not None:
-            sft_messages.append(sft_msg)
+        sft_msgs = _convert_message(msg)
+        for sft_msg in sft_msgs:
+            if sft_msg is not None:
+                sft_messages.append(sft_msg)
 
     # 确保以 system 开头
     if not sft_messages or sft_messages[0].get("role") != "system":
