@@ -156,7 +156,7 @@ class CodeGenerator:
             additional_context=additional_context
         )
 
-        if problem_image and scene_number == 1:
+        if problem_image:
             messages = [
                 {"type": "text", "content": prompt},
                 {"type": "image", "content": problem_image}
