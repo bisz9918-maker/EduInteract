@@ -552,18 +552,26 @@ def main():
         os.path.join(OUTPUT_DIR, "sft_code_gen.jsonl"),
     ]
 
+    # 先收集所有行，再随机 shuffle
+    all_lines = []
+    for pf in part_files:
+        if not os.path.exists(pf):
+            continue
+        with open(pf, "r", encoding="utf-8") as in_f:
+            for line in in_f:
+                all_lines.append(line)
+
+    import random
+    random.shuffle(all_lines)
+
     total_merged = 0
     with open(merged_path, "w", encoding="utf-8") as out_f:
-        for pf in part_files:
-            if not os.path.exists(pf):
-                continue
-            with open(pf, "r", encoding="utf-8") as in_f:
-                for line in in_f:
-                    out_f.write(line)
-                    total_merged += 1
+        for line in all_lines:
+            out_f.write(line)
+            total_merged += 1
 
     print(f"  合并写入: {merged_path}")
-    print(f"  总条数: {total_merged}")
+    print(f"  总条数: {total_merged} (随机 shuffled)")
 
     # 按 type 统计
     type_counts = defaultdict(int)
