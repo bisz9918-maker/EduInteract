@@ -88,6 +88,21 @@ MODEL_ROUTES = {
         "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
         "model": "/inspire/qb-ilm/project/ai4education/public/models/Qwen/Qwen3.5-9B",
         },
+    "Qwen3.6-27B-sft":{
+        "api_base": "https://mb8mpkhk8qkbcqkokjjcb5be8mgoed5d.openapi-qb-ai.sii.edu.cn/v1",
+        "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
+        "model": "/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact/EduDistributedRL/ckpt-edu-Qwen3.6-27B-sft-16k-single-turn/hf_iter_0007999",
+        },
+    "Qwen3.6-27B-sft-3999":{
+        "api_base": "https://9mcdd9g8hgj8capqj8dbhbjdh5cbm9ab.openapi-qb-ai.sii.edu.cn/v1",
+        "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
+        "model": "/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact/EduDistributedRL/ckpt-edu-Qwen3.6-27B-sft-16k-single-turn/hf_iter_0003999",
+        },
+    "Qwen3.6-27B-sft-1999":{
+        "api_base": "https://8e9qdm58dj9hcjephhhjmajaahaamc9b.openapi-qb-ai.sii.edu.cn/v1",
+        "api_key": "PoECFccxeKiR2xJzaPZmY9GmAoNjIXEF5Wcd3JrMMVU=",
+        "model": "/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact/EduDistributedRL/ckpt-edu-Qwen3.6-27B-sft-16k-single-turn/hf_iter_0001999",
+        },
 
 }
 PROXY_HOST = "0.0.0.0"
@@ -383,8 +398,12 @@ async def handle_normal_with_retry(
                 except:
                     response_body = response.text
 
-                # Normalize usage: OAH reads usage.total but some APIs return total_tokens
+                # Normalize response body
                 if isinstance(response_body, dict):
+                    # Replace real model name back to requested alias so litellm can recognize it
+                    if ctx.requested_model and response_body.get("model") != ctx.requested_model:
+                        response_body["model"] = ctx.requested_model
+                    # Normalize usage: OAH reads usage.total but some APIs return total_tokens
                     usage = response_body.get("usage")
                     if isinstance(usage, dict) and "total" not in usage:
                         if "total_tokens" in usage:
@@ -519,6 +538,10 @@ async def handle_stream_with_retry(
                                 if line_stripped.startswith("data: ") and line_stripped[6:] != "[DONE]":
                                     try:
                                         data = json.loads(line_stripped[6:])
+                                        # Replace real model name back to requested alias
+                                        if ctx.requested_model and data.get("model") != ctx.requested_model:
+                                            data["model"] = ctx.requested_model
+                                            modified = True
                                         delta = data.get("choices", [{}])[0].get("delta", {})
                                         content = delta.get("content", "")
                                         if content:

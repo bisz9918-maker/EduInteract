@@ -40,6 +40,9 @@ class LiteLLMWrapper:
             use_langfuse: Whether to enable Langfuse logging
         """
         self.model_name = model_name
+        # Load custom API config first (needed for model name resolution below)
+        self.custom_api_base = os.getenv("CUSTOM_API_BASE", None)
+        self.custom_api_key = os.getenv("CUSTOM_API_KEY", "sk-none")
         # If model name is a full path (e.g. /inspire/.../GLM-5.1-FP8), add openai/ prefix
         # so litellm knows to use OpenAI-compatible provider
         if not model_name.split("/")[-1] == model_name and not model_name.startswith("openai/"):
@@ -53,8 +56,6 @@ class LiteLLMWrapper:
         self.verbose = verbose
         self.accumulated_cost = 0
         self._trace_tokens: dict = {}  # per-trace_id token accumulator
-        self.custom_api_base = os.getenv("CUSTOM_API_BASE",None)
-        self.custom_api_key = os.getenv("CUSTOM_API_KEY", "sk-none")
         print(f"[DEBUG] LiteLLMWrapper init in PID {os.getpid()}")
         print(f"[DEBUG] .env file location: {os.path.abspath('.env')}")
         print(f"[DEBUG] CUSTOM_API_BASE: {self.custom_api_base}")
