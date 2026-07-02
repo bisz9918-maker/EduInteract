@@ -8,7 +8,7 @@
   维度4: 教育适配性（agent: pedagogical-effectiveness-eval）
   维度5: 逻辑连贯性（agent: logic-coherence-eval）
 
-每个维度 agent 给出整个题目的 0-5 分，总分 = 4个维度分的几何平均。
+每个维度 agent 给出整个题目的 0-5 分，总分 = 5个维度分的几何平均。
 渲染检查不通过则总分0。
 
 用法:

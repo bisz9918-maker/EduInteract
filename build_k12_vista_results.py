@@ -52,6 +52,21 @@ def parse_dim_score(filepath):
     return None
 
 
+def geometric_mean(values):
+    """五维几何平均，与 evaluate.py 口径一致。
+
+    有 0 维则总分直接为 0；0 分按 0.001 参与乘积避免归零。
+    """
+    if not values:
+        return 0.0
+    has_zero = any(v == 0 for v in values)
+    product = 1.0
+    for v in values:
+        product *= max(v, 0.001)
+    result = product ** (1 / len(values))
+    return 0.0 if has_zero else round(result, 2)
+
+
 def get_render_check(exp_dir, topic_name):
     """检查各 scene 目录的 succ_rendered.txt 判断渲染状态。"""
     problem_dir = os.path.join(exp_dir, topic_name)
@@ -106,8 +121,8 @@ def build_results(base_dir):
             if missing_dim:
                 print(f"    [WARN] {prob_dir_name}: some dim scores missing, using 0")
 
-            # 计算总分（五维均值）
-            total_score = sum(scores.values()) / 5.0
+            # 计算总分（五维几何平均，与 evaluate.py 口径一致）
+            total_score = geometric_mean(list(scores.values()))
 
             # 获取 render_check
             render_check = get_render_check(exp_dir, prob_dir_name)
