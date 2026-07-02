@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from pathlib import Path
 
@@ -29,6 +30,9 @@ EXP_TO_MODEL = {
     "exp_qwen35_122b": "Qwen3.5-122B",
     "exp_qwen35_397b": "Qwen3.5-397B",
     "exp_qwen36_27b": "Qwen3.6-27B",
+    "exp_qwen36_27b-sft-1999": "Qwen3.6-27B-SFT-1999",
+    "exp_qwen36_27b-sft-3999": "Qwen3.6-27B-SFT-3999",
+    "exp_qwen36_27b-sft-7999": "Qwen3.6-27B-SFT-7999",
 }
 
 EVAL_TO_EXP = {
@@ -39,7 +43,8 @@ EVAL_TO_EXP = {
     "evaluate_qwen36_27b": "exp_qwen36_27b",
 }
 
-MODELS_ORDER = ["Gemini-3.1-Pro", "Kimi-K2.6", "Qwen3.5-397B", "Qwen3.5-122B", "Qwen3.6-27B"]
+MODELS_ORDER = ["Gemini-3.1-Pro", "Kimi-K2.6", "Qwen3.5-397B", "Qwen3.5-122B", "Qwen3.6-27B",
+                "Qwen3.6-27B-SFT-1999", "Qwen3.6-27B-SFT-3999", "Qwen3.6-27B-SFT-7999"]
 
 # 5-dimension scoring for interactive items
 # Each: (key, display_name, scoring_guide)
@@ -116,72 +121,101 @@ def render_markdown(text: str) -> str:
     return html
 
 
+def _scan_exp_dir(exp_dir: Path, model: str, samples: dict, require_eval: bool = True):
+    """Scan an exp dir for topics with HTML scenes.
+
+    If require_eval is True, only include topics that have an evaluation_report.xml
+    in the corresponding evaluate dir. Otherwise, include all topics with doc/scene*.html.
+    """
+    if not exp_dir.exists():
+        return
+
+    for topic_dir in sorted(exp_dir.iterdir()):
+        if not topic_dir.is_dir() or not topic_dir.name.startswith("problem_"):
+            continue
+        topic = topic_dir.name
+
+        # Check evaluation report if required
+        if require_eval:
+            # Find corresponding eval dir
+            eval_dir_name = None
+            for ev, ex in EVAL_TO_EXP.items():
+                if ex == exp_dir.name:
+                    eval_dir_name = ev
+                    break
+            if eval_dir_name:
+                report_path = OUTPUT_DIR / eval_dir_name / topic / "evaluation_report.xml"
+                if not report_path.exists():
+                    continue
+
+        # Collect scene HTML files
+        doc_dir = topic_dir / "doc"
+        scenes = sorted([f.name for f in doc_dir.glob("scene*.html")]) if doc_dir.exists() else []
+        if not scenes:
+            continue
+
+        key = f"{model}/{topic}"
+
+        # Parse evaluation scores (if available)
+        scores = {}
+        if require_eval and eval_dir_name:
+            report_path = OUTPUT_DIR / eval_dir_name / topic / "evaluation_report.xml"
+            if report_path.exists():
+                text = report_path.read_text(encoding="utf-8")
+                for tag, idx in [("dim1_accuracy", 1), ("dim2_interaction", 2),
+                                 ("dim3_visual", 3), ("dim4_pedagogy", 4),
+                                 ("dim5_logic_coherence", 5)]:
+                    m = re.search(rf'<{tag}\s+score="([\d.]+)"', text)
+                    if m:
+                        scores[f"dim{idx}"] = float(m.group(1))
+
+        # Get full outline as rendered HTML
+        outline_html = ""
+        outline_files = list(topic_dir.glob("*_scene_outline.txt"))
+        if outline_files:
+            outline_text = outline_files[0].read_text(encoding="utf-8")
+            text_blocks = re.findall(r'<TEXT_\d+>(.*?)</TEXT_\d+>', outline_text, re.DOTALL)
+            if text_blocks:
+                full_md = "\n\n---\n\n".join(b.strip() for b in text_blocks)
+                lines = full_md.split('\n')
+                cleaned = []
+                for line in lines:
+                    cleaned.append(line.lstrip())
+                full_md = '\n'.join(cleaned)
+                outline_html = render_markdown(full_md)
+
+        # Problem diagram
+        diagram_path = ""
+        diagram_file = topic_dir / "problem_diagram.png"
+        if diagram_file.exists():
+            diagram_path = str(diagram_file)
+
+        samples[key] = {
+            "model": model,
+            "topic": topic,
+            "scenes": scenes,
+            "auto_scores": scores,
+            "outline_html": outline_html,
+            "diagram_path": diagram_path,
+            "exp_dir": str(topic_dir),
+        }
+
+
 def build_samples() -> dict:
     """Scan output dirs and collect evaluated topics with HTML scenes."""
     samples = {}
+    # Evaluated models: require eval dir
     for eval_dir_name, exp_dir_name in EVAL_TO_EXP.items():
-        eval_dir = OUTPUT_DIR / eval_dir_name
         exp_dir = OUTPUT_DIR / exp_dir_name
-        if not eval_dir.exists() or not exp_dir.exists():
-            continue
         model = EXP_TO_MODEL.get(exp_dir_name, exp_dir_name)
+        _scan_exp_dir(exp_dir, model, samples, require_eval=True)
 
-        for topic_dir in sorted(eval_dir.iterdir()):
-            if not topic_dir.is_dir() or not topic_dir.name.startswith("problem_"):
-                continue
-            report_path = topic_dir / "evaluation_report.xml"
-            if not report_path.exists():
-                continue
-            topic = topic_dir.name
-            key = f"{model}/{topic}"
-
-            # Collect scene HTML files from exp dir
-            doc_dir = exp_dir / topic / "doc"
-            scenes = sorted([f.name for f in doc_dir.glob("scene*.html")]) if doc_dir.exists() else []
-
-            # Parse evaluation scores
-            scores = {}
-            text = report_path.read_text(encoding="utf-8")
-            for tag, idx in [("dim1_accuracy", 1), ("dim2_interaction", 2),
-                             ("dim3_visual", 3), ("dim4_pedagogy", 4),
-                             ("dim5_logic_coherence", 5)]:
-                m = re.search(rf'<{tag}\s+score="([\d.]+)"', text)
-                if m:
-                    scores[f"dim{idx}"] = float(m.group(1))
-
-            # Get full outline as rendered HTML
-            outline_html = ""
-            outline_files = list((exp_dir / topic).glob("*_scene_outline.txt"))
-            if outline_files:
-                outline_text = outline_files[0].read_text(encoding="utf-8")
-                # Extract all TEXT_k blocks
-                text_blocks = re.findall(r'<TEXT_\d+>(.*?)</TEXT_\d+>', outline_text, re.DOTALL)
-                if text_blocks:
-                    full_md = "\n\n---\n\n".join(b.strip() for b in text_blocks)
-                    # Dedent: remove common leading whitespace per line
-                    lines = full_md.split('\n')
-                    cleaned = []
-                    for line in lines:
-                        # Strip up to 4 spaces of common indent
-                        cleaned.append(line.lstrip())
-                    full_md = '\n'.join(cleaned)
-                    outline_html = render_markdown(full_md)
-
-            # Problem diagram
-            diagram_path = ""
-            diagram_file = exp_dir / topic / "problem_diagram.png"
-            if diagram_file.exists():
-                diagram_path = str(diagram_file)
-
-            samples[key] = {
-                "model": model,
-                "topic": topic,
-                "scenes": scenes,
-                "auto_scores": scores,
-                "outline_html": outline_html,
-                "diagram_path": diagram_path,
-                "exp_dir": str(exp_dir / topic),
-            }
+    # Show-only models: no eval dir needed
+    for exp_dir_name, model in EXP_TO_MODEL.items():
+        if exp_dir_name in EVAL_TO_EXP.values():
+            continue  # already scanned above
+        exp_dir = OUTPUT_DIR / exp_dir_name
+        _scan_exp_dir(exp_dir, model, samples, require_eval=False)
 
     return samples
 
@@ -322,7 +356,45 @@ def build_selected_samples() -> tuple:
     return selected, keys
 
 
-SELECTED, KEYS = build_selected_samples()
+def build_show_samples() -> tuple:
+    """Build the show-mode samples dict with model names visible.
+
+    All models, all topics — grouped by model.
+    Only interactive (HTML scenes) entries, no static items.
+    Keys use format: {model}/{topic} (not anonymized).
+    """
+    selected = {}
+    keys = []
+
+    for model in MODELS_ORDER:
+        # Find all topics for this model
+        model_topics = []
+        for internal_key, sample in SAMPLES.items():
+            if sample["model"] == model:
+                model_topics.append((internal_key, sample["topic"]))
+
+        model_topics.sort(key=lambda x: x[1])
+
+        for internal_key, topic in model_topics:
+            show_key = f"{model}/{topic}"
+            selected[show_key] = {
+                "type": "interactive",
+                "internal_key": internal_key,
+                "topic": topic,
+                "model": model,
+            }
+            keys.append(show_key)
+
+    return selected, keys
+
+
+# ── Mode selection via environment variable ──
+ANNOTATION_MODE = os.environ.get("ANNOTATION_MODE", "eval")
+
+if ANNOTATION_MODE == "show":
+    SELECTED, KEYS = build_show_samples()
+else:
+    SELECTED, KEYS = build_selected_samples()
 
 
 if ANNOTATIONS_JSON.exists():
@@ -355,6 +427,7 @@ def api_keys():
         "keys": KEYS,
         "dimensions": DIMENSIONS,
         "questions": QUESTIONS,
+        "mode": ANNOTATION_MODE,
     })
 
 
@@ -384,10 +457,16 @@ def api_doc(key):
             abort(404)
         # Build URLs for scene HTML files (use internal key for /html route)
         scene_urls = [f"/html?key={s['internal_key']}&scene={sn}" for sn in internal["scenes"]]
+        # Display name: show model name in show mode, anonymous index in eval mode
+        if ANNOTATION_MODE == "show":
+            display_name = s["model"] + " - " + s["topic"].replace("_", " ")
+        else:
+            display_name = s["topic"].replace("_", " ") + " - " + str(s["index"])
         return jsonify({
             "type": "interactive",
             "topic": s["topic"],
-            "display_name": s["topic"].replace("_", " ") + " - " + str(s["index"]),
+            "display_name": display_name,
+            "model": s.get("model", ""),
             "outline_html": internal["outline_html"],
             "diagram_url": f"/diagram?key={s['internal_key']}" if internal["diagram_path"] else "",
             "scenes": scene_urls,
@@ -398,10 +477,15 @@ def api_doc(key):
         # Static item
         # Build URLs for static scene images
         static_scene_urls = [f"/static_scene?key={key}&scene={sn}" for sn in s["static_scenes"]]
+        if ANNOTATION_MODE == "show":
+            display_name = s.get("model", "") + " - " + s["topic"].replace("_", " ") + " - static"
+        else:
+            display_name = s["topic"].replace("_", " ") + " - static"
         return jsonify({
             "type": "static",
             "topic": s["topic"],
-            "display_name": s["topic"].replace("_", " ") + " - static",
+            "display_name": display_name,
+            "model": s.get("model", ""),
             "outline_html": s.get("outline_html", ""),
             "diagram_url": f"/static_diagram?key={key}" if s.get("static_diagram") else "",
             "static_scenes": static_scene_urls,

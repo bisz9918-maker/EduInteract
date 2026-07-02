@@ -315,6 +315,7 @@ var currentKey = null;
 var currentScores = {};
 var currentScoringMode = '';  // 'dimensions' or 'questions'
 var annotatorName = '';
+var currentMode = 'eval';  // 'eval' or 'show'
 
 function qs(sel) { return document.querySelector(sel); }
 
@@ -366,38 +367,85 @@ function formatTopic(topic) {
   return topic.replace(/^problem_/, '').replace(/_/g, ' ');
 }
 
+// ── Extract model from key (show mode) ──
+// e.g. "Gemini-3.1-Pro/problem_101_math_g9" -> "Gemini-3.1-Pro"
+//      "Gemini-3.1-Pro/problem_101_math_g9_static" -> "Gemini-3.1-Pro"
+function modelFromKey(key) {
+  var parts = key.split('/');
+  return parts.length > 1 ? parts[0] : '';
+}
+
+// ── Format topic name from show-mode key ──
+// e.g. "Gemini-3.1-Pro/problem_101_math_g9" -> "problem 101 math g9"
+function topicFromShowKey(key) {
+  var parts = key.split('/');
+  var topic = parts.length > 1 ? parts[1] : parts[0];
+  return formatTopic(topic.replace(/_static$/, ''));
+}
+
 // ── 侧边栏 ──
 function buildSidebar() {
   var list = qs('#sidebar-list');
   list.innerHTML = '';
   qs('#total-count').textContent = KEYS.length;
 
-  var currentTopic = '';
-  KEYS.forEach(function(key) {
-    var topic = topicFromKey(key);
-    if (topic !== currentTopic) {
-      currentTopic = topic;
-      var header = document.createElement('div');
-      header.className = 'topic-group-header';
-      header.textContent = formatTopic(topic);
-      list.appendChild(header);
-    }
+  if (currentMode === 'show') {
+    // Group by model
+    var currentModel = '';
+    KEYS.forEach(function(key) {
+      var model = modelFromKey(key);
+      if (model !== currentModel) {
+        currentModel = model;
+        var header = document.createElement('div');
+        header.className = 'topic-group-header';
+        header.textContent = model || '未知模型';
+        list.appendChild(header);
+      }
 
-    var isStatic = key.endsWith('_static');
-    var suffix = isStatic ? 'static' : key.split('_').pop();
+      var isStatic = key.endsWith('_static');
+      var topicName = topicFromShowKey(key);
 
-    var div = document.createElement('div');
-    div.className = 'sidebar-item' + (annotations[key] ? ' done' : '') + (isStatic ? ' static-item' : '');
-    div.dataset.key = key;
-    var dot = document.createElement('span');
-    dot.className = 'dot';
-    var label = document.createElement('span');
-    label.textContent = isStatic ? '📊 static (静态图示)' : '_' + suffix;
-    div.appendChild(dot);
-    div.appendChild(label);
-    div.addEventListener('click', function() { selectKey(key); });
-    list.appendChild(div);
-  });
+      var div = document.createElement('div');
+      div.className = 'sidebar-item' + (annotations[key] ? ' done' : '') + (isStatic ? ' static-item' : '');
+      div.dataset.key = key;
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      var label = document.createElement('span');
+      label.textContent = isStatic ? '📊 ' + topicName + ' (静态图示)' : topicName;
+      div.appendChild(dot);
+      div.appendChild(label);
+      div.addEventListener('click', function() { selectKey(key); });
+      list.appendChild(div);
+    });
+  } else {
+    // Group by topic (original eval mode)
+    var currentTopic = '';
+    KEYS.forEach(function(key) {
+      var topic = topicFromKey(key);
+      if (topic !== currentTopic) {
+        currentTopic = topic;
+        var header = document.createElement('div');
+        header.className = 'topic-group-header';
+        header.textContent = formatTopic(topic);
+        list.appendChild(header);
+      }
+
+      var isStatic = key.endsWith('_static');
+      var suffix = isStatic ? 'static' : key.split('_').pop();
+
+      var div = document.createElement('div');
+      div.className = 'sidebar-item' + (annotations[key] ? ' done' : '') + (isStatic ? ' static-item' : '');
+      div.dataset.key = key;
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      var label = document.createElement('span');
+      label.textContent = isStatic ? '📊 static (静态图示)' : '_' + suffix;
+      div.appendChild(dot);
+      div.appendChild(label);
+      div.addEventListener('click', function() { selectKey(key); });
+      list.appendChild(div);
+    });
+  }
 }
 
 function refreshSidebarItem(key) {
@@ -643,6 +691,16 @@ function init() {
     keysData.questions.forEach(function(pair) {
       QUESTIONS.push(pair);
     });
+
+    // Set mode
+    currentMode = keysData.mode || 'eval';
+    // Update title
+    if (currentMode === 'show') {
+      qs('#topbar h1').textContent = 'EduInteract 展示';
+      document.title = 'EduInteract 展示';
+      var nameModalTitle = qs('#name-box h2');
+      if (nameModalTitle) nameModalTitle.textContent = 'EduInteract 展示系统';
+    }
 
     // annoData is {key: {scores}} filtered for this annotator
     annotations = annoData;
