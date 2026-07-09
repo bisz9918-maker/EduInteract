@@ -30,9 +30,10 @@ EXP_TO_MODEL = {
     "exp_qwen35_122b": "Qwen3.5-122B",
     "exp_qwen35_397b": "Qwen3.5-397B",
     "exp_qwen36_27b": "Qwen3.6-27B",
-    "exp_qwen36_27b-sft-1999": "Qwen3.6-27B-SFT-1999",
-    "exp_qwen36_27b-sft-3999": "Qwen3.6-27B-SFT-3999",
-    "exp_qwen36_27b-sft-7999": "Qwen3.6-27B-SFT-7999",
+    "k12_vista_math_g9": "k12_vista_math_g9",
+    "k12_vista_math_g12": "k12_vista_math_g12",
+    "k12_vista_physics_g9": "k12_vista_physics_g9",
+    "k12_vista_physics_g12": "k12_vista_physics_g12",
 }
 
 EVAL_TO_EXP = {
@@ -41,10 +42,14 @@ EVAL_TO_EXP = {
     "evaluate_qwen35_122b": "exp_qwen35_122b",
     "evaluate_qwen35_397b": "exp_qwen35_397b",
     "evaluate_qwen36_27b": "exp_qwen36_27b",
+    "evaluate_math_g9": "k12_vista_math_g9",
+    "evaluate_math_g12": "k12_vista_math_g12",
+    "evaluate_physics_g9": "k12_vista_physics_g9",
+    "evaluate_physics_g12": "k12_vista_physics_g12",
 }
 
 MODELS_ORDER = ["Gemini-3.1-Pro", "Kimi-K2.6", "Qwen3.5-397B", "Qwen3.5-122B", "Qwen3.6-27B",
-                "Qwen3.6-27B-SFT-1999", "Qwen3.6-27B-SFT-3999", "Qwen3.6-27B-SFT-7999"]
+                "k12_vista_math_g9", "k12_vista_math_g12", "k12_vista_physics_g9", "k12_vista_physics_g12"]
 
 # 5-dimension scoring for interactive items
 # Each: (key, display_name, scoring_guide)
@@ -87,13 +92,13 @@ DIMENSIONS = [
 ]
 
 # Questions for static items (compared with interactive)
-# Scale: 1=静态图示明显更好, 3=两者差不多, 5=交互式图示明显更好
+# Two options: "static" (静态更好) / "interactive" (交互式更好)
 QUESTIONS = [
-    ("comprehension", "相比静态图示，交互式图示是否更有助于理解题目内容和解题过程？(1=静态明显更好, 3=差不多, 5=交互式明显更好)"),
-    ("experience", "相比静态图示，交互式图示的学习体验是否更好？(1=静态明显更好, 3=差不多, 5=交互式明显更好)"),
-    ("pedagogy", "相比静态图示，交互式图示的教学效果是否更好（如分步演示、逻辑引导）？(1=静态明显更好, 3=差不多, 5=交互式明显更好)"),
-    ("engagement", "相比静态图示，交互式图示是否更能吸引你主动探索和思考？(1=静态明显更好, 3=差不多, 5=交互式明显更好)"),
-    ("overall", "综合来看，你更倾向于使用哪种图示来学习这道题？(1=静态明显更好, 3=差不多, 5=交互式明显更好)"),
+    ("comprehension", "相比静态图示，交互式图示是否更有助于理解题目内容和解题过程？"),
+    ("experience", "相比静态图示，交互式图示的学习体验是否更好？"),
+    ("pedagogy", "相比静态图示，交互式图示的教学效果是否更好（如分步演示、逻辑引导）？"),
+    ("engagement", "相比静态图示，交互式图示是否更能吸引你主动探索和思考？"),
+    ("overall", "综合来看，你更倾向于使用哪种图示来学习这道题？"),
 ]
 
 

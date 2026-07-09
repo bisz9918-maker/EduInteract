@@ -467,7 +467,7 @@ function buildDimPanel(scoringMode) {
   var items = (scoringMode === 'dimensions') ? DIMS : QUESTIONS;
   qs('#score-header').textContent = (scoringMode === 'dimensions')
     ? '5维评分（1-5 分）'
-    : '交互式问题（1-5 分）';
+    : '交互式问题（二选一）';
 
   items.forEach(function(item) {
     var key = item[0];
@@ -476,19 +476,21 @@ function buildDimPanel(scoringMode) {
     var block = document.createElement('div');
     block.className = 'dim-block';
     block.id = 'dim-' + key;
-    var btns = '';
-    for (var s = 1; s <= 5; s++) {
-      btns += '<button class="score-btn" data-dim="' + key + '" data-val="' + s + '">' + s + '</button>';
-    }
 
-    // For questions, show the question text as desc
     if (scoringMode === 'questions') {
+      // Two-option buttons: static (静态更好) / interactive (交互式更好)
+      var btns =
+        '<button class="score-btn" data-dim="' + key + '" data-val="static">静态更好</button>' +
+        '<button class="score-btn" data-dim="' + key + '" data-val="interactive">交互式更好</button>';
       block.innerHTML =
-        '<div class="dim-name">Q: ' + name.split('(')[0].trim() + '</div>' +
-        '<div class="dim-desc">' + (name.match(/\(.*\)/) ? name.match(/\(.*\)/)[0] : '') + '</div>' +
+        '<div class="dim-name">Q: ' + name + '</div>' +
         '<div class="btn-group">' + btns + '</div>';
     } else {
-      // Dimensions mode: show scoring guide
+      // Dimensions mode: 1-5 buttons + scoring guide
+      var btns = '';
+      for (var s = 1; s <= 5; s++) {
+        btns += '<button class="score-btn" data-dim="' + key + '" data-val="' + s + '">' + s + '</button>';
+      }
       var guide = item[2] || '';
       block.innerHTML =
         '<div class="dim-name">' + name + '</div>' +
@@ -501,7 +503,10 @@ function buildDimPanel(scoringMode) {
   qs('#dim-list').onclick = function(e) {
     var btn = e.target.closest('.score-btn');
     if (!btn) return;
-    pickScore(btn.dataset.dim, parseInt(btn.dataset.val));
+    var val = btn.dataset.val;
+    // Dimensions mode uses numeric val; questions mode uses string val
+    if (currentScoringMode === 'dimensions') val = parseInt(val);
+    pickScore(btn.dataset.dim, val);
   };
 }
 
@@ -509,7 +514,8 @@ function pickScore(dimKey, val) {
   currentScores[dimKey] = val;
   var btns = document.querySelectorAll('.score-btn[data-dim="' + dimKey + '"]');
   btns.forEach(function(b) {
-    b.className = 'score-btn' + (parseInt(b.dataset.val) === val ? ' sel' : '');
+    // Compare as string to support both numeric (1-5) and string (static/interactive) vals
+    b.className = 'score-btn' + (String(b.dataset.val) === String(val) ? ' sel' : '');
   });
   checkReady();
 }
