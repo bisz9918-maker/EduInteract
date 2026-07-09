@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四面体ABCD - 平面α截四面体</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-canvas { display: block; }
+        #scene1-controls {
+            position: absolute; bottom: 25px; left: 0; right: 0;
+            display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 5px 16px; font-size: 13px; cursor: pointer;
+            border: 1px solid #999; border-radius: 4px; background: #f5f5f5;
+            transition: background 0.2s; white-space: nowrap;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: default; }
+        #scene1-step-info {
+            font-size: 13px; color: #333; max-width: 440px; text-align: center;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <canvas id="scene1-canvas" width="800" height="500"></canvas>
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-info"></span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() { 'use strict';
+
+    // ===== 坐标表（来自实现计划） =====
+    // A(400,50) B(120,280) C(320,400) D(680,240)
+    // E(260,165) AB中点  F(500,320) CD中点
+    // Step1: G(260,364) H(694,218)
+    // Step2: G(220,340) H(540,145)
+    // Step3: G(180,316) H(736,278)
+
+    var canvas = document.getElementById('scene1-canvas');
+    var ctx = canvas.getContext('2d');
+    var prevBtn = document.getElementById('scene1-prev-btn');
+    var nextBtn = document.getElementById('scene1-next-btn');
+    var stepInfo = document.getElementById('scene1-step-info');
+
+    // 顶点坐标
+    var A = {x: 400, y: 50};
+    var B = {x: 120, y: 280};
+    var C = {x: 320, y: 400};
+    var D = {x: 680, y: 240};
+    var E = {x: 260, y: 165};  // AB中点
+    var F = {x: 500, y: 320};  // CD中点
+
+    // 各步骤G、H坐标
+    var steps = [
+        { G: null, H: null, info: '四面体ABCD，E、F分别为AB、CD的中点' },
+        { G: {x: 260, y: 364}, H: {x: 694, y: 218}, info: '平面α过EF交BC于G、AD于H → S△EFG = S△EFH（结论④✓）' },
+        { G: {x: 220, y: 340}, H: {x: 540, y: 145}, info: 'α∥BD时 GF∥EH∥BD（结论②✓），GF与EH不相交（结论①✗）' },
+        { G: {x: 180, y: 316}, H: {x: 736, y: 278}, info: 'G在线段BC上，H在AD延长线上（结论③✓），面积仍相等（结论④✓）' }
+    ];
+
+    var currentStep = 0;
+    var animating = false;
+    var animStart = 0;
+    var animDuration = 500;
+    var fromG = null, fromH = null;
+    var toG = null, toH = null;
+
+    // 当前渲染的G、H位置（动画插值用）
+    var renderG = null, renderH = null;
+
+    // ===== 工具函数 =====
+    function easeInOut(t) {
+        return t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    }
+
+    function lerp(a, b, t) {
+        if (!a) return b ? {x: b.x, y: b.y} : null;
+        if (!b) return null;
+        return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+
+    function dist(p, q) {
+        return Math.sqrt((p.x-q.x)**2 + (p.y-q.y)**2);
+    }
+
+    // 三角形面积（叉积公式）
+    function triArea(p1, p2, p3) {
+        return Math.abs((p2.x-p1.x)*(p3.y-p1.y) - (p3.x-p1.x)*(p2.y-p1.y)) / 2;
+    }
+
+    // ===== 绘制函数 =====
+    function drawDashedLine(x1, y1, x2, y2, color, width, dash) {
+        ctx.save();
+        ctx.strokeStyle = color || '#888';
+        ctx.lineWidth = width || 2;
+        ctx.setLineDash(dash || [6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function drawSolidLine(x1, y1, x2, y2, color, width) {
+        ctx.save();
+        ctx.strokeStyle = color || '#000';
+        ctx.lineWidth = width || 2;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function drawDot(x, y, r, color) {
+        ctx.save();
+        ctx.fillStyle = color || '#000';
+        ctx.beginPath();
+        ctx.arc(x, y, r || 4, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function drawLabel(text, x, y, color, fontSize, align, baseline) {
+        ctx.save();
+        ctx.fillStyle = color || '#000';
+        ctx.font = (fontSize || 16) + 'px "Microsoft YaHei", sans-serif';
+        ctx.textAlign = align || 'center';
+        ctx.textBaseline = baseline || 'middle';
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
+    // 绘制四面体基础结构
+    function drawTetrahedron() {
+        // 虚线棱（被遮挡）：BD、CD
+        drawDashedLine(B.x, B.y, D.x, D.y, '#888', 2, [6, 4]);
+        drawDashedLine(C.x, C.y, D.x, D.y, '#888', 2, [6, 4]);
+
+        // 实线棱：AB、AC、AD、BC
+        drawSolidLine(A.x, A.y, B.x, B.y, '#000', 2);
+        drawSolidLine(A.x, A.y, C.x, C.y, '#000', 2);
+        drawSolidLine(A.x, A.y, D.x, D.y, '#000', 2);
+        drawSolidLine(B.x, B.y, C.x, C.y, '#000', 2);
+
+        // 顶点标签
+        drawLabel('A', A.x, A.y - 18, '#000', 18);
+        drawLabel('B', B.x - 22, B.y, '#000', 18);
+        drawLabel('C', C.x, C.y + 20, '#000', 18);
+        drawLabel('D', D.x + 22, D.y, '#000', 18);
+    }
+
+    // 绘制中点E、F和EF连线
+    function drawMidpoints() {
+        // EF虚线
+        drawDashedLine(E.x, E.y, F.x, F.y, '#888', 1.5, [4, 3]);
+        // 中点
+        drawDot(E.x, E.y, 3, '#1565c0');
+        drawDot(F.x, F.y, 3, '#1565c0');
+        // 标签
+        drawLabel('E', E.x - 18, E.y - 10, '#1565c0', 16);
+        drawLabel('F', F.x + 18, F.y + 14, '#1565c0', 16);
+    }
+
+    // 绘制平面α和交点
+    function drawPlaneAlpha(G, H, step) {
+        if (!G || !H) return;
+
+        // 步骤3：H在AD延长线上，先画AD延长线
+        if (step === 3) {
+            // AD延长线（从D向外延伸到H）
+            drawDashedLine(D.x, D.y, H.x, H.y, '#c62828', 1.5, [4, 3]);
+        }
+
+        // 平面α填充（四边形EGFH）
+        ctx.save();
+        ctx.fillStyle = 'rgba(21, 101, 192, 0.12)';
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(E.x, E.y);
+        ctx.lineTo(G.x, G.y);
+        ctx.lineTo(F.x, F.y);
+        ctx.lineTo(H.x, H.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // △EFG填充
+        ctx.save();
+        ctx.fillStyle = 'rgba(21, 101, 192, 0.18)';
+        ctx.beginPath();
+        ctx.moveTo(E.x, E.y);
+        ctx.lineTo(F.x, F.y);
+        ctx.lineTo(G.x, G.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // △EFH填充
+        ctx.save();
+        ctx.fillStyle = 'rgba(46, 125, 50, 0.18)';
+        ctx.beginPath();
+        ctx.moveTo(E.x, E.y);
+        ctx.lineTo(F.x, F.y);
+        ctx.lineTo(H.x, H.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // 四边形EGFH边界
+        drawSolidLine(E.x, E.y, G.x, G.y, '#1565c0', 2);
+        drawSolidLine(G.x, G.y, F.x, F.y, '#1565c0', 2);
+        drawSolidLine(F.x, F.y, H.x, H.y, '#1565c0', 2);
+        drawSolidLine(H.x, H.y, E.x, E.y, '#1565c0', 2);
+
+        // 交点G、H
+        var hColor = (step === 3) ? '#c62828' : '#000';
+        drawDot(G.x, G.y, 4, '#000');
+        drawDot(H.x, H.y, 4, hColor);
+
+        // 标签G、H
+        drawLabel('G', G.x - 18, G.y + 16, '#000', 16);
+        drawLabel('H', H.x + 18, H.y - 10, hColor, 16);
+
+        // 平面标签α
+        var alphaX = (E.x + G.x + F.x + H.x) / 4;
+        var alphaY = (E.y + G.y + F.y + H.y) / 4;
+        drawLabel('α', alphaX + 15, alphaY, '#1565c0', 16);
+
+        // 面积标签 - 显示相等关系，用归一化值
+        var areaEFG = triArea(E, F, G);
+        var areaEFH = triArea(E, F, H);
+        // 归一化：除以1000取整，使数值更简洁
+        var areaNorm = Math.round(Math.max(areaEFG, areaEFH) / 1000);
+
+        // S△EFG 标签位置（三角形EFG重心附近偏移）
+        var efgCx = (E.x + F.x + G.x) / 3;
+        var efgCy = (E.y + F.y + G.y) / 3;
+        drawLabel('S△EFG = ' + areaNorm, efgCx - 25, efgCy + 18, '#000', 13);
+
+        // S△EFH 标签位置（三角形EFH重心附近偏移）
+        var efhCx = (E.x + F.x + H.x) / 3;
+        var efhCy = (E.y + F.y + H.y) / 3;
+        drawLabel('S△EFH = ' + areaNorm, efhCx + 25, efhCy - 12, '#000', 13);
+    }
+
+    // 步骤2特殊标注
+    function drawStep2Annotations(G, H) {
+        if (!G || !H) return;
+
+        // GF、EH加粗高亮
+        drawSolidLine(G.x, G.y, F.x, F.y, '#1565c0', 3);
+        drawSolidLine(E.x, E.y, H.x, H.y, '#1565c0', 3);
+        // BD加粗高亮
+        drawDashedLine(B.x, B.y, D.x, D.y, '#c62828', 3, [6, 4]);
+
+        // 平行标注
+        drawLabel('GF ∥ EH ∥ BD', 400, 115, '#c62828', 15);
+
+        // "GF与EH不相交"
+        drawLabel('GF与EH不相交', 400, 138, '#c62828', 13);
+    }
+
+    // ===== 主绘制 =====
+    function draw() {
+        ctx.clearRect(0, 0, 800, 500);
+
+        // 1. 四面体基础
+        drawTetrahedron();
+
+        // 2. 中点E、F
+        drawMidpoints();
+
+        // 3. 平面α和交点（步骤1-3）
+        if (currentStep >= 1) {
+            drawPlaneAlpha(renderG, renderH, currentStep);
+        }
+
+        // 4. 步骤2特殊标注
+        if (currentStep === 2) {
+            drawStep2Annotations(renderG, renderH);
+        }
+    }
+
+    // ===== 步骤切换 =====
+    function goToStep(target) {
+        if (animating) return;
+        if (target < 0 || target > 3) return;
+
+        var prev = currentStep;
+        currentStep = target;
+
+        // 更新按钮状态
+        prevBtn.disabled = (currentStep === 0);
+        nextBtn.disabled = (currentStep === 3);
+        stepInfo.textContent = steps[currentStep].info;
+
+        // 确定动画起点和终点
+        var fromGPos = (prev === 0) ? null : (renderG || steps[prev].G);
+        var fromHPos = (prev === 0) ? null : (renderH || steps[prev].H);
+        var toGPos = steps[currentStep].G;
+        var toHPos = steps[currentStep].H;
+
+        if (currentStep === 0) {
+            renderG = null;
+            renderH = null;
+            draw();
+            return;
+        }
+
+        // 如果有起点和终点，做动画
+        if (fromGPos && toGPos && fromHPos && toHPos) {
+            animating = true;
+            animStart = performance.now();
+            fromG = fromGPos;
+            fromH = fromHPos;
+            toG = toGPos;
+            toH = toHPos;
+            requestAnimationFrame(animLoop);
+        } else {
+            renderG = toGPos;
+            renderH = toHPos;
+            draw();
+        }
+    }
+
+    function animLoop(now) {
+        var elapsed = now - animStart;
+        var t = Math.min(elapsed / animDuration, 1);
+        var et = easeInOut(t);
+
+        renderG = lerp(fromG, toG, et);
+        renderH = lerp(fromH, toH, et);
+        draw();
+
+        if (t < 1) {
+            requestAnimationFrame(animLoop);
+        } else {
+            animating = false;
+            renderG = toG;
+            renderH = toH;
+            draw();
+        }
+    }
+
+    // ===== 事件绑定 =====
+    prevBtn.addEventListener('click', function() {
+        goToStep(currentStep - 1);
+    });
+    nextBtn.addEventListener('click', function() {
+        goToStep(currentStep + 1);
+    });
+
+    // ===== 初始化 =====
+    stepInfo.textContent = steps[0].info;
+    draw();
+
+    })();
+    </script>
+</body>
+</html>

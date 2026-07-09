@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>溶解度曲线与关键点分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 10; }
+        .scene1-btn { padding: 8px 20px; font-size: 14px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn:hover { background: #1565c0; }
+        .scene1-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene1-step-text { font-size: 14px; color: #333; max-width: 380px; text-align: center; }
+        svg { display: block; }
+        .scene1-axis { stroke: #000; stroke-width: 2; }
+        .scene1-curve { stroke: #1565c0; stroke-width: 3; fill: none; }
+        .scene1-point { fill: #2e7d32; }
+        .scene1-point-unsat { fill: #c62828; }
+        .scene1-projection { stroke: #888888; stroke-width: 1; stroke-dasharray: 5,5; }
+        .scene1-label { font-size: 14px; fill: #000; }
+        .scene1-status { font-size: 13px; fill: #333; }
+        .scene1-arrow { stroke: #ff9800; stroke-width: 2; fill: none; marker-end: url(#scene1-arrowhead); }
+        .scene1-arrow-text { font-size: 12px; fill: #ff9800; font-weight: bold; }
+        .scene1-hidden { display: none; opacity: 0; }
+        .scene1-visible { display: block; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#ff9800" />
+                </marker>
+                <marker id="scene1-axis-arrow-x" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000" />
+                </marker>
+                <marker id="scene1-axis-arrow-y" markerWidth="10" markerHeight="10" refX="3" refY="9" orient="auto">
+                    <path d="M0,0 L6,0 L3,9 z" fill="#000" />
+                </marker>
+            </defs>
+
+            <!-- 坐标轴 -->
+            <line class="scene1-axis" x1="100" y1="420" x2="720" y2="420" marker-end="url(#scene1-axis-arrow-x)" />
+            <line class="scene1-axis" x1="100" y1="420" x2="100" y2="80" marker-end="url(#scene1-axis-arrow-y)" />
+
+            <!-- 轴标签 -->
+            <text class="scene1-label" x="680" y="450">温度（℃）</text>
+            <text class="scene1-label" x="50" y="250" transform="rotate(-90, 50, 250)">溶解度（克）</text>
+
+            <!-- 刻度标签 -->
+            <text class="scene1-label" x="220" y="435" text-anchor="middle">t₁</text>
+            <text class="scene1-label" x="400" y="435" text-anchor="middle">t₂</text>
+            <text class="scene1-label" x="580" y="435" text-anchor="middle">t₃</text>
+            <text class="scene1-label" x="85" y="305" text-anchor="end">S₁</text>
+            <text class="scene1-label" x="85" y="205" text-anchor="end">S₂</text>
+
+            <!-- 溶解度曲线 - 向左移动，避免与右侧标签重叠 -->
+            <path class="scene1-curve" d="M 100,380 Q 300,280 500,150" />
+
+            <!-- (t₁,S₁) 点及其投影线 -->
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-t1S1-h" x1="100" y1="300" x2="220" y2="300" />
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-t1S1-v" x1="220" y1="300" x2="220" y2="420" />
+            <circle class="scene1-point scene1-hidden" id="scene1-point-t1S1" cx="220" cy="300" r="6" />
+            <text class="scene1-label scene1-hidden" id="scene1-label-t1S1" x="190" y="280">(t₁,S₁)</text>
+
+            <!-- A 点及其投影线 - 调整位置到曲线左侧 -->
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-A-h" x1="100" y1="200" x2="320" y2="200" />
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-A-v" x1="320" y1="200" x2="320" y2="420" />
+            <circle class="scene1-point scene1-hidden" id="scene1-point-A" cx="320" cy="200" r="6" />
+            <text class="scene1-label scene1-hidden" id="scene1-label-A" x="295" y="195">A</text>
+            <text class="scene1-status scene1-hidden" id="scene1-status-A" x="295" y="160">饱和溶液</text>
+
+            <!-- M 点及其投影线 - 调整位置 -->
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-M-h" x1="100" y1="300" x2="320" y2="300" />
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-M-v" x1="320" y1="300" x2="320" y2="420" />
+            <circle class="scene1-point-unsat scene1-hidden" id="scene1-point-M" cx="320" cy="300" r="6" />
+            <text class="scene1-label scene1-hidden" id="scene1-label-M" x="295" y="315">M</text>
+            <text class="scene1-status scene1-hidden" id="scene1-status-M" x="295" y="340">不饱和溶液</text>
+
+            <!-- B 点及其投影线 - 调整位置到曲线右侧 -->
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-B-h" x1="100" y1="300" x2="500" y2="300" />
+            <line class="scene1-projection scene1-hidden" id="scene1-proj-B-v" x1="500" y1="300" x2="500" y2="420" />
+            <circle class="scene1-point-unsat scene1-hidden" id="scene1-point-B" cx="500" cy="300" r="6" />
+            <text class="scene1-label scene1-hidden" id="scene1-label-B" x="515" y="295">B</text>
+            <text class="scene1-status scene1-hidden" id="scene1-status-B" x="515" y="260">不饱和溶液</text>
+
+            <!-- 移动轨迹箭头（步骤 4-6） -->
+            <path class="scene1-arrow scene1-hidden" id="scene1-arrow-A-move" d="M 320,200 L 350,200" />
+            <path class="scene1-arrow scene1-hidden" id="scene1-arrow-B-move" d="M 500,300 L 530,300" />
+            <path class="scene1-arrow scene1-hidden" id="scene1-arrow-A-cool" d="M 320,200 Q 270,250 220,300" />
+            <path class="scene1-arrow scene1-hidden" id="scene1-arrow-M-up" d="M 320,300 L 320,200" />
+            <path class="scene1-arrow scene1-hidden" id="scene1-arrow-M-left" d="M 320,300 L 220,300" />
+
+            <!-- 移动标注文字 -->
+            <text class="scene1-arrow-text scene1-hidden" id="scene1-arrow-text-addwater" x="355" y="175">加水→</text>
+            <text class="scene1-arrow-text scene1-hidden" id="scene1-arrow-text-cool" x="250" y="260">降温→</text>
+            <text class="scene1-arrow-text scene1-hidden" id="scene1-arrow-text-m-method" x="330" y="240">加溶质/降温</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button class="scene1-btn" id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-text">溶解度曲线图——观察曲线形状和坐标轴含义</span>
+            <button class="scene1-btn" id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const sceneId = 'scene1';
+        const totalSteps = 7;
+        let currentStep = 0;
+
+        const stepDescriptions = [
+            '溶解度曲线图——观察曲线形状和坐标轴含义',
+            'A 点 (t₂,S₂) 在曲线上，表示 t₂℃时的饱和溶液，每 100g 溶剂溶解 S₂g 溶质',
+            'B 点 (t₃,S₁) 在曲线下方，表示 t₃℃时的不饱和溶液，实际溶解量 S₁小于该温度下的溶解度',
+            'M 点 (t₂,S₁) 与 A 点同温度、与 B 点同溶解度；(t₁,S₁) 点在曲线上，是 t₁℃时的饱和溶液',
+            '温度不变时加水，溶解度不变（点沿水平方向移动），溶液变稀，溶质质量分数减小',
+            '降温时 A 点沿曲线移动，溶解度减小，有晶体析出，剩余溶液仍为饱和溶液，溶质质量分数不变',
+            'M 点变为饱和溶液的方法：①加溶质至曲线（垂直向上）②降温至 t₁℃（水平向左至曲线）'
+        ];
+
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        function hideAllElements() {
+            const elements = [
+                'scene1-proj-t1S1-h', 'scene1-proj-t1S1-v', 'scene1-point-t1S1', 'scene1-label-t1S1',
+                'scene1-proj-A-h', 'scene1-proj-A-v', 'scene1-point-A', 'scene1-label-A', 'scene1-status-A',
+                'scene1-proj-M-h', 'scene1-proj-M-v', 'scene1-point-M', 'scene1-label-M', 'scene1-status-M',
+                'scene1-proj-B-h', 'scene1-proj-B-v', 'scene1-point-B', 'scene1-label-B', 'scene1-status-B',
+                'scene1-arrow-A-move', 'scene1-arrow-B-move', 'scene1-arrow-A-cool',
+                'scene1-arrow-M-up', 'scene1-arrow-M-left',
+                'scene1-arrow-text-addwater', 'scene1-arrow-text-cool', 'scene1-arrow-text-m-method'
+            ];
+            elements.forEach(hideElement);
+        }
+
+        function updateStep() {
+            hideAllElements();
+
+            switch(currentStep) {
+                case 0:
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[0];
+                    break;
+
+                case 1:
+                    showElement('scene1-proj-A-h');
+                    showElement('scene1-proj-A-v');
+                    showElement('scene1-point-A');
+                    showElement('scene1-label-A');
+                    showElement('scene1-status-A');
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[1];
+                    break;
+
+                case 2:
+                    showElement('scene1-proj-A-h');
+                    showElement('scene1-proj-A-v');
+                    showElement('scene1-point-A');
+                    showElement('scene1-label-A');
+                    showElement('scene1-status-A');
+                    showElement('scene1-proj-B-h');
+                    showElement('scene1-proj-B-v');
+                    showElement('scene1-point-B');
+                    showElement('scene1-label-B');
+                    showElement('scene1-status-B');
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[2];
+                    break;
+
+                case 3:
+                    showElement('scene1-proj-A-h');
+                    showElement('scene1-proj-A-v');
+                    showElement('scene1-point-A');
+                    showElement('scene1-label-A');
+                    showElement('scene1-status-A');
+                    showElement('scene1-proj-B-h');
+                    showElement('scene1-proj-B-v');
+                    showElement('scene1-point-B');
+                    showElement('scene1-label-B');
+                    showElement('scene1-status-B');
+                    showElement('scene1-proj-M-h');
+                    showElement('scene1-proj-M-v');
+                    showElement('scene1-point-M');
+                    showElement('scene1-label-M');
+                    showElement('scene1-status-M');
+                    showElement('scene1-proj-t1S1-h');
+                    showElement('scene1-proj-t1S1-v');
+                    showElement('scene1-point-t1S1');
+                    showElement('scene1-label-t1S1');
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[3];
+                    break;
+
+                case 4:
+                    showElement('scene1-proj-A-h');
+                    showElement('scene1-proj-A-v');
+                    showElement('scene1-point-A');
+                    showElement('scene1-label-A');
+                    showElement('scene1-status-A');
+                    showElement('scene1-proj-B-h');
+                    showElement('scene1-proj-B-v');
+                    showElement('scene1-point-B');
+                    showElement('scene1-label-B');
+                    showElement('scene1-status-B');
+                    showElement('scene1-arrow-A-move');
+                    showElement('scene1-arrow-B-move');
+                    showElement('scene1-arrow-text-addwater');
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[4];
+                    break;
+
+                case 5:
+                    showElement('scene1-proj-A-h');
+                    showElement('scene1-proj-A-v');
+                    showElement('scene1-point-A');
+                    showElement('scene1-label-A');
+                    showElement('scene1-status-A');
+                    showElement('scene1-proj-t1S1-h');
+                    showElement('scene1-proj-t1S1-v');
+                    showElement('scene1-point-t1S1');
+                    showElement('scene1-label-t1S1');
+                    showElement('scene1-arrow-A-cool');
+                    showElement('scene1-arrow-text-cool');
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[5];
+                    break;
+
+                case 6:
+                    showElement('scene1-proj-M-h');
+                    showElement('scene1-proj-M-v');
+                    showElement('scene1-point-M');
+                    showElement('scene1-label-M');
+                    showElement('scene1-status-M');
+                    showElement('scene1-proj-t1S1-h');
+                    showElement('scene1-proj-t1S1-v');
+                    showElement('scene1-point-t1S1');
+                    showElement('scene1-label-t1S1');
+                    showElement('scene1-arrow-M-up');
+                    showElement('scene1-arrow-M-left');
+                    showElement('scene1-arrow-text-m-method');
+                    document.getElementById('scene1-step-text').textContent = stepDescriptions[6];
+                    break;
+            }
+
+            document.getElementById('scene1-prev-btn').disabled = (currentStep === 0);
+            document.getElementById('scene1-next-btn').disabled = (currentStep === totalSteps - 1);
+        }
+
+        document.getElementById('scene1-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        document.getElementById('scene1-next-btn').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

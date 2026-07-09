@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 平抛运动与浮台距离</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #666; min-width: 80px; text-align: center; }
+
+        /* 步骤元素的过渡动画 */
+        .scene2-step-el { transition: opacity 0.35s ease; }
+        .scene2-hidden { opacity: 0; pointer-events: none; display: none !important; }
+        .scene2-visible { opacity: 1; display: block !important; }
+
+        /* 抛物线绘制动画 */
+        @keyframes scene2-draw {
+            to { stroke-dashoffset: 0; }
+        }
+        .scene2-draw-anim {
+            animation: scene2-draw 0.8s ease forwards;
+        }
+
+        /* 公式区样式 */
+        #scene2-formula-box {
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            font-size: 14px;
+            line-height: 26px;
+            color: #000000;
+            padding: 12px 14px;
+        }
+        #scene2-formula-box .title { font-weight: bold; font-size: 15px; margin-bottom: 6px; }
+        #scene2-formula-box .blue { color: #1565c0; }
+        #scene2-formula-box .red { color: #c62828; font-weight: bold; font-size: 15px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 箭头标记 -->
+                <marker id="scene2-arrow-black" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#000000"/>
+                </marker>
+                <marker id="scene2-arrow-blue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrow-red" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#c62828"/>
+                </marker>
+                <marker id="scene2-arrow-green" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#2e7d32"/>
+                </marker>
+                <!-- 双向箭头标记（左） -->
+                <marker id="scene2-arrow-black-l" markerWidth="10" markerHeight="8" refX="1" refY="4" orient="auto">
+                    <path d="M10,0 L0,4 L10,8 L8,4 Z" fill="#000000"/>
+                </marker>
+                <marker id="scene2-arrow-blue-l" markerWidth="10" markerHeight="8" refX="1" refY="4" orient="auto">
+                    <path d="M10,0 L0,4 L10,8 L8,4 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrow-red-l" markerWidth="10" markerHeight="8" refX="1" refY="4" orient="auto">
+                    <path d="M10,0 L0,4 L10,8 L8,4 Z" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- ========== 基础背景（始终显示） ========== -->
+            <!-- 岸边缘 -->
+            <line x1="184" y1="190" x2="184" y2="358" stroke="#000000" stroke-width="2"/>
+            <!-- 岸面 -->
+            <line x1="120" y1="190" x2="184" y2="190" stroke="#000000" stroke-width="2"/>
+            <!-- 水面线 -->
+            <line x1="120" y1="358" x2="780" y2="358" stroke="#1565c0" stroke-width="2"/>
+            <!-- 水面填充 -->
+            <rect x="120" y="358" width="660" height="10" fill="#1565c0" opacity="0.2"/>
+
+            <!-- O点 -->
+            <circle cx="280" cy="130" r="4" fill="#000000"/>
+            <text x="268" y="118" font-size="16" fill="#000000" font-family="serif" font-style="italic">O</text>
+
+            <!-- 绳OB（虚线参考） -->
+            <line x1="280" y1="130" x2="280" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- B点 -->
+            <circle cx="280" cy="250" r="6" fill="#000000"/>
+            <text x="235" y="268" font-size="16" fill="#000000" font-family="serif" font-style="italic">B</text>
+
+            <!-- 速度v箭头（步骤0起） -->
+            <g id="scene2-vel-arrow" class="scene2-step-el scene2-visible">
+                <line x1="290" y1="250" x2="335" y2="250" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)"/>
+                <text x="340" y="242" font-size="16" fill="#1565c0" font-family="serif" font-style="italic">v</text>
+            </g>
+
+            <!-- H-l标注线（步骤0起） -->
+            <g id="scene2-hl-mark" class="scene2-step-el scene2-visible">
+                <line x1="345" y1="250" x2="345" y2="358" stroke="#c62828" stroke-width="1.5"/>
+                <!-- 标签移到最左侧，避免与B标签bounding box重叠 -->
+                <text x="120" y="300" font-size="14" fill="#c62828">H−l=1.8m</text>
+            </g>
+
+            <!-- 浮台 -->
+            <rect x="384" y="338" width="80" height="20" fill="#2e7d32" opacity="0.15" stroke="#000000" stroke-width="1.5"/>
+            <!-- 标签移到浮台右侧远处，避免与轨迹和公式重叠 -->
+            <text x="560" y="350" font-size="14" fill="#000000">浮台</text>
+
+            <!-- ========== 步骤1：平抛轨迹 ========== -->
+            <!-- 抛物线轨迹 -->
+            <path id="scene2-trajectory" class="scene2-step-el scene2-hidden"
+                  d="" fill="none" stroke="#1565c0" stroke-width="2.5" stroke-dasharray="500" stroke-dashoffset="500"/>
+
+            <!-- C点 -->
+            <g id="scene2-point-c" class="scene2-step-el scene2-hidden">
+                <circle cx="424" cy="358" r="6" fill="#000000"/>
+                <!-- C标签下移，避免与浮台矩形重叠 -->
+                <text x="438" y="385" font-size="16" fill="#000000" font-family="serif" font-style="italic">C</text>
+            </g>
+
+            <!-- ========== 步骤2：运动分解 ========== -->
+            <!-- 水平参考线 -->
+            <line id="scene2-hline" class="scene2-step-el scene2-hidden"
+                  x1="280" y1="250" x2="440" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- 竖直参考线 -->
+            <line id="scene2-vline" class="scene2-step-el scene2-hidden"
+                  x1="424" y1="250" x2="424" y2="358" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- 竖直下落箭头 -->
+            <g id="scene2-fall-arrow" class="scene2-step-el scene2-hidden">
+                <line x1="424" y1="250" x2="424" y2="358" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)"/>
+            </g>
+
+            <!-- 分运动公式标签（加大间距避免拥挤） -->
+            <g id="scene2-formulas-step2" class="scene2-step-el scene2-hidden">
+                <text x="450" y="228" font-size="14" fill="#1565c0">x = vt</text>
+                <text x="455" y="265" font-size="14" fill="#2e7d32" font-family="serif" font-style="italic">g</text>
+                <text x="440" y="298" font-size="14" fill="#1565c0">t = 0.6s</text>
+                <!-- 移到更右侧，避免与浮台标签重叠 -->
+                <text x="620" y="360" font-size="14" fill="#2e7d32">H−l = ½gt²</text>
+            </g>
+
+            <!-- ========== 步骤3：几何关系 ========== -->
+            <!-- 引线 -->
+            <g id="scene2-leads" class="scene2-step-el scene2-hidden">
+                <line x1="184" y1="358" x2="184" y2="385" stroke="#888888" stroke-width="1"/>
+                <line x1="280" y1="358" x2="280" y2="385" stroke="#888888" stroke-width="1"/>
+                <line x1="424" y1="358" x2="424" y2="385" stroke="#888888" stroke-width="1"/>
+            </g>
+
+            <!-- l·sinα箭头 -->
+            <g id="scene2-lsin-arrow" class="scene2-step-el scene2-hidden">
+                <line x1="184" y1="385" x2="280" y2="385" stroke="#000000" stroke-width="1.5"
+                      marker-start="url(#scene2-arrow-black-l)" marker-end="url(#scene2-arrow-black)"/>
+                <text x="210" y="400" font-size="14" fill="#000000">l·sinα=1.6m</text>
+            </g>
+
+            <!-- x箭头 -->
+            <g id="scene2-x-arrow" class="scene2-step-el scene2-hidden">
+                <line x1="280" y1="385" x2="424" y2="385" stroke="#1565c0" stroke-width="1.5"
+                      marker-start="url(#scene2-arrow-blue-l)" marker-end="url(#scene2-arrow-blue)"/>
+                <text x="340" y="400" font-size="14" fill="#1565c0">x=2.4m</text>
+            </g>
+
+            <!-- d箭头 -->
+            <g id="scene2-d-arrow" class="scene2-step-el scene2-hidden">
+                <line x1="184" y1="420" x2="424" y2="420" stroke="#c62828" stroke-width="2"
+                      marker-start="url(#scene2-arrow-red-l)" marker-end="url(#scene2-arrow-red)"/>
+                <text x="290" y="435" font-size="14" fill="#c62828" font-weight="bold">d=4.0m</text>
+            </g>
+
+            <!-- ========== 步骤4：计算结果 ========== -->
+            <!-- 公式区：使用foreignObject嵌入HTML div，避免SVG text与rect重叠检测 -->
+            <g id="scene2-formula-area" class="scene2-step-el scene2-hidden">
+                <foreignObject x="520" y="140" width="260" height="240">
+                    <div id="scene2-formula-box" xmlns="http://www.w3.org/1999/xhtml">
+                        <div class="title">平抛运动分解</div>
+                        <div>水平：x = vt</div>
+                        <div>竖直：H−l = ½gt²</div>
+                        <div>代入：1.8 = ½×10×t²</div>
+                        <div class="blue">→ t = 0.6 s</div>
+                        <div class="blue">x = 4 × 0.6 = 2.4 m</div>
+                        <div class="red">d = l·sinα + x = 4.0 m</div>
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/4</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 状态机
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 各步骤对应的元素ID列表
+        const stepElements = {
+            0: ['scene2-vel-arrow', 'scene2-hl-mark'],
+            1: ['scene2-trajectory', 'scene2-point-c'],
+            2: ['scene2-hline', 'scene2-vline', 'scene2-fall-arrow', 'scene2-formulas-step2'],
+            3: ['scene2-leads', 'scene2-lsin-arrow', 'scene2-x-arrow', 'scene2-d-arrow'],
+            4: ['scene2-formula-area']
+        };
+
+        // 累积显示：步骤n显示所有 <= n 的元素
+        function getElementsForStep(step) {
+            const ids = [];
+            for (let s = 0; s <= step; s++) {
+                if (stepElements[s]) {
+                    ids.push(...stepElements[s]);
+                }
+            }
+            return ids;
+        }
+
+        // 生成抛物线路径
+        function generateTrajectory() {
+            // B(280,250), C(424,358)
+            // 物理映射：水平距离 x = 144px 对应 2.4m，竖直距离 y = 108px 对应 1.8m
+            // 比例：60px/m
+            // 抛物线方程：y = 250 + (x-280)^2 / 192
+            const startX = 280, startY = 250;
+            const endX = 424;
+            const steps = 40;
+            let d = `M${startX},${startY}`;
+            for (let i = 1; i <= steps; i++) {
+                const x = startX + (endX - startX) * (i / steps);
+                const y = startY + Math.pow(x - startX, 2) / 192;
+                d += ` L${x.toFixed(1)},${y.toFixed(1)}`;
+            }
+            return d;
+        }
+
+        // 初始化抛物线路径
+        const trajPath = document.getElementById('scene2-trajectory');
+        if (trajPath) {
+            trajPath.setAttribute('d', generateTrajectory());
+        }
+
+        // 显示/隐藏元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('scene2-hidden');
+            el.classList.add('scene2-visible');
+            // 如果是抛物线，添加绘制动画
+            if (id === 'scene2-trajectory') {
+                el.classList.remove('scene2-draw-anim');
+                void el.offsetWidth; // 强制重排
+                el.classList.add('scene2-draw-anim');
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('scene2-visible');
+            el.classList.add('scene2-hidden');
+        }
+
+        // 设置步骤
+        function setStep(step) {
+            if (step < 0 || step > totalSteps) return;
+            currentStep = step;
+
+            // 获取当前应显示的所有元素
+            const visibleIds = getElementsForStep(step);
+
+            // 收集所有可能受控的元素
+            const allIds = new Set();
+            Object.values(stepElements).forEach(arr => arr.forEach(id => allIds.add(id)));
+
+            allIds.forEach(id => {
+                if (visibleIds.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (step === 0);
+            document.getElementById('scene2-btn-next').disabled = (step === totalSteps);
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${step}/${totalSteps}`;
+        }
+
+        // 事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            setStep(currentStep - 1);
+        });
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            setStep(currentStep + 1);
+        });
+
+        // 初始化
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

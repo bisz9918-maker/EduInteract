@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>长方形剪切正方形演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { position: absolute; bottom: 15px; right: 20px; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 尺寸线-宽（左侧虚线） -->
+            <line id="scene1-dim-width" x1="210" y1="130" x2="210" y2="370" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 尺寸线-长（下方虚线） -->
+            <line id="scene1-dim-length" x1="220" y1="385" x2="580" y2="385" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 尺寸线-正方形（右侧虚线） -->
+            <line id="scene1-dim-square" x1="590" y1="190" x2="590" y2="310" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 原长方形轮廓（黑色 2px） -->
+            <rect id="scene1-rect-original" x="220" y="130" width="360" height="240" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 正方形剪切区（蓝色 30% 透明） -->
+            <rect id="scene1-rect-cut" x="460" y="190" width="120" height="120" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 最终图形轮廓（红色凹槽形状） -->
+            <path id="scene1-path-final" d="M 220 130 L 580 130 L 580 190 L 460 190 L 460 310 L 580 310 L 580 370 L 220 370 Z" fill="none" stroke="#c62828" stroke-width="2" opacity="0"/>
+            
+            <!-- 新增边1（上横，绿色加粗） -->
+            <line id="scene1-edge-top" x1="460" y1="190" x2="580" y2="190" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            
+            <!-- 新增边2（内竖，绿色加粗） -->
+            <line id="scene1-edge-inner" x1="460" y1="190" x2="460" y2="310" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            
+            <!-- 新增边3（下横，绿色加粗） -->
+            <line id="scene1-edge-bottom" x1="460" y1="310" x2="580" y2="310" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            
+            <!-- 标注"4"（左侧） -->
+            <text id="scene1-label-4" x="205" y="250" text-anchor="end" font-size="14" fill="#000000">4</text>
+            
+            <!-- 标注"6"（下方） -->
+            <text id="scene1-label-6" x="400" y="395" text-anchor="middle" font-size="14" fill="#000000">6</text>
+            
+            <!-- 标注"2"（正方形内部） -->
+            <text id="scene1-label-2-inner" x="520" y="245" text-anchor="middle" font-size="14" fill="#000000" opacity="0">2</text>
+            
+            <!-- 标注"2"（正方形右侧） -->
+            <text id="scene1-label-2-right" x="600" y="250" text-anchor="start" font-size="14" fill="#000000" opacity="0">2</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+        
+        <!-- 步骤指示 -->
+        <div id="scene1-step-indicator">步骤 1/4</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：长方形剪切正方形动态演示
+        
+        // 状态管理
+        let currentState = 0;
+        const totalStates = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 各步骤元素
+        const elements = {
+            rectOriginal: document.getElementById('scene1-rect-original'),
+            rectCut: document.getElementById('scene1-rect-cut'),
+            pathFinal: document.getElementById('scene1-path-final'),
+            edgeTop: document.getElementById('scene1-edge-top'),
+            edgeInner: document.getElementById('scene1-edge-inner'),
+            edgeBottom: document.getElementById('scene1-edge-bottom'),
+            label4: document.getElementById('scene1-label-4'),
+            label6: document.getElementById('scene1-label-6'),
+            label2Inner: document.getElementById('scene1-label-2-inner'),
+            label2Right: document.getElementById('scene1-label-2-right'),
+            dimWidth: document.getElementById('scene1-dim-width'),
+            dimLength: document.getElementById('scene1-dim-length'),
+            dimSquare: document.getElementById('scene1-dim-square')
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新视图
+        function updateView() {
+            // 步骤 0：原长方形 + 尺寸标注"6"和"4"+ 灰色虚线尺寸线
+            // 步骤 1：叠加正方形剪切区域 + 正方形边长标注"2"
+            // 步骤 2：正方形渐隐，显示红色最终图形轮廓
+            // 步骤 3：绿色加粗高亮凹槽的三条新增边
+            
+            // 始终显示的元素
+            show(elements.label4);
+            show(elements.label6);
+            show(elements.dimWidth);
+            show(elements.dimLength);
+            
+            if (currentState === 0) {
+                // 步骤 0：只显示原长方形
+                show(elements.rectOriginal);
+                hide(elements.rectCut);
+                hide(elements.pathFinal);
+                hide(elements.edgeTop);
+                hide(elements.edgeInner);
+                hide(elements.edgeBottom);
+                hide(elements.label2Inner);
+                hide(elements.label2Right);
+                hide(elements.dimSquare);
+            } else if (currentState === 1) {
+                // 步骤 1：显示原长方形 + 正方形剪切区
+                show(elements.rectOriginal);
+                show(elements.rectCut);
+                hide(elements.pathFinal);
+                hide(elements.edgeTop);
+                hide(elements.edgeInner);
+                hide(elements.edgeBottom);
+                show(elements.label2Inner);
+                show(elements.label2Right);
+                show(elements.dimSquare);
+            } else if (currentState === 2) {
+                // 步骤 2：正方形渐隐，显示最终图形轮廓
+                hide(elements.rectOriginal);
+                hide(elements.rectCut);
+                show(elements.pathFinal);
+                hide(elements.edgeTop);
+                hide(elements.edgeInner);
+                hide(elements.edgeBottom);
+                show(elements.label2Inner);
+                show(elements.label2Right);
+                show(elements.dimSquare);
+            } else if (currentState === 3) {
+                // 步骤 3：高亮新增边
+                hide(elements.rectOriginal);
+                hide(elements.rectCut);
+                show(elements.pathFinal);
+                show(elements.edgeTop);
+                show(elements.edgeInner);
+                show(elements.edgeBottom);
+                show(elements.label2Inner);
+                show(elements.label2Right);
+                show(elements.dimSquare);
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalStates - 1);
+            
+            // 更新步骤指示
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${totalStates}`;
+        }
+        
+        // 事件处理：上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateView();
+            }
+        });
+        
+        // 事件处理：下一步
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalStates - 1) {
+                currentState++;
+                updateView();
+            }
+        });
+        
+        // 初始化视图
+        updateView();
+    })();
+    </script>
+</body>
+</html>

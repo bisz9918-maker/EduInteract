@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cu-Fe-CuSO₄ 装置电化学行为分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; border: none; border-radius: 4px;
+            background: #1565c0; color: #ffffff; cursor: pointer; min-width: 80px;
+        }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 12px; color: #666666; min-width: 60px; text-align: center; }
+        .scene1-hidden { display: none; }
+    </style>
+</head>
+<body>
+<div id="scene1-container">
+<svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+    <!-- 基础装置（始终显示） -->
+    <!-- 烧杯外轮廓：用4条line代替path，避免bounding box过大导致文字误报重叠 -->
+    <line id="scene1-beaker-top" x1="110" y1="140" x2="410" y2="140" stroke="#000000" stroke-width="2"/>
+    <line id="scene1-beaker-right" x1="410" y1="140" x2="380" y2="360" stroke="#000000" stroke-width="2"/>
+    <line id="scene1-beaker-bottom" x1="380" y1="360" x2="140" y2="360" stroke="#000000" stroke-width="2"/>
+    <line id="scene1-beaker-left" x1="140" y1="360" x2="110" y2="140" stroke="#000000" stroke-width="2"/>
+
+    <!-- 液面线 (150,185)-(370,185) -->
+    <line id="scene1-liquid-line" x1="150" y1="185" x2="370" y2="185" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+    <!-- 溶液填充 -->
+    <path id="scene1-solution" d="M150,185 L370,185 L380,360 L140,360 Z" fill="#1565c0" opacity="0.20"/>
+    <!-- 绿色叠加层（步骤1/3显示） -->
+    <path id="scene1-green-overlay" class="scene1-hidden" d="M150,185 L370,185 L380,360 L140,360 Z" fill="#2e7d32" opacity="0.15"/>
+
+    <!-- Cu电极片 (165,70)-(195,320) -->
+    <rect id="scene1-cu-electrode" x="165" y="70" width="30" height="250" fill="#b87333" stroke="#000000" stroke-width="2"/>
+    <!-- Fe电极片 (325,70)-(355,320) -->
+    <rect id="scene1-fe-electrode" x="325" y="70" width="30" height="250" fill="#666666" stroke="#000000" stroke-width="2"/>
+
+    <!-- 接线柱a 圆心(180,50) r=8 -->
+    <circle id="scene1-terminal-a" cx="180" cy="50" r="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+    <!-- 接线柱b 圆心(340,50) r=8 -->
+    <circle id="scene1-terminal-b" cx="340" cy="50" r="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+
+    <!-- 基础标签 -->
+    <text id="scene1-label-a" x="160" y="55" text-anchor="end" font-size="12" fill="#000000">a</text>
+    <text id="scene1-label-b" x="360" y="55" text-anchor="start" font-size="12" fill="#000000">b</text>
+    <text id="scene1-label-cu" x="145" y="110" text-anchor="end" font-size="14" fill="#000000">Cu</text>
+    <text id="scene1-label-fe" x="370" y="110" text-anchor="start" font-size="14" fill="#000000">Fe</text>
+    <!-- Cu²⁺ 放在液面上方，用箭头指向溶液 -->
+    <text id="scene1-label-cu2" x="230" y="165" text-anchor="middle" font-size="14" fill="#1565c0">Cu²⁺</text>
+    <line x1="230" y1="170" x2="230" y2="180" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrow-blue-down)"/>
+    <!-- SO₄²⁻ 放在烧杯下方，用箭头指向溶液 -->
+    <text id="scene1-label-so4" x="230" y="385" text-anchor="middle" font-size="14" fill="#888888">SO₄²⁻</text>
+    <line x1="230" y1="380" x2="230" y2="370" stroke="#888888" stroke-width="1.5" marker-end="url(#arrow-gray-up)"/>
+
+    <!-- 析出铜层（步骤1/3 Cu侧显示） -->
+    <rect id="scene1-cu-deposit-cu" class="scene1-hidden" x="157" y="185" width="8" height="135" fill="#b87333"/>
+    <!-- 析出铜层（步骤2 Fe侧显示） -->
+    <rect id="scene1-cu-deposit-fe" class="scene1-hidden" x="355" y="185" width="8" height="135" fill="#b87333"/>
+
+    <!-- ========== 步骤1：原电池（导线连接a-b） ========== -->
+    <g id="scene1-step1-group" class="scene1-hidden">
+        <!-- 导线连接a-b y=42 -->
+        <line x1="180" y1="42" x2="340" y2="42" stroke="#000000" stroke-width="2"/>
+        <!-- 电子流向箭头（Fe→Cu，向左）虚线动画 -->
+        <path id="scene1-e-arrow-1" d="M320,58 L200,58" stroke="#c62828" stroke-width="2" stroke-dasharray="8,8" fill="none" marker-end="url(#arrow-red-left)"/>
+        <text x="260" y="54" text-anchor="middle" font-size="12" fill="#c62828">e⁻</text>
+        <!-- 极性标签：放在电极外侧，避免重叠 -->
+        <text x="120" y="130" text-anchor="middle" font-size="14" fill="#c62828">正极(+)</text>
+        <text x="380" y="130" text-anchor="start" font-size="14" fill="#1565c0">负极(−)</text>
+        <!-- Cu²⁺移动箭头 指向Cu -->
+        <line x1="230" y1="230" x2="205" y2="230" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue-left)"/>
+        <!-- SO₄²⁻移动箭头 指向Fe -->
+        <line x1="270" y1="340" x2="320" y2="340" stroke="#888888" stroke-width="2" marker-end="url(#arrow-gray-right)"/>
+    </g>
+
+    <!-- ========== 步骤2：电解池 a正b负 ========== -->
+    <g id="scene1-step2-group" class="scene1-hidden">
+        <!-- 直流电源：用文本表示，避免rect与text重叠 -->
+        <text x="280" y="35" text-anchor="middle" font-size="14" fill="#000000">DC</text>
+        <text x="330" y="35" text-anchor="start" font-size="12" fill="#c62828">+</text>
+        <text x="230" y="35" text-anchor="end" font-size="12" fill="#1565c0">−</text>
+        <!-- 导线(+)→a: (320,30)→(320,5)→(180,5)→(180,50) -->
+        <polyline points="320,30 320,5 180,5 180,50" stroke="#000000" stroke-width="2" fill="none"/>
+        <!-- 导线(−)→b: (240,30)→(240,65)→(340,65)→(340,50) -->
+        <polyline points="240,30 240,65 340,65 340,50" stroke="#000000" stroke-width="2" fill="none"/>
+        <!-- 电子箭头 Cu→电源正极 y=5 向右 -->
+        <path id="scene1-e-arrow-2a" d="M190,5 L310,5" stroke="#c62828" stroke-width="2" stroke-dasharray="8,8" fill="none" marker-end="url(#arrow-red-right)"/>
+        <!-- 电子箭头 电源负极→Fe y=65 向右 -->
+        <path id="scene1-e-arrow-2b" d="M250,65 L330,65" stroke="#c62828" stroke-width="2" stroke-dasharray="8,8" fill="none" marker-end="url(#arrow-red-right)"/>
+        <!-- 极性标签：放在电极外侧 -->
+        <text x="120" y="130" text-anchor="middle" font-size="14" fill="#c62828">阳极</text>
+        <text x="380" y="130" text-anchor="start" font-size="14" fill="#1565c0">阴极</text>
+        <text x="380" y="165" text-anchor="start" font-size="12" fill="#1565c0">被保护</text>
+        <!-- Cu²⁺移动箭头 指向Fe -->
+        <line x1="270" y1="230" x2="320" y2="230" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue-right)"/>
+        <!-- SO₄²⁻移动箭头 指向Cu -->
+        <line x1="230" y1="340" x2="205" y2="340" stroke="#888888" stroke-width="2" marker-end="url(#arrow-gray-left)"/>
+    </g>
+
+    <!-- ========== 步骤3：电解池 b正a负 ========== -->
+    <g id="scene1-step3-group" class="scene1-hidden">
+        <!-- 直流电源：用文本表示 -->
+        <text x="280" y="35" text-anchor="middle" font-size="14" fill="#000000">DC</text>
+        <text x="330" y="35" text-anchor="start" font-size="12" fill="#c62828">+</text>
+        <text x="230" y="35" text-anchor="end" font-size="12" fill="#1565c0">−</text>
+        <!-- 导线(+)→b: (320,30)→(320,65)→(340,65)→(340,50) -->
+        <polyline points="320,30 320,65 340,65 340,50" stroke="#000000" stroke-width="2" fill="none"/>
+        <!-- 导线(−)→a: (240,30)→(240,5)→(180,5)→(180,50) -->
+        <polyline points="240,30 240,5 180,5 180,50" stroke="#000000" stroke-width="2" fill="none"/>
+        <!-- 电子箭头 Fe→电源正极 y=65 向左 -->
+        <path id="scene1-e-arrow-3a" d="M330,65 L250,65" stroke="#c62828" stroke-width="2" stroke-dasharray="8,8" fill="none" marker-end="url(#arrow-red-left)"/>
+        <!-- 电子箭头 电源负极→Cu y=5 向左 -->
+        <path id="scene1-e-arrow-3b" d="M230,5 L190,5" stroke="#c62828" stroke-width="2" stroke-dasharray="8,8" fill="none" marker-end="url(#arrow-red-left)"/>
+        <!-- 极性标签：放在电极外侧 -->
+        <text x="380" y="130" text-anchor="start" font-size="14" fill="#c62828">阳极</text>
+        <text x="120" y="130" text-anchor="middle" font-size="14" fill="#1565c0">阴极</text>
+        <!-- Cu²⁺移动箭头 指向Cu -->
+        <line x1="230" y1="230" x2="205" y2="230" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue-left)"/>
+        <!-- SO₄²⁻移动箭头 指向Fe -->
+        <line x1="270" y1="340" x2="320" y2="340" stroke="#888888" stroke-width="2" marker-end="url(#arrow-gray-right)"/>
+    </g>
+
+    <!-- ========== 右侧反应式面板（步骤0-3）：纯文本，无背景rect ========== -->
+    <g id="scene1-rxn-panel" class="scene1-hidden">
+        <!-- 仅保留边框线，不填充 -->
+        <rect x="500" y="80" width="270" height="320" fill="none" stroke="#cccccc" stroke-width="1"/>
+    </g>
+
+    <!-- 步骤0 右侧标题 -->
+    <g id="scene1-step0-rxn" class="scene1-hidden">
+        <text x="510" y="115" font-size="14" fill="#000000">装置组成</text>
+        <text x="510" y="160" font-size="12" fill="#666666">Cu电极、Fe电极</text>
+        <text x="510" y="200" font-size="12" fill="#666666">CuSO₄溶液</text>
+    </g>
+
+    <!-- 步骤1 右侧反应式 -->
+    <g id="scene1-step1-rxn" class="scene1-hidden">
+        <text x="510" y="115" font-size="13" fill="#000000">原电池反应</text>
+        <text x="510" y="160" font-size="13" fill="#1565c0">负极：Fe − 2e⁻ → Fe²⁺</text>
+        <text x="510" y="205" font-size="13" fill="#c62828">正极：Cu²⁺ + 2e⁻ → Cu</text>
+        <text x="510" y="255" font-size="13" fill="#2e7d32">溶液：蓝色 → 浅绿色</text>
+    </g>
+
+    <!-- 步骤2 右侧反应式 -->
+    <g id="scene1-step2-rxn" class="scene1-hidden">
+        <text x="510" y="115" font-size="13" fill="#000000">电解池 (a正b负)</text>
+        <text x="510" y="160" font-size="13" fill="#c62828">阳极：Cu − 2e⁻ → Cu²⁺</text>
+        <text x="510" y="205" font-size="13" fill="#1565c0">阴极：Cu²⁺ + 2e⁻ → Cu</text>
+        <text x="510" y="255" font-size="13" fill="#1565c0">Fe被保护，不溶解</text>
+    </g>
+
+    <!-- 步骤3 右侧反应式 -->
+    <g id="scene1-step3-rxn" class="scene1-hidden">
+        <text x="510" y="115" font-size="13" fill="#000000">电解池 (b正a负)</text>
+        <text x="510" y="160" font-size="13" fill="#c62828">阳极：Fe − 2e⁻ → Fe²⁺</text>
+        <text x="510" y="205" font-size="13" fill="#1565c0">阴极：Cu²⁺ + 2e⁻ → Cu</text>
+        <text x="510" y="255" font-size="13" fill="#2e7d32">溶液：蓝色 → 浅绿色</text>
+    </g>
+
+    <!-- ========== 步骤4：对比总结表（无背景rect） ========== -->
+    <g id="scene1-step4-group" class="scene1-hidden">
+        <!-- 第1格：导线连接 -->
+        <text x="540" y="125" text-anchor="middle" font-size="12" fill="#000000">导线连接</text>
+        <rect x="515" y="140" width="50" height="50" fill="#666666" stroke="#000000" stroke-width="1"/>
+        <text x="540" y="210" text-anchor="middle" font-size="12" fill="#000000">溶解</text>
+        <!-- 绿色对勾 -->
+        <path d="M525,225 L532,235 L555,215" stroke="#2e7d32" stroke-width="2" fill="none"/>
+
+        <!-- 第2格：a正b负 -->
+        <text x="620" y="125" text-anchor="middle" font-size="12" fill="#000000">a正b负</text>
+        <rect x="595" y="140" width="42" height="50" fill="#666666" stroke="#000000" stroke-width="1"/>
+        <rect x="637" y="140" width="8" height="50" fill="#b87333" stroke="#000000" stroke-width="1"/>
+        <text x="620" y="210" text-anchor="middle" font-size="12" fill="#000000">被保护</text>
+        <!-- 红色叉号 -->
+        <path d="M605,220 L635,240 M635,220 L605,240" stroke="#c62828" stroke-width="2" fill="none"/>
+
+        <!-- 第3格：b正a负 -->
+        <text x="700" y="125" text-anchor="middle" font-size="12" fill="#000000">b正a负</text>
+        <rect x="675" y="140" width="50" height="50" fill="#666666" stroke="#000000" stroke-width="1"/>
+        <text x="700" y="210" text-anchor="middle" font-size="12" fill="#000000">溶解</text>
+        <!-- 绿色对勾 -->
+        <path d="M685,225 L692,235 L715,215" stroke="#2e7d32" stroke-width="2" fill="none"/>
+
+        <!-- 结论文字 -->
+        <text x="510" y="285" font-size="13" fill="#000000">Fe作阴极时被保护，不溶解</text>
+        <text x="510" y="330" font-size="14" font-weight="bold" fill="#c62828">D选项结论：错误</text>
+    </g>
+
+    <!-- 箭头标记定义 -->
+    <defs>
+        <marker id="arrow-red-left" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto">
+            <path d="M10,0 L0,5 L10,10" fill="#c62828"/>
+        </marker>
+        <marker id="arrow-red-right" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10" fill="#c62828"/>
+        </marker>
+        <marker id="arrow-blue-left" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto">
+            <path d="M10,0 L0,5 L10,10" fill="#1565c0"/>
+        </marker>
+        <marker id="arrow-blue-right" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10" fill="#1565c0"/>
+        </marker>
+        <marker id="arrow-blue-down" markerWidth="8" markerHeight="8" refX="4" refY="7" orient="auto">
+            <path d="M0,0 L4,8 L8,0" fill="#1565c0"/>
+        </marker>
+        <marker id="arrow-gray-left" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto">
+            <path d="M10,0 L0,5 L10,10" fill="#888888"/>
+        </marker>
+        <marker id="arrow-gray-right" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10" fill="#888888"/>
+        </marker>
+        <marker id="arrow-gray-up" markerWidth="8" markerHeight="8" refX="4" refY="1" orient="auto">
+            <path d="M0,8 L4,0 L8,8" fill="#888888"/>
+        </marker>
+    </defs>
+</svg>
+
+<!-- 控件栏 -->
+<div id="scene1-controls">
+    <button id="scene1-btn-prev">◀ 上一步</button>
+    <span id="scene1-step-indicator">步骤 1/5</span>
+    <button id="scene1-btn-next">下一步 ▶</button>
+</div>
+</div>
+
+<script>
+(function() {
+    // Scene 1 实现
+    let currentStep = 0;
+    const totalSteps = 5;
+    let animFrameId = null;
+    let dashOffset = 0;
+
+    const btnPrev = document.getElementById('scene1-btn-prev');
+    const btnNext = document.getElementById('scene1-btn-next');
+    const indicator = document.getElementById('scene1-step-indicator');
+
+    // 各步骤应显示的元素ID列表
+    const stepConfig = [
+        // 步骤0：装置基础
+        {
+            show: ['scene1-step0-rxn', 'scene1-rxn-panel'],
+            hide: ['scene1-step1-group', 'scene1-step2-group', 'scene1-step3-group', 'scene1-step4-group',
+                   'scene1-step1-rxn', 'scene1-step2-rxn', 'scene1-step3-rxn',
+                   'scene1-cu-deposit-cu', 'scene1-cu-deposit-fe', 'scene1-green-overlay']
+        },
+        // 步骤1：原电池
+        {
+            show: ['scene1-step1-group', 'scene1-step1-rxn', 'scene1-rxn-panel', 'scene1-cu-deposit-cu', 'scene1-green-overlay'],
+            hide: ['scene1-step0-rxn', 'scene1-step2-group', 'scene1-step3-group', 'scene1-step4-group',
+                   'scene1-step2-rxn', 'scene1-step3-rxn', 'scene1-cu-deposit-fe']
+        },
+        // 步骤2：电解池 a正b负
+        {
+            show: ['scene1-step2-group', 'scene1-step2-rxn', 'scene1-rxn-panel', 'scene1-cu-deposit-fe'],
+            hide: ['scene1-step0-rxn', 'scene1-step1-group', 'scene1-step3-group', 'scene1-step4-group',
+                   'scene1-step1-rxn', 'scene1-step3-rxn', 'scene1-cu-deposit-cu', 'scene1-green-overlay']
+        },
+        // 步骤3：电解池 b正a负
+        {
+            show: ['scene1-step3-group', 'scene1-step3-rxn', 'scene1-rxn-panel', 'scene1-cu-deposit-cu', 'scene1-green-overlay'],
+            hide: ['scene1-step0-rxn', 'scene1-step1-group', 'scene1-step2-group', 'scene1-step4-group',
+                   'scene1-step1-rxn', 'scene1-step2-rxn', 'scene1-cu-deposit-fe']
+        },
+        // 步骤4：D选项判断
+        {
+            show: ['scene1-step4-group'],
+            hide: ['scene1-step0-rxn', 'scene1-step1-group', 'scene1-step2-group', 'scene1-step3-group',
+                   'scene1-step1-rxn', 'scene1-step2-rxn', 'scene1-step3-rxn', 'scene1-rxn-panel',
+                   'scene1-cu-deposit-cu', 'scene1-cu-deposit-fe', 'scene1-green-overlay']
+        }
+    ];
+
+    // 电子箭头元素列表（用于动画）
+    const electronArrows = [
+        'scene1-e-arrow-1',
+        'scene1-e-arrow-2a', 'scene1-e-arrow-2b',
+        'scene1-e-arrow-3a', 'scene1-e-arrow-3b'
+    ];
+
+    function showElement(id) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = '';
+            el.style.opacity = '1';
+            if (el.classList.contains('scene1-hidden')) {
+                el.classList.remove('scene1-hidden');
+            }
+        }
+    }
+
+    function hideElement(id) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+    }
+
+    function updateStep(step) {
+        currentStep = step;
+        const config = stepConfig[step];
+
+        // 显示当前步骤元素
+        config.show.forEach(showElement);
+        // 隐藏其他元素
+        config.hide.forEach(hideElement);
+
+        // 更新按钮状态
+        btnPrev.disabled = (step === 0);
+        btnNext.disabled = (step === totalSteps - 1);
+        indicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+
+        // 启动/停止电子流动画
+        if (step >= 1 && step <= 3) {
+            startElectronAnimation();
+        } else {
+            stopElectronAnimation();
+        }
+    }
+
+    function startElectronAnimation() {
+        if (animFrameId) return;
+        function animate() {
+            dashOffset -= 1;
+            electronArrows.forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el && el.style.display !== 'none') {
+                    el.style.strokeDashoffset = dashOffset;
+                }
+            });
+            animFrameId = requestAnimationFrame(animate);
+        }
+        animFrameId = requestAnimationFrame(animate);
+    }
+
+    function stopElectronAnimation() {
+        if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+        }
+    }
+
+    btnPrev.addEventListener('click', function() {
+        if (currentStep > 0) updateStep(currentStep - 1);
+    });
+
+    btnNext.addEventListener('click', function() {
+        if (currentStep < totalSteps - 1) updateStep(currentStep + 1);
+    });
+
+    // 初始化
+    updateStep(0);
+})();
+</script>
+</body>
+</html>

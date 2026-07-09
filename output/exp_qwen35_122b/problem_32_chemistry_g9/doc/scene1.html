@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分子运动速率差异与白烟生成位置</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; background: #1976d2; color: white; border: none; border-radius: 4px; }
+        .scene1-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+        .scene1-step-indicator { padding: 8px 16px; font-size: 14px; background: #f5f5f5; border-radius: 4px; min-width: 80px; text-align: center; }
+        .valve-closed { fill: #c62828; }
+        .valve-open { fill: #2e7d32; }
+        .valve-label { font-size: 12px; fill: #000000; }
+        .molecule { transition: opacity 0.3s; }
+        .arrow { stroke-dasharray: 5,5; }
+        .smoke { opacity: 0; transition: opacity 0.5s; }
+        .conclusion { opacity: 0; transition: opacity 0.5s; }
+        .highlight { stroke-width: 3px; stroke: #ff9800; }
+        .prompt-text { font-size: 14px; fill: #ff5722; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 背景 -->
+            <rect width="800" height="500" fill="#ffffff"/>
+            
+            <!-- ========== 静态装置结构（始终显示） ========== -->
+            
+            <!-- A 瓶瓶身（椭圆） -->
+            <ellipse cx="200" cy="130" rx="55" ry="55" fill="#e3f2fd" fill-opacity="0.15" stroke="#000000" stroke-width="2"/>
+            <!-- A 瓶瓶颈（细管） -->
+            <rect x="195" y="185" width="10" height="30" fill="#e0e0e0" stroke="#000000" stroke-width="1.5"/>
+            <!-- A 瓶瓶塞 -->
+            <rect x="190" y="180" width="20" height="8" fill="#795548"/>
+            
+            <!-- B 瓶瓶身（椭圆） -->
+            <ellipse cx="600" cy="130" rx="55" ry="55" fill="#e3f2fd" fill-opacity="0.15" stroke="#000000" stroke-width="2"/>
+            <!-- B 瓶瓶颈（细管） -->
+            <rect x="595" y="185" width="10" height="30" fill="#e0e0e0" stroke="#000000" stroke-width="1.5"/>
+            <!-- B 瓶瓶塞 -->
+            <rect x="590" y="180" width="20" height="8" fill="#795548"/>
+            
+            <!-- 水平导管 -->
+            <rect x="205" y="225" width="390" height="10" fill="#e0e0e0" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 垂直导管 -->
+            <rect x="397" y="235" width="6" height="80" fill="#e0e0e0" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 烧杯轮廓（梯形） -->
+            <path d="M 335 315 L 465 315 L 455 400 L 345 400 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+            <!-- 烧杯水面 -->
+            <rect x="340" y="335" width="110" height="60" fill="#bbdefb" fill-opacity="0.3"/>
+            <!-- 烧杯内水位线 -->
+            <line x1="345" y1="345" x2="445" y2="345" stroke="#1565c0" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="345" y1="355" x2="445" y2="355" stroke="#1565c0" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="345" y1="365" x2="445" y2="365" stroke="#1565c0" stroke-width="1" stroke-dasharray="3,3"/>
+            
+            <!-- 胶头滴管 -->
+            <line x1="618" y1="155" x2="622" y2="205" stroke="#9e9e9e" stroke-width="3"/>
+            <ellipse cx="620" cy="150" rx="7" ry="10" fill="#ff7043" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 活塞 c（A 瓶下方） -->
+            <g id="scene1-valve-c">
+                <rect x="250" y="225" width="20" height="10" class="valve-closed" rx="2"/>
+            </g>
+            
+            <!-- 活塞 a（B 瓶下方） -->
+            <g id="scene1-valve-a">
+                <rect x="530" y="225" width="20" height="10" class="valve-closed" rx="2"/>
+            </g>
+            
+            <!-- 活塞 b（垂直导管中间） -->
+            <g id="scene1-valve-b">
+                <rect x="395" y="275" width="10" height="12" class="valve-closed" rx="2"/>
+            </g>
+            
+            <!-- ========== 瓶标识（移到瓶身正上方，远离瓶身） ========== -->
+            <text x="200" y="55" font-size="18" font-weight="bold" text-anchor="middle">A</text>
+            <text x="600" y="55" font-size="18" font-weight="bold" text-anchor="middle">B</text>
+            
+            <!-- ========== 瓶内气体标签（移到瓶身内部中心） ========== -->
+            <text x="200" y="132" font-size="15" font-weight="bold" text-anchor="middle" fill="#c62828">HCl</text>
+            <text x="600" y="132" font-size="15" font-weight="bold" text-anchor="middle" fill="#1565c0">NH₃</text>
+            
+            <!-- ========== 活塞标签（移到活塞下方，远离活塞） ========== -->
+            <text x="260" y="250" font-size="12" text-anchor="middle" class="valve-label">c</text>
+            <text x="540" y="250" font-size="12" text-anchor="middle" class="valve-label">a</text>
+            <text x="412" y="282" font-size="12" text-anchor="start" class="valve-label">b</text>
+            
+            <!-- ========== 胶头滴管标签（移到右侧，远离滴管） ========== -->
+            <text x="635" y="165" font-size="10" text-anchor="start">装有水的</text>
+            <text x="635" y="178" font-size="10" text-anchor="start">胶头滴管</text>
+            
+            <!-- ========== 烧杯水标签（移到右侧，远离烧杯） ========== -->
+            <text x="475" y="355" font-size="12" text-anchor="start">水</text>
+            
+            <!-- ========== 步骤 1：提示文字（初始隐藏） ========== -->
+            <g id="scene1-step1-prompt" style="opacity: 0;">
+                <text x="400" y="205" class="prompt-text" text-anchor="middle">打开活塞 a、b、c</text>
+            </g>
+            
+            <!-- ========== 步骤 2：分子运动箭头（初始隐藏） ========== -->
+            <g id="scene1-step2-arrows" style="opacity: 0;">
+                <!-- HCl 运动箭头（向右，较短） -->
+                <line x1="260" y1="230" x2="330" y2="230" stroke="#888888" stroke-width="2" class="arrow"/>
+                <polygon points="330,230 325,227 325,233" fill="#888888"/>
+                
+                <!-- NH₃运动箭头（向左，较长） -->
+                <line x1="540" y1="230" x2="450" y2="230" stroke="#888888" stroke-width="2" class="arrow"/>
+                <polygon points="450,230 455,227 455,233" fill="#888888"/>
+                
+                <!-- HCl 分子位置点 -->
+                <circle cx="295" cy="230" r="4" fill="#c62828" opacity="0.7"/>
+                
+                <!-- NH₃分子位置点 -->
+                <circle cx="485" cy="230" r="4" fill="#1565c0" opacity="0.7"/>
+            </g>
+            
+            <!-- ========== 步骤 3：白烟（初始隐藏） ========== -->
+            <g id="scene1-step3-smoke" class="smoke">
+                <!-- 白烟圆点群 -->
+                <circle cx="310" cy="230" r="4" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <circle cx="320" cy="227" r="4" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <circle cx="330" cy="230" r="4" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <circle cx="340" cy="233" r="4" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <circle cx="325" cy="234" r="4" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <circle cx="335" cy="227" r="4" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                
+                <!-- NH₄Cl 标签（移到上方，远离导管） -->
+                <text x="330" y="215" font-size="13" font-weight="bold" text-anchor="middle" fill="#000000">NH₄Cl</text>
+            </g>
+            
+            <!-- ========== 步骤 4：结论（初始隐藏） ========== -->
+            <g id="scene1-step4-conclusion" class="conclusion">
+                <!-- 分子量说明（移到更下方，远离按钮） -->
+                <text x="210" y="470" font-size="12" text-anchor="middle" fill="#c62828">HCl 分子量：36.5</text>
+                <text x="590" y="470" font-size="12" text-anchor="middle" fill="#1565c0">NH₃分子量：17</text>
+                
+                <!-- 距离标注（移到下方，远离导管） -->
+                <text x="270" y="270" font-size="11" text-anchor="middle" fill="#000000">距 A 瓶近</text>
+                <text x="490" y="270" font-size="11" text-anchor="middle" fill="#000000">距 B 瓶远</text>
+                
+                <!-- 测量线 -->
+                <line x1="330" y1="230" x2="270" y2="262" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="3,3"/>
+                <line x1="330" y1="230" x2="490" y2="262" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="3,3"/>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <div id="scene1-step-indicator" class="scene1-step-indicator">步骤 1/5</div>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 坐标表对照：
+        // A 瓶：椭圆 (200,130) 半径 55，瓶颈 (195,185) 10×30
+        // B 瓶：椭圆 (600,130) 半径 55，瓶颈 (595,185) 10×30
+        // 水平导管：(205,225) 390×10
+        // 垂直导管：(397,235) 6×80
+        // 烧杯：梯形 (335,315)-(465,315)-(455,400)-(345,400)
+        // 活塞 c：(250,225) 20×10
+        // 活塞 a：(530,225) 20×10
+        // 活塞 b：(395,275) 10×12
+        // 白烟位置：(310-340, 227-234)
+        
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            elements: {
+                // 活塞组
+                valveA: document.getElementById('scene1-valve-a'),
+                valveB: document.getElementById('scene1-valve-b'),
+                valveC: document.getElementById('scene1-valve-c'),
+                
+                // 步骤元素
+                step1Prompt: document.getElementById('scene1-step1-prompt'),
+                step2Arrows: document.getElementById('scene1-step2-arrows'),
+                step3Smoke: document.getElementById('scene1-step3-smoke'),
+                step4Conclusion: document.getElementById('scene1-step4-conclusion'),
+                
+                // 控件
+                btnPrev: document.getElementById('scene1-btn-prev'),
+                btnNext: document.getElementById('scene1-btn-next'),
+                stepIndicator: document.getElementById('scene1-step-indicator')
+            },
+            
+            // 显示元素
+            show: function(el) {
+                if (el) {
+                    el.style.opacity = '1';
+                    el.style.display = 'block';
+                }
+            },
+            
+            // 隐藏元素
+            hide: function(el) {
+                if (el) {
+                    el.style.opacity = '0';
+                    el.style.display = 'none';
+                }
+            },
+            
+            // 设置活塞状态
+            setValveState: function(valveEl, isOpen) {
+                const rect = valveEl.querySelector('rect');
+                if (rect) {
+                    if (isOpen) {
+                        rect.classList.remove('valve-closed');
+                        rect.classList.add('valve-open');
+                    } else {
+                        rect.classList.remove('valve-open');
+                        rect.classList.add('valve-closed');
+                    }
+                }
+            },
+            
+            // 更新显示
+            updateDisplay: function() {
+                const el = this.elements;
+                
+                // 重置所有步骤元素
+                this.hide(el.step1Prompt);
+                this.hide(el.step2Arrows);
+                this.hide(el.step3Smoke);
+                this.hide(el.step4Conclusion);
+                
+                // 重置活塞状态
+                this.setValveState(el.valveA, false);
+                this.setValveState(el.valveB, false);
+                this.setValveState(el.valveC, false);
+                
+                // 根据当前步骤显示对应元素
+                if (this.currentStep >= 1) {
+                    // 步骤 1：打开活塞
+                    this.setValveState(el.valveA, true);
+                    this.setValveState(el.valveB, true);
+                    this.setValveState(el.valveC, true);
+                    this.show(el.step1Prompt);
+                }
+                
+                if (this.currentStep >= 2) {
+                    // 步骤 2：分子运动
+                    this.show(el.step2Arrows);
+                }
+                
+                if (this.currentStep >= 3) {
+                    // 步骤 3：白烟生成
+                    this.show(el.step3Smoke);
+                }
+                
+                if (this.currentStep >= 4) {
+                    // 步骤 4：结论
+                    this.show(el.step4Conclusion);
+                }
+                
+                // 更新按钮状态
+                el.btnPrev.disabled = (this.currentStep === 0);
+                el.btnNext.disabled = (this.currentStep === this.totalSteps - 1);
+                
+                // 更新步骤指示器
+                el.stepIndicator.textContent = '步骤 ' + (this.currentStep + 1) + '/' + this.totalSteps;
+            },
+            
+            // 初始化
+            init: function() {
+                const self = this;
+                
+                // 绑定按钮事件
+                el.btnPrev.addEventListener('click', function() {
+                    if (self.currentStep > 0) {
+                        self.currentStep--;
+                        self.updateDisplay();
+                    }
+                });
+                
+                el.btnNext.addEventListener('click', function() {
+                    if (self.currentStep < self.totalSteps - 1) {
+                        self.currentStep++;
+                        self.updateDisplay();
+                    }
+                });
+                
+                // 初始显示
+                this.updateDisplay();
+            }
+        };
+        
+        // 修正：使用正确的变量名
+        const el = scene1.elements;
+        scene1.btnPrev = el.btnPrev;
+        scene1.btnNext = el.btnNext;
+        
+        // 重新绑定事件
+        el.btnPrev.addEventListener('click', function() {
+            if (scene1.currentStep > 0) {
+                scene1.currentStep--;
+                scene1.updateDisplay();
+            }
+        });
+        
+        el.btnNext.addEventListener('click', function() {
+            if (scene1.currentStep < scene1.totalSteps - 1) {
+                scene1.currentStep++;
+                scene1.updateDisplay();
+            }
+        });
+        
+        // 初始显示
+        scene1.updateDisplay();
+    })();
+    </script>
+</body>
+</html>

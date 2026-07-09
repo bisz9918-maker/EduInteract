@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>杠杆最小动力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e9e9e9; }
+        
+        /* SVG Elements Transitions */
+        .anim { transition: all 0.4s ease; }
+        
+        /* Text Styles */
+        text { font-family: sans-serif; font-size: 16px; }
+        .title-text { font-size: 20px; font-weight: bold; text-anchor: middle; }
+        .math { font-family: "Times New Roman", Times, serif; font-style: italic; }
+        .sub { font-size: 12px; baseline-shift: sub; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <!-- Black Arrow -->
+                <marker id="arrow-black" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000000" />
+                </marker>
+                <!-- Red Arrow -->
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                <!-- Green Arrow -->
+                <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+                <!-- Blue Arrow -->
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <!-- Gray Arrow -->
+                <marker id="arrow-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#888888" />
+                </marker>
+            </defs>
+
+            <!-- 提示文本 -->
+            <text id="scene1-prompt" x="400" y="30" class="title-text anim">如图所示，杠杆在水平位置平衡，分析B点四个力中哪个最小。</text>
+
+            <!-- 基础图形 -->
+            <!-- 杠杆 -->
+            <rect x="230" y="246" width="340" height="8" fill="#ffffff" stroke="#000000" stroke-width="2" />
+            
+            <!-- 支点O -->
+            <polygon id="scene1-fulcrum" points="250,254 230,284 270,284" fill="#ffffff" stroke="#000000" stroke-width="2" class="anim" />
+            <text x="215" y="240" fill="#000000" class="math anim" id="scene1-label-o">O</text>
+            
+            <!-- 悬挂线 -->
+            <line x1="400" y1="254" x2="400" y2="300" stroke="#000000" stroke-width="2" />
+            
+            <!-- 重物G -->
+            <rect x="380" y="300" width="40" height="40" fill="#ffffff" stroke="#000000" stroke-width="2" />
+            <text x="400" y="326" fill="#000000" text-anchor="middle" class="math">G</text>
+            
+            <!-- A点、B点标签 -->
+            <text x="400" y="235" fill="#000000" text-anchor="middle" class="math">A</text>
+            <text x="565" y="270" fill="#000000" class="math">B</text>
+
+            <!-- 动态元素组 -->
+            
+            <!-- 阻力 FG 及 阻力臂 LG -->
+            <g id="scene1-group-resistance" class="anim" style="opacity: 0;">
+                <line x1="400" y1="250" x2="400" y2="295" stroke="#c62828" stroke-width="3" marker-end="url(#arrow-red)" />
+                <text x="420" y="280" fill="#c62828" class="math">F<tspan class="sub">G</tspan></text>
+                
+                <line x1="250" y1="240" x2="400" y2="240" stroke="#c62828" stroke-width="3" stroke-dasharray="4,4" />
+                <text x="325" y="230" fill="#c62828" text-anchor="middle" class="math">L<tspan class="sub">G</tspan></text>
+                <!-- 垂直符号 -->
+                <polyline points="390,240 390,230 400,230" fill="none" stroke="#c62828" stroke-width="1.5" />
+            </g>
+
+            <!-- F3 作用线及动力臂 L3 -->
+            <g id="scene1-group-f3-extra" class="anim" style="opacity: 0;">
+                <line x1="550" y1="50" x2="550" y2="350" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,5" />
+                <line x1="250" y1="265" x2="550" y2="265" stroke="#2e7d32" stroke-width="3" stroke-dasharray="4,4" />
+                <text x="400" y="285" fill="#2e7d32" text-anchor="middle" class="math">L<tspan class="sub">3</tspan></text>
+                <!-- 垂直符号 -->
+                <polyline points="540,265 540,275 550,275" fill="none" stroke="#2e7d32" stroke-width="1.5" />
+            </g>
+
+            <!-- F4 作用线、动力臂 L4 及三角形 -->
+            <g id="scene1-group-f4-extra" class="anim" style="opacity: 0;">
+                <polygon points="250,250 400,100 550,250" fill="#1565c0" fill-opacity="0.1" />
+                <line x1="350" y1="50" x2="600" y2="300" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="5,5" />
+                <line x1="250" y1="250" x2="400" y2="100" stroke="#1565c0" stroke-width="3" stroke-dasharray="4,4" />
+                <text x="315" y="165" fill="#1565c0" text-anchor="end" class="math">L<tspan class="sub">4</tspan></text>
+                <text x="400" y="90" fill="#1565c0" text-anchor="middle" class="math">C</text>
+                <polyline points="389.4,110.6 400,121.2 410.6,110.6" fill="none" stroke="#1565c0" stroke-width="1.5" />
+            </g>
+
+            <!-- F2 作用线、动力臂 L2 及三角形 -->
+            <g id="scene1-group-f2-extra" class="anim" style="opacity: 0;">
+                <polygon points="250,250 400,400 550,250" fill="#1565c0" fill-opacity="0.1" />
+                <line x1="350" y1="450" x2="650" y2="150" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="5,5" />
+                <line x1="250" y1="250" x2="400" y2="400" stroke="#1565c0" stroke-width="3" stroke-dasharray="4,4" />
+                <text x="315" y="335" fill="#1565c0" text-anchor="end" class="math">L<tspan class="sub">2</tspan></text>
+                <text x="400" y="420" fill="#1565c0" text-anchor="middle" class="math">D</text>
+                <polyline points="389.4,389.4 400,378.8 410.6,389.4" fill="none" stroke="#1565c0" stroke-width="1.5" />
+            </g>
+
+            <!-- 动力 F1~F4 -->
+            <g id="scene1-forces">
+                <!-- F1 -->
+                <g id="scene1-f1-group" class="anim">
+                    <line id="scene1-f1-line" x1="550" y1="250" x2="625" y2="325" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)" class="anim" />
+                    <text id="scene1-f1-text" x="640" y="340" fill="#000000" class="math anim">F<tspan class="sub">1</tspan></text>
+                </g>
+                <!-- F2 -->
+                <g id="scene1-f2-group" class="anim">
+                    <line id="scene1-f2-line" x1="550" y1="250" x2="625" y2="175" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)" class="anim" />
+                    <text id="scene1-f2-text" x="640" y="170" fill="#000000" class="math anim">F<tspan class="sub">2</tspan></text>
+                </g>
+                <!-- F3 -->
+                <g id="scene1-f3-group" class="anim">
+                    <line id="scene1-f3-line" x1="550" y1="250" x2="550" y2="135" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)" class="anim" />
+                    <text id="scene1-f3-text" x="570" y="120" fill="#000000" text-anchor="middle" class="math anim">F<tspan class="sub">3</tspan></text>
+                </g>
+                <!-- F4 -->
+                <g id="scene1-f4-group" class="anim">
+                    <line id="scene1-f4-line" x1="550" y1="250" x2="455" y2="155" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)" class="anim" />
+                    <text id="scene1-f4-text" x="435" y="145" fill="#000000" text-anchor="end" class="math anim">F<tspan class="sub">4</tspan></text>
+                </g>
+            </g>
+
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const promptText = document.getElementById('scene1-prompt');
+        
+        const fulcrum = document.getElementById('scene1-fulcrum');
+        const labelO = document.getElementById('scene1-label-o');
+        
+        const groupResistance = document.getElementById('scene1-group-resistance');
+        const groupF3Extra = document.getElementById('scene1-group-f3-extra');
+        const groupF4Extra = document.getElementById('scene1-group-f4-extra');
+        const groupF2Extra = document.getElementById('scene1-group-f2-extra');
+        
+        const f1Group = document.getElementById('scene1-f1-group');
+        const f1Line = document.getElementById('scene1-f1-line');
+        const f1Text = document.getElementById('scene1-f1-text');
+        
+        const f2Group = document.getElementById('scene1-f2-group');
+        const f2Line = document.getElementById('scene1-f2-line');
+        const f2Text = document.getElementById('scene1-f2-text');
+        
+        const f3Group = document.getElementById('scene1-f3-group');
+        const f3Line = document.getElementById('scene1-f3-line');
+        const f3Text = document.getElementById('scene1-f3-text');
+        
+        const f4Group = document.getElementById('scene1-f4-group');
+        const f4Line = document.getElementById('scene1-f4-line');
+        const f4Text = document.getElementById('scene1-f4-text');
+
+        const prompts = [
+            "如图所示，杠杆在水平位置平衡，分析B点四个力中哪个最小。",
+            "阻力 × 阻力臂 = 定值，要使动力最小，需动力臂最大。",
+            "F3 的动力臂 L3 恰好等于线段 OB。",
+            "在 Rt△OCB 中，直角边 L4 < 斜边 OB，故 L4 < L3。",
+            "同理，在 Rt△ODB 中，直角边 L2 < 斜边 OB，故 L2 < L3。",
+            "F1 无法使杠杆平衡。总结：F3 的动力臂最长，故 F3 最小。"
+        ];
+
+        function setForceStyle(line, text, color, marker, opacity) {
+            line.setAttribute('stroke', color);
+            line.setAttribute('marker-end', `url(#${marker})`);
+            text.setAttribute('fill', color);
+            line.parentElement.style.opacity = opacity;
+        }
+
+        function updateState() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            promptText.textContent = prompts[currentStep];
+
+            // Reset all to default
+            fulcrum.setAttribute('stroke', '#000000');
+            labelO.setAttribute('fill', '#000000');
+            
+            groupResistance.style.opacity = '0';
+            groupF3Extra.style.opacity = '0';
+            groupF4Extra.style.opacity = '0';
+            groupF2Extra.style.opacity = '0';
+            
+            setForceStyle(f1Line, f1Text, '#000000', 'arrow-black', '1');
+            setForceStyle(f2Line, f2Text, '#000000', 'arrow-black', '1');
+            setForceStyle(f3Line, f3Text, '#000000', 'arrow-black', '1');
+            setForceStyle(f4Line, f4Text, '#000000', 'arrow-black', '1');
+
+            if (currentStep >= 1) {
+                fulcrum.setAttribute('stroke', '#c62828');
+                labelO.setAttribute('fill', '#c62828');
+                groupResistance.style.opacity = '1';
+            }
+
+            if (currentStep >= 2) {
+                setForceStyle(f1Line, f1Text, '#888888', 'arrow-gray', '0.3');
+                setForceStyle(f2Line, f2Text, '#888888', 'arrow-gray', '0.3');
+                setForceStyle(f4Line, f4Text, '#888888', 'arrow-gray', '0.3');
+                
+                setForceStyle(f3Line, f3Text, '#2e7d32', 'arrow-green', '1');
+                f3Line.setAttribute('stroke-width', '3');
+                groupF3Extra.style.opacity = '1';
+            } else {
+                f3Line.setAttribute('stroke-width', '2');
+            }
+
+            if (currentStep >= 3) {
+                setForceStyle(f4Line, f4Text, '#1565c0', 'arrow-blue', '1');
+                f4Line.setAttribute('stroke-width', '3');
+                groupF4Extra.style.opacity = '1';
+            } else {
+                f4Line.setAttribute('stroke-width', '2');
+            }
+
+            if (currentStep >= 4) {
+                setForceStyle(f2Line, f2Text, '#1565c0', 'arrow-blue', '1');
+                f2Line.setAttribute('stroke-width', '3');
+                groupF2Extra.style.opacity = '1';
+            } else {
+                f2Line.setAttribute('stroke-width', '2');
+            }
+
+            if (currentStep >= 5) {
+                setForceStyle(f1Line, f1Text, '#888888', 'arrow-gray', '1');
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+
+        // Initialize
+        updateState();
+    })();
+    </script>
+</body>
+</html>

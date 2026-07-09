@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形穿过正方形 - 重合面积变化</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn:disabled { background: #cccccc; cursor: not-allowed; }
+        .scene1-step-indicator { position: absolute; bottom: 50px; left: 0; right: 0; text-align: center; font-size: 14px; color: #333; }
+        .scene1-hidden { display: none; opacity: 0; }
+        .scene1-visible { display: block; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 水平基线 -->
+            <line id="scene1-baseline" x1="80" y1="300" x2="720" y2="300" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 正方形 (固定) -->
+            <rect id="scene1-square" x="350" y="150" width="150" height="150" fill="#cccccc" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 三角形 - 5 个步骤位置 -->
+            <!-- 步骤 0: 初始位置 (左侧) -->
+            <polygon id="scene1-triangle-0" class="scene1-triangle" 
+                points="180,300 255,170 330,300" 
+                fill="#cccccc" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 步骤 1: 进入阶段 -->
+            <polygon id="scene1-triangle-1" class="scene1-triangle scene1-hidden" 
+                points="275,300 350,170 425,300" 
+                fill="#cccccc" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 步骤 2: 完全进入 -->
+            <polygon id="scene1-triangle-2" class="scene1-triangle scene1-hidden" 
+                points="350,300 425,170 500,300" 
+                fill="#cccccc" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 步骤 3: 离开阶段 -->
+            <polygon id="scene1-triangle-3" class="scene1-triangle scene1-hidden" 
+                points="425,300 500,170 575,300" 
+                fill="#cccccc" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 步骤 4: 离开完成 (右侧) -->
+            <polygon id="scene1-triangle-4" class="scene1-triangle scene1-hidden" 
+                points="500,300 575,170 650,300" 
+                fill="#cccccc" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 重合区域 - 步骤 1 (进入阶段的小三角形) -->
+            <polygon id="scene1-overlay-1" class="scene1-overlay scene1-hidden" 
+                points="350,300 350,235 425,300" 
+                fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 重合区域 - 步骤 2 (整个三角形) -->
+            <polygon id="scene1-overlay-2" class="scene1-overlay scene1-hidden" 
+                points="350,300 425,170 500,300" 
+                fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 重合区域 - 步骤 3 (离开阶段的小三角形) -->
+            <polygon id="scene1-overlay-3" class="scene1-overlay scene1-hidden" 
+                points="425,300 500,235 500,300" 
+                fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 运动箭头 -->
+            <path id="scene1-arrow-0" d="M330,320 L350,320 M345,315 L350,320 L345,325" stroke="#888888" stroke-width="2" fill="none"/>
+            <path id="scene1-arrow-1" d="M425,320 L445,320 M440,315 L445,320 L440,325" stroke="#888888" stroke-width="2" fill="none"/>
+            <path id="scene1-arrow-2" d="M500,320 L520,320 M515,315 L520,320 L515,325" stroke="#888888" stroke-width="2" fill="none"/>
+            <path id="scene1-arrow-3" d="M575,320 L595,320 M590,315 L595,320 L590,325" stroke="#888888" stroke-width="2" fill="none"/>
+            
+            <!-- 阶段标签 -->
+            <text id="scene1-label-0" x="255" y="330" text-anchor="middle" font-size="14" fill="#000000">初始</text>
+            <text id="scene1-label-1" x="350" y="330" text-anchor="middle" font-size="14" fill="#000000">进入</text>
+            <text id="scene1-label-2" x="425" y="330" text-anchor="middle" font-size="14" fill="#000000">完全进入</text>
+            <text id="scene1-label-3" x="500" y="330" text-anchor="middle" font-size="14" fill="#000000">离开</text>
+            <text id="scene1-label-4" x="575" y="330" text-anchor="middle" font-size="14" fill="#000000">离开完成</text>
+            
+            <!-- 面积标注 (仅步骤 2 显示) -->
+            <text id="scene1-area-label" x="425" y="130" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold" class="scene1-hidden">
+                S = √3/4（最大值）
+            </text>
+            
+            <!-- 步骤指示器 -->
+            <text id="scene1-step-indicator" x="400" y="420" text-anchor="middle" font-size="14" fill="#333333">步骤 1/5</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：三角形穿过正方形的运动过程演示
+        
+        const totalSteps = 5;
+        let currentStep = 0;
+        
+        // 获取 DOM 元素
+        const triangles = [];
+        const overlays = [];
+        const labels = [];
+        
+        for (let i = 0; i < totalSteps; i++) {
+            triangles.push(document.getElementById(`scene1-triangle-${i}`));
+            if (i < 3) {
+                overlays.push(document.getElementById(`scene1-overlay-${i}`));
+            }
+            labels.push(document.getElementById(`scene1-label-${i}`));
+        }
+        
+        const areaLabel = document.getElementById('scene1-area-label');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // 显示/隐藏辅助函数
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hide(el) {
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有三角形
+            triangles.forEach((tri, i) => {
+                if (i === currentStep) {
+                    show(tri);
+                } else {
+                    hide(tri);
+                }
+            });
+            
+            // 隐藏所有重合区域
+            overlays.forEach((overlay, i) => {
+                if (i === currentStep && currentStep >= 1 && currentStep <= 3) {
+                    show(overlay);
+                } else {
+                    hide(overlay);
+                }
+            });
+            
+            // 隐藏所有标签
+            labels.forEach((label, i) => {
+                if (i === currentStep) {
+                    show(label);
+                } else {
+                    hide(label);
+                }
+            });
+            
+            // 面积标注仅步骤 2 显示
+            if (currentStep === 2) {
+                show(areaLabel);
+            } else {
+                hide(areaLabel);
+            }
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+        }
+        
+        // 按钮事件处理
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

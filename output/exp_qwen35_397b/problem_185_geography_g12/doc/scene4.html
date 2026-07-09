@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球面最短航线 - 大圆航线方向判断</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene4-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene4-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene4-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene4-label-gray {
+            font-size: 14px;
+            fill: #888888;
+        }
+        .scene4-direction-text {
+            font-size: 14px;
+            fill: #2e7d32;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <svg id="scene4-svg" width="800" height="500">
+            <!-- 30°N 纬线圈 -->
+            <circle id="scene4-circle-30N" cx="400" cy="250" r="180" 
+                    fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5"/>
+            
+            <!-- 北极点 N -->
+            <circle id="scene4-point-N" cx="400" cy="70" r="4" fill="#c62828"/>
+            <text id="scene4-label-N" x="400" y="60" text-anchor="middle" class="scene4-label">N</text>
+            
+            <!-- 大圆航线（蓝色弧线） -->
+            <path id="scene4-path-greatcircle" d="M 220 250 Q 400 130 580 250" 
+                  fill="none" stroke="#1565c0" stroke-width="3"/>
+            
+            <!-- A 点 -->
+            <circle id="scene4-point-A" cx="220" cy="250" r="6" fill="#c62828"/>
+            <text id="scene4-label-A" x="205" y="245" text-anchor="end" class="scene4-label">A</text>
+            
+            <!-- B 点 -->
+            <circle id="scene4-point-B" cx="580" cy="250" r="6" fill="#c62828"/>
+            <text id="scene4-label-B" x="595" y="245" text-anchor="start" class="scene4-label">B</text>
+            
+            <!-- 30°N 标签 -->
+            <text id="scene4-label-30N" x="400" y="445" text-anchor="middle" class="scene4-label-gray">30°N</text>
+            
+            <!-- 移动点 P（绿色） -->
+            <circle id="scene4-point-moving" cx="220" cy="250" r="7" fill="#2e7d32"/>
+            
+            <!-- 方向箭头 -->
+            <line id="scene4-arrow-direction" x1="220" y1="250" x2="260" y2="230" 
+                  stroke="#2e7d32" stroke-width="2" marker-end="url(#scene4-arrowhead)"/>
+            
+            <!-- 方向文字：放在弧线上方更高位置，远离移动点 -->
+            <text id="scene4-text-direction" x="220" y="50" text-anchor="middle" class="scene4-direction-text">东北</text>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene4-arrowhead" markerWidth="10" markerHeight="10" 
+                        refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+            
+            <!-- 滑块轨道 -->
+            <rect id="scene4-slider-track" x="200" y="470" width="400" height="15" 
+                  fill="#e0e0e0" rx="7.5"/>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene4-slider-handle" cx="200" cy="477.5" r="10" 
+                    fill="#1565c0" style="cursor: pointer;"/>
+            
+            <!-- 滑块标签 -->
+            <text id="scene4-label-start" x="195" y="460" text-anchor="end" class="scene4-label-gray">起点 A</text>
+            <text id="scene4-label-end" x="575" y="460" text-anchor="start" class="scene4-label-gray">终点 B</text>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4: 球面最短航线 - 大圆航线方向判断
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 30°N 纬线圈 | 圆 | 圆心 (400,250) | 半径 180 | - | 灰色细线 #888888 |
+        // | 北极点 N | 点 | (400,70) | 6×6 | 上方 | 红色小圆点 |
+        // | A 点 | 圆点 | (220,250) | 8×8 | 左侧 | 红色实心 #c62828 |
+        // | B 点 | 圆点 | (580,250) | 8×8 | 右侧 | 红色实心 #c62828 |
+        // | 大圆航线 | 弧线 | A→N 方向→B | 线宽 3 | - | 蓝色 #1565c0 加粗 |
+        // | 移动点 P | 圆点 | 沿大圆航线移动 | 10×10 | 上方 | 绿色 #2e7d32 |
+        // | 方向箭头 | 箭头 | 从 P 点出发 | 长 40 | 沿切线方向 | 绿色 #2e7d32 |
+        // | 方向文字 | text | 随 P 点位置变化 | ~50×18 | P 点右上方 | 东北/正东/东南 |
+        // | 标签"A" | text | (205,245) | ~16×18 | 左侧 | 黑色 |
+        // | 标签"B" | text | (595,245) | ~16×18 | 右侧 | 黑色 |
+        // | 标签"30°N" | text | (400,445) | ~40×18 | 下方 | 灰色，标注纬线圈 |
+        // | 滑块轨道 | rect | (200,470)-(600,485) | 400×15 | - | 浅灰色背景 |
+        // | 滑块手柄 | circle | (200,477) 可拖动 | 12×12 | - | 蓝色可拖动手柄 |
+        // | 标签"起点 A" | text | (195,460) | ~30×14 | 上方 | 滑块左端 |
+        // | 标签"终点 B" | text | (575,460) | ~30×14 | 上方 | 滑块右端 |
+        
+        // 大圆航线参数：二次贝塞尔曲线
+        // 起点 A(220, 250), 控制点 C(400, 130), 终点 B(580, 250)
+        const Ax = 220, Ay = 250;
+        const Cx = 400, Cy = 130;
+        const Bx = 580, By = 250;
+        
+        // 获取 DOM 元素
+        const movingPoint = document.getElementById('scene4-point-moving');
+        const directionArrow = document.getElementById('scene4-arrow-direction');
+        const directionText = document.getElementById('scene4-text-direction');
+        const sliderHandle = document.getElementById('scene4-slider-handle');
+        
+        // 滑块状态
+        let sliderT = 0; // 0~1
+        let isDragging = false;
+        
+        // 计算贝塞尔曲线上的点：B(t) = (1-t)²×A + 2(1-t)×t×C + t²×B
+        function getBezierPoint(t) {
+            const u = 1 - t;
+            const x = u * u * Ax + 2 * u * t * Cx + t * t * Bx;
+            const y = u * u * Ay + 2 * u * t * Cy + t * t * By;
+            return { x, y };
+        }
+        
+        // 计算贝塞尔曲线在 t 处的切线方向（导数）
+        // B'(t) = 2(1-t)(C-A) + 2t(B-C)
+        function getBezierTangent(t) {
+            const u = 1 - t;
+            const dx = 2 * u * (Cx - Ax) + 2 * t * (Bx - Cx);
+            const dy = 2 * u * (Cy - Ay) + 2 * t * (By - Cy);
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len === 0) return { dx: 1, dy: 0 };
+            return { dx: dx / len, dy: dy / len };
+        }
+        
+        // 根据 t 值确定方向文字
+        function getDirectionText(t) {
+            if (t < 0.4) return '东北';
+            if (t <= 0.6) return '正东';
+            return '东南';
+        }
+        
+        // 更新移动点、箭头和文字
+        function updatePosition(t) {
+            const pos = getBezierPoint(t);
+            const tangent = getBezierTangent(t);
+            
+            // 更新移动点位置
+            movingPoint.setAttribute('cx', pos.x);
+            movingPoint.setAttribute('cy', pos.y);
+            
+            // 更新箭头（从 P 点沿切线方向延伸 40px）
+            const arrowLen = 40;
+            const arrowEndX = pos.x + tangent.dx * arrowLen;
+            const arrowEndY = pos.y + tangent.dy * arrowLen;
+            directionArrow.setAttribute('x1', pos.x);
+            directionArrow.setAttribute('y1', pos.y);
+            directionArrow.setAttribute('x2', arrowEndX);
+            directionArrow.setAttribute('y2', arrowEndY);
+            
+            // 更新方向文字位置：放在弧线上方固定高度 y=50
+            // 大圆最高点 y=130，文字 y=50，距离 80px，足够避免重叠
+            // 北极点 N 在 y=70，文字 y=50 在 N 点上方 20px，但 N 点标签在 y=60
+            // 需要确保文字不与 N 点标签重叠，当 t=0.5 时文字在 x=400, y=50
+            // N 标签在 x=400, y=60，会重叠。所以文字 y 应该更小，比如 y=40
+            const textY = 40;
+            directionText.setAttribute('x', pos.x);
+            directionText.setAttribute('y', textY);
+            directionText.setAttribute('text-anchor', 'middle');
+            directionText.textContent = getDirectionText(t);
+            
+            // 更新滑块手柄位置
+            const sliderX = 200 + t * 400;
+            sliderHandle.setAttribute('cx', sliderX);
+        }
+        
+        // 滑块拖动处理
+        function handleSliderMove(clientX) {
+            const rect = document.getElementById('scene4-slider-track').getBoundingClientRect();
+            let newX = clientX - rect.left;
+            newX = Math.max(0, Math.min(400, newX));
+            sliderT = newX / 400;
+            updatePosition(sliderT);
+        }
+        
+        // 鼠标事件
+        sliderHandle.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.clientX);
+            }
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+        
+        // 触摸事件
+        sliderHandle.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.touches[0].clientX);
+            }
+        });
+        
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // 初始化
+        updatePosition(0);
+        
+    })();
+    </script>
+</body>
+</html>

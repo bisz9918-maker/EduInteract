@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正三角形旋转演示</title>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 10; }
+        #scene1-slider { width: 380px; cursor: pointer; height: 16px; }
+        #scene1-angle-display { font-size: 12px; color: #333; white-space: nowrap; }
+        .scene1-label {
+            font-size: 13px;
+            color: #000;
+            background: rgba(255,255,255,0.85);
+            padding: 1px 4px;
+            border-radius: 3px;
+            pointer-events: none;
+            font-family: sans-serif;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-controls">
+            <span id="scene1-angle-display">旋转角 θ = 0°</span>
+            <input type="range" id="scene1-slider" min="0" max="360" value="0" step="1">
+        </div>
+    </div>
+    <script>
+    (function() {
+        // ===== 常量 =====
+        var CANVAS_W = 800;
+        var CANVAS_H = 500;
+        var SIDE = 240;
+        var TRI_H = SIDE * Math.sqrt(3) / 2; // ≈ 207.85
+
+        // ===== 3D坐标（原点在F，x沿BC，y沿AF，z垂直平面ABC）=====
+        var F = new THREE.Vector3(0, 0, 0);
+        var B = new THREE.Vector3(-SIDE/2, 0, 0);
+        var C = new THREE.Vector3(SIDE/2, 0, 0);
+        var A = new THREE.Vector3(0, TRI_H, 0);
+        var D = new THREE.Vector3(-SIDE/4, TRI_H/2, 0);
+        var E = new THREE.Vector3(SIDE/4, TRI_H/2, 0);
+        var G = new THREE.Vector3(0, TRI_H/2, 0);
+
+        // ===== 场景 =====
+        var scene = new THREE.Scene();
+
+        var camera = new THREE.PerspectiveCamera(50, CANVAS_W / CANVAS_H, 1, 2000);
+        camera.position.set(160, 100, 320);
+        camera.lookAt(new THREE.Vector3(0, 100, 0));
+
+        // WebGL Renderer
+        var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(CANVAS_W, CANVAS_H);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        var container = document.getElementById('scene1-container');
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '1';
+        container.appendChild(renderer.domElement);
+
+        // CSS2D Renderer
+        var labelRenderer = new THREE.CSS2DRenderer();
+        labelRenderer.setSize(CANVAS_W, CANVAS_H);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0';
+        labelRenderer.domElement.style.left = '0';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        labelRenderer.domElement.style.zIndex = '2';
+        container.appendChild(labelRenderer.domElement);
+
+        // ===== 辅助函数 =====
+        function createLabel(text, position) {
+            var div = document.createElement('div');
+            div.className = 'scene1-label';
+            div.textContent = text;
+            var label = new THREE.CSS2DObject(div);
+            label.position.copy(position);
+            scene.add(label);
+            return label;
+        }
+
+        function createPoint(position, color, radius) {
+            radius = radius || 4;
+            var geo = new THREE.SphereGeometry(radius, 16, 16);
+            var mat = new THREE.MeshBasicMaterial({ color: color });
+            var mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(position);
+            scene.add(mesh);
+            return mesh;
+        }
+
+        // ===== 几何体创建 =====
+
+        // 三角形ABC的边
+        var triGeo = new THREE.BufferGeometry().setFromPoints([A, B, B, C, C, A]);
+        var triMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+        scene.add(new THREE.LineSegments(triGeo, triMat));
+
+        // 中线AF
+        var afGeo = new THREE.BufferGeometry().setFromPoints([A, F]);
+        var afMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+        scene.add(new THREE.Line(afGeo, afMat));
+
+        // 中位线DE（灰色虚线，旋转轴）
+        var deGeo = new THREE.BufferGeometry().setFromPoints([D, E]);
+        var deMat = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 4, gapSize: 4 });
+        var deLine = new THREE.Line(deGeo, deMat);
+        deLine.computeLineDistances();
+        scene.add(deLine);
+
+        // 顶点
+        createPoint(A, 0x000000, 4);
+        createPoint(B, 0x000000, 4);
+        createPoint(C, 0x000000, 4);
+        createPoint(D, 0x000000, 4);
+        createPoint(E, 0x000000, 4);
+        createPoint(F, 0x000000, 4);
+        createPoint(G, 0x000000, 4);
+
+        // △AED（半透明填充）
+        var aedGeo = new THREE.BufferGeometry().setFromPoints([A, E, D]);
+        var aedMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.05, side: THREE.DoubleSide });
+        scene.add(new THREE.Mesh(aedGeo, aedMat));
+
+        // A'轨迹圆弧（绿色虚线）
+        var trajPoints = [];
+        for (var i = 0; i <= 72; i++) {
+            var theta = (i / 72) * Math.PI * 2;
+            trajPoints.push(new THREE.Vector3(0, TRI_H/2 + TRI_H/2 * Math.cos(theta), TRI_H/2 * Math.sin(theta)));
+        }
+        var trajGeo = new THREE.BufferGeometry().setFromPoints(trajPoints);
+        var trajMat = new THREE.LineDashedMaterial({ color: 0x2e7d32, dashSize: 4, gapSize: 4 });
+        var trajLine = new THREE.Line(trajGeo, trajMat);
+        trajLine.computeLineDistances();
+        scene.add(trajLine);
+
+        // △A'ED（蓝色半透明填充，动态）
+        var aedPrimeGeo = new THREE.BufferGeometry();
+        var aedPrimePosArr = new Float32Array([
+            A.x, A.y, A.z, E.x, E.y, E.z, D.x, D.y, D.z
+        ]);
+        aedPrimeGeo.setAttribute('position', new THREE.BufferAttribute(aedPrimePosArr, 3));
+        var aedPrimeMat = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+        var aedPrimeMesh = new THREE.Mesh(aedPrimeGeo, aedPrimeMat);
+        scene.add(aedPrimeMesh);
+
+        // △A'ED的边（蓝色高亮，动态）
+        var aedPrimeEdgesGeo = new THREE.BufferGeometry();
+        var aedPrimeEdgesArr = new Float32Array([
+            A.x, A.y, A.z, E.x, E.y, E.z,
+            E.x, E.y, E.z, D.x, D.y, D.z,
+            D.x, D.y, D.z, A.x, A.y, A.z
+        ]);
+        aedPrimeEdgesGeo.setAttribute('position', new THREE.BufferAttribute(aedPrimeEdgesArr, 3));
+        var aedPrimeEdgesMat = new THREE.LineBasicMaterial({ color: 0x1565c0 });
+        var aedPrimeEdges = new THREE.LineSegments(aedPrimeEdgesGeo, aedPrimeEdgesMat);
+        scene.add(aedPrimeEdges);
+
+        // 射影点H（红色，动态）
+        var hPoint = createPoint(A.clone(), 0xc62828, 5);
+
+        // 垂线A'H（红色虚线，动态）
+        var ahGeo = new THREE.BufferGeometry();
+        var ahPosArr = new Float32Array([A.x, A.y, A.z, A.x, A.y, A.z]);
+        ahGeo.setAttribute('position', new THREE.BufferAttribute(ahPosArr, 3));
+        var ahMat = new THREE.LineDashedMaterial({ color: 0xc62828, dashSize: 4, gapSize: 4 });
+        var ahLine = new THREE.Line(ahGeo, ahMat);
+        scene.add(ahLine);
+
+        // A'点（蓝色，动态）
+        var aPrimePoint = createPoint(A.clone(), 0x1565c0, 5);
+
+        // ===== 静态标签 =====
+        createLabel('A', new THREE.Vector3(0, TRI_H + 14, 0));
+        createLabel('B', new THREE.Vector3(-SIDE/2 - 15, -12, 0));
+        createLabel('C', new THREE.Vector3(SIDE/2 + 15, -12, 0));
+        createLabel('D', new THREE.Vector3(-SIDE/4 - 15, TRI_H/2 + 14, 0));
+        createLabel('E', new THREE.Vector3(SIDE/4 + 15, TRI_H/2 + 14, 0));
+        createLabel('F', new THREE.Vector3(0, -18, 0));
+        createLabel('G', new THREE.Vector3(22, TRI_H/2 + 14, 0));
+
+        // 线段标注 - 移到右侧避免与H重叠
+        createLabel('a/2', new THREE.Vector3(20, TRI_H/2 - 14, 0));
+        createLabel('a√3/4', new THREE.Vector3(16, (TRI_H + TRI_H/2)/2, 0));
+        createLabel('a√3/4', new THREE.Vector3(16, TRI_H/4, 0));
+
+        // 动态标签
+        var aPrimeLabel = createLabel("A'", A.clone().add(new THREE.Vector3(0, 15, 0)));
+        var hLabel = createLabel('H', A.clone().add(new THREE.Vector3(0, -15, 0)));
+
+        // ===== 滑块交互 =====
+        var slider = document.getElementById('scene1-slider');
+        var angleDisplay = document.getElementById('scene1-angle-display');
+
+        function updateScene(theta) {
+            var rad = theta * Math.PI / 180;
+
+            // A'坐标：绕DE轴（y=TRI_H/2, z=0）旋转
+            var aPrime = new THREE.Vector3(
+                0,
+                TRI_H/2 + TRI_H/2 * Math.cos(rad),
+                TRI_H/2 * Math.sin(rad)
+            );
+
+            // H坐标：A'在z=0平面的射影
+            var h = new THREE.Vector3(
+                0,
+                TRI_H/2 + TRI_H/2 * Math.cos(rad),
+                0
+            );
+
+            // 更新A'点
+            aPrimePoint.position.copy(aPrime);
+
+            // 更新H点
+            hPoint.position.copy(h);
+
+            // 更新△A'ED填充
+            var pos = aedPrimeGeo.attributes.position.array;
+            pos[0] = aPrime.x; pos[1] = aPrime.y; pos[2] = aPrime.z;
+            aedPrimeGeo.attributes.position.needsUpdate = true;
+
+            // 更新△A'ED的边
+            var ep = aedPrimeEdgesGeo.attributes.position.array;
+            ep[0] = aPrime.x; ep[1] = aPrime.y; ep[2] = aPrime.z;
+            ep[6] = aPrime.x; ep[7] = aPrime.y; ep[8] = aPrime.z;
+            ep[12] = aPrime.x; ep[13] = aPrime.y; ep[14] = aPrime.z;
+            aedPrimeEdgesGeo.attributes.position.needsUpdate = true;
+
+            // 更新垂线A'H
+            var ah = ahGeo.attributes.position.array;
+            ah[0] = aPrime.x; ah[1] = aPrime.y; ah[2] = aPrime.z;
+            ah[3] = h.x; ah[4] = h.y; ah[5] = h.z;
+            ahGeo.attributes.position.needsUpdate = true;
+            ahLine.computeLineDistances();
+
+            // 更新动态标签 - 智能偏移避免重叠
+            var aPrimeLabelOffset = new THREE.Vector3(18, 10, 0);
+            var hLabelOffset = new THREE.Vector3(-18, -12, 0);
+
+            // 当A'接近A时（θ接近0或360），A'标签向右偏移更多
+            if (theta < 15 || theta > 345) {
+                aPrimeLabelOffset = new THREE.Vector3(22, 10, 0);
+            }
+            // 当A'接近G时（θ接近90或270），A'标签向上偏移
+            if (theta > 75 && theta < 105) {
+                aPrimeLabelOffset = new THREE.Vector3(18, 16, 0);
+            }
+            if (theta > 255 && theta < 285) {
+                aPrimeLabelOffset = new THREE.Vector3(18, -16, 0);
+            }
+            // 当A'接近F时（θ接近180），A'标签向右偏移
+            if (theta > 165 && theta < 195) {
+                aPrimeLabelOffset = new THREE.Vector3(22, -8, 0);
+            }
+
+            // H标签智能偏移 - 始终在左侧，避免与a/2标签重叠
+            if (theta > 165 && theta < 195) {
+                hLabelOffset = new THREE.Vector3(-22, -14, 0);
+            }
+            if (theta > 75 && theta < 105) {
+                hLabelOffset = new THREE.Vector3(-22, -14, 0);
+            }
+            if (theta > 255 && theta < 285) {
+                hLabelOffset = new THREE.Vector3(-22, -14, 0);
+            }
+            if (theta < 15 || theta > 345) {
+                hLabelOffset = new THREE.Vector3(-22, -14, 0);
+            }
+
+            aPrimeLabel.position.copy(aPrime).add(aPrimeLabelOffset);
+            hLabel.position.copy(h).add(hLabelOffset);
+
+            // 更新角度显示
+            angleDisplay.textContent = '旋转角 θ = ' + theta + '°';
+        }
+
+        slider.addEventListener('input', function(e) {
+            updateScene(parseInt(e.target.value));
+        });
+
+        // ===== 动画循环 =====
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        // 初始化
+        updateScene(0);
+        animate();
+    })();
+    </script>
+</body>
+</html>

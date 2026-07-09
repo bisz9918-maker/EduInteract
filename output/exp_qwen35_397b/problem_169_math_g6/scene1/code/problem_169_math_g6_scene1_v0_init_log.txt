@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方位角与距离 - 巡洋舰位置判断</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: "Microsoft YaHei", "SimSun", sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 元素显隐控制 */
+        .scene1-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene1-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* 淡入动画 */
+        .scene1-fade-in {
+            animation: scene1FadeIn 300ms ease-in-out;
+        }
+        @keyframes scene1FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        /* 选项框样式 */
+        .scene1-option-box {
+            fill: #f5f5f5;
+            fill-opacity: 0.2;
+            stroke: #333333;
+            stroke-width: 1;
+        }
+        .scene1-option-box.highlight {
+            fill: #c62828;
+            fill-opacity: 0.3;
+            stroke: #c62828;
+            stroke-width: 2;
+        }
+        .scene1-option-text {
+            font-size: 12px;
+            fill: #333333;
+        }
+        .scene1-option-text.highlight {
+            fill: #c62828;
+            font-weight: bold;
+        }
+        /* 按钮样式 */
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 1px solid #333333;
+            background: #ffffff;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 200ms;
+        }
+        .scene1-btn:hover {
+            background: #f0f0f0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 坐标轴 -->
+            <!-- 北方向轴: (400,70)-(400,200) - 缩短以留出标签空间 -->
+            <line id="scene1-axis-north" x1="400" y1="70" x2="400" y2="200" stroke="#000000" stroke-width="2"/>
+            <!-- 南方向轴: (400,300)-(400,400) -->
+            <line id="scene1-axis-south" x1="400" y1="300" x2="400" y2="400" stroke="#000000" stroke-width="2"/>
+            <!-- 西方向轴: (150,250)-(350,250) -->
+            <line id="scene1-axis-west" x1="150" y1="250" x2="350" y2="250" stroke="#000000" stroke-width="2"/>
+            <!-- 东方向轴: (450,250)-(650,250) -->
+            <line id="scene1-axis-east" x1="450" y1="250" x2="650" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 方向标签 -->
+            <text id="scene1-label-north" x="400" y="55" text-anchor="middle" font-size="16px" fill="#333333">北</text>
+            <text id="scene1-label-south" x="400" y="425" text-anchor="middle" font-size="16px" fill="#333333">南</text>
+            <text id="scene1-label-west" x="130" y="255" text-anchor="end" font-size="16px" fill="#333333">西</text>
+            <text id="scene1-label-east" x="670" y="255" text-anchor="start" font-size="16px" fill="#333333">东</text>
+            
+            <!-- 雷达站 (原点) -->
+            <circle id="scene1-radar-station" cx="400" cy="250" r="6" fill="#000000"/>
+            <text id="scene1-label-radar" x="415" y="270" font-size="14px" fill="#333333">雷达站</text>
+            
+            <!-- 巡洋舰 (步骤 1 显示) -->
+            <!-- 巡洋舰坐标：北偏东 40°，距离约 160px (代表 50km) -->
+            <!-- x = 400 + 160 * sin(40°) ≈ 400 + 160 * 0.643 ≈ 503 -->
+            <!-- y = 250 - 160 * cos(40°) ≈ 250 - 160 * 0.766 ≈ 127 -->
+            <circle id="scene1-cruiser" cx="503" cy="127" r="5" fill="#1565c0" class="scene1-hidden"/>
+            <text id="scene1-label-cruiser" x="515" y="120" font-size="14px" fill="#1565c0" class="scene1-hidden">巡洋舰</text>
+            
+            <!-- 雷达站 - 巡洋舰连线 (步骤 1 显示) -->
+            <line id="scene1-connection-line" x1="400" y1="250" x2="503" y2="127" stroke="#1565c0" stroke-width="2" class="scene1-hidden"/>
+            
+            <!-- 40°角度弧 (步骤 2 显示) -->
+            <!-- 从正北 (90°) 到北偏东 40°(50°)，半径 50px -->
+            <path id="scene1-angle-arc" d="M 400 200 A 50 50 0 0 1 432 185" stroke="#c62828" stroke-width="2" fill="none" class="scene1-hidden"/>
+            <!-- 角度弧线箭头 -->
+            <path id="scene1-angle-arrow" d="M 428 188 L 432 185 L 430 192" stroke="#c62828" stroke-width="2" fill="none" class="scene1-hidden"/>
+            <!-- 40°标签：移到弧线右侧更远位置 -->
+            <text id="scene1-label-angle" x="470" y="175" font-size="14px" fill="#c62828" class="scene1-hidden">40°</text>
+            
+            <!-- 比例尺 (步骤 3 显示) -->
+            <!-- 比例尺线段：(550,350)-(650,350)，长度 100px 代表 50km -->
+            <line id="scene1-scale-bar" x1="550" y1="350" x2="650" y2="350" stroke="#2e7d32" stroke-width="3" class="scene1-hidden"/>
+            <line id="scene1-scale-tick-left" x1="550" y1="345" x2="550" y2="355" stroke="#2e7d32" stroke-width="2" class="scene1-hidden"/>
+            <line id="scene1-scale-tick-right" x1="650" y1="345" x2="650" y2="355" stroke="#2e7d32" stroke-width="2" class="scene1-hidden"/>
+            <text id="scene1-label-scale" x="600" y="375" text-anchor="middle" font-size="14px" fill="#2e7d32" class="scene1-hidden">50 km</text>
+            
+            <!-- 选项框 (步骤 4 显示) -->
+            <!-- 选项 A: (80,440)-(240,485) -->
+            <rect id="scene1-option-a-box" x="80" y="440" width="160" height="45" class="scene1-option-box scene1-hidden"/>
+            <text id="scene1-option-a-text" x="160" y="458" text-anchor="middle" font-size="11px" class="scene1-option-text scene1-hidden">北偏东 40°方向</text>
+            <text id="scene1-option-a-text2" x="160" y="475" text-anchor="middle" font-size="11px" class="scene1-option-text scene1-hidden">50km</text>
+            
+            <!-- 选项 B: (280,440)-(440,485) -->
+            <rect id="scene1-option-b-box" x="280" y="440" width="160" height="45" class="scene1-option-box scene1-hidden"/>
+            <text id="scene1-option-b-text" x="360" y="458" text-anchor="middle" font-size="11px" class="scene1-option-text scene1-hidden">北偏西 40°方向</text>
+            <text id="scene1-option-b-text2" x="360" y="475" text-anchor="middle" font-size="11px" class="scene1-option-text scene1-hidden">50km</text>
+            
+            <!-- 选项 C: (480,440)-(640,485) -->
+            <rect id="scene1-option-c-box" x="480" y="440" width="160" height="45" class="scene1-option-box scene1-hidden"/>
+            <text id="scene1-option-c-text" x="560" y="458" text-anchor="middle" font-size="11px" class="scene1-option-text scene1-hidden">北偏东 40°方向</text>
+            <text id="scene1-option-c-text2" x="560" y="475" text-anchor="middle" font-size="11px" class="scene1-option-text scene1-hidden">100km</text>
+            
+            <!-- 结论文字 (步骤 4 显示) - 移到巡洋舰右上方，避免重叠 -->
+            <text id="scene1-conclusion" x="520" y="95" font-size="12px" fill="#c62828" font-weight="bold" class="scene1-hidden">北偏东 40°方向 50km</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-next-btn" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 方位角与距离 - 巡洋舰位置判断
+        // 布局坐标表参考：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 北方向轴 | 线段 | (400,70)-(400,200) | 4×130 | - | 垂直向上 |
+        // | 南方向轴 | 线段 | (400,300)-(400,400) | 4×100 | - | 垂直向下 |
+        // | 西方向轴 | 线段 | (150,250)-(350,250) | 200×4 | - | 水平向左 |
+        // | 东方向轴 | 线段 | (450,250)-(650,250) | 200×4 | - | 水平向右 |
+        // | 雷达站 | 实心圆 | (400,250) | r=6 | - | 坐标原点 |
+        // | 巡洋舰 | 实心圆 | (503,127) | r=5 | - | 北偏东 40°方向 |
+        // | 雷达站 - 巡洋舰连线 | 线段 | (400,250)-(503,127) | 约 160×110 | - | 蓝色高亮 |
+        // | 40°角度弧 | 弧线 | 圆心 (400,250), r=50, 从 90°到 50° | 弧长≈35 | - | 红色高亮 |
+        // | 40°标签 | text | (470,175) | ~35×16 | 右侧 | 角度数值 |
+        // | 北标签 | text | (400,55) | ~20×16 | 上方 | 北方向 |
+        // | 南标签 | text | (400,425) | ~20×16 | 下方 | 南方向 |
+        // | 西标签 | text | (130,255) | ~20×16 | 左侧 | 西方向 |
+        // | 东标签 | text | (670,255) | ~20×16 | 右侧 | 东方向 |
+        // | 雷达站标签 | text | (415,270) | ~40×16 | 右下方 | 原点标注 |
+        // | 巡洋舰标签 | text | (515,120) | ~40×16 | 右上方 | 目标点标注 |
+        // | 比例尺线段 | 线段 | (550,350)-(650,350) | 100×3 | - | 绿色高亮 |
+        // | 比例尺左刻度 | 线段 | (550,345)-(550,355) | 3×10 | - | 比例尺起点 |
+        // | 比例尺右刻度 | 线段 | (650,345)-(650,355) | 3×10 | - | 比例尺终点 |
+        // | 50km 标签 | text | (600,375) | ~40×16 | 下方 | 比例尺数值 |
+        // | 选项 A 框 | 矩形 | (80,440)-(240,485) | 160×45 | - | 北偏东 40°方向 50km |
+        // | 选项 B 框 | 矩形 | (280,440)-(440,485) | 160×45 | - | 北偏西 40°方向 50km |
+        // | 选项 C 框 | 矩形 | (480,440)-(640,485) | 160×45 | - | 北偏东 40°方向 100km |
+        
+        const totalSteps = 5;
+        let currentStep = 0;
+        
+        // 各步骤需要显示的元素
+        const stepElements = {
+            0: [ // 初始状态：基础坐标系
+                'scene1-axis-north', 'scene1-axis-south', 'scene1-axis-west', 'scene1-axis-east',
+                'scene1-label-north', 'scene1-label-south', 'scene1-label-west', 'scene1-label-east',
+                'scene1-radar-station', 'scene1-label-radar'
+            ],
+            1: [ // 步骤 1：巡洋舰位置
+                'scene1-cruiser', 'scene1-label-cruiser', 'scene1-connection-line'
+            ],
+            2: [ // 步骤 2：40°角度
+                'scene1-angle-arc', 'scene1-angle-arrow', 'scene1-label-angle'
+            ],
+            3: [ // 步骤 3：比例尺
+                'scene1-scale-bar', 'scene1-scale-tick-left', 'scene1-scale-tick-right', 'scene1-label-scale'
+            ],
+            4: [ // 步骤 4：选项与结论
+                'scene1-option-a-box', 'scene1-option-a-text', 'scene1-option-a-text2',
+                'scene1-option-b-box', 'scene1-option-b-text', 'scene1-option-b-text2',
+                'scene1-option-c-box', 'scene1-option-c-text', 'scene1-option-c-text2',
+                'scene1-conclusion'
+            ]
+        };
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible', 'scene1-fade-in');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-visible', 'scene1-fade-in');
+                el.classList.add('scene1-hidden');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有步骤元素
+            for (let step = 1; step < totalSteps; step++) {
+                stepElements[step].forEach(id => hideElement(id));
+            }
+            
+            // 显示当前步骤及之前步骤的元素
+            for (let step = 0; step <= currentStep; step++) {
+                stepElements[step].forEach(id => showElement(id));
+            }
+            
+            // 步骤 4 特殊处理：高亮选项 A
+            if (currentStep >= 4) {
+                document.getElementById('scene1-option-a-box').classList.add('highlight');
+                document.getElementById('scene1-option-a-text').classList.add('highlight');
+                document.getElementById('scene1-option-a-text2').classList.add('highlight');
+            }
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-prev-btn');
+            const nextBtn = document.getElementById('scene1-next-btn');
+            const indicator = document.getElementById('scene1-step-indicator');
+            
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep >= totalSteps - 1);
+            indicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+        
+        // 事件绑定
+        document.getElementById('scene1-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene1-next-btn').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

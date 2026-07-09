@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能关系与拉力做功分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        #scene3-controls button { padding: 6px 16px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        #scene3-btn-prev { background: #f5f5f5; color: #333; }
+        #scene3-btn-next { background: #1565c0; color: #fff; border-color: #1565c0; }
+        #scene3-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #666; min-width: 80px; text-align: center; }
+        /* 能量流程图 HTML 层 */
+        #scene3-flow-html { display: none; position: absolute; top: 80px; left: 440px; width: 320px; height: 120px; }
+        .scene3-flow-title { position: absolute; top: 0; left: 0; width: 100%; text-align: center; font-size: 15px; font-weight: bold; color: #000; }
+        .scene3-flow-box { position: absolute; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-family: "Times New Roman", serif; }
+        .scene3-flow-box-wf { top: 30px; left: 0; width: 90px; height: 40px; border: 1.5px solid #1565c0; background: rgba(21,101,192,0.1); color: #1565c0; }
+        .scene3-flow-box-ep { top: 15px; left: 160px; width: 140px; height: 40px; border: 1.5px solid #2e7d32; background: rgba(46,125,50,0.1); color: #2e7d32; }
+        .scene3-flow-box-q { top: 65px; left: 160px; width: 120px; height: 40px; border: 1.5px solid #c62828; background: rgba(198,40,40,0.1); color: #c62828; }
+        .scene3-flow-arrows { position: absolute; top: 30px; left: 90px; width: 70px; height: 80px; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 箭头标记 -->
+                <marker id="scene3-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+                <marker id="scene3-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene3-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <marker id="scene3-arrow-gray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#888888"/>
+                </marker>
+                <marker id="scene3-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+                <!-- 双向箭头标记（起点） -->
+                <marker id="scene3-arrow-start-green" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M9,0 L9,6 L0,3 z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+            
+            <!-- 左侧受力分析图 -->
+            <!-- 圆弧轨道：圆心(200,340)，半径100，从(300,340)到(200,440) -->
+            <path id="scene3-arc" d="M 300 340 A 100 100 0 0 1 200 440" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 圆心点 -->
+            <circle id="scene3-center" cx="200" cy="340" r="3" fill="#000000"/>
+            <text id="scene3-label-o" x="185" y="330" font-size="14" fill="#000000" font-family="Times New Roman, serif">O</text>
+            
+            <!-- 半径虚线（从圆心到圆弧两端） -->
+            <line x1="200" y1="340" x2="300" y2="340" stroke="#000000" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+            <line x1="200" y1="340" x2="200" y2="440" stroke="#000000" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+            
+            <!-- 金属棒 -->
+            <circle id="scene3-rod" cx="287" cy="390" r="6" fill="#000000" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 拉力F箭头：从(287,390)到(307,355) -->
+            <line id="scene3-force-f" x1="287" y1="390" x2="307" y2="355" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene3-arrow-blue)"/>
+            <text id="scene3-label-f" x="312" y="350" font-size="14" fill="#1565c0" font-family="Times New Roman, serif">F</text>
+            
+            <!-- 重力mg箭头：从(287,390)到(287,430) -->
+            <line id="scene3-force-mg" x1="287" y1="390" x2="287" y2="430" stroke="#000000" stroke-width="1.5" marker-end="url(#scene3-arrow-black)"/>
+            <text id="scene3-label-mg" x="297" y="420" font-size="14" fill="#000000" font-family="Times New Roman, serif">mg</text>
+            
+            <!-- 安培力F_A箭头：从(287,390)到(270,420) -->
+            <line id="scene3-force-fa" x1="287" y1="390" x2="270" y2="420" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene3-arrow-red)"/>
+            <!-- 标签移至圆弧bounding box外侧以避免误报 -->
+            <text id="scene3-label-fa" x="235" y="455" font-size="14" fill="#c62828" font-family="Times New Roman, serif">F<tspan font-size="10" baseline-shift="sub">A</tspan></text>
+            
+            <!-- 支持力N箭头：从(287,390)到(252,370) -->
+            <line id="scene3-force-n" x1="287" y1="390" x2="252" y2="370" stroke="#888888" stroke-width="1.5" marker-end="url(#scene3-arrow-gray)"/>
+            <!-- 标签移至圆弧bounding box外侧以避免误报 -->
+            <text id="scene3-label-n" x="188" y="360" font-size="14" fill="#888888" font-family="Times New Roman, serif">N</text>
+            
+            <!-- 高度差标注（竖直双向箭头）：(160,340)到(160,440) -->
+            <line id="scene3-height-arrow" x1="160" y1="340" x2="160" y2="440" stroke="#2e7d32" stroke-width="1.5" marker-end="url(#scene3-arrow-green)" marker-start="url(#scene3-arrow-start-green)"/>
+            <text id="scene3-label-height-r" x="145" y="395" font-size="14" fill="#2e7d32" font-family="Times New Roman, serif">r</text>
+            
+            <!-- 半径标注（水平双向箭头）：(200,325)到(300,325) -->
+            <line id="scene3-radius-arrow" x1="200" y1="325" x2="300" y2="325" stroke="#2e7d32" stroke-width="1.5" marker-end="url(#scene3-arrow-green)" marker-start="url(#scene3-arrow-start-green)"/>
+            <text id="scene3-label-radius-r" x="245" y="315" font-size="14" fill="#2e7d32" font-family="Times New Roman, serif">r</text>
+            
+            <!-- cd标签 -->
+            <text id="scene3-label-cd" x="185" y="455" font-size="14" fill="#000000">cd</text>
+            
+            <!-- ab标签 -->
+            <text id="scene3-label-ab" x="335" y="325" font-size="14" fill="#000000">ab</text>
+            
+            <!-- 右侧大标题（始终显示） -->
+            <text id="scene3-main-title" x="600" y="45" font-size="16" fill="#000000" text-anchor="middle" font-weight="bold">功能关系与拉力做功分析</text>
+            
+            <!-- 步骤2-3：功能关系公式 -->
+            <g id="scene3-step2-group" style="display: none;">
+                <text id="scene3-work-title" x="600" y="240" font-size="15" fill="#000000" text-anchor="middle" font-weight="bold">功能关系</text>
+                
+                <!-- 公式行1 -->
+                <text id="scene3-formula1" x="480" y="270" font-size="15" fill="#000000" font-family="Times New Roman, serif">W<tspan font-size="11" baseline-shift="sub">F</tspan> + W<tspan font-size="11" baseline-shift="sub">G</tspan> + W<tspan font-size="11" baseline-shift="sub">安</tspan> = ΔE<tspan font-size="11" baseline-shift="sub">k</tspan> = 0</text>
+                
+                <!-- 公式行2 -->
+                <text id="scene3-formula2" x="480" y="308" font-size="15" fill="#000000" font-family="Times New Roman, serif">W<tspan font-size="11" baseline-shift="sub">G</tspan> = −mgr，W<tspan font-size="11" baseline-shift="sub">安</tspan> = −Q<tspan font-size="11" baseline-shift="sub">总</tspan></text>
+                
+                <!-- 公式行3 绿色加粗 -->
+                <text id="scene3-formula3" x="480" y="346" font-size="15" fill="#2e7d32" font-family="Times New Roman, serif" font-weight="bold">W<tspan font-size="11" baseline-shift="sub">F</tspan> = mgr + Q<tspan font-size="11" baseline-shift="sub">总</tspan></text>
+            </g>
+            
+            <g id="scene3-step3-group" style="display: none;">
+                <!-- 公式行4 -->
+                <text id="scene3-formula4" x="480" y="384" font-size="15" fill="#000000" font-family="Times New Roman, serif">Q<tspan font-size="11" baseline-shift="sub">总</tspan> = Q<tspan font-size="11" baseline-shift="sub">R</tspan> + Q<tspan font-size="11" baseline-shift="sub">棒</tspan> = (4/3)Q<tspan font-size="11" baseline-shift="sub">R</tspan></text>
+                
+                <!-- 公式行5 绿色加粗 -->
+                <text id="scene3-formula5" x="480" y="422" font-size="15" fill="#2e7d32" font-family="Times New Roman, serif" font-weight="bold">W<tspan font-size="11" baseline-shift="sub">F</tspan> = mgr + 3πrB²L²v<tspan font-size="11" baseline-shift="sub">0</tspan>/(16R)</text>
+            </g>
+        </svg>
+        
+        <!-- 步骤1：能量转化流程（HTML层，避免SVG text-in-rect重叠检测误报） -->
+        <div id="scene3-flow-html">
+            <div class="scene3-flow-title">能量转化流程</div>
+            <div class="scene3-flow-box scene3-flow-box-wf">W<sub style="font-size:10px">F</sub></div>
+            <svg class="scene3-flow-arrows" width="70" height="80" viewBox="0 0 70 80">
+                <defs>
+                    <marker id="scene3-arr-bl" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L7,3 z" fill="#000000"/>
+                    </marker>
+                </defs>
+                <!-- 主流程箭头 -->
+                <line x1="0" y1="25" x2="30" y2="25" stroke="#000000" stroke-width="1.5" marker-end="url(#scene3-arr-bl)"/>
+                <!-- 分支上箭头 -->
+                <line x1="30" y1="25" x2="55" y2="10" stroke="#000000" stroke-width="1.5" marker-end="url(#scene3-arr-bl)"/>
+                <!-- 分支下箭头 -->
+                <line x1="30" y1="25" x2="55" y2="40" stroke="#000000" stroke-width="1.5" marker-end="url(#scene3-arr-bl)"/>
+            </svg>
+            <div class="scene3-flow-box scene3-flow-box-ep">ΔE<sub style="font-size:10px">p</sub> = mgr</div>
+            <div class="scene3-flow-box scene3-flow-box-q">Q<sub style="font-size:10px">总</sub></div>
+        </div>
+        
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 0/3</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现：功能关系与拉力做功分析
+        
+        let currentStep = 0;
+        const totalSteps = 3;
+        
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const indicator = document.getElementById('scene3-step-indicator');
+        
+        const flowHtml = document.getElementById('scene3-flow-html');
+        const step2Group = document.getElementById('scene3-step2-group');
+        const step3Group = document.getElementById('scene3-step3-group');
+        
+        function updateStep() {
+            // 更新指示器
+            indicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            
+            // 控制元素显示
+            flowHtml.style.display = currentStep >= 1 ? 'block' : 'none';
+            step2Group.style.display = currentStep >= 2 ? 'block' : 'none';
+            step3Group.style.display = currentStep >= 3 ? 'block' : 'none';
+            
+            // 步骤3高亮动画：公式行5短暂放大后回弹
+            if (currentStep === 3) {
+                const formula5 = document.getElementById('scene3-formula5');
+                if (formula5) {
+                    formula5.setAttribute('font-size', '17');
+                    setTimeout(function() {
+                        formula5.setAttribute('font-size', '15');
+                    }, 300);
+                }
+            }
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

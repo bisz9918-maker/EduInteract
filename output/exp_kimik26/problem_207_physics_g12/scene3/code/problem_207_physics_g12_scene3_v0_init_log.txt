@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - v-t 图像与位移面积关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene3-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #999; border-radius: 4px; background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        #scene3-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene3-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #333; min-width: 70px; text-align: center; }
+
+        /* 动画相关 */
+        .scene3-fade-in { opacity: 0; transition: opacity 0.4s ease; }
+        .scene3-fade-in.visible { opacity: 1; }
+        .scene3-line-a, .scene3-line-b {
+            stroke-dasharray: 600;
+            stroke-dashoffset: 600;
+            transition: stroke-dashoffset 0.6s ease;
+        }
+        .scene3-line-a.visible, .scene3-line-b.visible { stroke-dashoffset: 0; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 坐标轴 -->
+            <g id="scene3-axes">
+                <!-- 横轴 t -->
+                <line id="scene3-axis-x" x1="120" y1="400" x2="720" y2="400" stroke="#000000" stroke-width="1.5"/>
+                <polygon points="720,400 710,395 710,405" fill="#000000"/>
+                <!-- 纵轴 v -->
+                <line id="scene3-axis-y" x1="120" y1="400" x2="120" y2="85" stroke="#000000" stroke-width="1.5"/>
+                <polygon points="120,85 115,95 125,95" fill="#000000"/>
+            </g>
+
+            <!-- 轴标签 -->
+            <text id="scene3-label-x" x="745" y="405" font-size="15" fill="#000000" text-anchor="start">t/s</text>
+            <text id="scene3-label-y" x="20" y="55" font-size="15" fill="#000000" text-anchor="start">v/(m·s⁻¹)</text>
+
+            <!-- 横轴刻度线与刻度值 -->
+            <g id="scene3-ticks-x">
+                <line x1="120" y1="400" x2="120" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="120" y="422" font-size="13" fill="#000000" text-anchor="middle">0</text>
+
+                <line x1="220" y1="400" x2="220" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="220" y="422" font-size="13" fill="#000000" text-anchor="middle">0.2</text>
+
+                <line x1="320" y1="400" x2="320" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="320" y="422" font-size="13" fill="#000000" text-anchor="middle">0.4</text>
+
+                <line x1="420" y1="400" x2="420" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="420" y="422" font-size="13" fill="#000000" text-anchor="middle">0.6</text>
+
+                <line x1="520" y1="400" x2="520" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="520" y="422" font-size="13" fill="#000000" text-anchor="middle">0.8</text>
+
+                <line x1="620" y1="400" x2="620" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="620" y="422" font-size="13" fill="#000000" text-anchor="middle">1.0</text>
+
+                <line x1="720" y1="400" x2="720" y2="408" stroke="#000000" stroke-width="1"/>
+                <text x="720" y="422" font-size="13" fill="#000000" text-anchor="middle">1.2</text>
+            </g>
+
+            <!-- 纵轴刻度线与刻度值 (0~6, 去掉7避免与轴标签冲突) -->
+            <g id="scene3-ticks-y">
+                <line x1="112" y1="400" x2="120" y2="400" stroke="#000000" stroke-width="1"/>
+                <text x="95" y="405" font-size="13" fill="#000000" text-anchor="end">0</text>
+
+                <line x1="112" y1="355" x2="120" y2="355" stroke="#000000" stroke-width="1"/>
+                <text x="108" y="360" font-size="13" fill="#000000" text-anchor="end">1</text>
+
+                <line x1="112" y1="310" x2="120" y2="310" stroke="#000000" stroke-width="1"/>
+                <text x="108" y="315" font-size="13" fill="#000000" text-anchor="end">2</text>
+
+                <line x1="112" y1="265" x2="120" y2="265" stroke="#000000" stroke-width="1"/>
+                <text x="108" y="270" font-size="13" fill="#000000" text-anchor="end">3</text>
+
+                <line x1="112" y1="220" x2="120" y2="220" stroke="#000000" stroke-width="1"/>
+                <text x="108" y="225" font-size="13" fill="#000000" text-anchor="end">4</text>
+
+                <line x1="112" y1="175" x2="120" y2="175" stroke="#000000" stroke-width="1"/>
+                <text x="108" y="180" font-size="13" fill="#000000" text-anchor="end">5</text>
+
+                <line x1="112" y1="130" x2="120" y2="130" stroke="#000000" stroke-width="1"/>
+                <text x="108" y="135" font-size="13" fill="#000000" text-anchor="end">6</text>
+            </g>
+
+            <!-- 步骤0: v₀=6 标记 -->
+            <text id="scene3-v0-label" x="85" y="132" font-size="14" fill="#000000" text-anchor="end">v₀=6</text>
+
+            <!-- 步骤1: A图线 -->
+            <line id="scene3-line-a" class="scene3-line-a" x1="120" y1="130" x2="620" y2="355" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene3-label-a" class="scene3-fade-in" x="300" y="118" font-size="14" fill="#1565c0" text-anchor="middle">A</text>
+            <text id="scene3-aa-label" class="scene3-fade-in" x="480" y="118" font-size="14" fill="#1565c0" text-anchor="start">a_A=5</text>
+
+            <!-- 步骤2: B图线 -->
+            <line id="scene3-line-b" class="scene3-line-b" x1="120" y1="400" x2="620" y2="355" stroke="#c62828" stroke-width="2"/>
+            <text id="scene3-label-b" class="scene3-fade-in" x="250" y="450" font-size="14" fill="#c62828" text-anchor="middle">B</text>
+            <text id="scene3-ab-label" class="scene3-fade-in" x="550" y="450" font-size="14" fill="#c62828" text-anchor="start">a_B=1</text>
+
+            <!-- 步骤3: 共速点与辅助线 -->
+            <circle id="scene3-coincident-point" class="scene3-fade-in" cx="620" cy="355" r="4" fill="#000000"/>
+            <line id="scene3-dash-h" class="scene3-fade-in" x1="120" y1="355" x2="620" y2="355" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene3-dash-v" class="scene3-fade-in" x1="620" y1="355" x2="620" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <text id="scene3-t1-label" class="scene3-fade-in" x="660" y="435" font-size="14" fill="#000000" text-anchor="start">t=1s</text>
+            <text id="scene3-v1-label" class="scene3-fade-in" x="80" y="362" font-size="12" fill="#000000" text-anchor="end">v=1m/s</text>
+
+            <!-- 步骤4: 填充区域 -->
+            <!-- A位移填充: 梯形 (120,130)-(620,355)-(620,400)-(120,400) -->
+            <polygon id="scene3-area-a" class="scene3-fade-in" points="120,130 620,355 620,400 120,400" fill="#1565c0" opacity="0.15"/>
+            <text id="scene3-xa-label" class="scene3-fade-in" x="650" y="240" font-size="14" fill="#1565c0" text-anchor="start" font-weight="bold">x_A=3.5m</text>
+
+            <!-- B位移填充: 三角形 (120,400)-(620,400)-(620,355) -->
+            <polygon id="scene3-area-b" class="scene3-fade-in" points="120,400 620,400 620,355" fill="#c62828" opacity="0.15"/>
+            <text id="scene3-xb-label" class="scene3-fade-in" x="650" y="275" font-size="14" fill="#c62828" text-anchor="start" font-weight="bold">x_B=0.5m</text>
+
+            <!-- 相对位移填充: 三角形 (120,130)-(620,355)-(120,400) -->
+            <polygon id="scene3-area-delta" class="scene3-fade-in" points="120,130 620,355 120,400" fill="#2e7d32" opacity="0.20"/>
+            <text id="scene3-dx-label" class="scene3-fade-in" x="650" y="310" font-size="14" fill="#2e7d32" text-anchor="start" font-weight="bold">Δx=L=3m</text>
+
+            <!-- 步骤4: 图例 (无背景框，避免text+rect重叠) -->
+            <g id="scene3-legend" class="scene3-fade-in">
+                <!-- 图例A -->
+                <line x1="655" y1="82" x2="685" y2="82" stroke="#1565c0" stroke-width="2"/>
+                <text x="695" y="86" font-size="13" fill="#000000" text-anchor="start">A</text>
+                <!-- 图例B -->
+                <line x1="655" y1="115" x2="685" y2="115" stroke="#c62828" stroke-width="2"/>
+                <text x="695" y="119" font-size="13" fill="#000000" text-anchor="start">B</text>
+                <!-- 图例Δx -->
+                <rect x="655" y="145" width="30" height="10" fill="#2e7d32" opacity="0.30"/>
+                <text x="695" y="155" font-size="13" fill="#000000" text-anchor="start">Δx=L</text>
+            </g>
+        </svg>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1 / 5</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现
+        var currentStep = 0;
+        var totalSteps = 5;
+
+        var btnPrev = document.getElementById('scene3-btn-prev');
+        var btnNext = document.getElementById('scene3-btn-next');
+        var stepIndicator = document.getElementById('scene3-step-indicator');
+
+        // 各步骤控制的元素
+        var stepElements = [
+            // 步骤0: 坐标系 + v₀=6 (始终显示)
+            {
+                show: [],
+                hide: ['scene3-line-a','scene3-label-a','scene3-aa-label',
+                       'scene3-line-b','scene3-label-b','scene3-ab-label',
+                       'scene3-coincident-point','scene3-dash-h','scene3-dash-v','scene3-t1-label','scene3-v1-label',
+                       'scene3-area-a','scene3-xa-label','scene3-area-b','scene3-xb-label','scene3-area-delta','scene3-dx-label',
+                       'scene3-legend']
+            },
+            // 步骤1: + A图线
+            {
+                show: ['scene3-line-a','scene3-label-a','scene3-aa-label'],
+                hide: ['scene3-line-b','scene3-label-b','scene3-ab-label',
+                       'scene3-coincident-point','scene3-dash-h','scene3-dash-v','scene3-t1-label','scene3-v1-label',
+                       'scene3-area-a','scene3-xa-label','scene3-area-b','scene3-xb-label','scene3-area-delta','scene3-dx-label',
+                       'scene3-legend']
+            },
+            // 步骤2: + B图线
+            {
+                show: ['scene3-line-a','scene3-label-a','scene3-aa-label',
+                       'scene3-line-b','scene3-label-b','scene3-ab-label'],
+                hide: ['scene3-coincident-point','scene3-dash-h','scene3-dash-v','scene3-t1-label','scene3-v1-label',
+                       'scene3-area-a','scene3-xa-label','scene3-area-b','scene3-xb-label','scene3-area-delta','scene3-dx-label',
+                       'scene3-legend']
+            },
+            // 步骤3: + 共速点
+            {
+                show: ['scene3-line-a','scene3-label-a','scene3-aa-label',
+                       'scene3-line-b','scene3-label-b','scene3-ab-label',
+                       'scene3-coincident-point','scene3-dash-h','scene3-dash-v','scene3-t1-label','scene3-v1-label'],
+                hide: ['scene3-area-a','scene3-xa-label','scene3-area-b','scene3-xb-label','scene3-area-delta','scene3-dx-label',
+                       'scene3-legend']
+            },
+            // 步骤4: + 面积与图例
+            {
+                show: ['scene3-line-a','scene3-label-a','scene3-aa-label',
+                       'scene3-line-b','scene3-label-b','scene3-ab-label',
+                       'scene3-coincident-point','scene3-dash-h','scene3-dash-v','scene3-t1-label','scene3-v1-label',
+                       'scene3-area-a','scene3-xa-label','scene3-area-b','scene3-xb-label','scene3-area-delta','scene3-dx-label',
+                       'scene3-legend'],
+                hide: []
+            }
+        ];
+
+        function setVisible(id, visible) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (visible) {
+                el.style.display = '';
+                // 对于 fade-in 元素，添加 visible 类触发 transition
+                if (el.classList.contains('scene3-fade-in')) {
+                    // 强制重排确保 transition 生效
+                    void el.offsetWidth;
+                    el.classList.add('visible');
+                }
+                if (el.classList.contains('scene3-line-a') || el.classList.contains('scene3-line-b')) {
+                    el.classList.add('visible');
+                }
+            } else {
+                if (el.classList.contains('scene3-fade-in')) {
+                    el.classList.remove('visible');
+                }
+                if (el.classList.contains('scene3-line-a') || el.classList.contains('scene3-line-b')) {
+                    el.classList.remove('visible');
+                }
+                el.style.display = 'none';
+            }
+        }
+
+        function updateScene() {
+            var cfg = stepElements[currentStep];
+            // 先隐藏
+            cfg.hide.forEach(function(id) { setVisible(id, false); });
+            // 再显示
+            cfg.show.forEach(function(id) { setVisible(id, true); });
+
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + ' / ' + totalSteps;
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

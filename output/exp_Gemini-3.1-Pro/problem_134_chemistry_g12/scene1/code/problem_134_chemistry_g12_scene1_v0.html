@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-3d-canvas { position: absolute; top: 0; left: 0; width: 800px; height: 260px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        .scene1-col { position: absolute; transform: translateX(-50%); text-align: center; width: 150px; }
+        .scene1-col-a { left: 133px; }
+        .scene1-col-b { left: 400px; }
+        .scene1-col-c { left: 666px; }
+        
+        .scene1-title { top: 270px; font-size: 18px; font-weight: bold; color: #000; }
+        .scene1-c-count { top: 300px; font-size: 14px; color: #000; opacity: 0; transition: opacity 0.3s; }
+        .scene1-h-count { top: 330px; font-size: 14px; color: #000; opacity: 0; transition: opacity 0.3s; }
+        .scene1-formula { top: 360px; font-size: 16px; font-weight: bold; color: #1565c0; opacity: 0; transition: opacity 0.3s; }
+        .scene1-empirical { top: 390px; font-size: 16px; font-weight: bold; color: #2e7d32; opacity: 0; transition: opacity 0.3s; }
+        
+        #scene1-conclusion { position: absolute; top: 430px; left: 50%; transform: translateX(-50%); width: 700px; text-align: center; font-size: 15px; color: #000; opacity: 0; transition: opacity 0.3s; }
+        .scene1-error { color: #c62828; }
+        
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-3d-canvas"></div>
+        
+        <!-- A Column -->
+        <div class="scene1-col scene1-col-a scene1-title">A (正四面体烷)</div>
+        <div class="scene1-col scene1-col-a scene1-c-count" id="scene1-c-a">碳原子数: 4</div>
+        <div class="scene1-col scene1-col-a scene1-h-count" id="scene1-h-a">氢原子数: 4</div>
+        <div class="scene1-col scene1-col-a scene1-formula" id="scene1-f-a">分子式: C₄H₄</div>
+        <div class="scene1-col scene1-col-a scene1-empirical" id="scene1-e-a">最简式: CH</div>
+        
+        <!-- B Column -->
+        <div class="scene1-col scene1-col-b scene1-title">B (棱柱烷)</div>
+        <div class="scene1-col scene1-col-b scene1-c-count" id="scene1-c-b">碳原子数: 6</div>
+        <div class="scene1-col scene1-col-b scene1-h-count" id="scene1-h-b">氢原子数: 6</div>
+        <div class="scene1-col scene1-col-b scene1-formula" id="scene1-f-b">分子式: C₆H₆</div>
+        <div class="scene1-col scene1-col-b scene1-empirical" id="scene1-e-b">最简式: CH</div>
+        
+        <!-- C Column -->
+        <div class="scene1-col scene1-col-c scene1-title">C (立方烷)</div>
+        <div class="scene1-col scene1-col-c scene1-c-count" id="scene1-c-c">碳原子数: 8</div>
+        <div class="scene1-col scene1-col-c scene1-h-count" id="scene1-h-c">氢原子数: 8</div>
+        <div class="scene1-col scene1-col-c scene1-formula" id="scene1-f-c">分子式: C₈H₈</div>
+        <div class="scene1-col scene1-col-c scene1-empirical" id="scene1-e-c">最简式: CH</div>
+        
+        <!-- Conclusion -->
+        <div id="scene1-conclusion">
+            选项B: B的分子式为C₆H₁₂ <span class="scene1-error">❌</span> (应为C₆H₆) &nbsp;&nbsp;|&nbsp;&nbsp; 选项D: 只有C的最简式为CH <span class="scene1-error">❌</span> (均为CH)
+        </div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // State
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        // DOM Elements
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const elsC = [document.getElementById('scene1-c-a'), document.getElementById('scene1-c-b'), document.getElementById('scene1-c-c')];
+        const elsH = [document.getElementById('scene1-h-a'), document.getElementById('scene1-h-b'), document.getElementById('scene1-h-c')];
+        const elsF = [document.getElementById('scene1-f-a'), document.getElementById('scene1-f-b'), document.getElementById('scene1-f-c')];
+        const elsE = [document.getElementById('scene1-e-a'), document.getElementById('scene1-e-b'), document.getElementById('scene1-e-c')];
+        const elConclusion = document.getElementById('scene1-conclusion');
+
+        // Three.js Setup
+        const container = document.getElementById('scene1-3d-canvas');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+        
+        // Camera setup to fit 3 models
+        const camera = new THREE.PerspectiveCamera(45, 800 / 260, 0.1, 100);
+        camera.position.z = 12;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(800, 260);
+        container.appendChild(renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // Materials
+        const matBondBlack = new THREE.MeshPhongMaterial({ color: 0x000000 });
+        const matBondBlue = new THREE.MeshPhongMaterial({ color: 0x1565c0 });
+        const matCarbon = new THREE.MeshPhongMaterial({ color: 0x555555 });
+        const matHydrogen = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        const matHBond = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 0.1, gapSize: 0.1 });
+
+        // Groups
+        const groupA = new THREE.Group();
+        const groupB = new THREE.Group();
+        const groupC = new THREE.Group();
+        
+        groupA.position.x = -4.5;
+        groupB.position.x = 0;
+        groupC.position.x = 4.5;
+        
+        scene.add(groupA);
+        scene.add(groupB);
+        scene.add(groupC);
+
+        // Data structures for animation
+        const carbonAtoms = [];
+        const hydrogenAtoms = [];
+        const hBonds = [];
+        const cBonds = [];
+
+        // Helper to create a cylinder between two points
+        function createBond(p1, p2, material) {
+            const distance = p1.distanceTo(p2);
+            const geometry = new THREE.CylinderGeometry(0.05, 0.05, distance, 8);
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const position = p2.clone().add(p1).divideScalar(2);
+            mesh.position.copy(position);
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
+            
+            return mesh;
+        }
+
+        // Helper to build a molecule
+        function buildMolecule(group, vertices, edges) {
+            // Add C-C bonds
+            edges.forEach(edge => {
+                const bond = createBond(vertices[edge[0]], vertices[edge[1]], matBondBlack);
+                group.add(bond);
+                cBonds.push(bond);
+            });
+
+            // Add C atoms and H atoms
+            vertices.forEach(v => {
+                // Carbon
+                const cGeo = new THREE.SphereGeometry(0.3, 16, 16);
+                const cMesh = new THREE.Mesh(cGeo, matCarbon);
+                cMesh.position.copy(v);
+                cMesh.scale.set(0, 0, 0); // Initial scale 0
+                group.add(cMesh);
+                carbonAtoms.push(cMesh);
+
+                // Hydrogen position (extend vector from center)
+                const hPos = v.clone().normalize().multiplyScalar(v.length() + 0.8);
+                
+                // H atom
+                const hGeo = new THREE.SphereGeometry(0.2, 16, 16);
+                const hMesh = new THREE.Mesh(hGeo, matHydrogen);
+                hMesh.position.copy(hPos);
+                hMesh.scale.set(0, 0, 0); // Initial scale 0
+                group.add(hMesh);
+                hydrogenAtoms.push(hMesh);
+
+                // C-H bond (dashed line)
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([v, hPos]);
+                const line = new THREE.Line(lineGeo, matHBond);
+                line.computeLineDistances();
+                line.visible = false;
+                group.add(line);
+                hBonds.push(line);
+            });
+        }
+
+        // Molecule A: Tetrahedron
+        const a = 1.2;
+        const vA = [
+            new THREE.Vector3(a, a, a),
+            new THREE.Vector3(-a, -a, a),
+            new THREE.Vector3(-a, a, -a),
+            new THREE.Vector3(a, -a, -a)
+        ];
+        const eA = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
+        buildMolecule(groupA, vA, eA);
+
+        // Molecule B: Prism
+        const rB = 1.2;
+        const hB = 1.0;
+        const vB = [];
+        for(let i=0; i<3; i++) {
+            const angle = i * Math.PI * 2 / 3;
+            vB.push(new THREE.Vector3(rB * Math.cos(angle), hB, rB * Math.sin(angle)));
+            vB.push(new THREE.Vector3(rB * Math.cos(angle), -hB, rB * Math.sin(angle)));
+        }
+        const eB = [[0,2], [2,4], [4,0], [1,3], [3,5], [5,1], [0,1], [2,3], [4,5]];
+        buildMolecule(groupB, vB, eB);
+
+        // Molecule C: Cube
+        const c = 1.0;
+        const vC = [
+            new THREE.Vector3(c, c, c), new THREE.Vector3(-c, c, c),
+            new THREE.Vector3(-c, -c, c), new THREE.Vector3(c, -c, c),
+            new THREE.Vector3(c, c, -c), new THREE.Vector3(-c, c, -c),
+            new THREE.Vector3(-c, -c, -c), new THREE.Vector3(c, -c, -c)
+        ];
+        const eC = [
+            [0,1], [1,2], [2,3], [3,0],
+            [4,5], [5,6], [6,7], [7,4],
+            [0,4], [1,5], [2,6], [3,7]
+        ];
+        buildMolecule(groupC, vC, eC);
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotation
+            groupA.rotation.y += 0.005;
+            groupA.rotation.x += 0.002;
+            groupB.rotation.y += 0.005;
+            groupB.rotation.x += 0.002;
+            groupC.rotation.y += 0.005;
+            groupC.rotation.x += 0.002;
+
+            // Scale interpolation for atoms
+            const targetCScale = currentStep >= 1 ? 1 : 0;
+            const targetHScale = currentStep >= 2 ? 1 : 0;
+            
+            carbonAtoms.forEach(atom => {
+                atom.scale.lerp(new THREE.Vector3(targetCScale, targetCScale, targetCScale), 0.1);
+            });
+            
+            hydrogenAtoms.forEach(atom => {
+                atom.scale.lerp(new THREE.Vector3(targetHScale, targetHScale, targetHScale), 0.1);
+            });
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Update UI based on step
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // Step 1: Carbon count
+            elsC.forEach(el => el.style.opacity = currentStep >= 1 ? 1 : 0);
+            
+            // Step 2: Hydrogen count & bonds
+            elsH.forEach(el => el.style.opacity = currentStep >= 2 ? 1 : 0);
+            hBonds.forEach(bond => bond.visible = currentStep >= 2);
+            cBonds.forEach(bond => bond.material = currentStep === 2 ? matBondBlue : matBondBlack);
+            
+            // Step 3: Formulas & Conclusion
+            elsF.forEach(el => el.style.opacity = currentStep >= 3 ? 1 : 0);
+            elsE.forEach(el => el.style.opacity = currentStep >= 3 ? 1 : 0);
+            elConclusion.style.opacity = currentStep >= 3 ? 1 : 0;
+        }
+
+        // Event Listeners
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // Init
+        updateStep();
+    </script>
+</body>
+</html>

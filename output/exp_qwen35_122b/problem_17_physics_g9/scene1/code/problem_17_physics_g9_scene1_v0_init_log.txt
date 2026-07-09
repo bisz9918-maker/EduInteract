@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并联电路结构与电流路径分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; background: #f5f5f5; border: 2px solid #666; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 16px; font-weight: bold; color: #333; }
+        svg { display: block; }
+        .wire { stroke: #000; stroke-width: 2; fill: none; }
+        .wire.highlight-blue { stroke: #1565c0; stroke-width: 3; }
+        .wire.highlight-green { stroke: #2e7d32; stroke-width: 3; }
+        .wire.highlight-red { stroke: #c62828; stroke-width: 3; }
+        .component { stroke: #000; stroke-width: 2; fill: #fff; }
+        .component.highlight-blue { stroke: #1565c0; stroke-width: 3; }
+        .component.highlight-green { stroke: #2e7d32; stroke-width: 3; }
+        .component.highlight-red { stroke: #c62828; stroke-width: 3; }
+        .filament { fill: #ffd54f; opacity: 0.3; }
+        .current-arrow { fill: #c62828; opacity: 0; }
+        .info-label { font-size: 14px; fill: #666; opacity: 0; }
+        .info-label.visible { opacity: 1; }
+        .conclusion-box { display: none; }
+        .conclusion-box.visible { display: block; }
+        .conclusion-bg { fill: #fff; stroke: #000; stroke-width: 2; }
+        .conclusion-text { font-size: 16px; fill: #000; }
+        .option-text { font-size: 14px; fill: #c62828; }
+        text { font-family: "Microsoft YaHei", sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 电源：两节干电池串联 -->
+            <g id="scene1-battery">
+                <rect id="scene1-battery-neg" x="310" y="55" width="20" height="30" class="component" />
+                <rect id="scene1-battery-pos" x="470" y="55" width="20" height="30" class="component" />
+                <rect x="330" y="55" width="140" height="30" class="component" />
+                <text id="scene1-battery-plus-label" x="485" y="70" class="battery-label" fill="#c62828" font-size="16">+</text>
+                <text id="scene1-battery-minus-label" x="295" y="70" class="battery-label" font-size="16">-</text>
+            </g>
+
+            <!-- 开关 S -->
+            <g id="scene1-switch-group">
+                <line x1="580" y1="130" x2="650" y2="130" class="wire" id="scene1-wire-switch-base" />
+                <line x1="580" y1="130" x2="650" y2="160" class="wire" id="scene1-switch-arm" />
+                <circle cx="580" cy="130" r="4" class="component" />
+                <circle cx="650" cy="160" r="4" class="component" />
+                <text id="scene1-switch-label" x="625" y="100" text-anchor="middle" font-size="16">S</text>
+            </g>
+
+            <!-- 分支点 O1 -->
+            <circle id="scene1-junction1" cx="650" cy="170" r="3" fill="#000" />
+            <text id="scene1-label-junction1" x="660" y="170" class="info-label">分流点</text>
+
+            <!-- L₁ 灯泡支路 -->
+            <line x1="650" y1="170" x2="320" y2="280" class="wire" id="scene1-wire-junction1-lamp1" />
+            <g id="scene1-lamp1">
+                <circle cx="320" cy="280" r="35" class="component" />
+                <path id="scene1-lamp1-filament" d="M 305 280 Q 310 270 315 280 Q 320 290 325 280 Q 330 270 335 280" class="filament" fill="none" stroke="#ffd54f" stroke-width="2" />
+            </g>
+            <text id="scene1-lamp1-label" x="320" y="330" text-anchor="middle" font-size="16">L₁</text>
+
+            <!-- L₂ 灯泡支路 -->
+            <line x1="650" y1="170" x2="550" y2="280" class="wire" id="scene1-wire-junction1-lamp2" />
+            <g id="scene1-lamp2">
+                <circle cx="550" cy="280" r="35" class="component" />
+                <path id="scene1-lamp2-filament" d="M 535 280 Q 540 270 545 280 Q 550 290 555 280 Q 560 270 565 280" class="filament" fill="none" stroke="#ffd54f" stroke-width="2" />
+            </g>
+            <text id="scene1-lamp2-label" x="550" y="330" text-anchor="middle" font-size="16">L₂</text>
+
+            <!-- 汇合点 O2 -->
+            <circle id="scene1-junction2" cx="435" cy="350" r="3" fill="#000" />
+            <text id="scene1-label-junction2" x="435" y="365" text-anchor="middle" class="info-label">汇合点</text>
+
+            <!-- L₁ 到汇合点导线 -->
+            <polyline points="320,280 380,320 435,350" class="wire" id="scene1-wire-lamp1-junction2" />
+            <!-- L₂ 到汇合点导线 -->
+            <polyline points="550,280 490,320 435,350" class="wire" id="scene1-wire-lamp2-junction2" />
+
+            <!-- 电流表 A -->
+            <g id="scene1-ammeter">
+                <circle cx="120" cy="300" r="40" class="component" id="scene1-ammeter-circle" />
+                <text id="scene1-ammeter-symbol" x="120" y="300" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="bold">A</text>
+                <circle cx="100" cy="340" r="4" class="component" />
+                <circle cx="120" cy="340" r="4" class="component" />
+                <circle cx="140" cy="340" r="4" class="component" />
+                <text id="scene1-ammeter-label" x="90" y="360" font-size="14">电流表</text>
+            </g>
+
+            <!-- 汇合点到电流表导线 -->
+            <line x1="435" y1="350" x2="160" y2="300" class="wire" id="scene1-wire-junction2-ammeter" />
+
+            <!-- 电流表回电源负极导线 -->
+            <polyline points="80,300 60,150 310,70" class="wire" id="scene1-wire-ammeter-battery" />
+
+            <!-- 电源到开关导线 -->
+            <polyline points="490,70 580,100 580,130" class="wire" id="scene1-wire-battery-switch" />
+
+            <!-- 电流箭头（初始隐藏） -->
+            <g id="scene1-current-arrows">
+                <polygon id="scene1-arrow-battery" points="530,85 540,90 535,80" class="current-arrow" />
+                <polygon id="scene1-arrow-switch" points="615,130 625,130 620,125" class="current-arrow" />
+                <polygon id="scene1-arrow-split1" points="485,225 495,230 490,220" class="current-arrow" />
+                <polygon id="scene1-arrow-split2" points="485,225 475,235 470,225" class="current-arrow" />
+                <polygon id="scene1-arrow-merge1" points="410,335 420,340 415,330" class="current-arrow" />
+                <polygon id="scene1-arrow-merge2" points="410,335 400,345 395,335" class="current-arrow" />
+                <polygon id="scene1-arrow-ammeter" points="280,325 290,330 285,320" class="current-arrow" />
+            </g>
+
+            <!-- 信息标签（初始隐藏） -->
+            <text id="scene1-label-ammeter-info" x="170" y="280" class="info-label">测干路总电流</text>
+            <text id="scene1-label-ammeter-formula" x="170" y="320" class="info-label">I = I₁ + I₂</text>
+            <text id="scene1-label-switch-info" x="660" y="130" class="info-label">控制整个电路</text>
+            <text id="scene1-label-dry-circuit" x="530" y="100" class="info-label">干路</text>
+
+            <!-- 结论框（步骤 4 显示） -->
+            <g id="scene1-conclusion-box" class="conclusion-box">
+                <rect x="650" y="200" width="140" height="200" class="conclusion-bg" rx="5" />
+                <text x="660" y="230" class="conclusion-text">L₁与 L₂并联</text>
+                <text x="660" y="260" class="conclusion-text">电流表测干路总电流</text>
+                <text x="660" y="290" class="conclusion-text">开关控制整个电路</text>
+                <text x="660" y="330" class="option-text">A 错误：并联非串联</text>
+                <text x="660" y="355" class="option-text">B 错误：测总电流非仅 L₁</text>
+                <text x="660" y="380" class="option-text">C 错误：测总电流非仅 L₂</text>
+                <text x="660" y="405" class="option-text">D 错误：控制整个电路</text>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 并联电路结构与电流路径分析
+        // 布局坐标表（参考）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 电源正极 | (470,55) | 顶部中央偏右 |
+        // | 电源负极 | (310,55) | 顶部中央偏左 |
+        // | 开关 S | (580,110)-(650,160) | 右上角 |
+        // | 分支点 O1 | (650,170) | 开关下方 |
+        // | L₁灯泡 | (320,280) 半径 35 | 中下偏左 |
+        // | L₂灯泡 | (550,280) 半径 35 | 中下偏右 |
+        // | 汇合点 O2 | (435,350) | 两灯泡下方中央 |
+        // | 电流表 A | (120,300) 半径 40 | 左侧 |
+
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 5,
+
+            // 获取元素
+            getEl: function(id) {
+                return document.getElementById('scene1-' + id);
+            },
+
+            // 更新步骤显示
+            updateStep: function() {
+                // 重置所有高亮和标签
+                this.resetHighlights();
+
+                // 根据当前步骤设置显示
+                switch(this.currentStep) {
+                    case 0:
+                        // 初始状态：显示完整电路图，无高亮
+                        this.updateIndicator('步骤 1/5');
+                        break;
+
+                    case 1:
+                        // 识别连接方式：高亮两条支路
+                        this.highlightWire('wire-junction1-lamp1', 'blue');
+                        this.highlightWire('wire-lamp1-junction2', 'blue');
+                        this.highlightWire('wire-junction1-lamp2', 'green');
+                        this.highlightWire('wire-lamp2-junction2', 'green');
+                        this.showLabel('label-junction1', true);
+                        this.showLabel('label-junction2', true);
+                        this.showArrows(true);
+                        this.updateIndicator('步骤 2/5');
+                        break;
+
+                    case 2:
+                        // 电流表位置：高亮电流表
+                        this.highlightWire('wire-junction2-ammeter', 'blue');
+                        this.highlightEl('ammeter-circle', 'highlight-blue');
+                        this.showLabel('ammeter-info', true);
+                        this.showLabel('ammeter-formula', true);
+                        this.updateIndicator('步骤 3/5');
+                        break;
+
+                    case 3:
+                        // 开关控制范围：高亮开关
+                        this.highlightWire('wire-battery-switch', 'red');
+                        this.highlightEl('switch-arm', 'highlight-red');
+                        this.showLabel('switch-info', true);
+                        this.showLabel('dry-circuit', true);
+                        this.updateIndicator('步骤 4/5');
+                        break;
+
+                    case 4:
+                        // 结论总结：显示所有高亮和结论框
+                        this.highlightWire('wire-junction1-lamp1', 'blue');
+                        this.highlightWire('wire-lamp1-junction2', 'blue');
+                        this.highlightWire('wire-junction1-lamp2', 'green');
+                        this.highlightWire('wire-lamp2-junction2', 'green');
+                        this.highlightWire('wire-junction2-ammeter', 'blue');
+                        this.highlightEl('ammeter-circle', 'highlight-blue');
+                        this.highlightEl('switch-arm', 'highlight-red');
+                        this.showLabel('junction1', true);
+                        this.showLabel('junction2', true);
+                        this.showLabel('ammeter-info', true);
+                        this.showLabel('switch-info', true);
+                        this.showArrows(true);
+                        this.getEl('conclusion-box').classList.add('visible');
+                        this.updateIndicator('步骤 5/5');
+                        break;
+                }
+
+                // 更新按钮状态
+                this.getEl('btn-prev').disabled = (this.currentStep === 0);
+                this.getEl('btn-next').disabled = (this.currentStep === this.totalSteps - 1);
+            },
+
+            // 重置所有高亮
+            resetHighlights: function() {
+                // 重置导线高亮
+                const wires = ['wire-junction1-lamp1', 'wire-lamp1-junction2', 
+                              'wire-junction1-lamp2', 'wire-lamp2-junction2',
+                              'wire-junction2-ammeter', 'wire-battery-switch', 'switch-arm'];
+                wires.forEach(w => {
+                    const el = this.getEl(w);
+                    if (el) {
+                        el.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+                    }
+                });
+
+                // 重置组件高亮
+                const comps = ['ammeter-circle'];
+                comps.forEach(c => {
+                    const el = this.getEl(c);
+                    if (el) {
+                        el.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+                    }
+                });
+
+                // 隐藏所有信息标签
+                const labels = ['junction1', 'junction2', 'ammeter-info', 'ammeter-formula', 
+                               'switch-info', 'dry-circuit'];
+                labels.forEach(l => this.showLabel(l, false));
+
+                // 隐藏电流箭头
+                this.showArrows(false);
+
+                // 隐藏结论框
+                this.getEl('conclusion-box').classList.remove('visible');
+            },
+
+            // 高亮导线
+            highlightWire: function(wireId, color) {
+                const el = this.getEl(wireId);
+                if (el) {
+                    el.classList.add('wire', 'highlight-' + color);
+                }
+            },
+
+            // 高亮组件
+            highlightEl: function(elId, className) {
+                const el = this.getEl(elId);
+                if (el) {
+                    el.classList.add(className);
+                }
+            },
+
+            // 显示/隐藏标签
+            showLabel: function(labelId, show) {
+                const el = this.getEl('label-' + labelId);
+                if (el) {
+                    el.classList.toggle('visible', show);
+                }
+            },
+
+            // 显示/隐藏电流箭头
+            showArrows: function(show) {
+                const arrows = ['arrow-battery', 'arrow-switch', 'arrow-split1', 
+                               'arrow-split2', 'arrow-merge1', 'arrow-merge2', 'arrow-ammeter'];
+                arrows.forEach(a => {
+                    const el = this.getEl(a);
+                    if (el) {
+                        el.style.opacity = show ? '1' : '0';
+                    }
+                });
+            },
+
+            // 更新步骤指示器
+            updateIndicator: function(text) {
+                this.getEl('step-indicator').textContent = text;
+            },
+
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    this.currentStep++;
+                    this.updateStep();
+                }
+            },
+
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.updateStep();
+                }
+            },
+
+            // 初始化
+            init: function() {
+                this.getEl('btn-next').addEventListener('click', () => this.nextStep());
+                this.getEl('btn-prev').addEventListener('click', () => this.prevStep());
+                this.updateStep();
+            }
+        };
+
+        // 启动
+        scene1.init();
+    })();
+    </script>
+</body>
+</html>

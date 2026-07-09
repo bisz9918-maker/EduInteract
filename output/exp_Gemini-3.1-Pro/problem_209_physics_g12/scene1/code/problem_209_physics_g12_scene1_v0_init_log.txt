@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) { background-color: #e0e0e0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .scene1-formula {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            font-size: 20px;
+        }
+        #scene1-formula-up { top: 120px; left: 550px; color: #c62828; }
+        #scene1-formula-down { top: 200px; left: 550px; color: #1565c0; }
+
+        .scene1-line {
+            transition: stroke 0.5s ease, stroke-width 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 坐标轴 -->
+            <defs>
+                <marker id="scene1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000000" />
+                </marker>
+            </defs>
+            <!-- 纵轴(v轴) (200, 400)-(200, 50) -->
+            <line x1="200" y1="400" x2="200" y2="50" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow)" />
+            <!-- 横轴(t轴) (150, 250)-(600, 250) -->
+            <line x1="150" y1="250" x2="600" y2="250" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow)" />
+
+            <!-- 辅助线 -->
+            <!-- 垂直辅助线 (500, 250)-(500, 350) -->
+            <line x1="500" y1="250" x2="500" y2="350" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" />
+            <!-- 水平辅助线 (200, 350)-(500, 350) -->
+            <line x1="200" y1="350" x2="500" y2="350" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" />
+
+            <!-- 图线 -->
+            <!-- 上滑图线 (200, 100)-(300, 250) -->
+            <line id="scene1-line-up" class="scene1-line" x1="200" y1="100" x2="300" y2="250" stroke="#000000" stroke-width="2" />
+            <!-- 下滑图线 (300, 250)-(500, 350) -->
+            <line id="scene1-line-down" class="scene1-line" x1="300" y1="250" x2="500" y2="350" stroke="#000000" stroke-width="2" />
+
+            <!-- 文本标签 -->
+            <!-- v轴标签 (180, 60) -->
+            <text x="180" y="60" font-size="16" font-family="sans-serif" fill="#000000">v</text>
+            <!-- t轴标签 (610, 265) -->
+            <text x="610" y="265" font-size="16" font-family="sans-serif" fill="#000000">t</text>
+            <!-- 原点标签"0" (185, 265) -->
+            <text x="185" y="265" font-size="16" font-family="sans-serif" fill="#000000">0</text>
+            <!-- v0标签 (170, 105) -->
+            <text x="170" y="105" font-size="16" font-family="sans-serif" fill="#000000">v₀</text>
+            <!-- t1标签 (300, 270) -->
+            <text x="290" y="270" font-size="16" font-family="sans-serif" fill="#000000" text-anchor="end">t₁</text>
+            <!-- 3t1标签 (500, 235) -->
+            <text x="500" y="235" font-size="16" font-family="sans-serif" fill="#000000" text-anchor="middle">3t₁</text>
+            <!-- -v1标签 (160, 355) -->
+            <text x="160" y="355" font-size="16" font-family="sans-serif" fill="#000000">-v₁</text>
+        </svg>
+
+        <!-- 公式区 -->
+        <div id="scene1-formula-up" class="scene1-formula">
+            $a_1 = rac{v_0}{t_1}$
+        </div>
+        <div id="scene1-formula-down" class="scene1-formula">
+            $a_2 = rac{v_1}{3t_1 - t_1} = rac{v_1}{2t_1}$
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 2;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const lineUp = document.getElementById('scene1-line-up');
+        const lineDown = document.getElementById('scene1-line-down');
+        const formulaUp = document.getElementById('scene1-formula-up');
+        const formulaDown = document.getElementById('scene1-formula-down');
+
+        function updateScene() {
+            // 按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // 步骤 0: 初始状态
+            if (currentStep === 0) {
+                lineUp.setAttribute('stroke', '#000000');
+                lineUp.setAttribute('stroke-width', '2');
+                lineDown.setAttribute('stroke', '#000000');
+                lineDown.setAttribute('stroke-width', '2');
+                
+                formulaUp.style.opacity = '0';
+                formulaDown.style.opacity = '0';
+            }
+            // 步骤 1: 上滑阶段
+            else if (currentStep === 1) {
+                lineUp.setAttribute('stroke', '#c62828');
+                lineUp.setAttribute('stroke-width', '4');
+                lineDown.setAttribute('stroke', '#000000');
+                lineDown.setAttribute('stroke-width', '2');
+                
+                formulaUp.style.opacity = '1';
+                formulaDown.style.opacity = '0';
+            }
+            // 步骤 2: 下滑阶段
+            else if (currentStep === 2) {
+                lineUp.setAttribute('stroke', '#c62828');
+                lineUp.setAttribute('stroke-width', '4');
+                lineDown.setAttribute('stroke', '#1565c0');
+                lineDown.setAttribute('stroke-width', '4');
+                
+                formulaUp.style.opacity = '1';
+                formulaDown.style.opacity = '1';
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

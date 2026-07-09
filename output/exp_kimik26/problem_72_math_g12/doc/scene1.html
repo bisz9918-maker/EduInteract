@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>由三视图还原四棱锥</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; border: 1px solid #cccccc; border-radius: 4px;
+            background: #f5f5f5; cursor: pointer; transition: opacity 0.2s;
+        }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 13px; color: #666; min-width: 80px; text-align: center; }
+
+        /* 步骤过渡 */
+        .scene1-fade { transition: opacity 0.4s ease; }
+        .scene1-dimmed { opacity: 0.3; }
+        .scene1-hidden { opacity: 0; display: none; }
+        .scene1-visible { opacity: 1; display: block; }
+
+        /* 推断文字动画 */
+        .scene1-infer-text { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L8,3 L0,6 Z" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arrow-red-start" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto">
+                    <path d="M8,0 L0,3 L8,6 Z" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== 三视图组 ==================== -->
+            <g id="scene1-views-group" class="scene1-fade">
+                <!-- 主视图外框 -->
+                <rect id="scene1-frame-main" x="60" y="50" width="230" height="140" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+                <!-- 主视图高亮填充（初始隐藏） -->
+                <rect id="scene1-fill-main" x="60" y="50" width="230" height="140" fill="#1565c0" fill-opacity="0.15" class="scene1-hidden"/>
+                <!-- 主视图三角形 -->
+                <polygon id="scene1-tri-main" points="80,180 248,180 164,124" fill="none" stroke="#000000" stroke-width="2"/>
+                <!-- 主视图高线（步骤1出现） -->
+                <line id="scene1-main-height-line" x1="164" y1="124" x2="164" y2="180" stroke="#888888" stroke-width="1" stroke-dasharray="4,3" class="scene1-hidden scene1-fade"/>
+                <!-- 主视图底边中点标记（步骤1出现） -->
+                <circle id="scene1-main-midpoint" cx="164" cy="180" r="2" fill="#c62828" class="scene1-hidden scene1-fade"/>
+
+                <!-- 侧视图外框 -->
+                <rect id="scene1-frame-side" x="380" y="50" width="150" height="140" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+                <!-- 侧视图高亮填充（初始隐藏） -->
+                <rect id="scene1-fill-side" x="380" y="50" width="150" height="140" fill="#1565c0" fill-opacity="0.15" class="scene1-hidden"/>
+                <!-- 侧视图直角三角形 -->
+                <polygon id="scene1-tri-side" points="424,180 480,180 480,124" fill="none" stroke="#000000" stroke-width="2"/>
+                <!-- 侧视图直角符号（步骤2出现） -->
+                <path id="scene1-side-right-angle" d="M475,180 L480,180 L480,175" fill="none" stroke="#000000" stroke-width="1" class="scene1-hidden scene1-fade"/>
+
+                <!-- 俯视图外框 -->
+                <rect id="scene1-frame-top" x="60" y="240" width="230" height="120" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+                <!-- 俯视图高亮填充（初始隐藏） -->
+                <rect id="scene1-fill-top" x="60" y="240" width="230" height="120" fill="#1565c0" fill-opacity="0.15" class="scene1-hidden"/>
+                <!-- 俯视图矩形 -->
+                <rect id="scene1-rect-top" x="80" y="260" width="168" height="56" fill="none" stroke="#000000" stroke-width="2"/>
+                <!-- 俯视图内线（从中点O到左上、右上顶点） -->
+                <line id="scene1-top-line1" x1="164" y1="316" x2="80" y2="260" stroke="#000000" stroke-width="1.5"/>
+                <line id="scene1-top-line2" x1="164" y1="316" x2="248" y2="260" stroke="#000000" stroke-width="1.5"/>
+                <!-- 俯视图内线高亮版（步骤3出现，替换普通线） -->
+                <line id="scene1-top-line1-hl" x1="164" y1="316" x2="80" y2="260" stroke="#1565c0" stroke-width="2.5" class="scene1-hidden scene1-fade"/>
+                <line id="scene1-top-line2-hl" x1="164" y1="316" x2="248" y2="260" stroke="#1565c0" stroke-width="2.5" class="scene1-hidden scene1-fade"/>
+
+                <!-- 视图名称标签 -->
+                <text id="scene1-label-main" x="164" y="42" text-anchor="middle" font-size="14" fill="#000000">主视图</text>
+                <text id="scene1-label-side" x="455" y="42" text-anchor="middle" font-size="14" fill="#000000">侧视图</text>
+                <text id="scene1-label-top" x="164" y="220" text-anchor="middle" font-size="14" fill="#000000">俯视图</text>
+            </g>
+
+            <!-- ==================== 主视图尺寸标注（步骤1） ==================== -->
+            <g id="scene1-main-dims" class="scene1-hidden scene1-fade">
+                <!-- 底边左段标注线 -->
+                <line x1="80" y1="204" x2="164" y2="204" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="122" y="200" text-anchor="middle" font-size="14" fill="#c62828">3</text>
+                <!-- 底边右段标注线 -->
+                <line x1="164" y1="204" x2="248" y2="204" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="206" y="200" text-anchor="middle" font-size="14" fill="#c62828">3</text>
+                <!-- 总长度标注线 -->
+                <line x1="80" y1="226" x2="248" y2="226" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="164" y="222" text-anchor="middle" font-size="14" fill="#c62828">6</text>
+                <!-- 高标注 -->
+                <text x="210" y="148" font-size="14" fill="#c62828">2</text>
+            </g>
+
+            <!-- ==================== 侧视图尺寸标注（步骤2） ==================== -->
+            <g id="scene1-side-dims" class="scene1-hidden scene1-fade">
+                <!-- 水平边标注 -->
+                <line x1="424" y1="208" x2="480" y2="208" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="452" y="204" text-anchor="middle" font-size="14" fill="#c62828">2</text>
+                <!-- 竖直边标注 -->
+                <line x1="526" y1="124" x2="526" y2="180" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="534" y="156" font-size="14" fill="#c62828">2</text>
+            </g>
+
+            <!-- ==================== 俯视图尺寸标注（步骤3） ==================== -->
+            <g id="scene1-top-dims" class="scene1-hidden scene1-fade">
+                <!-- 长边标注 -->
+                <line x1="80" y1="374" x2="248" y2="374" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="164" y="370" text-anchor="middle" font-size="14" fill="#c62828">6</text>
+                <!-- 宽边标注 -->
+                <line x1="280" y1="260" x2="280" y2="316" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" marker-start="url(#scene1-arrow-red-start)"/>
+                <text x="288" y="292" font-size="14" fill="#c62828">2</text>
+                <!-- O点标注 -->
+                <text x="164" y="248" text-anchor="middle" font-size="14" fill="#c62828">O</text>
+            </g>
+
+            <!-- ==================== 推断文字 ==================== -->
+            <text id="scene1-infer1" x="560" y="140" font-size="15" fill="#1565c0" class="scene1-hidden scene1-infer-text">底面长=6，顶点居中，锥高=2</text>
+            <text id="scene1-infer2" x="560" y="140" font-size="15" fill="#1565c0" class="scene1-hidden scene1-infer-text">底面宽=2，锥高=2，投影在宽边</text>
+            <text id="scene1-infer3" x="320" y="290" font-size="15" fill="#1565c0" class="scene1-hidden scene1-infer-text">投影点O恰好是底面长边AB的中点</text>
+
+            <!-- ==================== 3D直观图（步骤4） ==================== -->
+            <g id="scene1-3d-group" class="scene1-hidden scene1-fade">
+                <!-- 底面后边CD（虚线，表示后部） -->
+                <line x1="430" y1="396" x2="562" y2="396" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+                <!-- 底面AB -->
+                <line x1="414" y1="380" x2="546" y2="380" stroke="#000000" stroke-width="2"/>
+                <!-- 底面BC -->
+                <line x1="546" y1="380" x2="562" y2="396" stroke="#000000" stroke-width="2"/>
+                <!-- 底面DA -->
+                <line x1="430" y1="396" x2="414" y2="380" stroke="#000000" stroke-width="2"/>
+                <!-- 侧棱PA -->
+                <line x1="480" y1="336" x2="414" y2="380" stroke="#000000" stroke-width="2"/>
+                <!-- 侧棱PB -->
+                <line x1="480" y1="336" x2="546" y2="380" stroke="#000000" stroke-width="2"/>
+                <!-- 侧棱PC -->
+                <line x1="480" y1="336" x2="562" y2="396" stroke="#000000" stroke-width="2"/>
+                <!-- 侧棱PD -->
+                <line x1="480" y1="336" x2="430" y2="396" stroke="#000000" stroke-width="2"/>
+                <!-- 高PO -->
+                <line x1="480" y1="336" x2="480" y2="380" stroke="#c62828" stroke-width="2"/>
+
+                <!-- 3D标签 -->
+                <text x="480" y="310" text-anchor="middle" font-size="14" fill="#000000">P</text>
+                <text x="390" y="366" text-anchor="end" font-size="14" fill="#000000">A</text>
+                <text x="566" y="366" text-anchor="start" font-size="14" fill="#000000">B</text>
+                <text x="590" y="414" text-anchor="start" font-size="14" fill="#000000">C</text>
+                <text x="394" y="414" text-anchor="end" font-size="14" fill="#000000">D</text>
+                <text x="480" y="430" text-anchor="middle" font-size="14" fill="#c62828">O</text>
+
+                <!-- 3D尺寸标注 -->
+                <text x="480" y="396" text-anchor="middle" font-size="14" fill="#000000">AB=6</text>
+                <text x="390" y="348" text-anchor="end" font-size="14" fill="#c62828">PO=2</text>
+                <text x="620" y="448" text-anchor="start" font-size="14" fill="#000000">BC=2</text>
+            </g>
+
+            <!-- ==================== 结论文字（步骤4） ==================== -->
+            <text id="scene1-conclusion" x="520" y="300" font-size="15" fill="#1565c0" class="scene1-hidden scene1-infer-text">四棱锥P-ABCD，PO⊥底面，PO=2</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1 / 5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var totalSteps = 5;
+
+        // 获取元素
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var indicator = document.getElementById('scene1-step-indicator');
+        var viewsGroup = document.getElementById('scene1-views-group');
+        var frameMain = document.getElementById('scene1-frame-main');
+        var fillMain = document.getElementById('scene1-fill-main');
+        var frameSide = document.getElementById('scene1-frame-side');
+        var fillSide = document.getElementById('scene1-fill-side');
+        var frameTop = document.getElementById('scene1-frame-top');
+        var fillTop = document.getElementById('scene1-fill-top');
+        var mainHeightLine = document.getElementById('scene1-main-height-line');
+        var mainMidpoint = document.getElementById('scene1-main-midpoint');
+        var sideRightAngle = document.getElementById('scene1-side-right-angle');
+        var topLine1 = document.getElementById('scene1-top-line1');
+        var topLine2 = document.getElementById('scene1-top-line2');
+        var topLine1Hl = document.getElementById('scene1-top-line1-hl');
+        var topLine2Hl = document.getElementById('scene1-top-line2-hl');
+        var mainDims = document.getElementById('scene1-main-dims');
+        var sideDims = document.getElementById('scene1-side-dims');
+        var topDims = document.getElementById('scene1-top-dims');
+        var infer1 = document.getElementById('scene1-infer1');
+        var infer2 = document.getElementById('scene1-infer2');
+        var infer3 = document.getElementById('scene1-infer3');
+        var group3d = document.getElementById('scene1-3d-group');
+        var conclusion = document.getElementById('scene1-conclusion');
+
+        function setVisible(el, visible) {
+            if (!el) return;
+            if (visible) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+            } else {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+            }
+        }
+
+        function setDimmed(el, dimmed) {
+            if (!el) return;
+            if (dimmed) {
+                el.classList.add('scene1-dimmed');
+            } else {
+                el.classList.remove('scene1-dimmed');
+            }
+        }
+
+        function highlightMain(hl) {
+            if (hl) {
+                frameMain.setAttribute('stroke', '#1565c0');
+                frameMain.setAttribute('stroke-width', '3');
+                frameMain.removeAttribute('stroke-dasharray');
+                setVisible(fillMain, true);
+            } else {
+                frameMain.setAttribute('stroke', '#888888');
+                frameMain.setAttribute('stroke-width', '1');
+                frameMain.setAttribute('stroke-dasharray', '4,3');
+                setVisible(fillMain, false);
+            }
+        }
+
+        function highlightSide(hl) {
+            if (hl) {
+                frameSide.setAttribute('stroke', '#1565c0');
+                frameSide.setAttribute('stroke-width', '3');
+                frameSide.removeAttribute('stroke-dasharray');
+                setVisible(fillSide, true);
+            } else {
+                frameSide.setAttribute('stroke', '#888888');
+                frameSide.setAttribute('stroke-width', '1');
+                frameSide.setAttribute('stroke-dasharray', '4,3');
+                setVisible(fillSide, false);
+            }
+        }
+
+        function highlightTop(hl) {
+            if (hl) {
+                frameTop.setAttribute('stroke', '#1565c0');
+                frameTop.setAttribute('stroke-width', '3');
+                frameTop.removeAttribute('stroke-dasharray');
+                setVisible(fillTop, true);
+            } else {
+                frameTop.setAttribute('stroke', '#888888');
+                frameTop.setAttribute('stroke-width', '1');
+                frameTop.setAttribute('stroke-dasharray', '4,3');
+                setVisible(fillTop, false);
+            }
+        }
+
+        function renderStep() {
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+            indicator.textContent = '步骤 ' + (currentStep + 1) + ' / ' + totalSteps;
+
+            // 重置所有状态
+            highlightMain(false);
+            highlightSide(false);
+            highlightTop(false);
+            setDimmed(viewsGroup, false);
+            viewsGroup.style.opacity = '';
+            setVisible(mainHeightLine, false);
+            setVisible(mainMidpoint, false);
+            setVisible(sideRightAngle, false);
+            setVisible(topLine1Hl, false);
+            setVisible(topLine2Hl, false);
+            setVisible(topLine1, true);
+            setVisible(topLine2, true);
+            setVisible(mainDims, false);
+            setVisible(sideDims, false);
+            setVisible(topDims, false);
+            setVisible(infer1, false);
+            setVisible(infer2, false);
+            setVisible(infer3, false);
+            setVisible(group3d, false);
+            setVisible(conclusion, false);
+
+            // 步骤0：初始状态，显示三视图，无标注
+            if (currentStep === 0) {
+                // 默认状态已满足
+            }
+            // 步骤1：主视图分析
+            else if (currentStep === 1) {
+                highlightMain(true);
+                setDimmed(viewsGroup, true);
+                frameMain.classList.remove('scene1-dimmed');
+                fillMain.classList.remove('scene1-dimmed');
+                document.getElementById('scene1-tri-main').classList.remove('scene1-dimmed');
+                document.getElementById('scene1-label-main').classList.remove('scene1-dimmed');
+                setVisible(mainHeightLine, true);
+                setVisible(mainMidpoint, true);
+                setVisible(mainDims, true);
+                setVisible(infer1, true);
+            }
+            // 步骤2：侧视图分析
+            else if (currentStep === 2) {
+                highlightSide(true);
+                setDimmed(viewsGroup, true);
+                frameSide.classList.remove('scene1-dimmed');
+                fillSide.classList.remove('scene1-dimmed');
+                document.getElementById('scene1-tri-side').classList.remove('scene1-dimmed');
+                document.getElementById('scene1-label-side').classList.remove('scene1-dimmed');
+                setVisible(sideRightAngle, true);
+                setVisible(sideDims, true);
+                setVisible(infer2, true);
+            }
+            // 步骤3：俯视图分析
+            else if (currentStep === 3) {
+                highlightTop(true);
+                setDimmed(viewsGroup, true);
+                frameTop.classList.remove('scene1-dimmed');
+                fillTop.classList.remove('scene1-dimmed');
+                document.getElementById('scene1-rect-top').classList.remove('scene1-dimmed');
+                document.getElementById('scene1-label-top').classList.remove('scene1-dimmed');
+                topLine1.classList.add('scene1-hidden');
+                topLine2.classList.add('scene1-hidden');
+                setVisible(topLine1Hl, true);
+                setVisible(topLine2Hl, true);
+                setVisible(topDims, true);
+                setVisible(infer3, true);
+            }
+            // 步骤4：合成直观图
+            else if (currentStep === 4) {
+                viewsGroup.style.opacity = '0.4';
+                setVisible(group3d, true);
+                setVisible(conclusion, true);
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

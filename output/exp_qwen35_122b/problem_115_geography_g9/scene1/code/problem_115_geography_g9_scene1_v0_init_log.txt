@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 经纬网坐标读取与方向判断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { 
+            background: #1565c0; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            padding: 0 20px; 
+            height: 35px; 
+            font-size: 14px; 
+            cursor: pointer; 
+            transition: background 0.3s;
+        }
+        .scene1-btn:hover:not(:disabled) { background: #0d47a1; }
+        .scene1-btn:disabled { background: #90a4ae; cursor: not-allowed; }
+        .scene1-element { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 坐标表对照（实现依据）：
+                经线：20°W(x=150), 0°(x=300), 20°E(x=450), 40°E(x=600)
+                纬线：66.5°N(y=80), 23.5°N(y=180), 0°(y=280), 23.5°S(y=380)
+                甲点 (300,80), 乙点 (150,180), 丙点 (300,280), 丁点 (450,380)
+                E 点 (450,280), F 点 (600,80)
+            -->
+            
+            <!-- 经线组 -->
+            <g id="scene1-longitude-lines">
+                <!-- 经线 20°W -->
+                <line id="scene1-line-20w" x1="150" y1="80" x2="150" y2="400" stroke="#000000" stroke-width="2" class="scene1-element"/>
+                <!-- 经线 0° -->
+                <line id="scene1-line-0" x1="300" y1="80" x2="300" y2="400" stroke="#000000" stroke-width="2" class="scene1-element"/>
+                <!-- 经线 20°E -->
+                <line id="scene1-line-20e" x1="450" y1="80" x2="450" y2="400" stroke="#000000" stroke-width="2" class="scene1-element"/>
+                <!-- 经线 40°E -->
+                <line id="scene1-line-40e" x1="600" y1="80" x2="600" y2="400" stroke="#000000" stroke-width="2" class="scene1-element"/>
+            </g>
+            
+            <!-- 纬线组 -->
+            <g id="scene1-latitude-lines">
+                <!-- 纬线 66.5°N (虚线) -->
+                <line id="scene1-line-66n" x1="100" y1="80" x2="650" y2="80" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" class="scene1-element"/>
+                <!-- 纬线 23.5°N (虚线) -->
+                <line id="scene1-line-23n" x1="100" y1="180" x2="650" y2="180" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" class="scene1-element"/>
+                <!-- 纬线 0°赤道 (实线) -->
+                <line id="scene1-line-0lat" x1="100" y1="280" x2="650" y2="280" stroke="#000000" stroke-width="2" class="scene1-element"/>
+                <!-- 纬线 23.5°S (虚线) -->
+                <line id="scene1-line-23s" x1="100" y1="380" x2="650" y2="380" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" class="scene1-element"/>
+            </g>
+            
+            <!-- 经度标签 -->
+            <g id="scene1-longitude-labels">
+                <text id="scene1-label-20w" x="150" y="420" text-anchor="middle" font-size="14" fill="#000000" class="scene1-element">20°W</text>
+                <text id="scene1-label-0" x="300" y="420" text-anchor="middle" font-size="14" fill="#000000" class="scene1-element">0°</text>
+                <text id="scene1-label-20e" x="450" y="420" text-anchor="middle" font-size="14" fill="#000000" class="scene1-element">20°E</text>
+                <text id="scene1-label-40e" x="600" y="420" text-anchor="middle" font-size="14" fill="#000000" class="scene1-element">40°E</text>
+            </g>
+            
+            <!-- 纬度标签 -->
+            <g id="scene1-latitude-labels">
+                <text id="scene1-label-66n" x="660" y="85" text-anchor="start" font-size="14" fill="#000000" class="scene1-element">66.5°</text>
+                <text id="scene1-label-23n" x="660" y="185" text-anchor="start" font-size="14" fill="#000000" class="scene1-element">23.5°</text>
+                <text id="scene1-label-0lat" x="660" y="285" text-anchor="start" font-size="14" fill="#000000" class="scene1-element">0°</text>
+                <text id="scene1-label-23s" x="660" y="385" text-anchor="start" font-size="14" fill="#000000" class="scene1-element">23.5°</text>
+            </g>
+            
+            <!-- 点组 -->
+            <g id="scene1-points">
+                <!-- 甲点 -->
+                <circle id="scene1-point-jia" cx="300" cy="80" r="4" fill="#1565c0" class="scene1-element"/>
+                <!-- 乙点 -->
+                <circle id="scene1-point-yi" cx="150" cy="180" r="4" fill="#1565c0" class="scene1-element"/>
+                <!-- 丙点 -->
+                <circle id="scene1-point-bing" cx="300" cy="280" r="4" fill="#1565c0" class="scene1-element"/>
+                <!-- 丁点 -->
+                <circle id="scene1-point-ding" cx="450" cy="380" r="4" fill="#1565c0" class="scene1-element"/>
+                <!-- E 点 -->
+                <circle id="scene1-point-e" cx="450" cy="280" r="4" fill="#1565c0" class="scene1-element"/>
+                <!-- F 点 -->
+                <circle id="scene1-point-f" cx="600" cy="80" r="4" fill="#1565c0" class="scene1-element"/>
+            </g>
+            
+            <!-- 点标注和坐标标注合并，只保留坐标标注（避免拥挤） -->
+            <g id="scene1-coordinate-labels">
+                <!-- 甲点坐标 - 点在上方，标签放在点下方 -->
+                <text id="scene1-coord-jia" x="315" y="95" text-anchor="start" font-size="12" fill="#000000" class="scene1-element">甲 (0°,66.5°N)</text>
+                <!-- 乙点坐标 - 点在左方，标签放在点右方 -->
+                <text id="scene1-coord-yi" x="160" y="185" text-anchor="start" font-size="12" fill="#000000" class="scene1-element">乙 (20°W,23.5°N)</text>
+                <!-- 丙点坐标 - 点在中间，标签放在点右下方 -->
+                <text id="scene1-coord-bing" x="310" y="295" text-anchor="start" font-size="12" fill="#000000" class="scene1-element">丙 (0°,0°)</text>
+                <!-- 丁点坐标 - 点在下方，标签放在点上方 -->
+                <text id="scene1-coord-ding" x="460" y="365" text-anchor="start" font-size="12" fill="#000000" class="scene1-element">丁 (20°E,23.5°S)</text>
+                <!-- E 点坐标 - 点在中间，标签放在点右方 -->
+                <text id="scene1-coord-e" x="460" y="285" text-anchor="start" font-size="12" fill="#000000" class="scene1-element">E(20°E,0°)</text>
+                <!-- F 点坐标 - 点在右上方，标签放在点左下方 -->
+                <text id="scene1-coord-f" x="580" y="95" text-anchor="end" font-size="12" fill="#000000" class="scene1-element">F(40°E,66.5°N)</text>
+            </g>
+            
+            <!-- 方向箭头组 -->
+            <g id="scene1-direction-arrow">
+                <!-- 从 F 点到 E 点的箭头 -->
+                <line id="scene1-arrow-fe" x1="600" y1="80" x2="450" y2="280" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)" class="scene1-element" opacity="0"/>
+                <defs>
+                    <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                    </marker>
+                </defs>
+            </g>
+            
+            <!-- 条件框组 -->
+            <g id="scene1-condition-boxes">
+                <!-- 条件框 1 -->
+                <rect id="scene1-cond-box1" x="680" y="100" width="100" height="40" fill="#e3f2fd" fill-opacity="0.2" stroke="#1565c0" stroke-width="1" class="scene1-element" opacity="0"/>
+                <text id="scene1-cond-text1" x="685" y="115" font-size="11" fill="#1565c0" class="scene1-element" opacity="0">东西半球分界</text>
+                <text id="scene1-cond-text1b" x="685" y="130" font-size="11" fill="#1565c0" class="scene1-element" opacity="0">20°W</text>
+                
+                <!-- 条件框 2 -->
+                <rect id="scene1-cond-box2" x="680" y="160" width="100" height="40" fill="#e3f2fd" fill-opacity="0.2" stroke="#1565c0" stroke-width="1" class="scene1-element" opacity="0"/>
+                <text id="scene1-cond-text2" x="685" y="175" font-size="11" fill="#1565c0" class="scene1-element" opacity="0">北温带</text>
+                <text id="scene1-cond-text2b" x="685" y="190" font-size="11" fill="#1565c0" class="scene1-element" opacity="0">四季变化明显</text>
+                
+                <!-- 条件框 3 -->
+                <rect id="scene1-cond-box3" x="680" y="220" width="100" height="40" fill="#e3f2fd" fill-opacity="0.2" stroke="#1565c0" stroke-width="1" class="scene1-element" opacity="0"/>
+                <text id="scene1-cond-text3" x="685" y="235" font-size="11" fill="#1565c0" class="scene1-element" opacity="0">热带</text>
+                <text id="scene1-cond-text3b" x="685" y="250" font-size="11" fill="#1565c0" class="scene1-element" opacity="0">有太阳直射</text>
+            </g>
+            
+            <!-- 高亮组（步骤 3） -->
+            <g id="scene1-highlight-group">
+                <!-- 20°W 经线高亮（绿色加粗） -->
+                <line id="scene1-highlight-20w" x1="150" y1="80" x2="150" y2="400" stroke="#2e7d32" stroke-width="3" class="scene1-element" opacity="0"/>
+                <!-- 23.5°N 纬线高亮（绿色加粗虚线） -->
+                <line id="scene1-highlight-23n" x1="100" y1="180" x2="650" y2="180" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" class="scene1-element" opacity="0"/>
+            </g>
+            
+            <!-- 答案高亮组（步骤 4） -->
+            <g id="scene1-answer-highlight">
+                <!-- 乙点正确（绿色外圈） -->
+                <circle id="scene1-answer-yi" cx="150" cy="180" r="6" fill="none" stroke="#2e7d32" stroke-width="3" class="scene1-element" opacity="0"/>
+                <!-- 甲点错误（红色外圈） -->
+                <circle id="scene1-answer-jia" cx="300" cy="80" r="6" fill="none" stroke="#c62828" stroke-width="2" class="scene1-element" opacity="0"/>
+                <!-- 丙点错误（红色外圈） -->
+                <circle id="scene1-answer-bing" cx="300" cy="280" r="6" fill="none" stroke="#c62828" stroke-width="2" class="scene1-element" opacity="0"/>
+                <!-- 丁点错误（红色外圈） -->
+                <circle id="scene1-answer-ding" cx="450" cy="380" r="6" fill="none" stroke="#c62828" stroke-width="2" class="scene1-element" opacity="0"/>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-next-btn" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现 - 经纬网坐标读取与方向判断
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            // 步骤元素分组
+            stepElements: {
+                0: ['longitude-lines', 'latitude-lines', 'longitude-labels', 'latitude-labels'],
+                1: ['points', 'coordinate-labels'],
+                2: ['direction-arrow'],
+                3: ['highlight-group', 'condition-boxes'],
+                4: ['answer-highlight']
+            },
+            
+            // 工具函数：显示元素
+            show: function(elementIds) {
+                elementIds.forEach(id => {
+                    const el = document.getElementById('scene1-' + id);
+                    if (el) {
+                        el.style.display = 'block';
+                        el.style.opacity = '1';
+                    }
+                });
+            },
+            
+            // 工具函数：隐藏元素
+            hide: function(elementIds) {
+                elementIds.forEach(id => {
+                    const el = document.getElementById('scene1-' + id);
+                    if (el) {
+                        el.style.opacity = '0';
+                        setTimeout(() => {
+                            if (el.style.opacity === '0') {
+                                el.style.display = 'none';
+                            }
+                        }, 300);
+                    }
+                });
+            },
+            
+            // 更新按钮状态
+            updateButtons: function() {
+                const prevBtn = document.getElementById('scene1-prev-btn');
+                const nextBtn = document.getElementById('scene1-next-btn');
+                
+                prevBtn.disabled = (this.currentStep === 0);
+                nextBtn.disabled = (this.currentStep === this.totalSteps - 1);
+                
+                if (this.currentStep === this.totalSteps - 1) {
+                    nextBtn.textContent = '完成';
+                } else {
+                    nextBtn.textContent = '下一步 ▶';
+                }
+            },
+            
+            // 跳转到指定步骤
+            goToStep: function(step) {
+                if (step < 0 || step >= this.totalSteps) return;
+                
+                // 隐藏之前步骤新增的元素（从当前步骤往前）
+                for (let i = this.currentStep; i > step; i--) {
+                    const elements = this.stepElements[i] || [];
+                    this.hide(elements);
+                }
+                
+                // 显示目标步骤及之前步骤的元素
+                for (let i = 0; i <= step; i++) {
+                    const elements = this.stepElements[i] || [];
+                    this.show(elements);
+                }
+                
+                this.currentStep = step;
+                this.updateButtons();
+            },
+            
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    this.goToStep(this.currentStep + 1);
+                }
+            },
+            
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.goToStep(this.currentStep - 1);
+                }
+            },
+            
+            // 初始化
+            init: function() {
+                // 绑定按钮事件
+                document.getElementById('scene1-prev-btn').addEventListener('click', () => {
+                    this.prevStep();
+                });
+                
+                document.getElementById('scene1-next-btn').addEventListener('click', () => {
+                    this.nextStep();
+                });
+                
+                // 初始化：显示步骤 0 的元素
+                this.goToStep(0);
+            }
+        };
+        
+        // 启动场景
+        scene1.init();
+    })();
+    </script>
+</body>
+</html>

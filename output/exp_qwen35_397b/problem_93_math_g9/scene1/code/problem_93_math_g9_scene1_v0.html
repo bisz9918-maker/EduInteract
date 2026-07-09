@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>等边三角形构造与相似三角形识别</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1565c0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        .scene1-btn:disabled {
+            border-color: #cccccc;
+            color: #cccccc;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 80px;
+            text-align: center;
+        }
+        .scene1-highlight {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .scene1-highlight.visible {
+            opacity: 1;
+        }
+        .scene1-element {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .scene1-element.hidden {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头和标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- 相似三角形高亮层（在底层） -->
+            <!-- 第1对：△DGP 和 △EHP（蓝色） -->
+            <polygon id="scene1-highlight-1-dgp" class="scene1-highlight" points="200,207 243,295 350,120" fill="#1565c0" opacity="0.2" />
+            <polygon id="scene1-highlight-1-ehp" class="scene1-highlight" points="500,34 428,258 350,120" fill="#1565c0" opacity="0.2" />
+
+            <!-- 第2对：△AGC 和 △FHB（红色） -->
+            <polygon id="scene1-highlight-2-agc" class="scene1-highlight" points="100,380 243,295 300,380" fill="#c62828" opacity="0.2" />
+            <polygon id="scene1-highlight-2-fhb" class="scene1-highlight" points="600,207 428,258 700,380" fill="#c62828" opacity="0.2" />
+
+            <!-- 第3对：△ADG 和 △BEH（绿色） -->
+            <polygon id="scene1-highlight-3-adg" class="scene1-highlight" points="100,380 200,207 243,295" fill="#2e7d32" opacity="0.2" />
+            <polygon id="scene1-highlight-3-beh" class="scene1-highlight" points="700,380 500,34 428,258" fill="#2e7d32" opacity="0.2" />
+
+            <!-- 等边三角形 ACD（蓝色边框） -->
+            <polygon id="scene1-tri-acd" points="100,380 300,380 200,207" fill="none" stroke="#1565c0" stroke-width="2.5" />
+
+            <!-- 等边三角形 BCE（蓝色边框） -->
+            <polygon id="scene1-tri-bce" points="700,380 300,380 500,34" fill="none" stroke="#1565c0" stroke-width="2.5" />
+
+            <!-- 线段 AB（黑色底边） -->
+            <line id="scene1-line-ab" x1="100" y1="380" x2="700" y2="380" stroke="#000000" stroke-width="2" />
+
+            <!-- 线段 DE（黑色） -->
+            <line id="scene1-line-de" x1="200" y1="207" x2="500" y2="34" stroke="#000000" stroke-width="2" />
+
+            <!-- 线段 AF（黑色） -->
+            <line id="scene1-line-af" x1="100" y1="380" x2="600" y2="207" stroke="#000000" stroke-width="2" />
+
+            <!-- 线段 DC（等边三角形边，已包含在三角形中，但需要加粗显示交点区域） -->
+            <line id="scene1-line-dc" x1="200" y1="207" x2="300" y2="380" stroke="#1565c0" stroke-width="2.5" />
+
+            <!-- 线段 CE（等边三角形边） -->
+            <line id="scene1-line-ce" x1="300" y1="380" x2="500" y2="34" stroke="#1565c0" stroke-width="2.5" />
+
+            <!-- 线段 BE（等边三角形边） -->
+            <line id="scene1-line-be" x1="700" y1="380" x2="500" y2="34" stroke="#1565c0" stroke-width="2.5" />
+
+            <!-- 点 P（DE 中点） -->
+            <circle id="scene1-point-p" cx="350" cy="120" r="4" fill="#000000" />
+
+            <!-- 点 F（BE 中点） -->
+            <circle id="scene1-point-f" cx="600" cy="207" r="4" fill="#000000" />
+
+            <!-- 点 G（AF 与 DC 交点） -->
+            <circle id="scene1-point-g" cx="243" cy="295" r="4" fill="#000000" />
+
+            <!-- 点 H（AF 与 CE 交点） -->
+            <circle id="scene1-point-h" cx="428" cy="258" r="4" fill="#000000" />
+
+            <!-- 标签 -->
+            <text id="scene1-label-a" x="85" y="395" font-size="14" fill="#000000" text-anchor="middle">A</text>
+            <text id="scene1-label-b" x="710" y="395" font-size="14" fill="#000000" text-anchor="middle">B</text>
+            <text id="scene1-label-c" x="300" y="405" font-size="14" fill="#000000" text-anchor="middle">C</text>
+            <text id="scene1-label-d" x="200" y="192" font-size="14" fill="#000000" text-anchor="middle">D</text>
+            <text id="scene1-label-e" x="510" y="22" font-size="14" fill="#000000" text-anchor="middle">E</text>
+            <text id="scene1-label-p" x="350" y="108" font-size="14" fill="#000000" text-anchor="middle">P</text>
+            <text id="scene1-label-f" x="615" y="210" font-size="14" fill="#000000" text-anchor="middle">F</text>
+            <text id="scene1-label-g" x="228" y="300" font-size="14" fill="#000000" text-anchor="middle">G</text>
+            <text id="scene1-label-h" x="445" y="263" font-size="14" fill="#000000" text-anchor="middle">H</text>
+
+            <!-- AB=8 标注 -->
+            <text id="scene1-label-ab8" x="400" y="415" font-size="14" fill="#000000" text-anchor="middle">AB = 8</text>
+
+            <!-- 结论文本（步骤4显示） -->
+            <text id="scene1-conclusion" x="400" y="460" font-size="13" fill="#333333" text-anchor="middle" style="opacity: 0;">
+                相似三角形：△DGP ∽ △EHP，△AGC ∽ △FHB，△ADG ∽ △BEH
+            </text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 等边三角形构造与相似三角形识别
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | AB 线段 | (100,380)-(700,380) | 水平底边，黑色 |
+        // | AC 线段 | (100,380)-(300,380) | 等边三角形 ACD 底边 |
+        // | CB 线段 | (300,380)-(700,380) | 等边三角形 BCE 底边 |
+        // | 等边△ACD | A(100,380), C(300,380), D(200,207) | 边框蓝色 #1565c0 |
+        // | 等边△BCE | B(700,380), C(300,380), E(500,34) | 边框蓝色 #1565c0 |
+        // | DE 线段 | D(200,207)-E(500,34) | 黑色 |
+        // | 点 P | (350,120) | DE 中点 |
+        // | 点 F | (600,207) | BE 中点 |
+        // | AF 线段 | A(100,380)-F(600,207) | 黑色 |
+        // | 点 G | (243,295) | AF∩DC 交点 |
+        // | 点 H | (428,258) | AF∩CE 交点 |
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const conclusion = document.getElementById('scene1-conclusion');
+
+        // 高亮元素组
+        const highlight1 = [
+            document.getElementById('scene1-highlight-1-dgp'),
+            document.getElementById('scene1-highlight-1-ehp')
+        ];
+        const highlight2 = [
+            document.getElementById('scene1-highlight-2-agc'),
+            document.getElementById('scene1-highlight-2-fhb')
+        ];
+        const highlight3 = [
+            document.getElementById('scene1-highlight-3-adg'),
+            document.getElementById('scene1-highlight-3-beh')
+        ];
+
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有高亮
+            highlight1.forEach(el => el.classList.remove('visible'));
+            highlight2.forEach(el => el.classList.remove('visible'));
+            highlight3.forEach(el => el.classList.remove('visible'));
+            conclusion.style.opacity = '0';
+
+            // 根据当前步骤显示对应高亮
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：无高亮
+                    break;
+                case 1:
+                    // 第1对相似三角形：△DGP ∽ △EHP（蓝色）
+                    highlight1.forEach(el => el.classList.add('visible'));
+                    break;
+                case 2:
+                    // 第2对相似三角形：△AGC ∽ △FHB（红色）
+                    highlight2.forEach(el => el.classList.add('visible'));
+                    break;
+                case 3:
+                    // 第3对相似三角形：△ADG ∽ △BEH（绿色）
+                    highlight3.forEach(el => el.classList.add('visible'));
+                    break;
+                case 4:
+                    // 显示所有结论
+                    conclusion.style.opacity = '1';
+                    break;
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+
+        // 上一步按钮点击
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        // 下一步按钮点击
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

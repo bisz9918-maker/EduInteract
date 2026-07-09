@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路结构总览与开关位置识别</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene1-btn { padding: 10px 20px; font-size: 16px; background: #1976d2; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background 0.3s; }
+        .scene1-btn:hover { background: #1565c0; }
+        .scene1-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 16px; color: #424242; font-weight: bold; }
+        svg { display: block; }
+        .scene1-wire { stroke: #888888; stroke-width: 3; fill: none; transition: stroke 0.3s ease; }
+        .scene1-wire.highlight { stroke: #1565c0; }
+        .scene1-wire.active { stroke: #000000; }
+        .scene1-component { stroke: #888888; stroke-width: 3; fill: none; transition: stroke 0.3s ease, fill 0.3s ease; }
+        .scene1-component.highlight { stroke: #1565c0; }
+        .scene1-component.active { stroke: #000000; }
+        .scene1-lamp { stroke: #888888; stroke-width: 3; fill: rgba(46, 125, 50, 0.2); transition: stroke 0.3s ease, fill 0.3s ease; }
+        .scene1-lamp.highlight { stroke: #2e7d32; fill: rgba(46, 125, 50, 0.3); }
+        .scene1-lamp.active { stroke: #000000; fill: rgba(46, 125, 50, 0.3); }
+        .scene1-switch-arm { stroke: #888888; stroke-width: 3; fill: none; transition: stroke 0.3s ease; }
+        .scene1-switch-arm.highlight { stroke: #1565c0; }
+        .scene1-switch-arm.active { stroke: #000000; }
+        .scene1-node { fill: #888888; transition: fill 0.3s ease; }
+        .scene1-node.highlight { fill: #1565c0; }
+        .scene1-node.active { fill: #000000; }
+        .scene1-contact { fill: #c62828; transition: fill 0.3s ease; }
+        .scene1-label { font-size: 16px; fill: #424242; font-weight: bold; transition: fill 0.3s ease; }
+        .scene1-label.highlight { fill: #1565c0; }
+        .scene1-label.active { fill: #000000; }
+        .scene1-param { font-size: 14px; fill: #666666; opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-param.visible { opacity: 1; }
+        .scene1-contact-circle { fill: #c62828; opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-contact-circle.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 导线 -->
+            <!-- 左侧竖线 (电源正极到 L1/S2 分支点) -->
+            <line id="scene1-wire-left" x1="200" y1="150" x2="200" y2="420" class="scene1-wire"/>
+            <!-- L1 左连接线 -->
+            <line id="scene1-wire-l1-left" x1="200" y1="200" x2="250" y2="200" class="scene1-wire"/>
+            <!-- L1 右连接线 -->
+            <line id="scene1-wire-l1-right" x1="300" y1="200" x2="350" y2="200" class="scene1-wire"/>
+            <!-- L2 左连接线 -->
+            <line id="scene1-wire-l2-left" x1="350" y1="200" x2="400" y2="200" class="scene1-wire"/>
+            <!-- L2 右连接线 -->
+            <line id="scene1-wire-l2-right" x1="450" y1="200" x2="500" y2="200" class="scene1-wire"/>
+            <!-- S2 左连接线 -->
+            <line id="scene1-wire-s2-left" x1="200" y1="120" x2="200" y2="150" class="scene1-wire"/>
+            <!-- S2 右连接线 -->
+            <line id="scene1-wire-s2-right" x1="500" y1="120" x2="500" y2="200" class="scene1-wire"/>
+            <!-- S2 水平线 -->
+            <line id="scene1-wire-s2" x1="250" y1="120" x2="450" y2="120" class="scene1-wire"/>
+            <!-- S1 a 连接线 -->
+            <line id="scene1-wire-s1-a" x1="600" y1="200" x2="600" y2="380" class="scene1-wire"/>
+            <!-- S1 b 连接线 -->
+            <line id="scene1-wire-s1-b" x1="450" y1="200" x2="450" y2="280" class="scene1-wire"/>
+            <!-- 右侧竖线 (L2 右端到电源负极) -->
+            <line id="scene1-wire-right" x1="600" y1="380" x2="600" y2="420" class="scene1-wire"/>
+            
+            <!-- 电源 -->
+            <line id="scene1-battery-pos" x1="200" y1="420" x2="200" y2="440" class="scene1-component" stroke-width="4"/>
+            <line id="scene1-battery-neg" x1="600" y1="420" x2="600" y2="435" class="scene1-component" stroke-width="6"/>
+            
+            <!-- 灯泡 L1 -->
+            <circle id="scene1-lamp1" cx="275" cy="200" r="25" class="scene1-lamp"/>
+            <line id="scene1-lamp1-cross1" x1="257" y1="182" x2="293" y2="218" class="scene1-lamp"/>
+            <line id="scene1-lamp1-cross2" x1="293" y1="182" x2="257" y2="218" class="scene1-lamp"/>
+            
+            <!-- 灯泡 L2 -->
+            <circle id="scene1-lamp2" cx="425" cy="200" r="25" class="scene1-lamp"/>
+            <line id="scene1-lamp2-cross1" x1="407" y1="182" x2="443" y2="218" class="scene1-lamp"/>
+            <line id="scene1-lamp2-cross2" x1="443" y1="182" x2="407" y2="218" class="scene1-lamp"/>
+            
+            <!-- 开关 S2 (单刀单掷，断开状态) -->
+            <line id="scene1-switch2-left" x1="300" y1="120" x2="330" y2="120" class="scene1-switch-arm"/>
+            <line id="scene1-switch2-right" x1="370" y1="120" x2="400" y2="120" class="scene1-switch-arm"/>
+            <line id="scene1-switch2-arm" x1="330" y1="120" x2="350" y2="100" class="scene1-switch-arm"/>
+            
+            <!-- 开关 S1 (单刀双掷) -->
+            <!-- 公共端节点 -->
+            <circle id="scene1-switch1-common" cx="550" cy="380" r="5" class="scene1-node"/>
+            <!-- 触点 a -->
+            <circle id="scene1-switch1-a" cx="600" cy="380" r="5" class="scene1-node"/>
+            <!-- 触点 b -->
+            <circle id="scene1-switch1-b" cx="450" cy="280" r="5" class="scene1-node"/>
+            <!-- 开关臂 (指向 b) -->
+            <line id="scene1-switch1-arm" x1="550" y1="380" x2="450" y2="280" class="scene1-switch-arm"/>
+            
+            <!-- 节点 -->
+            <circle id="scene1-node-l1-left" cx="200" cy="200" r="5" class="scene1-node"/>
+            <circle id="scene1-node-l1-l2" cx="350" cy="200" r="5" class="scene1-node"/>
+            <circle id="scene1-node-l2-right" cx="500" cy="200" r="5" class="scene1-node"/>
+            <circle id="scene1-node-s2-left" cx="200" cy="120" r="5" class="scene1-node"/>
+            <circle id="scene1-node-s2-right" cx="500" cy="120" r="5" class="scene1-node"/>
+            
+            <!-- 触点高亮圈 -->
+            <circle id="scene1-contact-a" cx="600" cy="380" r="10" class="scene1-contact-circle"/>
+            <circle id="scene1-contact-b" cx="450" cy="280" r="10" class="scene1-contact-circle"/>
+            
+            <!-- 标签 -->
+            <text id="scene1-label-battery" x="400" y="460" text-anchor="middle" class="scene1-label">3V</text>
+            <text id="scene1-label-l1" x="275" y="170" text-anchor="middle" class="scene1-label">L₁</text>
+            <text id="scene1-label-l2" x="425" y="170" text-anchor="middle" class="scene1-label">L₂</text>
+            <text id="scene1-label-s1" x="570" y="405" text-anchor="middle" class="scene1-label">S₁</text>
+            <text id="scene1-label-s2" x="325" y="90" text-anchor="middle" class="scene1-label">S₂</text>
+            <text id="scene1-label-a" x="615" y="385" class="scene1-label">a</text>
+            <text id="scene1-label-b" x="430" y="285" class="scene1-label">b</text>
+            
+            <!-- 参数标签 (移到灯泡标签上方，避免重叠) -->
+            <text id="scene1-param-l1" x="275" y="150" text-anchor="middle" class="scene1-param">6V 6W</text>
+            <text id="scene1-param-l2" x="425" y="150" text-anchor="middle" class="scene1-param">3V 3W</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 电路结构总览与开关位置识别
+        // 布局坐标表对照：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 电源 | (200,420)-(600,420) | 底部水平 |
+        // | L1 | 圆心 (275,200) | 左侧灯泡 |
+        // | L2 | 圆心 (425,200) | 右侧灯泡 |
+        // | S2 | (250,120)-(450,120) | 顶部开关 |
+        // | S1 公共端 | (550,380) | 右下角 |
+        // | S1 触点 a | (600,380) | 右侧触点 |
+        // | S1 触点 b | (450,280) | 中间触点 |
+        
+        const currentStepMax = 4;
+        let currentStep = 0;
+        
+        // 元素引用
+        const elements = {
+            // 导线
+            wireLeft: document.getElementById('scene1-wire-left'),
+            wireL1Left: document.getElementById('scene1-wire-l1-left'),
+            wireL1Right: document.getElementById('scene1-wire-l1-right'),
+            wireL2Left: document.getElementById('scene1-wire-l2-left'),
+            wireL2Right: document.getElementById('scene1-wire-l2-right'),
+            wireS2Left: document.getElementById('scene1-wire-s2-left'),
+            wireS2Right: document.getElementById('scene1-wire-s2-right'),
+            wireS2: document.getElementById('scene1-wire-s2'),
+            wireS1A: document.getElementById('scene1-wire-s1-a'),
+            wireS1B: document.getElementById('scene1-wire-s1-b'),
+            wireRight: document.getElementById('scene1-wire-right'),
+            // 电源
+            batteryPos: document.getElementById('scene1-battery-pos'),
+            batteryNeg: document.getElementById('scene1-battery-neg'),
+            // 灯泡
+            lamp1: document.getElementById('scene1-lamp1'),
+            lamp1Cross1: document.getElementById('scene1-lamp1-cross1'),
+            lamp1Cross2: document.getElementById('scene1-lamp1-cross2'),
+            lamp2: document.getElementById('scene1-lamp2'),
+            lamp2Cross1: document.getElementById('scene1-lamp2-cross1'),
+            lamp2Cross2: document.getElementById('scene1-lamp2-cross2'),
+            // 开关 S2
+            switch2Left: document.getElementById('scene1-switch2-left'),
+            switch2Right: document.getElementById('scene1-switch2-right'),
+            switch2Arm: document.getElementById('scene1-switch2-arm'),
+            // 开关 S1
+            switch1Common: document.getElementById('scene1-switch1-common'),
+            switch1A: document.getElementById('scene1-switch1-a'),
+            switch1B: document.getElementById('scene1-switch1-b'),
+            switch1Arm: document.getElementById('scene1-switch1-arm'),
+            // 节点
+            nodeL1Left: document.getElementById('scene1-node-l1-left'),
+            nodeL1L2: document.getElementById('scene1-node-l1-l2'),
+            nodeL2Right: document.getElementById('scene1-node-l2-right'),
+            nodeS2Left: document.getElementById('scene1-node-s2-left'),
+            nodeS2Right: document.getElementById('scene1-node-s2-right'),
+            // 触点高亮
+            contactA: document.getElementById('scene1-contact-a'),
+            contactB: document.getElementById('scene1-contact-b'),
+            // 标签
+            labelBattery: document.getElementById('scene1-label-battery'),
+            labelL1: document.getElementById('scene1-label-l1'),
+            labelL2: document.getElementById('scene1-label-l2'),
+            labelS1: document.getElementById('scene1-label-s1'),
+            labelS2: document.getElementById('scene1-label-s2'),
+            labelA: document.getElementById('scene1-label-a'),
+            labelB: document.getElementById('scene1-label-b'),
+            // 参数
+            paramL1: document.getElementById('scene1-param-l1'),
+            paramL2: document.getElementById('scene1-param-l2'),
+            // 控件
+            btnPrev: document.getElementById('scene1-btn-prev'),
+            btnNext: document.getElementById('scene1-btn-next'),
+            stepIndicator: document.getElementById('scene1-step-indicator')
+        };
+        
+        // 工具函数：设置元素为灰色（默认状态）
+        function setGray(el) {
+            if (!el) return;
+            el.classList.remove('highlight', 'active');
+        }
+        
+        // 工具函数：设置元素为蓝色高亮
+        function setHighlight(el) {
+            if (!el) return;
+            el.classList.remove('active');
+            el.classList.add('highlight');
+        }
+        
+        // 工具函数：设置元素为黑色激活
+        function setActive(el) {
+            if (!el) return;
+            el.classList.remove('highlight');
+            el.classList.add('active');
+        }
+        
+        // 更新步骤显示
+        function updateStepDisplay() {
+            elements.stepIndicator.textContent = `步骤 ${currentStep + 1}/5`;
+            elements.btnPrev.disabled = currentStep === 0;
+            elements.btnNext.disabled = currentStep === currentStepMax;
+        }
+        
+        // 更新高亮状态
+        function updateHighlight() {
+            // 重置所有元素为灰色
+            Object.values(elements).forEach(el => {
+                if (el && el.classList) {
+                    el.classList.remove('highlight', 'active', 'visible');
+                }
+            });
+            
+            switch(currentStep) {
+                case 0: // 初始状态：全部灰色
+                    break;
+                    
+                case 1: // 高亮电源和主回路
+                    setActive(elements.batteryPos);
+                    setActive(elements.batteryNeg);
+                    setHighlight(elements.labelBattery);
+                    setHighlight(elements.wireLeft);
+                    setHighlight(elements.wireRight);
+                    break;
+                    
+                case 2: // 高亮 S1 及 a、b 触点
+                    setActive(elements.batteryPos);
+                    setActive(elements.batteryNeg);
+                    setHighlight(elements.labelBattery);
+                    setHighlight(elements.wireLeft);
+                    setHighlight(elements.wireRight);
+                    setHighlight(elements.switch1Common);
+                    setHighlight(elements.switch1A);
+                    setHighlight(elements.switch1B);
+                    setHighlight(elements.switch1Arm);
+                    setHighlight(elements.wireS1A);
+                    setHighlight(elements.wireS1B);
+                    setHighlight(elements.labelS1);
+                    setHighlight(elements.labelA);
+                    setHighlight(elements.labelB);
+                    elements.contactA.classList.add('visible');
+                    elements.contactB.classList.add('visible');
+                    break;
+                    
+                case 3: // 高亮 S2 支路
+                    setActive(elements.batteryPos);
+                    setActive(elements.batteryNeg);
+                    setHighlight(elements.labelBattery);
+                    setHighlight(elements.wireLeft);
+                    setHighlight(elements.wireRight);
+                    setHighlight(elements.switch1Common);
+                    setHighlight(elements.switch1A);
+                    setHighlight(elements.switch1B);
+                    setHighlight(elements.switch1Arm);
+                    setHighlight(elements.wireS1A);
+                    setHighlight(elements.wireS1B);
+                    setHighlight(elements.labelS1);
+                    setHighlight(elements.labelA);
+                    setHighlight(elements.labelB);
+                    elements.contactA.classList.add('visible');
+                    elements.contactB.classList.add('visible');
+                    setHighlight(elements.wireS2);
+                    setHighlight(elements.wireS2Left);
+                    setHighlight(elements.wireS2Right);
+                    setHighlight(elements.switch2Left);
+                    setHighlight(elements.switch2Right);
+                    setHighlight(elements.switch2Arm);
+                    setHighlight(elements.labelS2);
+                    setHighlight(elements.nodeS2Left);
+                    setHighlight(elements.nodeS2Right);
+                    break;
+                    
+                case 4: // 标注 L1、L2 参数
+                    setActive(elements.batteryPos);
+                    setActive(elements.batteryNeg);
+                    setHighlight(elements.labelBattery);
+                    setHighlight(elements.wireLeft);
+                    setHighlight(elements.wireRight);
+                    setHighlight(elements.switch1Common);
+                    setHighlight(elements.switch1A);
+                    setHighlight(elements.switch1B);
+                    setHighlight(elements.switch1Arm);
+                    setHighlight(elements.wireS1A);
+                    setHighlight(elements.wireS1B);
+                    setHighlight(elements.labelS1);
+                    setHighlight(elements.labelA);
+                    setHighlight(elements.labelB);
+                    elements.contactA.classList.add('visible');
+                    elements.contactB.classList.add('visible');
+                    setHighlight(elements.wireS2);
+                    setHighlight(elements.wireS2Left);
+                    setHighlight(elements.wireS2Right);
+                    setHighlight(elements.switch2Left);
+                    setHighlight(elements.switch2Right);
+                    setHighlight(elements.switch2Arm);
+                    setHighlight(elements.labelS2);
+                    setHighlight(elements.nodeS2Left);
+                    setHighlight(elements.nodeS2Right);
+                    setHighlight(elements.lamp1);
+                    setHighlight(elements.lamp1Cross1);
+                    setHighlight(elements.lamp1Cross2);
+                    setHighlight(elements.lamp2);
+                    setHighlight(elements.lamp2Cross1);
+                    setHighlight(elements.lamp2Cross2);
+                    setHighlight(elements.labelL1);
+                    setHighlight(elements.labelL2);
+                    setHighlight(elements.wireL1Left);
+                    setHighlight(elements.wireL1Right);
+                    setHighlight(elements.wireL2Left);
+                    setHighlight(elements.wireL2Right);
+                    setHighlight(elements.nodeL1Left);
+                    setHighlight(elements.nodeL1L2);
+                    setHighlight(elements.nodeL2Right);
+                    elements.paramL1.classList.add('visible');
+                    elements.paramL2.classList.add('visible');
+                    break;
+            }
+            
+            updateStepDisplay();
+        }
+        
+        // 按钮事件
+        elements.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateHighlight();
+            }
+        });
+        
+        elements.btnNext.addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateHighlight();
+            }
+        });
+        
+        // 初始化
+        updateHighlight();
+    })();
+    </script>
+</body>
+</html>

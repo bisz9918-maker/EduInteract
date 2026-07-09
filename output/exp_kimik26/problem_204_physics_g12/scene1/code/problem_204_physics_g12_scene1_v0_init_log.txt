@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆盘转动临界角速度分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #999; border-radius: 4px; background: #f0f0f0; }
+        button:hover { background: #e0e0e0; }
+        button.disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 高亮样式 */
+        .highlight-a { stroke-width: 3px !important; filter: drop-shadow(0 0 4px #1565c0); }
+        .highlight-b { stroke-width: 3px !important; filter: drop-shadow(0 0 4px #c62828); }
+
+        /* 过渡效果 */
+        .fade-element { transition: opacity 0.3s ease; }
+        .hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <!-- 绿色箭头（摩擦力） -->
+                <marker id="scene1-marker-green" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8" fill="#2e7d32"/>
+                </marker>
+                <!-- 蓝色箭头（T_AB） -->
+                <marker id="scene1-marker-blue" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8" fill="#1565c0"/>
+                </marker>
+                <!-- 红色箭头（T_OB） -->
+                <marker id="scene1-marker-red" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8" fill="#c62828"/>
+                </marker>
+                <!-- 转动方向箭头 -->
+                <marker id="scene1-marker-rotate" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8" fill="#000000"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== 圆盘俯视图 ==================== -->
+            <!-- 圆盘轮廓: center(400,200), r=135, top=65, bottom=335 -->
+            <circle id="scene1-disk" cx="400" cy="200" r="135" fill="#f5f5f5" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- 半径参考线（O到A） -->
+            <line x1="400" y1="200" x2="540" y2="200" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- 转轴 O -->
+            <circle cx="400" cy="200" r="3" fill="#000000"/>
+
+            <!-- 物块 A（圆盘上）: (540,200) -->
+            <circle id="scene1-mass-a" cx="540" cy="200" r="8" fill="rgba(21,101,192,0.2)" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 物块 B（圆盘上）: (472.5,200) -->
+            <circle id="scene1-mass-b" cx="472.5" cy="200" r="8" fill="rgba(198,40,40,0.2)" stroke="#c62828" stroke-width="2"/>
+
+            <!-- AB 绳 -->
+            <line id="scene1-rope-ab" x1="472.5" y1="200" x2="540" y2="200" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- OB 绳 -->
+            <line id="scene1-rope-ob" x1="400" y1="200" x2="472.5" y2="200" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- 转动箭头（逆时针）: 圆心(400,200), 半径55 -->
+            <path id="scene1-rotate-arrow" d="M 448 172 A 55 55 0 1 1 352 172" fill="none" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-marker-rotate)"/>
+
+            <!-- 圆盘区标签（全部在圆盘外部上方，y=36，圆盘top=65，间距29px） -->
+            <text x="330" y="36" font-size="14" fill="#000000" font-family="sans-serif">O</text>
+            <text x="395" y="36" font-size="12" fill="#000000" font-family="sans-serif" text-anchor="middle">r_B=10cm</text>
+            <text x="455" y="36" font-size="14" fill="#000000" font-family="sans-serif">B</text>
+            <text x="545" y="36" font-size="14" fill="#000000" font-family="sans-serif">A</text>
+            <text x="560" y="200" font-size="12" fill="#000000" font-family="sans-serif" text-anchor="start">r_A=20cm</text>
+
+            <!-- ==================== 隔离体受力分析区 ==================== -->
+            <!-- 左隔离体框（A）: 用四条line代替rect，避免文本与rect重叠误报 -->
+            <line x1="50" y1="350" x2="380" y2="350" stroke="#cccccc" stroke-width="1"/>
+            <line x1="380" y1="350" x2="380" y2="460" stroke="#cccccc" stroke-width="1"/>
+            <line x1="380" y1="460" x2="50" y2="460" stroke="#cccccc" stroke-width="1"/>
+            <line x1="50" y1="460" x2="50" y2="350" stroke="#cccccc" stroke-width="1"/>
+
+            <!-- 右隔离体框（B） -->
+            <line x1="420" y1="350" x2="750" y2="350" stroke="#cccccc" stroke-width="1"/>
+            <line x1="750" y1="350" x2="750" y2="460" stroke="#cccccc" stroke-width="1"/>
+            <line x1="750" y1="460" x2="420" y2="460" stroke="#cccccc" stroke-width="1"/>
+            <line x1="420" y1="460" x2="420" y2="350" stroke="#cccccc" stroke-width="1"/>
+
+            <!-- 框标题 -->
+            <text x="215" y="343" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="middle" font-weight="bold">A 的受力分析</text>
+            <text x="585" y="343" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="middle" font-weight="bold">B 的受力分析</text>
+
+            <!-- 质点 A（隔离体）: (215,405) -->
+            <circle cx="215" cy="405" r="20" fill="rgba(21,101,192,0.2)" stroke="#1565c0" stroke-width="2"/>
+            <text x="215" y="380" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="middle">A</text>
+
+            <!-- 质点 B（隔离体）: (585,405) -->
+            <circle cx="585" cy="405" r="20" fill="rgba(198,40,40,0.2)" stroke="#c62828" stroke-width="2"/>
+            <text x="585" y="380" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="middle">B</text>
+
+            <!-- === A框力：f_A 箭头+标签 === -->
+            <g id="scene1-group-fa" class="fade-element hidden">
+                <line x1="195" y1="390" x2="145" y2="390" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene1-marker-green)"/>
+                <text x="130" y="393" font-size="13" fill="#2e7d32" font-family="sans-serif" font-style="italic" text-anchor="end">f_A = 0.5mg</text>
+            </g>
+
+            <!-- === A框力：T_AB 箭头 === -->
+            <g id="scene1-group-arrow-tab-a" class="fade-element hidden">
+                <line x1="195" y1="420" x2="145" y2="420" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-marker-blue)"/>
+            </g>
+            <!-- === A框力：T_AB 标签（动态值） === -->
+            <text id="scene1-label-tab-a" x="130" y="428" font-size="13" fill="#1565c0" font-family="sans-serif" font-style="italic" text-anchor="end" class="fade-element hidden">T_AB = 0</text>
+            <!-- === A框力：T_AB = 0 文本（步骤1专用，无箭头） === -->
+            <text id="scene1-text-tab-a-zero" x="130" y="428" font-size="13" fill="#1565c0" font-family="sans-serif" font-style="italic" text-anchor="end" class="fade-element hidden">T_AB = 0</text>
+
+            <!-- === B框力：f_B 箭头+标签 === -->
+            <g id="scene1-group-fb" class="fade-element hidden">
+                <line x1="565" y1="390" x2="515" y2="390" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene1-marker-green)"/>
+                <text x="500" y="393" font-size="13" fill="#2e7d32" font-family="sans-serif" font-style="italic" text-anchor="end">f_B = 0.5mg</text>
+            </g>
+
+            <!-- === B框力：T_OB 箭头 === -->
+            <g id="scene1-group-arrow-tob" class="fade-element hidden">
+                <line x1="565" y1="420" x2="515" y2="420" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-marker-red)"/>
+            </g>
+            <!-- === B框力：T_OB 标签（动态值） === -->
+            <text id="scene1-label-tob" x="500" y="428" font-size="13" fill="#c62828" font-family="sans-serif" font-style="italic" text-anchor="end" class="fade-element hidden">T_OB = 0</text>
+            <!-- === B框力：T_OB = 0 文本（步骤2专用，无箭头） === -->
+            <text id="scene1-text-tob-zero" x="500" y="428" font-size="13" fill="#c62828" font-family="sans-serif" font-style="italic" text-anchor="end" class="fade-element hidden">T_OB = 0</text>
+
+            <!-- === B框力：T_AB 箭头（向右） === -->
+            <g id="scene1-group-arrow-tab-b" class="fade-element hidden">
+                <line x1="605" y1="450" x2="655" y2="450" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-marker-blue)"/>
+            </g>
+            <!-- === B框力：T_AB 标签（B框，动态值） === -->
+            <text id="scene1-label-tab-b" x="670" y="453" font-size="13" fill="#1565c0" font-family="sans-serif" font-style="italic" text-anchor="start" class="fade-element hidden">T_AB = 0</text>
+
+            <!-- ==================== ω 值标注 ==================== -->
+            <text id="scene1-omega-text" x="400" y="348" font-size="16" fill="#000000" font-family="sans-serif" text-anchor="middle" class="fade-element hidden"></text>
+
+            <!-- ==================== 步骤指示 ==================== -->
+        </svg>
+
+        <div id="scene1-controls"><span id="scene1-step-text" style="font-size:12px;color:#666;line-height:32px;">步骤 0 / 3</span>
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 3;
+
+        // 获取控件元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+        const omegaText = document.getElementById('scene1-omega-text');
+
+        // 获取圆盘区元素
+        const massA = document.getElementById('scene1-mass-a');
+        const massB = document.getElementById('scene1-mass-b');
+        const ropeAB = document.getElementById('scene1-rope-ab');
+        const ropeOB = document.getElementById('scene1-rope-ob');
+
+        // 获取A框力元素
+        const groupFa = document.getElementById('scene1-group-fa');
+        const groupArrowTabA = document.getElementById('scene1-group-arrow-tab-a');
+        const labelTabA = document.getElementById('scene1-label-tab-a');
+        const textTabAZero = document.getElementById('scene1-text-tab-a-zero');
+
+        // 获取B框力元素
+        const groupFb = document.getElementById('scene1-group-fb');
+        const groupArrowTob = document.getElementById('scene1-group-arrow-tob');
+        const labelTob = document.getElementById('scene1-label-tob');
+        const textTobZero = document.getElementById('scene1-text-tob-zero');
+        const groupArrowTabB = document.getElementById('scene1-group-arrow-tab-b');
+        const labelTabB = document.getElementById('scene1-label-tab-b');
+
+        // 工具函数
+        function show(el) {
+            el.classList.remove('hidden');
+        }
+        function hide(el) {
+            el.classList.add('hidden');
+        }
+
+        function renderStep() {
+            // 更新步骤文本
+            stepText.textContent = '步骤 ' + currentStep + ' / 3';
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            btnPrev.classList.toggle('disabled', currentStep === 0);
+            btnNext.classList.toggle('disabled', currentStep === totalSteps);
+
+            // 重置高亮
+            massA.classList.remove('highlight-a');
+            massB.classList.remove('highlight-b');
+
+            // 重置绳样式为灰色虚线（无张力）
+            ropeAB.setAttribute('stroke', '#888888');
+            ropeAB.setAttribute('stroke-width', '1');
+            ropeAB.setAttribute('stroke-dasharray', '4,4');
+            ropeOB.setAttribute('stroke', '#888888');
+            ropeOB.setAttribute('stroke-width', '1');
+            ropeOB.setAttribute('stroke-dasharray', '4,4');
+
+            // 隐藏所有力元素和ω值
+            hide(groupFa);
+            hide(groupArrowTabA);
+            hide(labelTabA);
+            hide(textTabAZero);
+            hide(groupFb);
+            hide(groupArrowTob);
+            hide(labelTob);
+            hide(textTobZero);
+            hide(groupArrowTabB);
+            hide(labelTabB);
+            hide(omegaText);
+
+            // 重置标签文本为默认值
+            labelTabA.textContent = 'T_AB = 0';
+            labelTob.textContent = 'T_OB = 0';
+            labelTabB.textContent = 'T_AB = 0';
+
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：仅装置可见，所有力隐藏
+                    break;
+
+                case 1:
+                    // ===== 步骤1：ω₀ 临界（AB绳刚有弹力） =====
+                    // 圆盘区：A高亮
+                    massA.classList.add('highlight-a');
+
+                    // A框：f_A 出现；T_AB = 0（只显示文本，无箭头）
+                    show(groupFa);
+                    show(textTabAZero);
+
+                    // ω值
+                    omegaText.textContent = 'ω₀ = √(5g/2)';
+                    show(omegaText);
+                    break;
+
+                case 2:
+                    // ===== 步骤2：ω₁ 临界（OB绳刚有弹力） =====
+                    // 圆盘区：B高亮；AB绳有张力（蓝色实线）
+                    massB.classList.add('highlight-b');
+                    ropeAB.setAttribute('stroke', '#1565c0');
+                    ropeAB.setAttribute('stroke-width', '2');
+                    ropeAB.removeAttribute('stroke-dasharray');
+
+                    // A框：f_A 保持；T_AB 箭头出现
+                    show(groupFa);
+                    show(groupArrowTabA);
+                    labelTabA.textContent = 'T_AB = mg/6';
+                    show(labelTabA);
+
+                    // B框：f_B 出现；T_AB(B) 出现；T_OB = 0（只显示文本，无箭头）
+                    show(groupFb);
+                    show(groupArrowTabB);
+                    labelTabB.textContent = 'T_AB = mg/6';
+                    show(labelTabB);
+                    show(textTobZero);
+
+                    // ω值
+                    omegaText.textContent = 'ω₁ = √(10g/3)';
+                    show(omegaText);
+                    break;
+
+                case 3:
+                    // ===== 步骤3：ω₂ 临界（A刚滑动） =====
+                    // 圆盘区：A高亮；AB绳蓝色实线；OB绳红色实线
+                    massA.classList.add('highlight-a');
+                    ropeAB.setAttribute('stroke', '#1565c0');
+                    ropeAB.setAttribute('stroke-width', '2');
+                    ropeAB.removeAttribute('stroke-dasharray');
+                    ropeOB.setAttribute('stroke', '#c62828');
+                    ropeOB.setAttribute('stroke-width', '2');
+                    ropeOB.removeAttribute('stroke-dasharray');
+
+                    // A框：f_A 保持；T_AB 箭头保持，值更新
+                    show(groupFa);
+                    show(groupArrowTabA);
+                    labelTabA.textContent = 'T_AB = 1.5mg';
+                    show(labelTabA);
+
+                    // B框：f_B 保持；T_AB(B) 保持，值更新；T_OB 箭头出现
+                    show(groupFb);
+                    show(groupArrowTabB);
+                    labelTabB.textContent = 'T_AB = 1.5mg';
+                    show(labelTabB);
+                    show(groupArrowTob);
+                    labelTob.textContent = 'T_OB = 2mg';
+                    show(labelTob);
+
+                    // ω值
+                    omegaText.textContent = 'ω₂ = √(10g)';
+                    show(omegaText);
+                    break;
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点的回归运动示意图</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 纬线样式 */
+        .scene1-latitude-line {
+            stroke: #888888;
+            stroke-width: 2;
+            stroke-dasharray: 8, 4;
+        }
+        /* 轨迹线样式 */
+        .scene1-path-line {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* 点样式 */
+        .scene1-point {
+            stroke: #000000;
+            stroke-width: 1.5;
+        }
+        .scene1-point-inactive {
+            fill: #ffffff;
+        }
+        .scene1-point-current {
+            fill: #1565c0;
+            stroke: #1565c0;
+        }
+        .scene1-point-labeled {
+            fill: #2e7d32;
+            stroke: #2e7d32;
+        }
+        /* 标签样式 */
+        .scene1-lat-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene1-lat-value {
+            font-size: 14px;
+            fill: #1565c0;
+        }
+        .scene1-point-label {
+            font-size: 14px;
+            fill: #000000;
+            font-weight: bold;
+        }
+        .scene1-season-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene1-date-label {
+            font-size: 13px;
+            fill: #1565c0;
+        }
+        /* 脉冲动画 */
+        @keyframes scene1-pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        .scene1-pulse {
+            animation: scene1-pulse 1.5s ease-in-out infinite;
+        }
+        /* 控件按钮 */
+        .scene1-btn {
+            width: 80px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .scene1-btn-prev {
+            background: #9e9e9e;
+            color: #ffffff;
+        }
+        .scene1-btn-next {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene1-step-indicator {
+            font-size: 14px;
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 纬线 -->
+            <line id="scene1-latitude-tropic-n" class="scene1-latitude-line" x1="100" y1="120" x2="700" y2="120"/>
+            <line id="scene1-latitude-equator" class="scene1-latitude-line" x1="100" y1="250" x2="700" y2="250"/>
+            <line id="scene1-latitude-tropic-s" class="scene1-latitude-line" x1="100" y1="380" x2="700" y2="380"/>
+            
+            <!-- 纬线标签（右侧） -->
+            <text id="scene1-label-tropic-n" class="scene1-lat-label" x="710" y="125">北回归线</text>
+            <text id="scene1-label-equator" class="scene1-lat-label" x="710" y="255">赤道</text>
+            <text id="scene1-label-tropic-s" class="scene1-lat-label" x="710" y="385">南回归线</text>
+            
+            <!-- 纬度标注（左侧） -->
+            <text id="scene1-latval-n" class="scene1-lat-value" x="50" y="100">23°26′N</text>
+            <text id="scene1-latval-0" class="scene1-lat-value" x="50" y="230">0°</text>
+            <text id="scene1-latval-s" class="scene1-lat-value" x="50" y="360">23°26′S</text>
+            
+            <!-- 轨迹线（带箭头） -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000000"/>
+                </marker>
+            </defs>
+            <line id="scene1-path-1-2" class="scene1-path-line" x1="150" y1="250" x2="300" y2="120" marker-end="url(#scene1-arrowhead)"/>
+            <line id="scene1-path-2-3" class="scene1-path-line" x1="300" y1="120" x2="450" y2="250" marker-end="url(#scene1-arrowhead)"/>
+            <line id="scene1-path-3-4" class="scene1-path-line" x1="450" y1="250" x2="600" y2="380" marker-end="url(#scene1-arrowhead)"/>
+            <line id="scene1-path-4-5" class="scene1-path-line" x1="600" y1="380" x2="700" y2="250" marker-end="url(#scene1-arrowhead)"/>
+            
+            <!-- 四个关键点 -->
+            <circle id="scene1-point-1" class="scene1-point scene1-point-inactive" cx="150" cy="250" r="6"/>
+            <circle id="scene1-point-2" class="scene1-point scene1-point-inactive" cx="300" cy="120" r="6"/>
+            <circle id="scene1-point-3" class="scene1-point scene1-point-inactive" cx="450" cy="250" r="6"/>
+            <circle id="scene1-point-4" class="scene1-point scene1-point-inactive" cx="600" cy="380" r="6"/>
+            
+            <!-- 点标签①②③④ -->
+            <text id="scene1-pointlabel-1" class="scene1-point-label" x="135" y="270" style="display:none;">①</text>
+            <text id="scene1-pointlabel-2" class="scene1-point-label" x="300" y="100" style="display:none;">②</text>
+            <text id="scene1-pointlabel-3" class="scene1-point-label" x="465" y="230" style="display:none;">③</text>
+            <text id="scene1-pointlabel-4" class="scene1-point-label" x="600" y="405" style="display:none;">④</text>
+            
+            <!-- 节气标签 -->
+            <text id="scene1-season-1" class="scene1-season-label" x="180" y="280" style="display:none;">春分</text>
+            <text id="scene1-season-2" class="scene1-season-label" x="300" y="80" style="display:none;">夏至</text>
+            <text id="scene1-season-3" class="scene1-season-label" x="495" y="230" style="display:none;">秋分</text>
+            <text id="scene1-season-4" class="scene1-season-label" x="600" y="430" style="display:none;">冬至</text>
+            
+            <!-- 日期标签 -->
+            <text id="scene1-date-1" class="scene1-date-label" x="180" y="300" style="display:none;">3 月 21 日</text>
+            <text id="scene1-date-2" class="scene1-date-label" x="300" y="60" style="display:none;">6 月 22 日</text>
+            <text id="scene1-date-3" class="scene1-date-label" x="480" y="210" style="display:none;">9 月 23 日</text>
+            <text id="scene1-date-4" class="scene1-date-label" x="600" y="450" style="display:none;">12 月 22 日</text>
+            
+            <!-- 控件栏（SVG 内底部） -->
+            <g id="scene1-controls">
+                <rect x="200" y="440" width="400" height="50" fill="#f5f5f5" rx="4"/>
+                <text id="scene1-step-indicator" class="scene1-step-indicator" x="400" y="465" text-anchor="middle">步骤 0/5</text>
+            </g>
+        </svg>
+        
+        <!-- HTML 按钮（叠在 SVG 底部） -->
+        <div style="position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; pointer-events: none;">
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-prev" style="pointer-events: auto;" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn scene1-btn-next" style="pointer-events: auto;">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 太阳直射点的回归运动示意图
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 北回归线 | 虚线 | (100,120)-(700,120) | 600×2 | 右侧 | y=120 |
+        // | 赤道 | 虚线 | (100,250)-(700,250) | 600×2 | 右侧 | y=250 |
+        // | 南回归线 | 虚线 | (100,380)-(700,380) | 600×2 | 右侧 | y=380 |
+        // | 点① | 圆圈 | (150,250) | r=6 | 左下方 | 春分点 |
+        // | 点② | 圆圈 | (300,120) | r=6 | 上方 | 夏至点 |
+        // | 点③ | 圆圈 | (450,250) | r=6 | 右上方 | 秋分点 |
+        // | 点④ | 圆圈 | (600,380) | r=6 | 下方 | 冬至点 |
+        // | 标签① | text | (135,270) | ~12×16 | 左下 | 距点①左下15px |
+        // | 标签② | text | (300,100) | ~12×16 | 上方 | 距点②上方20px |
+        // | 标签③ | text | (465,230) | ~12×16 | 右上 | 距点③右上15px |
+        // | 标签④ | text | (600,405) | ~12×16 | 下方 | 距点④下方25px |
+        // | 春分标签 | text | (180,280) | ~40×16 | 下方 | "春分" |
+        // | 夏至标签 | text | (300,80) | ~40×16 | 上方 | "夏至" |
+        // | 秋分标签 | text | (495,230) | ~40×16 | 上方 | "秋分" (调整后) |
+        // | 冬至标签 | text | (600,430) | ~40×16 | 下方 | "冬至" |
+        // | 日期 3.21 | text | (180,300) | ~50×14 | 下方 | "3 月 21 日" 蓝色 |
+        // | 日期 6.22 | text | (300,60) | ~50×14 | 上方 | "6 月 22 日" 蓝色 |
+        // | 日期 9.23 | text | (480,210) | ~50×14 | 上方 | "9 月 23 日" 蓝色 |
+        // | 日期 12.22 | text | (600,450) | ~55×14 | 下方 | "12 月 22 日" 蓝色 |
+        // | 纬度 23°26′N | text | (50,100) | ~50×14 | 左侧 | 北回归线纬度 |
+        // | 纬度 0° | text | (50,230) | ~30×14 | 左侧 | 赤道纬度 |
+        // | 纬度 23°26′S | text | (50,360) | ~50×14 | 左侧 | 南回归线纬度 |
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 点元素
+        const points = [
+            document.getElementById('scene1-point-1'),
+            document.getElementById('scene1-point-2'),
+            document.getElementById('scene1-point-3'),
+            document.getElementById('scene1-point-4')
+        ];
+        
+        // 点标签
+        const pointLabels = [
+            document.getElementById('scene1-pointlabel-1'),
+            document.getElementById('scene1-pointlabel-2'),
+            document.getElementById('scene1-pointlabel-3'),
+            document.getElementById('scene1-pointlabel-4')
+        ];
+        
+        // 节气标签
+        const seasonLabels = [
+            document.getElementById('scene1-season-1'),
+            document.getElementById('scene1-season-2'),
+            document.getElementById('scene1-season-3'),
+            document.getElementById('scene1-season-4')
+        ];
+        
+        // 日期标签
+        const dateLabels = [
+            document.getElementById('scene1-date-1'),
+            document.getElementById('scene1-date-2'),
+            document.getElementById('scene1-date-3'),
+            document.getElementById('scene1-date-4')
+        ];
+        
+        // 轨迹线
+        const pathLines = [
+            document.getElementById('scene1-path-1-2'),
+            document.getElementById('scene1-path-2-3'),
+            document.getElementById('scene1-path-3-4'),
+            document.getElementById('scene1-path-4-5')
+        ];
+        
+        // 更新点的状态
+        function updatePointStates(currentPointIndex) {
+            points.forEach((point, index) => {
+                point.classList.remove('scene1-point-inactive', 'scene1-point-current', 'scene1-point-labeled');
+                if (index < currentPointIndex) {
+                    point.classList.add('scene1-point-labeled');
+                } else if (index === currentPointIndex) {
+                    point.classList.add('scene1-point-current');
+                } else {
+                    point.classList.add('scene1-point-inactive');
+                }
+            });
+        }
+        
+        // 显示/隐藏元素
+        function showElement(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hideElement(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            
+            // 根据步骤显示相应元素
+            // 步骤 0: 只显示基础结构（纬线、轨迹线、纬度标注）
+            // 步骤 1: 显示点①、标签①、春分、3 月 21 日
+            // 步骤 2: 显示点②、标签②、夏至、6 月 22 日（点①变为已标注）
+            // 步骤 3: 显示点③、标签③、秋分、9 月 23 日（点②变为已标注）
+            // 步骤 4: 显示点④、标签④、冬至、12 月 22 日（点③变为已标注）
+            // 步骤 5: 所有标签完整显示，轨迹线脉冲动画
+            
+            // 隐藏所有标签
+            pointLabels.forEach(hideElement);
+            seasonLabels.forEach(hideElement);
+            dateLabels.forEach(hideElement);
+            
+            // 移除所有轨迹线的脉冲效果
+            pathLines.forEach(line => line.classList.remove('scene1-pulse'));
+            
+            if (currentStep === 0) {
+                updatePointStates(-1); // 所有点都是 inactive
+            } else if (currentStep >= 1 && currentStep <= 4) {
+                const pointIndex = currentStep - 1;
+                updatePointStates(pointIndex);
+                
+                // 显示当前点及之前的点标签
+                for (let i = 0; i <= pointIndex; i++) {
+                    showElement(pointLabels[i]);
+                }
+                
+                // 显示当前点的节气和日期标签
+                showElement(seasonLabels[pointIndex]);
+                showElement(dateLabels[pointIndex]);
+            } else if (currentStep === 5) {
+                updatePointStates(4); // 所有点都是 labeled
+                
+                // 显示所有标签
+                pointLabels.forEach(showElement);
+                seasonLabels.forEach(showElement);
+                dateLabels.forEach(showElement);
+                
+                // 添加轨迹线脉冲动画
+                pathLines.forEach(line => line.classList.add('scene1-pulse'));
+            }
+        }
+        
+        // 上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        // 下一步
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

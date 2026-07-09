@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>纬线上距离计算与地方时推算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-svg { width: 800px; height: 500px; }
+        .scene3-latent { opacity: 0; }
+        .scene3-visible { opacity: 1; }
+        .scene3-hidden { display: none; opacity: 0; }
+        #scene3-btn-prev, #scene3-btn-next {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        #scene3-btn-prev { left: 260px; top: 455px; }
+        #scene3-btn-next { left: 460px; top: 455px; }
+        #scene3-btn-prev:disabled, #scene3-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene3-step-indicator {
+            position: absolute;
+            left: 360px;
+            top: 462px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 经纬网区域 (30,30)-(530,380) -->
+            <g id="scene3-grid">
+                <!-- 纬线 -->
+                <line x1="30" y1="85" x2="530" y2="85" stroke="#000000" stroke-width="1"/>
+                <line x1="30" y1="143" x2="530" y2="143" stroke="#000000" stroke-width="1"/>
+                <line x1="30" y1="201" x2="530" y2="201" stroke="#000000" stroke-width="1"/>
+                <line x1="30" y1="259" x2="530" y2="259" stroke="#000000" stroke-width="1"/>
+                <line x1="30" y1="317" x2="530" y2="317" stroke="#000000" stroke-width="1"/>
+                
+                <!-- 经线 -->
+                <line x1="30" y1="30" x2="30" y2="380" stroke="#000000" stroke-width="1"/>
+                <line x1="113" y1="30" x2="113" y2="380" stroke="#000000" stroke-width="1"/>
+                <line x1="196" y1="30" x2="196" y2="380" stroke="#000000" stroke-width="1"/>
+                <line x1="280" y1="30" x2="280" y2="380" stroke="#000000" stroke-width="1"/>
+                <line x1="363" y1="30" x2="363" y2="380" stroke="#000000" stroke-width="1"/>
+                <line x1="446" y1="30" x2="446" y2="380" stroke="#000000" stroke-width="1"/>
+                <line x1="530" y1="30" x2="530" y2="380" stroke="#000000" stroke-width="1"/>
+                
+                <!-- 纬度标签 -->
+                <text x="20" y="90" font-size="12" fill="#000000" text-anchor="end">60°N</text>
+                <text x="20" y="148" font-size="12" fill="#000000" text-anchor="end">30°N</text>
+                <text x="20" y="206" font-size="12" fill="#000000" text-anchor="end">0°</text>
+                <text x="20" y="264" font-size="12" fill="#000000" text-anchor="end">30°S</text>
+                <text x="20" y="322" font-size="12" fill="#000000" text-anchor="end">60°S</text>
+                
+                <!-- 经度标签 -->
+                <text x="30" y="25" font-size="12" fill="#000000" text-anchor="middle">180°</text>
+                <text x="113" y="25" font-size="12" fill="#000000" text-anchor="middle">120°W</text>
+                <text x="196" y="25" font-size="12" fill="#000000" text-anchor="middle">60°W</text>
+                <text x="280" y="25" font-size="12" fill="#000000" text-anchor="middle">0°</text>
+                <text x="363" y="25" font-size="12" fill="#000000" text-anchor="middle">60°E</text>
+                <text x="446" y="25" font-size="12" fill="#000000" text-anchor="middle">120°E</text>
+                <text x="530" y="25" font-size="12" fill="#000000" text-anchor="middle">180°</text>
+            </g>
+            
+            <!-- D 点和 E 点 -->
+            <circle id="scene3-point-d" cx="363" cy="85" r="5" fill="#1565c0"/>
+            <circle id="scene3-point-e" cx="446" cy="85" r="5" fill="#1565c0"/>
+            
+            <!-- D 点和 E 点标签 -->
+            <text id="scene3-label-d" x="363" y="65" font-size="12" fill="#000000" text-anchor="middle">D</text>
+            <text id="scene3-label-e" x="446" y="65" font-size="12" fill="#000000" text-anchor="middle">E</text>
+            
+            <!-- 路径 D→E（步骤 1 显示） -->
+            <line id="scene3-path-de" x1="363" y1="85" x2="446" y2="85" stroke="#2e7d32" stroke-width="3" class="scene3-latent scene3-hidden"/>
+            
+            <!-- 经度差弧（步骤 2 显示）- 调整位置避免与 120°E 标签重叠 -->
+            <path id="scene3-arc-60" d="M 405 75 A 15 15 0 0 1 405 95" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="4,4" class="scene3-latent scene3-hidden"/>
+            <text id="scene3-label-60deg" x="405" y="45" font-size="12" fill="#1565c0" text-anchor="middle" class="scene3-latent scene3-hidden">60°</text>
+            
+            <!-- 计算框 1：距离计算 - 调整内部元素间距到 14px -->
+            <rect id="scene3-box1" x="560" y="50" width="220" height="80" fill="#f5f5f5" stroke="#888888" stroke-width="1"/>
+            <text id="scene3-box1-title" x="670" y="68" font-size="12" fill="#000000" text-anchor="middle">纬线距离计算</text>
+            <text id="scene3-box1-formula" x="670" y="98" font-size="12" fill="#000000" text-anchor="middle" class="scene3-latent">60°×111×cos60°</text>
+            <text id="scene3-box1-result" x="670" y="118" font-size="16" fill="#2e7d32" font-weight="bold" text-anchor="middle" class="scene3-latent scene3-hidden">3330 km</text>
+            
+            <!-- 计算框 2：飞行时间 -->
+            <rect id="scene3-box2" x="560" y="145" width="220" height="80" fill="#f5f5f5" stroke="#888888" stroke-width="1"/>
+            <text id="scene3-box2-title" x="670" y="163" font-size="12" fill="#000000" text-anchor="middle">飞行时间计算</text>
+            <text id="scene3-box2-formula" x="670" y="193" font-size="12" fill="#000000" text-anchor="middle" class="scene3-latent">3330÷1110</text>
+            <text id="scene3-box2-result" x="670" y="213" font-size="16" fill="#2e7d32" font-weight="bold" text-anchor="middle" class="scene3-latent scene3-hidden">3 小时</text>
+            
+            <!-- 计算框 3：地方时 -->
+            <rect id="scene3-box3" x="560" y="240" width="220" height="80" fill="#f5f5f5" stroke="#888888" stroke-width="1"/>
+            <text id="scene3-box3-title" x="670" y="258" font-size="12" fill="#000000" text-anchor="middle">地方时推算</text>
+            <text id="scene3-box3-formula" x="670" y="288" font-size="12" fill="#000000" text-anchor="middle" class="scene3-latent">12:00 + (60°÷15°/h)</text>
+            <text id="scene3-box3-result" x="670" y="308" font-size="16" fill="#2e7d32" font-weight="bold" text-anchor="middle" class="scene3-latent scene3-hidden">16:00</text>
+        </svg>
+        
+        <!-- 按钮和步骤指示器放在 SVG 外部 -->
+        <button id="scene3-btn-prev">◀ 上一步</button>
+        <span id="scene3-step-indicator">步骤 0/5</span>
+        <button id="scene3-btn-next">下一步 ▶</button>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 纬线上距离计算与地方时推算
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene3-hidden');
+                el.classList.add('scene3-visible');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.remove('scene3-visible');
+                el.classList.add('scene3-hidden');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            const stepIndicator = document.getElementById('scene3-step-indicator');
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            
+            const pathDe = document.getElementById('scene3-path-de');
+            const arc60 = document.getElementById('scene3-arc-60');
+            const label60deg = document.getElementById('scene3-label-60deg');
+            const box1Formula = document.getElementById('scene3-box1-formula');
+            const box1Result = document.getElementById('scene3-box1-result');
+            const box2Formula = document.getElementById('scene3-box2-formula');
+            const box2Result = document.getElementById('scene3-box2-result');
+            const box3Formula = document.getElementById('scene3-box3-formula');
+            const box3Result = document.getElementById('scene3-box3-result');
+            
+            // 重置所有渐进元素
+            hide(pathDe);
+            hide(arc60);
+            hide(label60deg);
+            hide(box1Formula);
+            hide(box1Result);
+            hide(box2Formula);
+            hide(box2Result);
+            hide(box3Formula);
+            hide(box3Result);
+            
+            // 根据当前步骤显示相应元素
+            if (currentStep >= 1) {
+                show(pathDe);
+            }
+            if (currentStep >= 2) {
+                show(arc60);
+                show(label60deg);
+            }
+            if (currentStep >= 3) {
+                show(box1Formula);
+                show(box1Result);
+            }
+            if (currentStep >= 4) {
+                show(box2Formula);
+                show(box2Result);
+            }
+            if (currentStep >= 5) {
+                show(box3Formula);
+                show(box3Result);
+            }
+            
+            // 更新按钮状态
+            const btnPrev = document.getElementById('scene3-btn-prev');
+            const btnNext = document.getElementById('scene3-btn-next');
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+        }
+        
+        // 事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

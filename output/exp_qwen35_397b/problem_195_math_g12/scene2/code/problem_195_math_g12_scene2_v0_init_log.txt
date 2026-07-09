@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>几何求解 - 圆的半径</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene2-controls button {
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        #scene2-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-controls button:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        #scene2-step-indicator {
+            font-size: 13px;
+            min-width: 70px;
+            text-align: center;
+        }
+        .fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 圆 O - 圆心在 (580, 290)，半径 45 -->
+            <circle id="scene2-circle-o" cx="580" cy="290" r="45" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 直径 AC - A(580,335) 到 C(580,245) -->
+            <line id="scene2-line-ac" x1="580" y1="335" x2="580" y2="245" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 切线 PA - P(220,335) 到 A(580,335) -->
+            <line id="scene2-line-pa" x1="220" y1="335" x2="580" y2="335" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 割线 PC - P(220,335) 到 C(580,245) -->
+            <line id="scene2-line-pc" x1="220" y1="335" x2="580" y2="245" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 辅助线 AB (步骤 1 显示) -->
+            <line id="scene2-line-ab" class="fade-in hidden" x1="580" y1="335" x2="405" y2="290" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 三角形 ABC 区域 (步骤 2 显示) -->
+            <polygon id="scene2-triangle-abc" class="fade-in hidden" points="580,335 405,290 580,245" fill="rgba(46,125,50,0.15)" stroke="#2e7d32" stroke-width="2"/>
+            
+            <!-- 直角符号 (步骤 2 显示) -->
+            <path id="scene2-right-angle" class="fade-in hidden" d="M 415 298 L 415 308 L 425 308" fill="none" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 点标签 - 放在图形外部足够远处 -->
+            <text id="scene2-label-p" x="205" y="360" font-size="14" fill="#000000">P</text>
+            <text id="scene2-label-a" x="595" y="360" font-size="14" fill="#000000">A</text>
+            <text id="scene2-label-c" x="595" y="240" font-size="14" fill="#000000">C</text>
+            <text id="scene2-label-b" x="380" y="285" font-size="14" fill="#000000">B</text>
+            <text id="scene2-label-o" x="645" y="295" font-size="14" fill="#000000">O</text>
+            
+            <!-- 边长标签 (初始显示) -->
+            <text id="scene2-label-pa2" x="400" y="365" font-size="13" fill="#000000">PA=2</text>
+            <text id="scene2-label-pb1" x="195" y="305" font-size="13" fill="#000000">PB=1</text>
+            
+            <!-- 边长标签 (步骤 3 显示) - 放在图形外部足够远处 -->
+            <text id="scene2-label-ab" class="fade-in hidden" x="520" y="325" font-size="13" fill="#000000">AB=√3</text>
+            <text id="scene2-label-bc" class="fade-in hidden" x="520" y="265" font-size="13" fill="#000000">BC=3</text>
+            <text id="scene2-label-ac" class="fade-in hidden" x="645" y="320" font-size="13" fill="#000000">AC=2R</text>
+            
+            <!-- 直角标注 (步骤 2 显示) - 放在三角形上方空白处 -->
+            <text id="scene2-label-right-angle" class="fade-in hidden" x="480" y="260" font-size="13" fill="#c62828">∠ABC=90°</text>
+            
+            <!-- 方程标签 (步骤 4 显示) -->
+            <text id="scene2-label-equation" class="fade-in hidden" x="205" y="440" font-size="14" fill="#000000">AB²+BC²=AC²</text>
+            
+            <!-- 结果标签 (步骤 5 显示) -->
+            <text id="scene2-label-result" class="fade-in hidden" x="205" y="470" font-size="16" fill="#2e7d32" font-weight="bold">R=√3</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        const stepElements = {
+            1: ['scene2-line-ab'],
+            2: ['scene2-triangle-abc', 'scene2-right-angle', 'scene2-label-right-angle'],
+            3: ['scene2-label-ab', 'scene2-label-bc', 'scene2-label-ac'],
+            4: ['scene2-label-equation'],
+            5: ['scene2-label-result']
+        };
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    el.classList.add('visible');
+                });
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('visible');
+                el.classList.add('hidden');
+            }
+        }
+        
+        function updateStep() {
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            
+            for (let step = 1; step <= totalSteps; step++) {
+                const elements = stepElements[step];
+                if (elements) {
+                    elements.forEach(id => {
+                        if (step <= currentStep) {
+                            showElement(id);
+                        } else {
+                            hideElement(id);
+                        }
+                    });
+                }
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

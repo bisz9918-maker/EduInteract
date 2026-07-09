@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2: 圆与正六边形递推关系</title>
+    <script>
+    window.MathJax = {
+        tex: { inlineMath: [['$', '$']] },
+        svg: { fontCache: 'global' }
+    };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { position: absolute; top: 0; left: 0; }
+        #scene2-controls { position: absolute; bottom: 12px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene2-controls button { padding: 8px 20px; border: 1.5px solid #1565c0; background: #e3f2fd; color: #1565c0; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; transition: background 0.2s; }
+        #scene2-controls button:hover:not(:disabled) { background: #bbdefb; }
+        #scene2-controls button:disabled { background: #e0e0e0; color: #999; border-color: #ccc; cursor: default; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 40px; text-align: center; }
+
+        .scene2-hidden { opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+        .scene2-visible { opacity: 1; pointer-events: auto; }
+
+        #scene2-recurrence-overlay {
+            position: absolute; left: 460px; top: 175px; font-size: 16px; color: #000;
+        }
+
+        #scene2-formula-overlay {
+            position: absolute; left: 540px; top: 150px;
+        }
+        .scene2-formula-box {
+            background: #ffffff; border: 1.5px solid #1565c0; border-radius: 8px;
+            padding: 14px 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 15px; color: #000; line-height: 2;
+        }
+        .scene2-formula-box .formula-label { margin-bottom: 2px; }
+        .scene2-formula-box .formula-math { margin: 2px 0 8px 0; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- ===== Step 0: Base elements (always visible) ===== -->
+            <!-- Outer circle: center(300,250), r=160 -->
+            <circle id="scene2-circle-outer" cx="300" cy="250" r="160" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- Regular hexagon: vertices at angles -90°,-30°,30°,90°,150°,210° -->
+            <polygon id="scene2-hexagon" points="300,90 438.6,170 438.6,330 300,410 161.4,330 161.4,170" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- Labels -->
+            <text id="scene2-label-o" x="280" y="270" font-size="16" fill="#000000" text-anchor="end" dominant-baseline="middle">O</text>
+            <text id="scene2-label-a" x="280" y="80" font-size="16" fill="#000000" text-anchor="end" dominant-baseline="middle">A</text>
+            <text id="scene2-label-m" x="455" y="265" font-size="16" fill="#000000" text-anchor="start" dominant-baseline="middle">M</text>
+
+            <!-- ===== Step 1: Radius OA (blue) ===== -->
+            <line id="scene2-line-oa" x1="300" y1="250" x2="300" y2="90" stroke="#1565c0" stroke-width="2" stroke-dasharray="160" stroke-dashoffset="160" style="transition: stroke-dashoffset 0.6s ease, opacity 0.4s ease; opacity: 0;"/>
+            <text id="scene2-label-rn" x="268" y="160" font-size="16" fill="#1565c0" text-anchor="end" dominant-baseline="middle" style="transition: opacity 0.4s ease; opacity: 0;">Rₙ</text>
+
+            <!-- ===== Step 2: Radius OM (red) + angle arc ===== -->
+            <line id="scene2-line-om" x1="300" y1="250" x2="438.6" y2="250" stroke="#c62828" stroke-width="2" stroke-dasharray="138.6" stroke-dashoffset="138.6" style="transition: stroke-dashoffset 0.6s ease, opacity 0.4s ease; opacity: 0;"/>
+            <text id="scene2-label-rn1" x="365" y="235" font-size="16" fill="#c62828" text-anchor="middle" dominant-baseline="middle" style="transition: opacity 0.4s ease; opacity: 0;">Rₙ₊₁</text>
+            <!-- Angle arc: 30° counterclockwise from positive x-axis -->
+            <path id="scene2-angle-arc" d="M 330 250 A 30 30 0 0 0 325.98 235" fill="none" stroke="#1565c0" stroke-width="1.5" style="transition: opacity 0.4s ease; opacity: 0;"/>
+            <text id="scene2-label-30" x="338" y="233" font-size="14" fill="#1565c0" text-anchor="start" dominant-baseline="middle" style="transition: opacity 0.4s ease; opacity: 0;">30°</text>
+
+            <!-- ===== Step 3: Auxiliary line AM + right angle mark ===== -->
+            <line id="scene2-line-am" x1="300" y1="90" x2="438.6" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" style="transition: opacity 0.4s ease; opacity: 0;"/>
+            <!-- Right angle mark at M: L-shape in upper-left quadrant -->
+            <path id="scene2-right-angle" d="M 438.6 238 L 426.6 238 L 426.6 250" fill="none" stroke="#888888" stroke-width="1" style="transition: opacity 0.4s ease; opacity: 0;"/>
+
+            <!-- ===== Step 4: Incircle (green) ===== -->
+            <circle id="scene2-circle-inner" cx="300" cy="250" r="138.6" fill="none" stroke="#2e7d32" stroke-width="2" stroke-dasharray="871.5" stroke-dashoffset="871.5" style="transition: stroke-dashoffset 0.8s ease, opacity 0.4s ease; opacity: 0;"/>
+        </svg>
+
+        <!-- HTML overlay: Step 3 recurrence relation -->
+        <div id="scene2-recurrence-overlay" class="scene2-hidden">
+            $R_{n+1} = R_n \cdot \cos 30° = R_n \cdot \frac{\sqrt{3}}{2}$
+        </div>
+
+        <!-- HTML overlay: Step 5 formula box -->
+        <div id="scene2-formula-overlay" class="scene2-hidden">
+            <div class="scene2-formula-box">
+                <div class="formula-label">递推公式：</div>
+                <div class="formula-math">$R_{n+1} = \frac{\sqrt{3}}{2} R_n$</div>
+                <div class="formula-label">通项公式：</div>
+                <div class="formula-math">$R_n = \left(\frac{\sqrt{3}}{2}\right)^{n-1}$</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">0/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // Element references (all prefixed with scene2-)
+        var els = {
+            lineOA: document.getElementById('scene2-line-oa'),
+            labelRn: document.getElementById('scene2-label-rn'),
+            lineOM: document.getElementById('scene2-line-om'),
+            labelRn1: document.getElementById('scene2-label-rn1'),
+            angleArc: document.getElementById('scene2-angle-arc'),
+            label30: document.getElementById('scene2-label-30'),
+            lineAM: document.getElementById('scene2-line-am'),
+            rightAngle: document.getElementById('scene2-right-angle'),
+            recurrence: document.getElementById('scene2-recurrence-overlay'),
+            circleInner: document.getElementById('scene2-circle-inner'),
+            formulaBox: document.getElementById('scene2-formula-overlay'),
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next'),
+            stepIndicator: document.getElementById('scene2-step-indicator'),
+        };
+
+        // Step definitions: which elements to show at each step
+        var stepElements = {
+            1: ['lineOA', 'labelRn'],
+            2: ['lineOM', 'labelRn1', 'angleArc', 'label30'],
+            3: ['lineAM', 'rightAngle', 'recurrence'],
+            4: ['circleInner'],
+            5: ['formulaBox'],
+        };
+
+        // Elements that need stroke-dashoffset animation
+        var lineLengths = {
+            lineOA: 160,
+            lineOM: 138.6,
+            circleInner: 871.5,
+        };
+
+        function showEl(name) {
+            var el = els[name];
+            if (!el) return;
+            el.style.opacity = '1';
+            el.classList.remove('scene2-hidden');
+            el.classList.add('scene2-visible');
+            if (lineLengths[name] !== undefined) {
+                el.style.strokeDashoffset = '0';
+            }
+        }
+
+        function hideEl(name) {
+            var el = els[name];
+            if (!el) return;
+            el.style.opacity = '0';
+            el.classList.remove('scene2-visible');
+            el.classList.add('scene2-hidden');
+            if (lineLengths[name] !== undefined) {
+                el.style.strokeDashoffset = String(lineLengths[name]);
+            }
+        }
+
+        function updateStep(step) {
+            currentStep = step;
+
+            // Update button states
+            els.btnPrev.disabled = (step === 0);
+            els.btnNext.disabled = (step === totalSteps);
+            els.stepIndicator.textContent = step + '/' + totalSteps;
+
+            // Update element visibility for each step
+            for (var s = 1; s <= totalSteps; s++) {
+                var shouldShow = (s <= step);
+                stepElements[s].forEach(function(name) {
+                    // Special case: hide recurrence relation at step 5
+                    if (name === 'recurrence' && step >= 5) {
+                        hideEl(name);
+                    } else if (shouldShow) {
+                        showEl(name);
+                    } else {
+                        hideEl(name);
+                    }
+                });
+            }
+
+            // Re-typeset MathJax for newly visible formulas
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise().catch(function() {});
+            }
+        }
+
+        // Event listeners
+        els.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) updateStep(currentStep - 1);
+        });
+
+        els.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) updateStep(currentStep + 1);
+        });
+
+        // Initialize at step 0
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

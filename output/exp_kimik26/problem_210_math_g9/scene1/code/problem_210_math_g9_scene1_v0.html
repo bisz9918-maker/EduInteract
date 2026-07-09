@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正三角形穿过正方形 - 重叠面积动态演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-slider {
+            position: absolute;
+            left: 100px;
+            bottom: 18px;
+            width: 600px;
+            height: 30px;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 20;
+        }
+        #scene1-aux-btn { padding: 6px 14px; font-size: 13px; cursor: pointer; border: 1px solid #cccccc; border-radius: 4px; background: #f5f5f5; color: #333; }
+        #scene1-aux-btn.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+        .scene1-tick-label { font-size: 12px; fill: #666; text-anchor: middle; }
+        .scene1-axis-label { font-size: 14px; fill: #333; }
+        .scene1-axis-title { font-size: 15px; fill: #333; font-style: italic; }
+        #scene1-info-panel {
+            position: absolute;
+            left: 30px;
+            top: 50px;
+            width: 210px;
+            height: 105px;
+            background: rgba(255,255,255,0.95);
+            border: 1px solid #dddddd;
+            border-radius: 4px;
+            padding: 10px 12px;
+            box-sizing: border-box;
+            z-index: 15;
+            pointer-events: none;
+        }
+        #scene1-info-stage { font-size: 14px; color: #333; margin: 0 0 10px 0; line-height: 1.2; }
+        #scene1-info-formula { font-size: 12px; color: #1565c0; margin: 0 0 10px 0; line-height: 1.2; word-break: break-all; }
+        #scene1-info-value { font-size: 14px; color: #c62828; font-weight: bold; margin: 0; line-height: 1.2; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- 信息面板（HTML） -->
+        <div id="scene1-info-panel">
+            <p id="scene1-info-stage">准备进入</p>
+            <p id="scene1-info-formula">S = 0</p>
+            <p id="scene1-info-value">S ≈ 0.000</p>
+        </div>
+        
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 地面线 -->
+            <line id="scene1-ground" x1="50" y1="300" x2="400" y2="300" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 正方形 -->
+            <rect id="scene1-square-fill" x="180" y="180" width="120" height="120" fill="#e0e0e0"/>
+            <rect id="scene1-square" x="180" y="180" width="120" height="120" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 三角形 -->
+            <polygon id="scene1-triangle-fill" fill="rgba(21,101,192,0.15)" stroke="none"/>
+            <polygon id="scene1-triangle" fill="none" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 重叠区域 -->
+            <polygon id="scene1-overlap-fill" fill="rgba(198,40,40,0.30)" stroke="none"/>
+            <polygon id="scene1-overlap" fill="none" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 辅助线（几何区） -->
+            <line id="scene1-aux-line" x1="0" y1="0" x2="0" y2="0" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" style="display:none"/>
+            
+            <!-- 函数区坐标轴 -->
+            <!-- 横轴 t -->
+            <line id="scene1-axis-t" x1="460" y1="340" x2="760" y2="340" stroke="#000000" stroke-width="1" marker-end="url(#arrowhead-t)"/>
+            <!-- 纵轴 S -->
+            <line id="scene1-axis-s" x1="460" y1="340" x2="460" y2="80" stroke="#000000" stroke-width="1" marker-end="url(#arrowhead-s)"/>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="arrowhead-t" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+                <marker id="arrowhead-s" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+            </defs>
+            
+            <!-- t轴刻度线 -->
+            <line x1="460" y1="340" x2="460" y2="335" stroke="#000000" stroke-width="1"/>
+            <line x1="535" y1="340" x2="535" y2="335" stroke="#000000" stroke-width="1"/>
+            <line x1="610" y1="340" x2="610" y2="335" stroke="#000000" stroke-width="1"/>
+            <line x1="685" y1="340" x2="685" y2="335" stroke="#000000" stroke-width="1"/>
+            <line x1="760" y1="340" x2="760" y2="335" stroke="#000000" stroke-width="1"/>
+            
+            <!-- S轴刻度线 -->
+            <line x1="460" y1="340" x2="465" y2="340" stroke="#000000" stroke-width="1"/>
+            <line x1="460" y1="244" x2="465" y2="244" stroke="#000000" stroke-width="1"/>
+            <line x1="460" y1="148" x2="465" y2="148" stroke="#000000" stroke-width="1"/>
+            
+            <!-- t轴刻度值（放在函数区下方，避免与任何rect重叠） -->
+            <text x="460" y="390" class="scene1-axis-label" text-anchor="middle">0</text>
+            <text x="535" y="390" class="scene1-axis-label" text-anchor="middle">0.5</text>
+            <text x="610" y="390" class="scene1-axis-label" text-anchor="middle">1</text>
+            <text x="685" y="390" class="scene1-axis-label" text-anchor="middle">1.5</text>
+            <text x="760" y="390" class="scene1-axis-label" text-anchor="middle">2</text>
+            
+            <!-- S轴刻度值 -->
+            <text x="435" y="345" class="scene1-axis-label" text-anchor="end">0</text>
+            <text x="435" y="250" class="scene1-axis-label" text-anchor="end">0.2</text>
+            <text x="435" y="155" class="scene1-axis-label" text-anchor="end">0.4</text>
+            
+            <!-- 轴标签 -->
+            <text x="770" y="325" class="scene1-axis-title" text-anchor="start">t</text>
+            <text x="445" y="55" class="scene1-axis-title" text-anchor="middle">S</text>
+            
+            <!-- 曲线轨迹 -->
+            <path id="scene1-curve" fill="none" stroke="#2e7d32" stroke-width="2.5"/>
+            
+            <!-- 投影虚线 -->
+            <line id="scene1-proj-x" x1="460" y1="340" x2="460" y2="340" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" style="display:none"/>
+            <line id="scene1-proj-y" x1="460" y1="340" x2="460" y2="340" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" style="display:none"/>
+            
+            <!-- 当前点 -->
+            <circle id="scene1-current-point" cx="460" cy="340" r="5" fill="#c62828" stroke="#ffffff" stroke-width="2" style="display:none"/>
+            
+            <!-- 滑块刻度标签（SVG 内，在轨道上方） -->
+            <text x="100" y="430" class="scene1-tick-label">0</text>
+            <text x="250" y="430" class="scene1-tick-label">0.5</text>
+            <text x="400" y="430" class="scene1-tick-label">1</text>
+            <text x="550" y="430" class="scene1-tick-label">1.5</text>
+            <text x="700" y="430" class="scene1-tick-label">2</text>
+            
+            <!-- 吸附刻度高亮 -->
+            <line id="scene1-tick-05" x1="250" y1="440" x2="250" y2="470" stroke="transparent" stroke-width="2"/>
+            <line id="scene1-tick-1" x1="400" y1="440" x2="400" y2="470" stroke="transparent" stroke-width="2"/>
+            <line id="scene1-tick-15" x1="550" y1="440" x2="550" y2="470" stroke="transparent" stroke-width="2"/>
+            
+            <!-- 滑块轨道（SVG 可视化） -->
+            <rect x="100" y="448" width="600" height="14" fill="#cccccc" rx="7"/>
+            <circle id="scene1-slider-thumb" cx="100" cy="455" r="12" fill="#1565c0" stroke="#ffffff" stroke-width="2" style="cursor:pointer"/>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <input type="range" id="scene1-slider" min="0" max="2" step="0.01" value="0">
+            <button id="scene1-aux-btn">辅助线</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        const scale = 120;
+        const h = scale * Math.sqrt(3) / 2; // ≈ 103.92
+        const groundY = 300;
+        const squareLeft = 180;
+        const squareRight = 300;
+        
+        // 函数区坐标映射
+        const axisTx = 460;
+        const axisSx = 460;
+        const axisTy = 340;
+        const axisSy = 340;
+        const tScale = 150; // px per unit t
+        const sScale = 480; // px per unit S
+        
+        // 元素引用
+        const triangleFill = document.getElementById('scene1-triangle-fill');
+        const triangle = document.getElementById('scene1-triangle');
+        const overlapFill = document.getElementById('scene1-overlap-fill');
+        const overlap = document.getElementById('scene1-overlap');
+        const curve = document.getElementById('scene1-curve');
+        const currentPoint = document.getElementById('scene1-current-point');
+        const projX = document.getElementById('scene1-proj-x');
+        const projY = document.getElementById('scene1-proj-y');
+        const auxLine = document.getElementById('scene1-aux-line');
+        const slider = document.getElementById('scene1-slider');
+        const sliderThumb = document.getElementById('scene1-slider-thumb');
+        const auxBtn = document.getElementById('scene1-aux-btn');
+        const infoStage = document.getElementById('scene1-info-stage');
+        const infoFormula = document.getElementById('scene1-info-formula');
+        const infoValue = document.getElementById('scene1-info-value');
+        const tick05 = document.getElementById('scene1-tick-05');
+        const tick1 = document.getElementById('scene1-tick-1');
+        const tick15 = document.getElementById('scene1-tick-15');
+        
+        let showAux = false;
+        
+        // 面积函数
+        function S(t) {
+            const s3 = Math.sqrt(3);
+            if (t <= 0.5) return (s3 / 2) * t * t;
+            else if (t <= 1) return s3 / 4 - (s3 / 2) * (1 - t) * (1 - t);
+            else if (t <= 1.5) return s3 / 4 - (s3 / 2) * (t - 1) * (t - 1);
+            else return (s3 / 2) * (2 - t) * (2 - t);
+        }
+        
+        // 计算三角形顶点
+        function getTriangleVertices(t) {
+            const Ax = 60 + scale * t;
+            const Bx = 180 + scale * t;
+            const Cx = 120 + scale * t;
+            const Cy = groundY - h;
+            return [
+                [Ax, groundY],
+                [Bx, groundY],
+                [Cx, Cy]
+            ];
+        }
+        
+        // 计算重叠区域顶点
+        function getOverlapVertices(t) {
+            const Ax = 60 + scale * t;
+            const Bx = 180 + scale * t;
+            const Cx = 120 + scale * t;
+            const Cy = groundY - h;
+            
+            if (t <= 0) {
+                return [];
+            } else if (t <= 0.5) {
+                // 小三角形：(180,300), B, (180, 300 - h*2*t)
+                const intersectY = groundY - 2 * h * t;
+                return [
+                    [squareLeft, groundY],
+                    [Bx, groundY],
+                    [squareLeft, intersectY]
+                ];
+            } else if (t <= 1) {
+                // 四边形：(180,300), B, C, (180, 300 - 2*h*(1-t))
+                const intersectY = groundY - 2 * h * (1 - t);
+                return [
+                    [squareLeft, groundY],
+                    [Bx, groundY],
+                    [Cx, Cy],
+                    [squareLeft, intersectY]
+                ];
+            } else if (t <= 1.5) {
+                // 四边形：A, (300,300), (300, 300 - 2*h*(t-1)), C
+                const intersectY = groundY - 2 * h * (t - 1);
+                return [
+                    [Ax, groundY],
+                    [squareRight, groundY],
+                    [squareRight, intersectY],
+                    [Cx, Cy]
+                ];
+            } else if (t < 2) {
+                // 小三角形：A, (300,300), (300, 300 - 2*h*(2-t))
+                const intersectY = groundY - 2 * h * (2 - t);
+                return [
+                    [Ax, groundY],
+                    [squareRight, groundY],
+                    [squareRight, intersectY]
+                ];
+            } else {
+                return [];
+            }
+        }
+        
+        // 生成曲线路径
+        function generateCurvePath(tCurrent) {
+            const steps = 200;
+            let d = '';
+            for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * tCurrent;
+                const x = axisTx + tScale * t;
+                const y = axisSy - sScale * S(t);
+                if (i === 0) d += `M ${x} ${y}`;
+                else d += ` L ${x} ${y}`;
+            }
+            return d;
+        }
+        
+        // 更新信息面板
+        function updateInfo(t) {
+            const s = S(t);
+            let stage = '';
+            let formula = '';
+            
+            if (t <= 0) {
+                stage = '准备进入';
+                formula = 'S = 0';
+            } else if (t <= 0.5) {
+                stage = '进入初期';
+                formula = 'S = (√3/2)t²';
+            } else if (t <= 1) {
+                stage = '进入后期';
+                formula = 'S = √3/4 - (√3/2)(1-t)²';
+            } else if (t <= 1.5) {
+                stage = '离开初期';
+                formula = 'S = √3/4 - (√3/2)(t-1)²';
+            } else if (t < 2) {
+                stage = '离开后期';
+                formula = 'S = (√3/2)(2-t)²';
+            } else {
+                stage = '完全离开';
+                formula = 'S = 0';
+            }
+            
+            infoStage.textContent = stage;
+            infoFormula.textContent = formula;
+            infoValue.textContent = 'S ≈ ' + s.toFixed(3);
+        }
+        
+        // 更新吸附提示
+        function updateTickHighlight(t) {
+            const threshold = 0.06;
+            const color = '#c62828';
+            const transparent = 'transparent';
+            const widthHighlight = 3;
+            const widthNormal = 2;
+            
+            if (Math.abs(t - 0.5) < threshold) {
+                tick05.setAttribute('stroke', color);
+                tick05.setAttribute('stroke-width', widthHighlight);
+            } else {
+                tick05.setAttribute('stroke', transparent);
+                tick05.setAttribute('stroke-width', widthNormal);
+            }
+            
+            if (Math.abs(t - 1) < threshold) {
+                tick1.setAttribute('stroke', color);
+                tick1.setAttribute('stroke-width', widthHighlight);
+            } else {
+                tick1.setAttribute('stroke', transparent);
+                tick1.setAttribute('stroke-width', widthNormal);
+            }
+            
+            if (Math.abs(t - 1.5) < threshold) {
+                tick15.setAttribute('stroke', color);
+                tick15.setAttribute('stroke-width', widthHighlight);
+            } else {
+                tick15.setAttribute('stroke', transparent);
+                tick15.setAttribute('stroke-width', widthNormal);
+            }
+        }
+        
+        // 更新辅助线
+        function updateAuxLine(t) {
+            if (!showAux || t <= 0 || t >= 2) {
+                auxLine.style.display = 'none';
+                return;
+            }
+            
+            const overlapVerts = getOverlapVertices(t);
+            if (overlapVerts.length === 0) {
+                auxLine.style.display = 'none';
+                return;
+            }
+            
+            // 找到最上方的顶点（y 最小）
+            let topVertex = overlapVerts[0];
+            for (let i = 1; i < overlapVerts.length; i++) {
+                if (overlapVerts[i][1] < topVertex[1]) {
+                    topVertex = overlapVerts[i];
+                }
+            }
+            
+            auxLine.setAttribute('x1', topVertex[0]);
+            auxLine.setAttribute('y1', topVertex[1]);
+            auxLine.setAttribute('x2', topVertex[0]);
+            auxLine.setAttribute('y2', groundY);
+            auxLine.style.display = 'block';
+        }
+        
+        // 主更新函数
+        function update(t) {
+            t = Math.max(0, Math.min(2, t));
+            
+            // 更新三角形
+            const triVerts = getTriangleVertices(t);
+            const triPoints = triVerts.map(v => v.join(',')).join(' ');
+            triangleFill.setAttribute('points', triPoints);
+            triangle.setAttribute('points', triPoints);
+            
+            // 更新重叠区域
+            const overlapVerts = getOverlapVertices(t);
+            if (overlapVerts.length > 0) {
+                const overlapPoints = overlapVerts.map(v => v.join(',')).join(' ');
+                overlapFill.setAttribute('points', overlapPoints);
+                overlap.setAttribute('points', overlapPoints);
+                overlapFill.style.display = 'block';
+                overlap.style.display = 'block';
+            } else {
+                overlapFill.style.display = 'none';
+                overlap.style.display = 'none';
+            }
+            
+            // 更新曲线
+            curve.setAttribute('d', generateCurvePath(t));
+            
+            // 更新当前点和投影线
+            const s = S(t);
+            const cx = axisTx + tScale * t;
+            const cy = axisSy - sScale * s;
+            
+            if (t > 0) {
+                currentPoint.setAttribute('cx', cx);
+                currentPoint.setAttribute('cy', cy);
+                currentPoint.style.display = 'block';
+                
+                if (showAux) {
+                    projX.setAttribute('x1', cx);
+                    projX.setAttribute('y1', cy);
+                    projX.setAttribute('x2', cx);
+                    projX.setAttribute('y2', axisTy);
+                    projX.style.display = 'block';
+                    
+                    projY.setAttribute('x1', cx);
+                    projY.setAttribute('y1', cy);
+                    projY.setAttribute('x2', axisSx);
+                    projY.setAttribute('y2', cy);
+                    projY.style.display = 'block';
+                } else {
+                    projX.style.display = 'none';
+                    projY.style.display = 'none';
+                }
+            } else {
+                currentPoint.style.display = 'none';
+                projX.style.display = 'none';
+                projY.style.display = 'none';
+            }
+            
+            // 更新滑块拇指位置
+            const thumbX = 100 + 300 * t; // t∈[0,2] → x∈[100,700]
+            sliderThumb.setAttribute('cx', thumbX);
+            
+            // 更新信息面板
+            updateInfo(t);
+            
+            // 更新吸附提示
+            updateTickHighlight(t);
+            
+            // 更新辅助线
+            updateAuxLine(t);
+        }
+        
+        // 事件监听
+        slider.addEventListener('input', function() {
+            update(parseFloat(this.value));
+        });
+        
+        auxBtn.addEventListener('click', function() {
+            showAux = !showAux;
+            this.classList.toggle('active', showAux);
+            update(parseFloat(slider.value));
+        });
+        
+        // 滑块拇指拖拽（SVG 内）
+        let isDragging = false;
+        
+        sliderThumb.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            const rect = document.getElementById('scene1-svg').getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            let t = (x - 100) / 300;
+            t = Math.max(0, Math.min(2, t));
+            slider.value = t;
+            update(t);
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+        
+        // 触摸支持
+        sliderThumb.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            const rect = document.getElementById('scene1-svg').getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = touch.clientX - rect.left;
+            let t = (x - 100) / 300;
+            t = Math.max(0, Math.min(2, t));
+            slider.value = t;
+            update(t);
+        });
+        
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // 初始化
+        update(0);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .step-indicator { font-size: 14px; color: #333; font-family: monospace; }
+        
+        /* SVG Styles */
+        text { font-family: sans-serif; text-anchor: middle; dominant-baseline: middle; }
+        .node-text { font-size: 20px; font-weight: bold; transition: fill 0.3s; }
+        .dynamic-text { font-size: 18px; fill: #555555; }
+        path, line { fill: none; stroke-width: 2px; transition: stroke 0.3s, stroke-width 0.3s; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <!-- Markers for different colors -->
+                <marker id="scene1-arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000000" />
+                </marker>
+                <marker id="scene1-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- Arrows -->
+            <line id="scene1-arrow-jia-co2" x1="190" y1="260" x2="340" y2="120" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+            <line id="scene1-arrow-co2-jia" x1="360" y1="120" x2="210" y2="260" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+            <line id="scene1-arrow-yi-co2" x1="400" y1="260" x2="400" y2="120" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+            <line id="scene1-arrow-bing-co2" x1="600" y1="260" x2="460" y2="120" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+            
+            <line id="scene1-arrow-jia-yi" x1="260" y1="280" x2="340" y2="280" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+            <line id="scene1-arrow-bing-yi" x1="540" y1="280" x2="460" y2="280" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+            
+            <path id="scene1-arrow-jia-bing" d="M 200 300 Q 400 380 600 300" stroke="#000000" marker-end="url(#scene1-arrow-black)" />
+
+            <!-- Nodes -->
+            <text id="scene1-node-co2" x="400" y="100" class="node-text" fill="#000000">大气中的二氧化碳</text>
+            <text id="scene1-node-jia" x="200" y="280" class="node-text" fill="#000000">甲</text>
+            <text id="scene1-node-yi" x="400" y="280" class="node-text" fill="#000000">乙</text>
+            <text id="scene1-node-bing" x="600" y="280" class="node-text" fill="#000000">丙</text>
+
+            <!-- Dynamic Text -->
+            <text id="scene1-dynamic-text" x="400" y="420" class="dynamic-text"></text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="step-indicator">0 / 4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        const nodeJia = document.getElementById('scene1-node-jia');
+        const nodeYi = document.getElementById('scene1-node-yi');
+        const nodeBing = document.getElementById('scene1-node-bing');
+        const dynamicText = document.getElementById('scene1-dynamic-text');
+
+        const arrowJiaCo2 = document.getElementById('scene1-arrow-jia-co2');
+        const arrowCo2Jia = document.getElementById('scene1-arrow-co2-jia');
+        const arrowYiCo2 = document.getElementById('scene1-arrow-yi-co2');
+        const arrowBingCo2 = document.getElementById('scene1-arrow-bing-co2');
+        const arrowJiaYi = document.getElementById('scene1-arrow-jia-yi');
+        const arrowBingYi = document.getElementById('scene1-arrow-bing-yi');
+        const arrowJiaBing = document.getElementById('scene1-arrow-jia-bing');
+
+        const colors = {
+            black: '#000000',
+            red: '#c62828',
+            blue: '#1565c0',
+            green: '#2e7d32'
+        };
+
+        function setArrowStyle(arrow, colorName) {
+            arrow.setAttribute('stroke', colors[colorName]);
+            arrow.setAttribute('marker-end', `url(#scene1-arrow-${colorName})`);
+            arrow.style.strokeWidth = colorName === 'black' ? '2px' : '3px';
+        }
+
+        function renderStep(step) {
+            // Reset all
+            nodeJia.textContent = '甲';
+            nodeJia.setAttribute('fill', colors.black);
+            nodeYi.textContent = '乙';
+            nodeYi.setAttribute('fill', colors.black);
+            nodeBing.textContent = '丙';
+            nodeBing.setAttribute('fill', colors.black);
+            dynamicText.textContent = '';
+
+            setArrowStyle(arrowJiaCo2, 'black');
+            setArrowStyle(arrowCo2Jia, 'black');
+            setArrowStyle(arrowYiCo2, 'black');
+            setArrowStyle(arrowBingCo2, 'black');
+            setArrowStyle(arrowJiaYi, 'black');
+            setArrowStyle(arrowBingYi, 'black');
+            setArrowStyle(arrowJiaBing, 'black');
+
+            if (step >= 1) {
+                nodeJia.textContent = '甲 (生产者)';
+                nodeJia.setAttribute('fill', colors.red);
+                setArrowStyle(arrowJiaCo2, 'red');
+                setArrowStyle(arrowCo2Jia, 'red');
+                if (step === 1) {
+                    dynamicText.textContent = '与大气中二氧化碳有双向交换的只有生产者（光合作用吸收，呼吸作用释放）';
+                }
+            }
+
+            if (step >= 2) {
+                nodeJia.setAttribute('fill', colors.black);
+                setArrowStyle(arrowJiaCo2, 'black');
+                setArrowStyle(arrowCo2Jia, 'black');
+
+                nodeYi.textContent = '乙 (分解者)';
+                nodeYi.setAttribute('fill', colors.blue);
+                setArrowStyle(arrowJiaYi, 'blue');
+                setArrowStyle(arrowBingYi, 'blue');
+                setArrowStyle(arrowYiCo2, 'blue');
+                if (step === 2) {
+                    dynamicText.textContent = '生产者和消费者都会流向分解者，分解者将其分解为二氧化碳';
+                }
+            }
+
+            if (step >= 3) {
+                nodeYi.setAttribute('fill', colors.black);
+                setArrowStyle(arrowJiaYi, 'black');
+                setArrowStyle(arrowBingYi, 'black');
+                setArrowStyle(arrowYiCo2, 'black');
+
+                nodeBing.textContent = '丙 (消费者)';
+                nodeBing.setAttribute('fill', colors.green);
+                setArrowStyle(arrowJiaBing, 'green');
+                setArrowStyle(arrowBingCo2, 'green');
+                if (step === 3) {
+                    dynamicText.textContent = '消费者以生产者为食，并进行呼吸作用';
+                }
+            }
+
+            if (step === 4) {
+                nodeJia.setAttribute('fill', colors.red);
+                setArrowStyle(arrowJiaCo2, 'red');
+                setArrowStyle(arrowCo2Jia, 'red');
+
+                nodeYi.setAttribute('fill', colors.blue);
+                setArrowStyle(arrowJiaYi, 'blue');
+                setArrowStyle(arrowBingYi, 'blue');
+                setArrowStyle(arrowYiCo2, 'blue');
+
+                nodeBing.setAttribute('fill', colors.green);
+                setArrowStyle(arrowJiaBing, 'green');
+                setArrowStyle(arrowBingCo2, 'green');
+
+                dynamicText.textContent = '综上所述：甲为生产者，乙为分解者，丙为消费者。对应选项 A';
+            }
+
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === maxStep;
+            stepIndicator.textContent = `${step} / ${maxStep}`;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

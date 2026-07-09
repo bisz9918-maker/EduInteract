@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 正午太阳高度角与地方时计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 5px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { padding: 6px 18px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; font-family: inherit; }
+        #scene2-btn-prev { background: #e0e0e0; color: #333; }
+        #scene2-btn-next { background: #1565c0; color: #fff; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 12px; color: #666; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" style="position: absolute; top: 0; left: 0;">
+            <defs>
+                <!-- 向右红色箭头 -->
+                <marker id="scene2-arrow-red-right" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <!-- 向左红色箭头（太阳光线方向） -->
+                <marker id="scene2-arrow-red-left" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M9,0 L9,6 L0,3 z" fill="#c62828" />
+                </marker>
+                <!-- 向右黑色箭头（经度轴） -->
+                <marker id="scene2-arrow-black-right" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+                <!-- 绿色双向箭头 -->
+                <marker id="scene2-arrow-green-start" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M9,0 L9,6 L0,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene2-arrow-green-end" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+            
+            <!-- 左侧：地球侧视图 -->
+            <!-- 地球圆：圆心(170,240) 半径60 -->
+            <circle id="scene2-earth-circle" cx="170" cy="240" r="60" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 地心O -->
+            <circle cx="170" cy="240" r="2" fill="#000000"/>
+            <text id="scene2-label-o" x="100" y="195" font-size="14" fill="#000000" font-family="serif" font-style="italic">O</text>
+            
+            <!-- 半径OP（虚线）：(170,240)-(208,286) -->
+            <line id="scene2-radius-op" x1="170" y1="240" x2="208" y2="286" stroke="#000000" stroke-width="1" stroke-dasharray="4,3"/>
+            
+            <!-- 观测点P：(208,286) 半径3 -->
+            <circle id="scene2-point-p" cx="208" cy="286" r="3" fill="#000000"/>
+            <text id="scene2-label-p" x="228" y="322" font-size="14" fill="#000000" font-family="serif" font-style="italic">P</text>
+            
+            <!-- 地平圈：(177,311)-(239,261) -->
+            <line id="scene2-horizon" x1="177" y1="311" x2="239" y2="261" stroke="#000000" stroke-width="1.5"/>
+            <text id="scene2-label-horizon" x="290" y="205" font-size="13" fill="#000000">地平圈</text>
+            
+            <!-- 太阳光线（3条红色带箭头） -->
+            <line id="scene2-sun-ray-1" x1="320" y1="286" x2="208" y2="286" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene2-arrow-red-left)"/>
+            <line id="scene2-sun-ray-2" x1="320" y1="266" x2="240" y2="266" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene2-arrow-red-left)"/>
+            <line id="scene2-sun-ray-3" x1="320" y1="306" x2="240" y2="306" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene2-arrow-red-left)"/>
+            
+            <!-- 高度角弧线：圆心(208,286) 半径22 从180°到140.5° -->
+            <path id="scene2-arc-h" d="M 186,286 A 22,22 0 0,1 191.02,299.99" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-h" x="260" y="265" font-size="14" fill="#1565c0" font-weight="bold">H = 39.5°</text>
+            
+            <!-- 地点标注 -->
+            <text id="scene2-label-location" x="80" y="320" font-size="13" fill="#000000">我国某地 (30.5°N)</text>
+            
+            <!-- 右侧：经度-时间轴 -->
+            <!-- 经度轴：(360,300)-(760,300) -->
+            <line id="scene2-lon-axis" x1="360" y1="300" x2="760" y2="300" stroke="#000000" stroke-width="1" marker-end="url(#scene2-arrow-black-right)"/>
+            
+            <!-- 刻度线 -->
+            <line id="scene2-tick-60e" x1="400" y1="295" x2="400" y2="305" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-tick-114e" x1="540" y1="295" x2="540" y2="305" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-tick-120e" x1="600" y1="295" x2="600" y2="305" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 经度标签 -->
+            <text id="scene2-label-60e" x="400" y="318" font-size="13" fill="#1565c0" text-anchor="middle">60°E</text>
+            <text id="scene2-label-114e" x="540" y="318" font-size="13" fill="#1565c0" text-anchor="middle">114.5°E</text>
+            <text id="scene2-label-120e" x="600" y="318" font-size="13" fill="#c62828" text-anchor="middle">120°E</text>
+            
+            <!-- 时间标签（步骤2+显示） -->
+            <text id="scene2-label-1200" x="400" y="280" font-size="14" fill="#1565c0" text-anchor="middle" style="display: none; opacity: 0;">12:00</text>
+            <text id="scene2-label-1538" x="540" y="280" font-size="14" fill="#2e7d32" text-anchor="middle" style="display: none; opacity: 0;">15:38</text>
+            <text id="scene2-label-1600" x="600" y="280" font-size="14" fill="#c62828" text-anchor="middle" style="display: none; opacity: 0;">16:00</text>
+            
+            <!-- 经度差箭头（步骤2+显示）：(400,330)-(540,330) -->
+            <line id="scene2-arrow-lon-diff" x1="400" y1="330" x2="540" y2="330" stroke="#2e7d32" stroke-width="1.5" marker-start="url(#scene2-arrow-green-start)" marker-end="url(#scene2-arrow-green-end)" style="display: none; opacity: 0;"/>
+            <text id="scene2-label-54-5" x="470" y="320" font-size="13" fill="#2e7d32" text-anchor="middle" style="display: none; opacity: 0;">54.5°</text>
+            
+            <!-- 公式主文本（步骤0-1显示） -->
+            <text id="scene2-formula-main" x="470" y="375" font-size="18" fill="#000000" text-anchor="middle" style="display: block;">H = 90° − | φ − δ |</text>
+            
+            <!-- 公式代入文本（步骤1-2显示） -->
+            <text id="scene2-formula-sub" x="470" y="415" font-size="14" fill="#2e7d32" text-anchor="middle" style="display: none; opacity: 0;">H = 90° − | 30.5°N − (−20°S) | = 39.5°</text>
+            
+            <!-- 换算文本（步骤3显示） -->
+            <text id="scene2-conv-1" x="470" y="348" font-size="13" fill="#000000" text-anchor="middle" style="display: none; opacity: 0;">经度差：114.5°E − 60°E = 54.5°</text>
+            <text id="scene2-conv-2" x="470" y="378" font-size="13" fill="#000000" text-anchor="middle" style="display: none; opacity: 0;">时间差：54.5° × 4 min/° = 218 min = 3 h 38 min</text>
+            <text id="scene2-conv-3" x="470" y="408" font-size="13" fill="#2e7d32" text-anchor="middle" font-weight="bold" style="display: none; opacity: 0;">地方时：12:00 + 3 h 38 min = 15:38</text>
+            <text id="scene2-conv-4" x="470" y="438" font-size="13" fill="#c62828" text-anchor="middle" style="display: none; opacity: 0;">北京时间（120°E）：16:00</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1 / 4</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：正午太阳高度角与地方时计算分步演示
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const indicator = document.getElementById('scene2-step-indicator');
+        
+        // 元素引用
+        const formulaSub = document.getElementById('scene2-formula-sub');
+        const labelH = document.getElementById('scene2-label-h');
+        const label1200 = document.getElementById('scene2-label-1200');
+        const label1538 = document.getElementById('scene2-label-1538');
+        const label1600 = document.getElementById('scene2-label-1600');
+        const arrowLonDiff = document.getElementById('scene2-arrow-lon-diff');
+        const label54_5 = document.getElementById('scene2-label-54-5');
+        const formulaMain = document.getElementById('scene2-formula-main');
+        const conv1 = document.getElementById('scene2-conv-1');
+        const conv2 = document.getElementById('scene2-conv-2');
+        const conv3 = document.getElementById('scene2-conv-3');
+        const conv4 = document.getElementById('scene2-conv-4');
+        
+        function show(el) {
+            if (!el) return;
+            el.style.display = 'block';
+            requestAnimationFrame(() => {
+                el.style.opacity = '1';
+                el.style.transition = 'opacity 0.3s ease-out';
+            });
+        }
+        
+        function hide(el) {
+            if (!el) return;
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.3s ease-out';
+            setTimeout(() => {
+                el.style.display = 'none';
+            }, 300);
+        }
+        
+        function setOpacity(el, val) {
+            if (!el) return;
+            el.style.opacity = String(val);
+            el.style.transition = 'opacity 0.3s ease-out';
+        }
+        
+        function hideImmediate(el) {
+            if (!el) return;
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        function showImmediate(el) {
+            if (!el) return;
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        function updateStep(step) {
+            currentStep = step;
+            indicator.textContent = '步骤 ' + (step + 1) + ' / ' + totalSteps;
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+            
+            // 重置所有动态元素到默认状态
+            hideImmediate(formulaSub);
+            hideImmediate(label1200);
+            hideImmediate(label1538);
+            hideImmediate(label1600);
+            hideImmediate(arrowLonDiff);
+            hideImmediate(label54_5);
+            hideImmediate(conv1);
+            hideImmediate(conv2);
+            hideImmediate(conv3);
+            hideImmediate(conv4);
+            
+            labelH.setAttribute('fill', '#1565c0');
+            labelH.style.fontSize = '14px';
+            showImmediate(formulaMain);
+            setOpacity(formulaMain, 1);
+            
+            switch(step) {
+                case 0:
+                    // 步骤0：基础状态，只显示主公式和左侧原理图
+                    break;
+                    
+                case 1:
+                    // 步骤1：显示代入公式，H标签绿色高亮并短暂放大
+                    show(formulaSub);
+                    labelH.setAttribute('fill', '#2e7d32');
+                    labelH.style.transition = 'fill 0.3s ease-out, font-size 0.3s ease-out';
+                    labelH.style.fontSize = '17px';
+                    setTimeout(() => {
+                        labelH.style.fontSize = '14px';
+                    }, 300);
+                    break;
+                    
+                case 2:
+                    // 步骤2：显示时间轴元素，公式退为次要信息
+                    show(formulaSub);
+                    setOpacity(formulaMain, 0.4);
+                    setOpacity(formulaSub, 0.4);
+                    show(label1200);
+                    show(arrowLonDiff);
+                    show(label54_5);
+                    break;
+                    
+                case 3:
+                    // 步骤3：显示完整时间换算，隐藏公式
+                    hideImmediate(formulaMain);
+                    hideImmediate(formulaSub);
+                    show(label1200);
+                    show(label1538);
+                    show(label1600);
+                    show(arrowLonDiff);
+                    show(label54_5);
+                    show(conv1);
+                    setTimeout(() => show(conv2), 150);
+                    setTimeout(() => show(conv3), 300);
+                    setTimeout(() => show(conv4), 450);
+                    break;
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) updateStep(currentStep - 1);
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < totalSteps - 1) updateStep(currentStep + 1);
+        });
+        
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

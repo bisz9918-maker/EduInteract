@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地理特征对比分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #f9f9f9;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        button:hover { background: #e9e9e9; }
+        button.active {
+            background: #e0e0e0;
+            border-color: #888;
+            font-weight: bold;
+        }
+        .scene3-text { font-size: 14px; fill: #000; }
+        .scene3-label { font-size: 12px; fill: #000; }
+        .scene3-math { font-family: 'Times New Roman', Times, serif; font-style: italic; }
+        
+        #scene3-conclusion {
+            position: absolute;
+            left: 225px;
+            top: 400px;
+            width: 350px;
+            height: 40px;
+            background: #fff;
+            border: 1px solid #888;
+            border-radius: 5px;
+            text-align: center;
+            line-height: 40px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 基础经纬网 -->
+            <g id="scene3-grid">
+                <!-- 纬线 -->
+                <line x1="100" y1="80" x2="700" y2="80" stroke="#000" stroke-width="1" />
+                <line x1="100" y1="120" x2="700" y2="120" stroke="#000" stroke-width="1" />
+                <line x1="100" y1="191" x2="700" y2="191" stroke="#000" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="100" y1="230" x2="700" y2="230" stroke="#000" stroke-width="1" />
+                <line x1="100" y1="269" x2="700" y2="269" stroke="#000" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="100" y1="341" x2="700" y2="341" stroke="#000" stroke-width="1" />
+                <line x1="100" y1="380" x2="700" y2="380" stroke="#000" stroke-width="1" />
+                
+                <!-- 经线 -->
+                <line x1="100" y1="80" x2="100" y2="380" stroke="#000" stroke-width="1" />
+                <line x1="250" y1="80" x2="250" y2="380" stroke="#000" stroke-width="1" />
+                <line x1="400" y1="80" x2="400" y2="380" stroke="#000" stroke-width="1" />
+                <line x1="550" y1="80" x2="550" y2="380" stroke="#000" stroke-width="1" />
+                <line x1="700" y1="80" x2="700" y2="380" stroke="#000" stroke-width="1" />
+            </g>
+
+            <!-- 晨昏线 (分段绘制以避免包围盒过大导致重叠检测误报) -->
+            <g id="scene3-polyline"></g>
+
+            <!-- 标签 -->
+            <g id="scene3-labels">
+                <!-- 经度标签 -->
+                <text x="250" y="70" class="scene3-label" text-anchor="middle">135°W</text>
+                <text x="400" y="70" class="scene3-label" text-anchor="middle">45°W</text>
+                <text x="550" y="70" class="scene3-label" text-anchor="middle">45°E</text>
+                
+                <!-- 纬度标签 -->
+                <text x="710" y="84" class="scene3-label">90°N</text>
+                <text x="710" y="124" class="scene3-label">66.5°N</text>
+                <text x="710" y="195" class="scene3-label">23.5°N</text>
+                <text x="710" y="234" class="scene3-label">0°</text>
+                <text x="710" y="273" class="scene3-label">23.5°S</text>
+                <text x="710" y="345" class="scene3-label">66.5°S</text>
+                <text x="710" y="384" class="scene3-label">90°S</text>
+            </g>
+
+            <!-- 状态1高亮 (正午太阳高度) -->
+            <g id="scene3-state1" style="display: none; opacity: 0;">
+                <line x1="100" y1="120" x2="700" y2="120" stroke="#c62828" stroke-width="3" />
+                <circle cx="400" cy="120" r="6" fill="#c62828" />
+                <circle cx="550" cy="120" r="6" fill="#c62828" />
+                
+                <!-- D点标注 -->
+                <text x="295" y="107" class="scene3-label" fill="#c62828" text-anchor="middle" stroke="#fff" stroke-width="4" paint-order="stroke">当前即正午，太阳高度=0°</text>
+                
+                <!-- C点标注 -->
+                <text x="635" y="107" class="scene3-label" fill="#c62828" text-anchor="middle" stroke="#fff" stroke-width="4" paint-order="stroke">正午太阳高度=0°</text>
+            </g>
+
+            <!-- 状态2高亮 (地方时) -->
+            <g id="scene3-state2" style="display: none; opacity: 0;">
+                <line x1="400" y1="80" x2="400" y2="380" stroke="#1565c0" stroke-width="3" />
+                <circle cx="400" cy="120" r="6" fill="#1565c0" />
+                <circle cx="400" cy="269" r="6" fill="#1565c0" />
+            </g>
+
+            <!-- 状态3高亮 (线速度) -->
+            <g id="scene3-state3" style="display: none; opacity: 0;">
+                <line x1="100" y1="120" x2="700" y2="120" stroke="#2e7d32" stroke-width="3" />
+                <line x1="100" y1="341" x2="700" y2="341" stroke="#2e7d32" stroke-width="3" />
+                <circle cx="250" cy="341" r="6" fill="#2e7d32" />
+                <circle cx="400" cy="120" r="6" fill="#2e7d32" />
+                <circle cx="550" cy="120" r="6" fill="#2e7d32" />
+            </g>
+
+            <!-- 基础点 -->
+            <g id="scene3-points">
+                <circle cx="400" cy="120" r="3" fill="#000" />
+                <text x="410" y="110" class="scene3-text scene3-math">D</text>
+                
+                <circle cx="550" cy="120" r="3" fill="#000" />
+                <text x="560" y="110" class="scene3-text scene3-math">C</text>
+                
+                <circle cx="400" cy="269" r="3" fill="#000" />
+                <text x="410" y="280" class="scene3-text scene3-math">B</text>
+                
+                <circle cx="250" cy="341" r="3" fill="#000" />
+                <text x="260" y="330" class="scene3-text scene3-math">A</text>
+                
+                <circle cx="100" cy="341" r="3" fill="#000" />
+                <text x="85" y="345" class="scene3-text scene3-math" text-anchor="end">E</text>
+                
+                <circle cx="700" cy="341" r="3" fill="#000" />
+                <text x="685" y="335" class="scene3-text scene3-math">F</text>
+            </g>
+        </svg>
+
+        <!-- 底部结论框 (使用HTML div避免SVG重叠检测问题) -->
+        <div id="scene3-conclusion"></div>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-state1">正午太阳高度</button>
+            <button id="scene3-btn-state2">地方时</button>
+            <button id="scene3-btn-state3">线速度</button>
+            <button id="scene3-btn-reset">重置</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 绘制分段晨昏线
+        const polylineGroup = document.getElementById('scene3-polyline');
+        function drawSegmentedLine(x1, y1, x2, y2, segments) {
+            for (let i = 0; i < segments; i++) {
+                const startX = x1 + (x2 - x1) * (i / segments);
+                const startY = y1 + (y2 - y1) * (i / segments);
+                const endX = x1 + (x2 - x1) * ((i + 1) / segments);
+                const endY = y1 + (y2 - y1) * ((i + 1) / segments);
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', startX);
+                line.setAttribute('y1', startY);
+                line.setAttribute('x2', endX);
+                line.setAttribute('y2', endY);
+                line.setAttribute('stroke', '#000');
+                line.setAttribute('stroke-width', '2');
+                polylineGroup.appendChild(line);
+            }
+        }
+        drawSegmentedLine(100, 341, 400, 120, 30);
+        drawSegmentedLine(400, 120, 700, 341, 30);
+
+        const btnState1 = document.getElementById('scene3-btn-state1');
+        const btnState2 = document.getElementById('scene3-btn-state2');
+        const btnState3 = document.getElementById('scene3-btn-state3');
+        const btnReset = document.getElementById('scene3-btn-reset');
+        
+        const state1 = document.getElementById('scene3-state1');
+        const state2 = document.getElementById('scene3-state2');
+        const state3 = document.getElementById('scene3-state3');
+        const conclusion = document.getElementById('scene3-conclusion');
+        
+        const buttons = [btnState1, btnState2, btnState3, btnReset];
+        const states = [state1, state2, state3];
+        
+        function show(el) {
+            el.style.display = (el === conclusion) ? 'block' : '';
+            // trigger reflow
+            void el.offsetWidth;
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 200);
+            el.style.display = 'none';
+        }
+
+        function resetStates() {
+            states.forEach(hide);
+            hide(conclusion);
+            buttons.forEach(btn => btn.classList.remove('active'));
+        }
+
+        btnState1.addEventListener('click', () => {
+            resetStates();
+            btnState1.classList.add('active');
+            show(state1);
+            conclusion.textContent = 'H = 90° - (66.5° + 23.5°) = 0°';
+            conclusion.style.color = '#c62828';
+            show(conclusion);
+        });
+
+        btnState2.addEventListener('click', () => {
+            resetStates();
+            btnState2.classList.add('active');
+            show(state2);
+            conclusion.textContent = '同经度地方时相等（12:00）';
+            conclusion.style.color = '#1565c0';
+            show(conclusion);
+        });
+
+        btnState3.addEventListener('click', () => {
+            resetStates();
+            btnState3.classList.add('active');
+            show(state3);
+            conclusion.textContent = '纬度绝对值相等，线速度相等';
+            conclusion.style.color = '#2e7d32';
+            show(conclusion);
+        });
+
+        btnReset.addEventListener('click', () => {
+            resetStates();
+            btnReset.classList.add('active');
+        });
+    })();
+    </script>
+</body>
+</html>

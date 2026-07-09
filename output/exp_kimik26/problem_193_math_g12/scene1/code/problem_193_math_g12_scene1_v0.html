@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图展示与投影规律分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+
+        /* 图框样式 */
+        .frame-normal { stroke: #000000; stroke-width: 2; stroke-dasharray: none; fill: none; transition: all 0.3s ease; }
+        .frame-dimmed { stroke: #888888; stroke-width: 2; stroke-dasharray: 5,5; fill: none; transition: all 0.3s ease; }
+        .frame-blue { stroke: #1565c0; stroke-width: 3; stroke-dasharray: none; fill: none; transition: all 0.3s ease; }
+        .frame-red { stroke: #c62828; stroke-width: 3; stroke-dasharray: none; fill: none; transition: all 0.3s ease; }
+        .frame-green { stroke: #2e7d32; stroke-width: 3; stroke-dasharray: none; fill: none; transition: all 0.3s ease; }
+
+        /* 图形样式 */
+        .shape-normal { stroke: #000000; fill: none; transition: all 0.3s ease; }
+        .shape-dimmed { stroke: #888888; fill: none; opacity: 0.5; transition: all 0.3s ease; }
+        .shape-blue { stroke: #1565c0; fill: #1565c0; fill-opacity: 0.15; transition: all 0.3s ease; }
+        .shape-red { stroke: #c62828; fill: #c62828; fill-opacity: 0.15; transition: all 0.3s ease; }
+        .shape-green { stroke: #2e7d32; fill: #2e7d32; fill-opacity: 0.15; transition: all 0.3s ease; }
+
+        /* 中线样式 */
+        .line-normal { stroke: #000000; transition: all 0.3s ease; }
+        .line-dimmed { stroke: #888888; opacity: 0.5; transition: all 0.3s ease; }
+        .line-blue { stroke: #1565c0; transition: all 0.3s ease; }
+        .line-red { stroke: #c62828; transition: all 0.3s ease; }
+        .line-green { stroke: #2e7d32; transition: all 0.3s ease; }
+
+        /* 标注线样式 */
+        .dim-normal { stroke: #000000; transition: all 0.3s ease; }
+        .dim-dimmed { stroke: #888888; opacity: 0.5; transition: all 0.3s ease; }
+
+        /* 标签样式 */
+        .label-normal { fill: #000000; font-size: 14px; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; transition: all 0.3s ease; }
+        .label-dimmed { fill: #888888; opacity: 0.5; font-size: 14px; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; transition: all 0.3s ease; }
+
+        /* 关系线样式 */
+        .relation-normal { stroke: #888888; stroke-dasharray: 6,4; opacity: 1; transition: opacity 0.3s ease; }
+        .relation-hidden { stroke: #888888; stroke-dasharray: 6,4; opacity: 0; transition: opacity 0.3s ease; }
+
+        /* 规律文字样式 */
+        .text-normal { fill: #888888; font-size: 14px; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; opacity: 1; transition: opacity 0.3s ease; }
+        .text-hidden { fill: #888888; font-size: 14px; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; opacity: 0; transition: opacity 0.3s ease; }
+
+        /* 控件栏 */
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #cccccc; border-radius: 4px; background: #f5f5f5; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; transition: all 0.2s ease; }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #333333; min-width: 70px; text-align: center; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- 黑色箭头（起点） -->
+                <marker id="scene1-arrow-start" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto-start-reverse">
+                    <path d="M8,0 L0,3 L8,6 Z" fill="#000000"/>
+                </marker>
+                <!-- 黑色箭头（终点） -->
+                <marker id="scene1-arrow-end" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L8,3 L0,6 Z" fill="#000000"/>
+                </marker>
+                <!-- 灰色箭头（起点） -->
+                <marker id="scene1-arrow-start-dim" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto-start-reverse">
+                    <path d="M8,0 L0,3 L8,6 Z" fill="#888888"/>
+                </marker>
+                <!-- 灰色箭头（终点） -->
+                <marker id="scene1-arrow-end-dim" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L8,3 L0,6 Z" fill="#888888"/>
+                </marker>
+            </defs>
+
+            <!-- ===== 正视图 ===== -->
+            <rect id="scene1-frame-front" x="90" y="50" width="220" height="160" class="frame-normal"/>
+            <path id="scene1-tri-front" d="M 200 70 L 130 190 L 270 190 Z" class="shape-normal"/>
+            <line id="scene1-line-front-mid" x1="200" y1="70" x2="200" y2="190" class="line-normal"/>
+
+            <!-- 正视图标注线 -->
+            <line id="scene1-dim-front-base-l" x1="130" y1="200" x2="200" y2="200" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+            <line id="scene1-dim-front-base-r" x1="200" y1="200" x2="270" y2="200" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+            <line id="scene1-dim-front-height" x1="280" y1="70" x2="280" y2="190" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+
+            <!-- 正视图标签 -->
+            <text id="scene1-label-front-title" x="200" y="232" text-anchor="middle" class="label-normal">正视图</text>
+            <text id="scene1-label-front-base-l" x="155" y="200" text-anchor="middle" dominant-baseline="middle" class="label-normal">1</text>
+            <text id="scene1-label-front-base-r" x="245" y="200" text-anchor="middle" dominant-baseline="middle" class="label-normal">1</text>
+            <text id="scene1-label-front-height" x="320" y="130" text-anchor="middle" class="label-normal">a</text>
+
+            <!-- ===== 侧视图 ===== -->
+            <rect id="scene1-frame-side" x="490" y="50" width="220" height="160" class="frame-normal"/>
+            <path id="scene1-tri-side" d="M 600 70 L 530 190 L 670 190 Z" class="shape-normal"/>
+            <line id="scene1-line-side-mid" x1="600" y1="70" x2="600" y2="190" class="line-normal"/>
+
+            <!-- 侧视图标注线 -->
+            <line id="scene1-dim-side-base-l" x1="530" y1="200" x2="600" y2="200" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+            <line id="scene1-dim-side-base-r" x1="600" y1="200" x2="670" y2="200" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+            <line id="scene1-dim-side-height" x1="680" y1="70" x2="680" y2="190" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+
+            <!-- 侧视图标签 -->
+            <text id="scene1-label-side-title" x="600" y="232" text-anchor="middle" class="label-normal">侧视图</text>
+            <text id="scene1-label-side-base-l" x="555" y="200" text-anchor="middle" dominant-baseline="middle" class="label-normal">1</text>
+            <text id="scene1-label-side-base-r" x="645" y="200" text-anchor="middle" dominant-baseline="middle" class="label-normal">1</text>
+            <text id="scene1-label-side-height" x="720" y="130" text-anchor="middle" class="label-normal">a</text>
+
+            <!-- ===== 俯视图 ===== -->
+            <rect id="scene1-frame-top" x="290" y="250" width="220" height="160" class="frame-normal"/>
+            <path id="scene1-semi-top" d="M 330 330 A 70 70 0 0 0 470 330 Z" class="shape-normal"/>
+            <path id="scene1-tri-top" d="M 330 330 L 470 330 L 400 410 Z" class="shape-normal"/>
+            <line id="scene1-line-top-mid" x1="400" y1="330" x2="400" y2="410" class="line-normal"/>
+
+            <!-- 俯视图标注线 -->
+            <line id="scene1-dim-top-base-l" x1="330" y1="420" x2="400" y2="420" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+            <line id="scene1-dim-top-base-r" x1="400" y1="420" x2="470" y2="420" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+            <line id="scene1-dim-top-height" x1="480" y1="330" x2="480" y2="410" class="dim-normal" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+
+            <!-- 俯视图标签 -->
+            <text id="scene1-label-top-title" x="400" y="452" text-anchor="middle" class="label-normal">俯视图</text>
+            <text id="scene1-label-top-base-l" x="355" y="420" text-anchor="middle" dominant-baseline="middle" class="label-normal">1</text>
+            <text id="scene1-label-top-base-r" x="445" y="420" text-anchor="middle" dominant-baseline="middle" class="label-normal">1</text>
+            <text id="scene1-label-top-height" x="525" y="370" text-anchor="middle" class="label-normal">1</text>
+
+            <!-- ===== 对应关系虚线 ===== -->
+            <line id="scene1-relation-length" x1="200" y1="236" x2="400" y2="250" class="relation-hidden"/>
+            <line id="scene1-relation-height" x1="310" y1="130" x2="490" y2="130" class="relation-hidden"/>
+            <line id="scene1-relation-width" x1="600" y1="236" x2="510" y2="250" class="relation-hidden"/>
+
+            <!-- ===== 投影规律文字 ===== -->
+            <text id="scene1-text-length" x="300" y="230" text-anchor="middle" class="text-hidden">长对正</text>
+            <text id="scene1-text-height" x="400" y="115" text-anchor="middle" class="text-hidden">高平齐</text>
+            <text id="scene1-text-width" x="555" y="278" text-anchor="middle" class="text-hidden">宽相等</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+
+        function setClass(id, className) {
+            const el = document.getElementById(id);
+            if (el) el.setAttribute('class', className);
+        }
+
+        function setMarker(id, startMarker, endMarker) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.setAttribute('marker-start', startMarker);
+                el.setAttribute('marker-end', endMarker);
+            }
+        }
+
+        function updateScene() {
+            const step = currentStep;
+
+            // 关系线和规律文字
+            const relationVisible = step === 4;
+            setClass('scene1-relation-length', relationVisible ? 'relation-normal' : 'relation-hidden');
+            setClass('scene1-relation-height', relationVisible ? 'relation-normal' : 'relation-hidden');
+            setClass('scene1-relation-width', relationVisible ? 'relation-normal' : 'relation-hidden');
+            setClass('scene1-text-length', relationVisible ? 'text-normal' : 'text-hidden');
+            setClass('scene1-text-height', relationVisible ? 'text-normal' : 'text-hidden');
+            setClass('scene1-text-width', relationVisible ? 'text-normal' : 'text-hidden');
+
+            // 正视图状态
+            let frontFrame, frontShape, frontLine, frontDim, frontLabel, frontMarkerStart, frontMarkerEnd;
+            if (step === 1) {
+                frontFrame = 'frame-blue';
+                frontShape = 'shape-blue';
+                frontLine = 'line-blue';
+                frontDim = 'dim-normal';
+                frontLabel = 'label-normal';
+                frontMarkerStart = 'url(#scene1-arrow-start)';
+                frontMarkerEnd = 'url(#scene1-arrow-end)';
+            } else if (step === 0 || step === 4) {
+                frontFrame = 'frame-normal';
+                frontShape = 'shape-normal';
+                frontLine = 'line-normal';
+                frontDim = 'dim-normal';
+                frontLabel = 'label-normal';
+                frontMarkerStart = 'url(#scene1-arrow-start)';
+                frontMarkerEnd = 'url(#scene1-arrow-end)';
+            } else {
+                frontFrame = 'frame-dimmed';
+                frontShape = 'shape-dimmed';
+                frontLine = 'line-dimmed';
+                frontDim = 'dim-dimmed';
+                frontLabel = 'label-dimmed';
+                frontMarkerStart = 'url(#scene1-arrow-start-dim)';
+                frontMarkerEnd = 'url(#scene1-arrow-end-dim)';
+            }
+
+            // 侧视图状态
+            let sideFrame, sideShape, sideLine, sideDim, sideLabel, sideMarkerStart, sideMarkerEnd;
+            if (step === 2) {
+                sideFrame = 'frame-red';
+                sideShape = 'shape-red';
+                sideLine = 'line-red';
+                sideDim = 'dim-normal';
+                sideLabel = 'label-normal';
+                sideMarkerStart = 'url(#scene1-arrow-start)';
+                sideMarkerEnd = 'url(#scene1-arrow-end)';
+            } else if (step === 0 || step === 4) {
+                sideFrame = 'frame-normal';
+                sideShape = 'shape-normal';
+                sideLine = 'line-normal';
+                sideDim = 'dim-normal';
+                sideLabel = 'label-normal';
+                sideMarkerStart = 'url(#scene1-arrow-start)';
+                sideMarkerEnd = 'url(#scene1-arrow-end)';
+            } else {
+                sideFrame = 'frame-dimmed';
+                sideShape = 'shape-dimmed';
+                sideLine = 'line-dimmed';
+                sideDim = 'dim-dimmed';
+                sideLabel = 'label-dimmed';
+                sideMarkerStart = 'url(#scene1-arrow-start-dim)';
+                sideMarkerEnd = 'url(#scene1-arrow-end-dim)';
+            }
+
+            // 俯视图状态
+            let topFrame, topShape, topLine, topDim, topLabel, topMarkerStart, topMarkerEnd;
+            if (step === 3) {
+                topFrame = 'frame-green';
+                topShape = 'shape-green';
+                topLine = 'line-green';
+                topDim = 'dim-normal';
+                topLabel = 'label-normal';
+                topMarkerStart = 'url(#scene1-arrow-start)';
+                topMarkerEnd = 'url(#scene1-arrow-end)';
+            } else if (step === 0 || step === 4) {
+                topFrame = 'frame-normal';
+                topShape = 'shape-normal';
+                topLine = 'line-normal';
+                topDim = 'dim-normal';
+                topLabel = 'label-normal';
+                topMarkerStart = 'url(#scene1-arrow-start)';
+                topMarkerEnd = 'url(#scene1-arrow-end)';
+            } else {
+                topFrame = 'frame-dimmed';
+                topShape = 'shape-dimmed';
+                topLine = 'line-dimmed';
+                topDim = 'dim-dimmed';
+                topLabel = 'label-dimmed';
+                topMarkerStart = 'url(#scene1-arrow-start-dim)';
+                topMarkerEnd = 'url(#scene1-arrow-end-dim)';
+            }
+
+            // 应用正视图样式
+            setClass('scene1-frame-front', frontFrame);
+            setClass('scene1-tri-front', frontShape);
+            setClass('scene1-line-front-mid', frontLine);
+            setClass('scene1-dim-front-base-l', frontDim);
+            setClass('scene1-dim-front-base-r', frontDim);
+            setClass('scene1-dim-front-height', frontDim);
+            setMarker('scene1-dim-front-base-l', frontMarkerStart, frontMarkerEnd);
+            setMarker('scene1-dim-front-base-r', frontMarkerStart, frontMarkerEnd);
+            setMarker('scene1-dim-front-height', frontMarkerStart, frontMarkerEnd);
+            setClass('scene1-label-front-title', frontLabel);
+            setClass('scene1-label-front-base-l', frontLabel);
+            setClass('scene1-label-front-base-r', frontLabel);
+            setClass('scene1-label-front-height', frontLabel);
+
+            // 应用侧视图样式
+            setClass('scene1-frame-side', sideFrame);
+            setClass('scene1-tri-side', sideShape);
+            setClass('scene1-line-side-mid', sideLine);
+            setClass('scene1-dim-side-base-l', sideDim);
+            setClass('scene1-dim-side-base-r', sideDim);
+            setClass('scene1-dim-side-height', sideDim);
+            setMarker('scene1-dim-side-base-l', sideMarkerStart, sideMarkerEnd);
+            setMarker('scene1-dim-side-base-r', sideMarkerStart, sideMarkerEnd);
+            setMarker('scene1-dim-side-height', sideMarkerStart, sideMarkerEnd);
+            setClass('scene1-label-side-title', sideLabel);
+            setClass('scene1-label-side-base-l', sideLabel);
+            setClass('scene1-label-side-base-r', sideLabel);
+            setClass('scene1-label-side-height', sideLabel);
+
+            // 应用俯视图样式
+            setClass('scene1-frame-top', topFrame);
+            setClass('scene1-semi-top', topShape);
+            setClass('scene1-tri-top', topShape);
+            setClass('scene1-line-top-mid', topLine);
+            setClass('scene1-dim-top-base-l', topDim);
+            setClass('scene1-dim-top-base-r', topDim);
+            setClass('scene1-dim-top-height', topDim);
+            setMarker('scene1-dim-top-base-l', topMarkerStart, topMarkerEnd);
+            setMarker('scene1-dim-top-base-r', topMarkerStart, topMarkerEnd);
+            setMarker('scene1-dim-top-height', topMarkerStart, topMarkerEnd);
+            setClass('scene1-label-top-title', topLabel);
+            setClass('scene1-label-top-base-l', topLabel);
+            setClass('scene1-label-top-base-r', topLabel);
+            setClass('scene1-label-top-height', topLabel);
+
+            // 更新控件
+            document.getElementById('scene1-btn-prev').disabled = step === 0;
+            document.getElementById('scene1-btn-next').disabled = step === 4;
+            document.getElementById('scene1-step-indicator').textContent = '步骤 ' + (step + 1) + '/5';
+        }
+
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < 4) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

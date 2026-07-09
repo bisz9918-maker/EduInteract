@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f0f0f0; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .node-text { font-size: 16px; text-anchor: middle; dominant-baseline: middle; fill: #000; transition: all 0.3s; }
+        .node-num { font-size: 16px; text-anchor: middle; dominant-baseline: middle; fill: #000; transition: all 0.3s; }
+        .tree-line { stroke: #000; stroke-width: 2; transition: all 0.3s; }
+        .highlight-blue { fill: #1565c0; font-weight: bold; }
+        .highlight-line { stroke: #1565c0; stroke-width: 3; }
+        .info-box { opacity: 0; transition: opacity 0.3s; }
+        .info-box.visible { opacity: 1; }
+        .info-content { padding: 15px; font-size: 16px; line-height: 1.5; color: #333; }
+        .info-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #1565c0; }
+        .info-desc { margin-bottom: 15px; }
+        .info-option { background: #f5f5f5; padding: 10px; border-radius: 4px; border-left: 4px solid #ccc; }
+        .correct-text { color: #2e7d32; font-weight: bold; }
+        .error-text { color: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Lines -->
+            <line id="scene1-line-1" class="tree-line" x1="220" y1="65" x2="220" y2="90" />
+            <line id="scene1-line-2" class="tree-line" x1="120" y1="90" x2="320" y2="90" />
+            <line id="scene1-line-3" class="tree-line" x1="120" y1="90" x2="120" y2="115" />
+            <line id="scene1-line-4" class="tree-line" x1="320" y1="90" x2="320" y2="115" />
+            
+            <line id="scene1-line-5" class="tree-line" x1="120" y1="145" x2="120" y2="170" />
+            <line id="scene1-line-6" class="tree-line" x1="50" y1="170" x2="190" y2="170" />
+            <line id="scene1-line-7" class="tree-line" x1="50" y1="170" x2="50" y2="195" />
+            <line id="scene1-line-8" class="tree-line" x1="190" y1="170" x2="190" y2="195" />
+            
+            <line id="scene1-line-9" class="tree-line" x1="190" y1="225" x2="190" y2="250" />
+            <line id="scene1-line-10" class="tree-line" x1="120" y1="250" x2="260" y2="250" />
+            <line id="scene1-line-11" class="tree-line" x1="120" y1="250" x2="120" y2="275" />
+            <line id="scene1-line-12" class="tree-line" x1="260" y1="250" x2="260" y2="275" />
+
+            <!-- Nodes -->
+            <text id="scene1-node-root" class="node-text" x="220" y="50">无果实植物</text>
+            
+            <text id="scene1-node-l1-left" class="node-text" x="120" y="130">无种子</text>
+            <text id="scene1-node-l1-right" class="node-text" x="320" y="130">有种子</text>
+            <text id="scene1-num-1" class="node-num" x="320" y="168">①</text>
+            
+            <text id="scene1-node-l2-left" class="node-text" x="50" y="210">无茎叶</text>
+            <text id="scene1-num-2" class="node-num" x="50" y="248">②</text>
+            <text id="scene1-node-l2-right" class="node-text" x="190" y="210">有茎叶</text>
+            
+            <text id="scene1-node-l3-left" class="node-text" x="120" y="290">有输导组织</text>
+            <text id="scene1-num-3" class="node-num" x="120" y="328">③</text>
+            <text id="scene1-node-l3-right" class="node-text" x="260" y="290">无输导组织</text>
+            <text id="scene1-num-4" class="node-num" x="260" y="328">④</text>
+
+            <!-- Info Box -->
+            <path id="scene1-dash-line" fill="none" stroke="#888" stroke-width="2" stroke-dasharray="5,5" class="info-box" />
+            <g id="scene1-info-group" class="info-box">
+                <rect x="400" y="100" width="360" height="240" rx="8" fill="#f8f9fa" stroke="#e0e0e0" stroke-width="2" />
+                <foreignObject x="400" y="100" width="360" height="240">
+                    <div xmlns="http://www.w3.org/1999/xhtml" class="info-content" id="scene1-info-content">
+                        <!-- Content injected by JS -->
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">0 / 4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const infoGroup = document.getElementById('scene1-info-group');
+        const dashLine = document.getElementById('scene1-dash-line');
+        const infoContent = document.getElementById('scene1-info-content');
+
+        const stepsData = [
+            {
+                // Step 0: Initial
+                lines: [],
+                nodes: [],
+                info: null
+            },
+            {
+                // Step 1: ①
+                lines: [1, 2, 4],
+                nodes: ['root', 'l1-right', 'num-1'],
+                dashPath: "M 335 168 L 400 168",
+                info: {
+                    title: "① 裸子植物（种子植物）",
+                    desc: "生殖脱离水的限制，适应干旱陆地",
+                    option: "A．①指的是种子植物，适应干旱的陆地生活 <span class='correct-text'>✔</span>",
+                    borderColor: "#2e7d32"
+                }
+            },
+            {
+                // Step 2: ②
+                lines: [1, 2, 3, 5, 6, 7],
+                nodes: ['root', 'l1-left', 'l2-left', 'num-2'],
+                dashPath: "M 65 248 L 400 248",
+                info: {
+                    title: "② 藻类植物",
+                    desc: "大多生活在水中，少数生活在潮湿陆地",
+                    option: "B．②指的是藻类植物，<span class='error-text'>只能</span>生活在水中 <span class='error-text'>✘</span>",
+                    borderColor: "#c62828"
+                }
+            },
+            {
+                // Step 3: ③
+                lines: [1, 2, 3, 5, 6, 8, 9, 10, 11],
+                nodes: ['root', 'l1-left', 'l2-right', 'l3-left', 'num-3'],
+                dashPath: "M 135 328 L 400 328",
+                info: {
+                    title: "③ 蕨类植物",
+                    desc: "有真正的根、茎、叶，部分种类（如桫椤）可长成高大乔木",
+                    option: "C．③指的植物有真正的根，但长的<span class='error-text'>都很矮小</span> <span class='error-text'>✘</span>",
+                    borderColor: "#c62828"
+                }
+            },
+            {
+                // Step 4: ④
+                lines: [1, 2, 3, 5, 6, 8, 9, 10, 12],
+                nodes: ['root', 'l1-left', 'l2-right', 'l3-right', 'num-4'],
+                dashPath: "M 275 328 L 400 328",
+                info: {
+                    title: "④ 苔藓植物",
+                    desc: "无真正的根，叶仅一层细胞，易受有毒气体伤害",
+                    option: "D．<span class='error-text'>③</span>指的植物没有根，叶结构简单易受有毒气体伤害 <span class='error-text'>✘</span>",
+                    borderColor: "#c62828"
+                }
+            }
+        ];
+
+        function updateScene() {
+            // Reset all
+            for (let i = 1; i <= 12; i++) {
+                document.getElementById(`scene1-line-${i}`).classList.remove('highlight-line');
+            }
+            const allNodes = ['root', 'l1-left', 'l1-right', 'l2-left', 'l2-right', 'l3-left', 'l3-right', 'num-1', 'num-2', 'num-3', 'num-4'];
+            allNodes.forEach(id => {
+                const el = document.getElementById(`scene1-node-${id}`) || document.getElementById(`scene1-num-${id.split('-')[1]}`);
+                if(el) el.classList.remove('highlight-blue');
+            });
+
+            const data = stepsData[currentStep];
+            
+            // Apply highlights
+            data.lines.forEach(i => {
+                document.getElementById(`scene1-line-${i}`).classList.add('highlight-line');
+            });
+            data.nodes.forEach(id => {
+                const el = document.getElementById(`scene1-node-${id}`) || document.getElementById(`scene1-${id}`);
+                if(el) el.classList.add('highlight-blue');
+            });
+
+            // Update info box
+            if (data.info) {
+                infoGroup.classList.add('visible');
+                dashLine.classList.add('visible');
+                
+                dashLine.setAttribute('d', data.dashPath);
+                
+                infoContent.innerHTML = `
+                    <div class="info-title">${data.info.title}</div>
+                    <div class="info-desc">${data.info.desc}</div>
+                    <div class="info-option" style="border-left-color: ${data.info.borderColor}">${data.info.option}</div>
+                `;
+            } else {
+                infoGroup.classList.remove('visible');
+                dashLine.classList.remove('visible');
+            }
+
+            // Update controls
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            stepIndicator.textContent = `${currentStep} / ${totalSteps}`;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

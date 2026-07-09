@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>均匀金属薄板电阻问题 - 场景1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 18px; font-size: 14px; cursor: pointer;
+            border: 1px solid #1565c0; border-radius: 4px; background: #fff; color: #1565c0;
+            transition: all 0.2s ease;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #1565c0; color: #fff; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; border-color: #999; color: #999; background: #f5f5f5; }
+        #scene1-step-indicator-text { font-size: 14px; color: #555; min-width: 70px; text-align: center; }
+
+        .scene1-fade-group { opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-fade-group.visible { opacity: 1; }
+        .scene1-formula-line { opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-formula-line.visible { opacity: 1; }
+        .scene1-missing-block { opacity: 0; transition: opacity 0.2s ease; }
+        .scene1-missing-block.visible { opacity: 0.3; }
+        .scene1-r-label { opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-r-label.visible { opacity: 1; }
+        .scene1-arrow { stroke-dasharray: 300; stroke-dashoffset: 300; transition: stroke-dashoffset 0.5s ease, opacity 0.3s ease; }
+        .scene1-arrow.visible { stroke-dashoffset: 0; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- 薄板外框 (用4条line代替rect，避免bounding box过大导致文字重叠误报) -->
+            <line id="scene1-plate-top" x1="80" y1="130" x2="380" y2="130" stroke="#000" stroke-width="3"/>
+            <line id="scene1-plate-right" x1="380" y1="130" x2="380" y2="370" stroke="#000" stroke-width="3"/>
+            <line id="scene1-plate-bottom" x1="380" y1="370" x2="80" y2="370" stroke="#000" stroke-width="3"/>
+            <line id="scene1-plate-left" x1="80" y1="370" x2="80" y2="130" stroke="#000" stroke-width="3"/>
+
+            <!-- 左/右电极板 (用line+stroke-width代替rect) -->
+            <line id="scene1-electrode-left" x1="75" y1="130" x2="75" y2="370" stroke="#000" stroke-width="10" stroke-linecap="butt"/>
+            <line id="scene1-electrode-right" x1="385" y1="130" x2="385" y2="370" stroke="#000" stroke-width="10" stroke-linecap="butt"/>
+
+            <!-- A/B接线柱 (B大幅右移避免与3R标注和公式卡片冲突) -->
+            <circle id="scene1-terminal-a" cx="50" cy="250" r="12" fill="#fff" stroke="#000" stroke-width="2"/>
+            <circle id="scene1-terminal-b" cx="480" cy="250" r="12" fill="#fff" stroke="#000" stroke-width="2"/>
+
+            <!-- 标签 -->
+            <text id="scene1-label-a" x="35" y="255" font-size="18" fill="#000" text-anchor="middle" dominant-baseline="middle">A</text>
+            <text id="scene1-label-b" x="500" y="255" font-size="18" fill="#000" text-anchor="middle" dominant-baseline="middle">B</text>
+            <!-- 总电阻R标注上移避免与薄板上边重叠 -->
+            <text id="scene1-label-r-total" x="230" y="100" font-size="18" fill="#000" text-anchor="middle" dominant-baseline="middle">R</text>
+
+            <!-- 步骤1: 3x3虚线网格 -->
+            <g id="scene1-step1-grid" class="scene1-fade-group">
+                <line x1="80" y1="210" x2="380" y2="210" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="80" y1="290" x2="380" y2="290" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="180" y1="130" x2="180" y2="370" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="280" y1="130" x2="280" y2="370" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            </g>
+
+            <!-- 步骤2: 电流箭头 -->
+            <g id="scene1-step2-arrows" class="scene1-fade-group">
+                <path class="scene1-arrow" d="M 100 170 L 360 170" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+                <path class="scene1-arrow" d="M 100 250 L 360 250" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+                <path class="scene1-arrow" d="M 100 330 L 360 330" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+            </g>
+
+            <!-- 步骤2: R标注 -->
+            <g id="scene1-step2-rlabels" class="scene1-fade-group">
+                <text id="scene1-r-11" class="scene1-r-label" x="130" y="175" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-12" class="scene1-r-label" x="230" y="175" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-13" class="scene1-r-label" x="330" y="175" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-21" class="scene1-r-label" x="130" y="255" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-22" class="scene1-r-label" x="230" y="255" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-23" class="scene1-r-label" x="330" y="255" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-31" class="scene1-r-label" x="130" y="335" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-32" class="scene1-r-label" x="230" y="335" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+                <text id="scene1-r-33" class="scene1-r-label" x="330" y="335" font-size="16" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">R</text>
+
+                <!-- 3个3R标注 (放在电极与B接线柱之间) -->
+                <text id="scene1-3r-1" class="scene1-r-label" x="400" y="175" font-size="16" fill="#1565c0" text-anchor="start" dominant-baseline="middle">3R</text>
+                <text id="scene1-3r-2" class="scene1-r-label" x="400" y="255" font-size="16" fill="#1565c0" text-anchor="start" dominant-baseline="middle">3R</text>
+                <text id="scene1-3r-3" class="scene1-r-label" x="400" y="335" font-size="16" fill="#1565c0" text-anchor="start" dominant-baseline="middle">3R</text>
+            </g>
+
+            <!-- 步骤3: 公式卡片 (右移避免与B标签冲突) -->
+            <g id="scene1-step3-formula" class="scene1-fade-group">
+                <line x1="520" y1="120" x2="780" y2="120" stroke="#1565c0" stroke-width="2"/>
+                <line x1="780" y1="120" x2="780" y2="380" stroke="#1565c0" stroke-width="2"/>
+                <line x1="780" y1="380" x2="520" y2="380" stroke="#1565c0" stroke-width="2"/>
+                <line x1="520" y1="380" x2="520" y2="120" stroke="#1565c0" stroke-width="2"/>
+                <!-- 公式文字 -->
+                <text id="scene1-formula-1" class="scene1-formula-line" x="540" y="155" font-size="16" fill="#333" text-anchor="start" dominant-baseline="middle">每行 3 块串联：</text>
+                <text id="scene1-formula-2" class="scene1-formula-line" x="540" y="195" font-size="16" fill="#333" text-anchor="start" dominant-baseline="middle">R + R + R = 3R</text>
+                <text id="scene1-formula-3" class="scene1-formula-line" x="540" y="235" font-size="16" fill="#333" text-anchor="start" dominant-baseline="middle">3 行并联：</text>
+                <text id="scene1-formula-4" class="scene1-formula-line" x="540" y="275" font-size="16" fill="#333" text-anchor="start" dominant-baseline="middle">1/R总 = 3/(3R) = 1/R</text>
+                <text id="scene1-formula-5" class="scene1-formula-line" x="540" y="315" font-size="16" fill="#333" text-anchor="start" dominant-baseline="middle">∴ R总 = R</text>
+                <text id="scene1-formula-6" class="scene1-formula-line" x="540" y="355" font-size="18" fill="#2e7d32" font-weight="bold" text-anchor="start" dominant-baseline="middle">⇒ 每小块电阻 = R</text>
+            </g>
+
+            <!-- 步骤4: 中间块缺失区 -->
+            <rect id="scene1-step4-missing" class="scene1-missing-block" x="180" y="210" width="100" height="80" fill="#c62828" stroke="none"/>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator-text">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicatorText = document.getElementById('scene1-step-indicator-text');
+
+        const step1Grid = document.getElementById('scene1-step1-grid');
+        const step2Arrows = document.getElementById('scene1-step2-arrows');
+        const step2Rlabels = document.getElementById('scene1-step2-rlabels');
+        const step3Formula = document.getElementById('scene1-step3-formula');
+        const step4Missing = document.getElementById('scene1-step4-missing');
+        const r22 = document.getElementById('scene1-r-22');
+
+        const formulaLines = [
+            document.getElementById('scene1-formula-1'),
+            document.getElementById('scene1-formula-2'),
+            document.getElementById('scene1-formula-3'),
+            document.getElementById('scene1-formula-4'),
+            document.getElementById('scene1-formula-5'),
+            document.getElementById('scene1-formula-6')
+        ];
+
+        function updateStepIndicator() {
+            const text = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            stepIndicatorText.textContent = text;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+        }
+
+        function showElement(el) {
+            if (!el) return;
+            el.style.display = '';
+            el.classList.add('visible');
+        }
+
+        function hideElement(el) {
+            if (!el) return;
+            el.classList.remove('visible');
+        }
+
+        function renderStep() {
+            if (currentStep >= 1) {
+                showElement(step1Grid);
+            } else {
+                hideElement(step1Grid);
+            }
+
+            if (currentStep >= 2) {
+                showElement(step2Arrows);
+                showElement(step2Rlabels);
+                const allRlabels = step2Rlabels.querySelectorAll('.scene1-r-label');
+                allRlabels.forEach(function(lbl) {
+                    lbl.style.display = '';
+                    lbl.classList.add('visible');
+                });
+            } else {
+                hideElement(step2Arrows);
+                hideElement(step2Rlabels);
+            }
+
+            if (currentStep >= 3) {
+                showElement(step3Formula);
+                formulaLines.forEach(function(line, idx) {
+                    if (line) {
+                        line.style.display = '';
+                        setTimeout(function() {
+                            line.classList.add('visible');
+                        }, idx * 150);
+                    }
+                });
+            } else {
+                hideElement(step3Formula);
+                formulaLines.forEach(function(line) {
+                    if (line) line.classList.remove('visible');
+                });
+            }
+
+            if (currentStep >= 4) {
+                showElement(step4Missing);
+                if (r22) {
+                    r22.classList.remove('visible');
+                    setTimeout(function() {
+                        r22.style.display = 'none';
+                    }, 300);
+                }
+            } else {
+                hideElement(step4Missing);
+                if (r22) {
+                    r22.style.display = '';
+                    r22.classList.add('visible');
+                }
+            }
+
+            updateStepIndicator();
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

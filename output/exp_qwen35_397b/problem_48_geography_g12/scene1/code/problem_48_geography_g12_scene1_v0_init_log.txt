@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球表面某区域的经纬网示意图 - 大圆航线</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        .scene1-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 定义箭头 marker -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 经线 80°E -->
+            <line id="scene1-meridian-80" x1="250" y1="160" x2="250" y2="340" stroke="#000000" stroke-width="2" />
+            <!-- 经线 120°E -->
+            <line id="scene1-meridian-120" x1="550" y1="160" x2="550" y2="340" stroke="#000000" stroke-width="2" />
+            <!-- 纬线 60°N -->
+            <line id="scene1-parallel-60" x1="230" y1="180" x2="570" y2="180" stroke="#000000" stroke-width="2" />
+            <!-- 纬线 40°N -->
+            <line id="scene1-parallel-40" x1="230" y1="320" x2="570" y2="320" stroke="#000000" stroke-width="2" />
+
+            <!-- M 点 -->
+            <circle id="scene1-point-m" cx="250" cy="180" r="6" fill="#1565c0" />
+            <!-- N 点 -->
+            <circle id="scene1-point-n" cx="550" cy="180" r="6" fill="#1565c0" />
+
+            <!-- 标签：80° -->
+            <text id="scene1-label-80" x="250" y="145" text-anchor="middle" font-size="16" fill="#000000">80°</text>
+            <!-- 标签：120° -->
+            <text id="scene1-label-120" x="550" y="145" text-anchor="middle" font-size="16" fill="#000000">120°</text>
+            <!-- 标签：60° -->
+            <text id="scene1-label-60" x="585" y="185" font-size="16" fill="#000000">60°</text>
+            <!-- 标签：40° -->
+            <text id="scene1-label-40" x="585" y="325" font-size="16" fill="#000000">40°</text>
+            <!-- 标签：M -->
+            <text id="scene1-label-m" x="258" y="200" font-size="16" fill="#000000">M</text>
+            <!-- 标签：N -->
+            <text id="scene1-label-n" x="558" y="200" font-size="16" fill="#000000">N</text>
+
+            <!-- 纬线对比路径（虚线，步骤1显示） -->
+            <line id="scene1-path-latitude" x1="250" y1="180" x2="550" y2="180" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0" />
+
+            <!-- 大圆航线（红色弧线，步骤2显示） -->
+            <path id="scene1-path-greatcircle" d="M 250,180 Q 400,135 550,180" fill="none" stroke="#c62828" stroke-width="2" opacity="0" />
+
+            <!-- 方向箭头1（步骤3显示）- 指向东北 -->
+            <path id="scene1-arrow-1" d="M 325,155 L 340,145 L 335,160 Z" fill="#c62828" opacity="0" />
+            <!-- 方向箭头2（步骤3显示）- 指向东南 -->
+            <path id="scene1-arrow-2" d="M 475,145 L 490,155 L 475,160 Z" fill="#c62828" opacity="0" />
+
+            <!-- 方向标注（步骤3显示） -->
+            <text id="scene1-direction-label" x="400" y="120" text-anchor="middle" font-size="14" fill="#c62828" opacity="0">先东北→后东南</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 大圆航线图示
+
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 各步骤需要显示的元素
+        const stepElements = {
+            0: [], // 初始状态：只显示基础经纬网和点
+            1: ['scene1-path-latitude'], // 步骤1：显示纬线路径
+            2: ['scene1-path-greatcircle'], // 步骤2：显示大圆航线
+            3: ['scene1-arrow-1', 'scene1-arrow-2', 'scene1-direction-label'] // 步骤3：显示方向箭头
+        };
+
+        // 显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+
+        // 隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有步骤元素
+            for (let step = 1; step < totalSteps; step++) {
+                stepElements[step].forEach(id => hideElement(id));
+            }
+
+            // 显示当前步骤及之前步骤的元素
+            for (let step = 1; step <= currentStep; step++) {
+                // 步骤2时隐藏步骤1的纬线路径
+                if (step === 1 && currentStep >= 2) {
+                    hideElement('scene1-path-latitude');
+                } else {
+                    stepElements[step].forEach(id => showElement(id));
+                }
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+
+        // 上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        // 下一步
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

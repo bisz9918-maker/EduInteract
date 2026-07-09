@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旋转圆盘系统结构示意</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        .scene1-element { transition: opacity 0.3s ease-in-out; }
+        .scene1-hidden { opacity: 0; }
+        .scene1-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 步骤 0: 圆盘 -->
+            <ellipse id="scene1-disc" cx="400" cy="280" rx="250" ry="60" fill="#e0e0e0" fill-opacity="0.3" stroke="#000000" stroke-width="2" class="scene1-element scene1-visible"/>
+            
+            <!-- 步骤 0: 转轴 -->
+            <rect id="scene1-axis" x="395" y="180" width="10" height="200" fill="#000000" class="scene1-element scene1-visible"/>
+            <ellipse id="scene1-axis-top" cx="400" cy="180" rx="5" ry="3" fill="#000000" class="scene1-element scene1-visible"/>
+            
+            <!-- 步骤 0: 圆心 O 标签 - 调整位置避免与圆盘重叠 -->
+            <text id="scene1-label-o" x="385" y="250" font-size="14" fill="#000000" class="scene1-element scene1-visible">O</text>
+
+            <!-- 步骤 1: 物体 B -->
+            <rect id="scene1-obj-b" x="475" y="270" width="30" height="20" fill="#1565c0" stroke="#000000" stroke-width="1" class="scene1-element scene1-hidden"/>
+            <text id="scene1-label-b" x="490" y="255" font-size="14" fill="#000000" text-anchor="middle" class="scene1-element scene1-hidden">B</text>
+            <!-- r_B 标注 -->
+            <line id="scene1-rb-line" x1="400" y1="280" x2="490" y2="280" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" class="scene1-element scene1-hidden"/>
+            <text id="scene1-rb-label" x="435" y="295" font-size="13" fill="#000000" text-anchor="middle" class="scene1-element scene1-hidden">r_B=10cm</text>
+
+            <!-- 步骤 2: 物体 A -->
+            <rect id="scene1-obj-a" x="545" y="270" width="30" height="20" fill="#1565c0" stroke="#000000" stroke-width="1" class="scene1-element scene1-hidden"/>
+            <text id="scene1-label-a" x="560" y="255" font-size="14" fill="#000000" text-anchor="middle" class="scene1-element scene1-hidden">A</text>
+            <!-- r_A 标注 -->
+            <line id="scene1-ra-line" x1="400" y1="280" x2="560" y2="280" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" class="scene1-element scene1-hidden"/>
+            <text id="scene1-ra-label" x="470" y="315" font-size="13" fill="#000000" text-anchor="middle" class="scene1-element scene1-hidden">r_A=20cm</text>
+
+            <!-- 步骤 3: OB 绳 -->
+            <line id="scene1-rope-ob" x1="410" y1="280" x2="475" y2="280" stroke="#000000" stroke-width="1.5" class="scene1-element scene1-hidden"/>
+            <!-- AB 绳 -->
+            <line id="scene1-rope-ab" x1="505" y1="280" x2="545" y2="280" stroke="#000000" stroke-width="1.5" class="scene1-element scene1-hidden"/>
+
+            <!-- 步骤 4: 转动箭头 -->
+            <path id="scene1-rotation-arrow" d="M 400 180 A 40 40 0 0 1 428 192" fill="none" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrowhead)" class="scene1-element scene1-hidden"/>
+            <text id="scene1-omega" x="430" y="205" font-size="16" fill="#2e7d32" font-style="italic" class="scene1-element scene1-hidden">ω</text>
+
+            <!-- 控件栏 - 调整布局避免文字重叠 -->
+            <g id="scene1-controls">
+                <!-- 上一步按钮 -->
+                <rect id="scene1-btn-prev-bg" x="280" y="450" width="100" height="35" fill="#1976d2" rx="4"/>
+                <text id="scene1-btn-prev-text" x="330" y="472" font-size="14" fill="#ffffff" text-anchor="middle">◀ 上一步</text>
+                
+                <!-- 步骤指示器 - 移到按钮下方 -->
+                <text id="scene1-step-indicator" x="400" y="490" font-size="12" fill="#666666" text-anchor="middle">步骤 1/5</text>
+                
+                <!-- 下一步按钮 -->
+                <rect id="scene1-btn-next-bg" x="420" y="450" width="100" height="35" fill="#1976d2" rx="4"/>
+                <text id="scene1-btn-next-text" x="470" y="472" font-size="14" fill="#ffffff" text-anchor="middle">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 旋转圆盘系统结构示意
+
+        // 状态机
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步显示的元素 ID 列表
+        const steps = [
+            // 步骤 0: 圆盘 + 转轴 + O 标签
+            ['scene1-disc', 'scene1-axis', 'scene1-axis-top', 'scene1-label-o'],
+            // 步骤 1: + 物体 B + 标签 B + r_B 标注
+            ['scene1-disc', 'scene1-axis', 'scene1-axis-top', 'scene1-label-o', 'scene1-obj-b', 'scene1-label-b', 'scene1-rb-line', 'scene1-rb-label'],
+            // 步骤 2: + 物体 A + 标签 A + r_A 标注
+            ['scene1-disc', 'scene1-axis', 'scene1-axis-top', 'scene1-label-o', 'scene1-obj-b', 'scene1-label-b', 'scene1-rb-line', 'scene1-rb-label', 'scene1-obj-a', 'scene1-label-a', 'scene1-ra-line', 'scene1-ra-label'],
+            // 步骤 3: + OB 绳 + AB 绳
+            ['scene1-disc', 'scene1-axis', 'scene1-axis-top', 'scene1-label-o', 'scene1-obj-b', 'scene1-label-b', 'scene1-rb-line', 'scene1-rb-label', 'scene1-obj-a', 'scene1-label-a', 'scene1-ra-line', 'scene1-ra-label', 'scene1-rope-ob', 'scene1-rope-ab'],
+            // 步骤 4: + 转动箭头 + ω符号
+            ['scene1-disc', 'scene1-axis', 'scene1-axis-top', 'scene1-label-o', 'scene1-obj-b', 'scene1-label-b', 'scene1-rb-line', 'scene1-rb-label', 'scene1-obj-a', 'scene1-label-a', 'scene1-ra-line', 'scene1-ra-label', 'scene1-rope-ob', 'scene1-rope-ab', 'scene1-rotation-arrow', 'scene1-omega']
+        ];
+
+        // 所有可控制的元素 ID
+        const allElementIds = [
+            'scene1-disc', 'scene1-axis', 'scene1-axis-top', 'scene1-label-o',
+            'scene1-obj-b', 'scene1-label-b', 'scene1-rb-line', 'scene1-rb-label',
+            'scene1-obj-a', 'scene1-label-a', 'scene1-ra-line', 'scene1-ra-label',
+            'scene1-rope-ob', 'scene1-rope-ab',
+            'scene1-rotation-arrow', 'scene1-omega'
+        ];
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+            }
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            const currentElements = steps[currentStep];
+            
+            // 隐藏所有元素
+            allElementIds.forEach(id => hideElement(id));
+            
+            // 显示当前步骤的元素
+            currentElements.forEach(id => showElement(id));
+            
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene1-step-indicator');
+            indicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            
+            // 更新按钮状态
+            const prevBtnBg = document.getElementById('scene1-btn-prev-bg');
+            const nextBtnBg = document.getElementById('scene1-btn-next-bg');
+            
+            if (currentStep === 0) {
+                prevBtnBg.setAttribute('fill', '#cccccc');
+            } else {
+                prevBtnBg.setAttribute('fill', '#1976d2');
+            }
+            
+            if (currentStep === totalSteps - 1) {
+                nextBtnBg.setAttribute('fill', '#cccccc');
+            } else {
+                nextBtnBg.setAttribute('fill', '#1976d2');
+            }
+        }
+
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        }
+
+        // 下一步
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        }
+
+        // 按钮点击区域检测
+        const controlsGroup = document.getElementById('scene1-controls');
+        
+        controlsGroup.addEventListener('click', function(e) {
+            const rect = controlsGroup.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // 上一步按钮区域 (280, 450) 100x35
+            if (x >= 280 && x <= 380 && y >= 450 && y <= 485) {
+                prevStep();
+            }
+            // 下一步按钮区域 (420, 450) 100x35
+            else if (x >= 420 && x <= 520 && y >= 450 && y <= 485) {
+                nextStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

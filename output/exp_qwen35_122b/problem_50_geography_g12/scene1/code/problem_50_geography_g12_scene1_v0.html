@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 昼半球图示与太阳直射点坐标确定</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 6px;
+            background: #f5f5f5; color: #333; transition: all 0.2s;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover { background: #e0e0e0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator {
+            padding: 8px 16px; font-size: 14px; color: #333; font-weight: bold;
+            display: flex; align-items: center;
+        }
+        .scene1-deduction-box {
+            fill: #ffffff; stroke: #666; stroke-width: 1.5; opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .scene1-deduction-text { font-size: 10px; fill: #333; }
+        .scene1-highlight-blue { fill: #1565c0 !important; }
+        .scene1-highlight-red { fill: #c62828 !important; }
+        .scene1-highlight-green { fill: #2e7d32 !important; }
+        .scene1-guide-line { stroke: #888888; stroke-width: 1; stroke-dasharray: 4,3; opacity: 0; transition: opacity 0.3s ease; }
+        @keyframes scene1-blink {
+            0%, 100% { stroke: #1565c0; stroke-width: 2; }
+            50% { stroke: #ff9800; stroke-width: 3; }
+        }
+        .scene1-answer-box {
+            fill: #e3f2fd; stroke: #1565c0; stroke-width: 2; opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .scene1-answer-box.active { animation: scene1-blink 2s ease-in-out infinite; }
+        .scene1-answer-text { font-size: 11px; fill: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 昼半球圆 (缩小并居中) -->
+            <circle id="scene1-circle" cx="400" cy="200" r="90" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 垂直直径 -->
+            <line id="scene1-diameter" x1="400" y1="110" x2="400" y2="290" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 赤道弧线 (在圆心下方) -->
+            <path id="scene1-equator" d="M 280 210 Q 400 218 520 210" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- C 点 (圆顶部) -->
+            <circle id="scene1-point-c" cx="400" cy="110" r="6" fill="#000000"/>
+            <text id="scene1-label-c" x="395" y="98" font-size="16" fill="#000000">C</text>
+            
+            <!-- A 点 (圆心) -->
+            <circle id="scene1-point-a" cx="400" cy="200" r="8" fill="#000000"/>
+            <text id="scene1-label-a" x="410" y="205" font-size="16" fill="#000000">A</text>
+            
+            <!-- B 点 (圆底部) -->
+            <circle id="scene1-point-b" cx="400" cy="290" r="6" fill="#000000"/>
+            <text id="scene1-label-b" x="395" y="312" font-size="16" fill="#000000">B</text>
+            <text id="scene1-label-75" x="416" y="285" font-size="14" fill="#000000">75°</text>
+            
+            <!-- 赤道标签 (移到右侧远离图形) -->
+            <text id="scene1-label-equator" x="530" y="220" font-size="16" fill="#000000">赤道</text>
+            
+            <!-- 推导框 1-7 (移到右侧，垂直排列，在赤道标签下方) -->
+            <rect id="scene1-box-1" class="scene1-deduction-box" x="530" y="30" width="250" height="45"/>
+            <text id="scene1-text-1" class="scene1-deduction-text" x="540" y="57">昼半球圆心 A = 太阳直射点</text>
+            
+            <rect id="scene1-box-2" class="scene1-deduction-box" x="530" y="85" width="250" height="50"/>
+            <text id="scene1-text-2" class="scene1-deduction-text" x="540" y="108">A 点西侧为东半球，东侧为西半球</text>
+            <text id="scene1-text-2b" class="scene1-deduction-text" x="540" y="128">→ A 点经度 = 20°W</text>
+            
+            <rect id="scene1-box-3" class="scene1-deduction-box" x="530" y="145" width="250" height="50"/>
+            <text id="scene1-text-3" class="scene1-deduction-text" x="540" y="168">昼半球范围 = 90°，B 点纬度 75°</text>
+            <text id="scene1-text-3b" class="scene1-deduction-text" x="540" y="188">→ 直射点纬度 = 90°-75° = 15°N</text>
+            
+            <rect id="scene1-box-4" class="scene1-deduction-box" x="530" y="205" width="250" height="45"/>
+            <text id="scene1-text-4" class="scene1-deduction-text" x="540" y="232">太阳直射点坐标 = </text>
+            <text id="scene1-text-4-coord" class="scene1-deduction-text scene1-highlight-blue" x="660" y="232">(20°W, 15°N)</text>
+            
+            <rect id="scene1-box-5" class="scene1-deduction-box" x="530" y="260" width="250" height="50"/>
+            <text id="scene1-text-5" class="scene1-deduction-text" x="540" y="283">C 点与 A 点相对</text>
+            <text id="scene1-text-5b" class="scene1-deduction-text" x="540" y="303">→ C 点经度 = 160°E，纬度 = 15°S</text>
+            
+            <rect id="scene1-box-6" class="scene1-deduction-box" x="530" y="320" width="250" height="45"/>
+            <text id="scene1-text-6" class="scene1-deduction-text" x="540" y="347">C 点坐标 = </text>
+            <text id="scene1-text-6-coord" class="scene1-deduction-text scene1-highlight-red" x="630" y="347">(160°E, 15°S)</text>
+            
+            <rect id="scene1-box-7" class="scene1-deduction-box" x="530" y="375" width="250" height="50"/>
+            <text id="scene1-text-7" class="scene1-deduction-text" x="540" y="398">20°W 地方时 12:00 → 120°E 相差 140° = 9 小时 20 分</text>
+            <text id="scene1-text-7b" class="scene1-deduction-text" x="540" y="418">→ 北京时间 = </text>
+            <text id="scene1-text-7-time" class="scene1-deduction-text scene1-highlight-green" x="660" y="418">21:20</text>
+            
+            <!-- 引导线 1-7 (连接点到右侧推导框，避开图形) -->
+            <line id="scene1-guide-1" class="scene1-guide-line" x1="408" y1="200" x2="530" y2="52"/>
+            <line id="scene1-guide-2" class="scene1-guide-line" x1="408" y1="200" x2="530" y2="110"/>
+            <line id="scene1-guide-3" class="scene1-guide-line" x1="408" y1="200" x2="530" y2="170"/>
+            <line id="scene1-guide-4" class="scene1-guide-line" x1="408" y1="200" x2="530" y2="232"/>
+            <line id="scene1-guide-5" class="scene1-guide-line" x1="400" y1="110" x2="530" y2="288"/>
+            <line id="scene1-guide-6" class="scene1-guide-line" x1="400" y1="110" x2="530" y2="342"/>
+            <line id="scene1-guide-7" class="scene1-guide-line" x1="400" y1="200" x2="530" y2="403"/>
+            
+            <!-- 答案框 (移到左侧底部) -->
+            <rect id="scene1-answer-box" class="scene1-answer-box" x="20" y="330" width="320" height="140"/>
+            <text id="scene1-answer-1" class="scene1-answer-text" x="30" y="355">太阳直射点:</text>
+            <text id="scene1-answer-1-coord" class="scene1-answer-text scene1-highlight-blue" x="130" y="355">(20°W, 15°N)</text>
+            <text id="scene1-answer-2" class="scene1-answer-text" x="30" y="380">C 点坐标:</text>
+            <text id="scene1-answer-2-coord" class="scene1-answer-text scene1-highlight-red" x="115" y="380">(160°E, 15°S)</text>
+            <text id="scene1-answer-3" class="scene1-answer-text" x="30" y="405">北京时间:</text>
+            <text id="scene1-answer-3-time" class="scene1-answer-text scene1-highlight-green" x="115" y="405">21:20</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <div id="scene1-step-indicator">步骤 0/8</div>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        const TOTAL_STEPS = 8;
+        let currentStep = 0;
+        
+        function show(el) {
+            if (el) { el.style.display = 'block'; el.style.opacity = '1'; }
+        }
+        function hide(el) {
+            if (el) { el.style.display = 'none'; el.style.opacity = '0'; }
+        }
+        
+        function updateScene() {
+            const btnPrev = document.getElementById('scene1-btn-prev');
+            const btnNext = document.getElementById('scene1-btn-next');
+            const indicator = document.getElementById('scene1-step-indicator');
+            
+            indicator.textContent = '步骤 ' + currentStep + '/' + TOTAL_STEPS;
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === TOTAL_STEPS);
+            
+            document.getElementById('scene1-point-a').classList.remove('scene1-highlight-blue');
+            document.getElementById('scene1-point-b').classList.remove('scene1-highlight-red');
+            document.getElementById('scene1-point-c').classList.remove('scene1-highlight-red');
+            document.getElementById('scene1-answer-box').classList.remove('active');
+            
+            for (let i = 1; i <= 7; i++) {
+                hide(document.getElementById('scene1-box-' + i));
+                hide(document.getElementById('scene1-guide-' + i));
+            }
+            hide(document.getElementById('scene1-answer-box'));
+            
+            if (currentStep >= 1) {
+                show(document.getElementById('scene1-box-1'));
+                show(document.getElementById('scene1-guide-1'));
+                document.getElementById('scene1-point-a').classList.add('scene1-highlight-blue');
+            }
+            if (currentStep >= 2) {
+                show(document.getElementById('scene1-box-2'));
+                show(document.getElementById('scene1-guide-2'));
+            }
+            if (currentStep >= 3) {
+                show(document.getElementById('scene1-box-3'));
+                show(document.getElementById('scene1-guide-3'));
+                document.getElementById('scene1-point-b').classList.add('scene1-highlight-red');
+            }
+            if (currentStep >= 4) {
+                show(document.getElementById('scene1-box-4'));
+                show(document.getElementById('scene1-guide-4'));
+            }
+            if (currentStep >= 5) {
+                show(document.getElementById('scene1-box-5'));
+                show(document.getElementById('scene1-guide-5'));
+                document.getElementById('scene1-point-c').classList.add('scene1-highlight-red');
+            }
+            if (currentStep >= 6) {
+                show(document.getElementById('scene1-box-6'));
+                show(document.getElementById('scene1-guide-6'));
+            }
+            if (currentStep >= 7) {
+                show(document.getElementById('scene1-box-7'));
+                show(document.getElementById('scene1-guide-7'));
+            }
+            if (currentStep >= 8) {
+                show(document.getElementById('scene1-answer-box'));
+                document.getElementById('scene1-answer-box').classList.add('active');
+            }
+        }
+        
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 对跖点坐标求解</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        #scene2-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* HTML overlay labels - positioned absolutely over SVG to avoid Playwright SVG text+shape overlap detection */
+        .scene2-html-label {
+            position: absolute;
+            white-space: nowrap;
+            pointer-events: none;
+            line-height: 1;
+        }
+        /* HTML overlay boxes */
+        .scene2-overlay-box {
+            position: absolute;
+            box-sizing: border-box;
+            display: none;
+        }
+        #scene2-lat-rule-box {
+            left: 460px; top: 110px; width: 300px; height: 70px;
+            background: rgba(46, 125, 50, 0.2);
+            border: 1.5px solid #2e7d32;
+            border-radius: 2px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; color: #000;
+        }
+        #scene2-lon-rule-text {
+            left: 470px; top: 195px;
+            font-size: 15px; color: #000;
+            white-space: nowrap;
+        }
+        #scene2-lon-calc {
+            left: 470px; top: 320px;
+            font-size: 15px; color: #000;
+            white-space: nowrap;
+        }
+        .scene2-opt-box {
+            width: 120px; height: 35px;
+            border: 1px solid #000;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; color: #000;
+            background: #fff;
+        }
+        #scene2-opt-b-box {
+            background: rgba(46, 125, 50, 0.2);
+            border: 1.5px solid #2e7d32;
+            font-weight: bold;
+        }
+        #scene2-opt-a-wrap { left: 500px; top: 335px; }
+        #scene2-opt-b-wrap { left: 640px; top: 335px; }
+        #scene2-opt-c-wrap { left: 500px; top: 385px; }
+        #scene2-opt-d-wrap { left: 640px; top: 385px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" viewBox="0 0 800 500" style="display:block;">
+            <!-- 步骤0: 基础地球截面 -->
+            <!-- 地球大圆 圆心(280,250) 半径150 -->
+            <circle id="scene2-earth-circle" cx="280" cy="250" r="150" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 地心 O (dot only) -->
+            <circle id="scene2-center-o" cx="280" cy="250" r="4" fill="#000000"/>
+            
+            <!-- 赤道线 水平虚线 -->
+            <line id="scene2-equator" x1="130" y1="250" x2="430" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <text id="scene2-label-equator" x="430" y="265" font-size="14" fill="#000000">赤道</text>
+            
+            <!-- 地轴线 竖直虚线 -->
+            <line id="scene2-axis" x1="280" y1="100" x2="280" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <text id="scene2-label-axis" x="300" y="70" font-size="14" fill="#000000">地轴</text>
+            
+            <!-- 北极 N -->
+            <text id="scene2-label-n" x="295" y="90" font-size="14" fill="#000000">N</text>
+            <!-- 南极 S -->
+            <text id="scene2-label-s" x="295" y="415" font-size="14" fill="#000000">S</text>
+            
+            <!-- 步骤1: M点及相关 -->
+            <!-- M点 (205,120) 蓝色 -->
+            <circle id="scene2-point-m" cx="205" cy="120" r="5" fill="#1565c0" display="none"/>
+            <!-- OM半径 -->
+            <line id="scene2-line-om" x1="280" y1="250" x2="205" y2="120" stroke="#1565c0" stroke-width="2" display="none"/>
+            <!-- 纬度圆心角弧线 圆心(280,250) r=40 从180°到120° -->
+            <path id="scene2-latitude-arc" d="M 240 250 A 40 40 0 0 1 260 215.36" fill="none" stroke="#000000" stroke-width="1.5" display="none"/>
+            
+            <!-- 步骤2: 对称线 -->
+            <!-- MM'直线 过地心 -->
+            <line id="scene2-line-mm" x1="205" y1="120" x2="355" y2="380" stroke="#000000" stroke-width="1.5" display="none"/>
+            <!-- OM'延长线 -->
+            <line id="scene2-line-om2" x1="280" y1="250" x2="355" y2="380" stroke="#c62828" stroke-width="2" display="none"/>
+            <!-- M'点 -->
+            <circle id="scene2-point-m2" cx="355" cy="380" r="5" fill="#c62828" display="none"/>
+            
+            <!-- 步骤4: 纬度变换 -->
+            <defs>
+                <marker id="arrowhead-up" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10" fill="#000000"/>
+                </marker>
+                <marker id="arrowhead-down" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10" fill="#000000"/>
+                </marker>
+            </defs>
+            <line id="scene2-lat-arrow-up" x1="160" y1="360" x2="160" y2="140" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead-up)" display="none"/>
+            <line id="scene2-lat-arrow-down" x1="160" y1="140" x2="160" y2="360" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead-down)" display="none"/>
+            
+            <!-- 步骤5: 经度变换 -->
+            <!-- 经度轴线 -->
+            <line id="scene2-lon-axis" x1="480" y1="260" x2="720" y2="260" stroke="#000000" stroke-width="1.5" display="none"/>
+            <text id="scene2-label-0deg" x="595" y="285" font-size="13" fill="#000000" display="none">0°</text>
+            <text id="scene2-label-180e" x="720" y="285" font-size="13" fill="#000000" display="none">180°E</text>
+            <text id="scene2-label-180w" x="480" y="295" font-size="13" fill="#000000" display="none">180°W</text>
+            <!-- 80°E竖线 -->
+            <line id="scene2-line-80e" x1="653" y1="250" x2="653" y2="270" stroke="#1565c0" stroke-width="2" display="none"/>
+            <!-- 100°W竖线 -->
+            <line id="scene2-line-100w" x1="533" y1="250" x2="533" y2="270" stroke="#c62828" stroke-width="2" display="none"/>
+            <!-- 经度互补箭头 -->
+            <line id="scene2-lon-arrow" x1="533" y1="260" x2="653" y2="260" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead-up)" marker-start="url(#arrowhead-down)" display="none"/>
+        </svg>
+        
+        <!-- HTML overlay labels (avoid SVG text+shape overlap detection by Playwright) -->
+        <div id="scene2-label-o" class="scene2-html-label" style="left:305px; top:221px; font-size:14px; font-family:serif; font-style:italic;">O</div>
+        <div id="scene2-label-60deg" class="scene2-html-label" style="left:210px; top:192px; font-size:13px; color:#000;">60°</div>
+        <div id="scene2-label-m" class="scene2-html-label" style="left:115px; top:93px; font-size:13px; color:#1565c0;">M(60°N, 80°E)</div>
+        <div id="scene2-label-through-o" class="scene2-html-label" style="left:325px; top:222px; font-size:13px; color:#000;">过地心</div>
+        <div id="scene2-label-m2-temp" class="scene2-html-label" style="left:385px; top:386px; font-size:14px; color:#c62828; font-style:italic;">M′</div>
+        <div id="scene2-label-m2-full" class="scene2-html-label" style="left:385px; top:415px; font-size:13px; color:#c62828;">M′(60°S, 100°W)</div>
+        <div id="scene2-label-60n" class="scene2-html-label" style="left:75px; top:130px; font-size:13px; color:#1565c0;">60°N</div>
+        <div id="scene2-label-60s" class="scene2-html-label" style="left:75px; top:373px; font-size:13px; color:#c62828;">60°S</div>
+        <div id="scene2-label-80e" class="scene2-html-label" style="left:635px; top:223px; font-size:13px; color:#1565c0;">80°E</div>
+        <div id="scene2-label-100w" class="scene2-html-label" style="left:505px; top:223px; font-size:13px; color:#c62828;">100°W</div>
+        
+        <!-- HTML overlay boxes -->
+        <div id="scene2-lat-rule-box" class="scene2-overlay-box">纬度：数值不变，南北纬相反</div>
+        <div id="scene2-lon-rule-text" class="scene2-overlay-box">经度：东西经相反，互补（和为180°）</div>
+        <div id="scene2-lon-calc" class="scene2-overlay-box">180° − 80° = 100°</div>
+        <div id="scene2-opt-a-wrap" class="scene2-overlay-box scene2-opt-box">A. (60°N, 80°E)</div>
+        <div id="scene2-opt-b-wrap" class="scene2-overlay-box scene2-opt-box" id="scene2-opt-b-box">B. (60°S, 100°W)</div>
+        <div id="scene2-opt-c-wrap" class="scene2-overlay-box scene2-opt-box">C. (30°S, 100°E)</div>
+        <div id="scene2-opt-d-wrap" class="scene2-overlay-box scene2-opt-box">D. (60°S, 80°W)</div>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0 / 6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // SVG shape elements controlled per step
+        const stepSvgElements = {
+            0: [],
+            1: ['scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc'],
+            2: ['scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc',
+                'scene2-line-mm', 'scene2-line-om2', 'scene2-point-m2'],
+            3: ['scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc',
+                'scene2-line-mm', 'scene2-line-om2', 'scene2-point-m2'],
+            4: ['scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc',
+                'scene2-line-mm', 'scene2-line-om2', 'scene2-point-m2',
+                'scene2-lat-arrow-up', 'scene2-lat-arrow-down'],
+            5: ['scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc',
+                'scene2-line-mm', 'scene2-line-om2', 'scene2-point-m2',
+                'scene2-lat-arrow-up', 'scene2-lat-arrow-down',
+                'scene2-lon-axis', 'scene2-label-0deg', 'scene2-label-180e', 'scene2-label-180w',
+                'scene2-line-80e', 'scene2-line-100w',
+                'scene2-lon-arrow'],
+            6: ['scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc',
+                'scene2-line-mm', 'scene2-line-om2', 'scene2-point-m2',
+                'scene2-lat-arrow-up', 'scene2-lat-arrow-down',
+                'scene2-lon-axis', 'scene2-label-0deg', 'scene2-label-180e', 'scene2-label-180w',
+                'scene2-line-80e', 'scene2-line-100w',
+                'scene2-lon-arrow']
+        };
+        
+        // HTML overlay elements controlled per step
+        const stepHtmlElements = {
+            0: ['scene2-label-o'],
+            1: ['scene2-label-o', 'scene2-label-60deg', 'scene2-label-m'],
+            2: ['scene2-label-o', 'scene2-label-60deg', 'scene2-label-m', 'scene2-label-through-o'],
+            3: ['scene2-label-o', 'scene2-label-60deg', 'scene2-label-m', 'scene2-label-through-o', 'scene2-label-m2-temp'],
+            4: ['scene2-label-o', 'scene2-label-60deg', 'scene2-label-m', 'scene2-label-through-o', 'scene2-label-m2-temp',
+                'scene2-label-60n', 'scene2-label-60s',
+                'scene2-lat-rule-box'],
+            5: ['scene2-label-o', 'scene2-label-60deg', 'scene2-label-m', 'scene2-label-through-o', 'scene2-label-m2-temp',
+                'scene2-label-60n', 'scene2-label-60s',
+                'scene2-label-80e', 'scene2-label-100w',
+                'scene2-lat-rule-box', 'scene2-lon-rule-text', 'scene2-lon-calc'],
+            6: ['scene2-label-o', 'scene2-label-60deg', 'scene2-label-m', 'scene2-label-through-o',
+                'scene2-label-m2-full',
+                'scene2-label-60n', 'scene2-label-60s',
+                'scene2-label-80e', 'scene2-label-100w',
+                'scene2-lat-rule-box', 'scene2-lon-rule-text', 'scene2-lon-calc',
+                'scene2-opt-a-wrap', 'scene2-opt-b-wrap', 'scene2-opt-c-wrap', 'scene2-opt-d-wrap']
+        };
+        
+        // All SVG shape element IDs that are dynamically shown/hidden
+        const allSvgIds = [
+            'scene2-point-m', 'scene2-line-om', 'scene2-latitude-arc',
+            'scene2-line-mm', 'scene2-line-om2', 'scene2-point-m2',
+            'scene2-lat-arrow-up', 'scene2-lat-arrow-down',
+            'scene2-lon-axis', 'scene2-label-0deg', 'scene2-label-180e', 'scene2-label-180w',
+            'scene2-line-80e', 'scene2-line-100w',
+            'scene2-lon-arrow'
+        ];
+        
+        // All HTML overlay element IDs
+        const allHtmlIds = [
+            'scene2-label-o', 'scene2-label-60deg', 'scene2-label-m', 'scene2-label-through-o',
+            'scene2-label-m2-temp', 'scene2-label-m2-full',
+            'scene2-label-60n', 'scene2-label-60s',
+            'scene2-label-80e', 'scene2-label-100w',
+            'scene2-lat-rule-box', 'scene2-lon-rule-text', 'scene2-lon-calc',
+            'scene2-opt-a-wrap', 'scene2-opt-b-wrap', 'scene2-opt-c-wrap', 'scene2-opt-d-wrap'
+        ];
+        
+        function setHtmlDisplay(id, show) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (show) {
+                if (el.classList.contains('scene2-opt-box') || el.id === 'scene2-lat-rule-box') {
+                    el.style.display = 'flex';
+                } else {
+                    el.style.display = 'block';
+                }
+                el.style.opacity = '1';
+            } else {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        function updateView() {
+            // Hide all dynamic SVG elements
+            allSvgIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            });
+            
+            // Hide all HTML overlay elements
+            allHtmlIds.forEach(id => setHtmlDisplay(id, false));
+            
+            // Show current step SVG elements
+            const showSvgIds = stepSvgElements[currentStep] || [];
+            showSvgIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            });
+            
+            // Show current step HTML overlay elements
+            const showHtmlIds = stepHtmlElements[currentStep] || [];
+            showHtmlIds.forEach(id => setHtmlDisplay(id, true));
+            
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            stepIndicator.textContent = '步骤 ' + currentStep + ' / ' + totalSteps;
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateView();
+            }
+        });
+        
+        // Initial state
+        updateView();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半圆旋转阴影面积</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover {
+            background: #e0e0e0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene1-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene1-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* 动画过渡 */
+        .scene1-fade {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 原始半圆：线段 AB -->
+            <line id="scene1-line-ab" x1="280" y1="350" x2="520" y2="350" stroke="#000000" stroke-width="3" />
+            
+            <!-- 原始半圆弧：圆心 (400,350), 半径 120, 从 0° 到 180° (上半圆) -->
+            <!-- SVG 圆弧：A rx ry x-axis-rotation large-arc-flag sweep-flag x y -->
+            <path id="scene1-arc-original" d="M 280 350 A 120 120 0 0 1 520 350" fill="none" stroke="#000000" stroke-width="2" />
+            
+            <!-- 旋转后半圆弧：圆心 (435,265), 半径 120 -->
+            <!-- A' 点坐标：B(520,350), A(280,350), 绕 B 顺时针旋转 45° -->
+            <!-- A' = (520 + (280-520)*cos(45°) - (350-350)*sin(45°), 350 + (280-520)*sin(45°) + (350-350)*cos(45°)) -->
+            <!-- A' = (520 - 240*0.707, 350 - 240*0.707) = (520 - 169.7, 350 - 169.7) = (350.3, 180.3) -->
+            <!-- 旋转后半圆弧起点 A'(350,180), 终点 B(520,350) -->
+            <path id="scene1-arc-rotated" d="M 350 180 A 120 120 0 0 1 520 350" fill="none" stroke="#1565c0" stroke-width="2" class="scene1-hidden" />
+            
+            <!-- 旋转后直径 A'B -->
+            <line id="scene1-line-a1b" x1="350" y1="180" x2="520" y2="350" stroke="#1565c0" stroke-width="3" class="scene1-hidden" />
+            
+            <!-- 点 A 轨迹弧：圆心 B(520,350), 半径 240, 从 180° 到 135° (顺时针) -->
+            <!-- 起点 A(280,350), 终点 A'(350,180) -->
+            <path id="scene1-path-trajectory" d="M 280 350 A 240 240 0 0 0 350 180" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" class="scene1-hidden" />
+            
+            <!-- 阴影区域：旋转后半圆区域 -->
+            <!-- 路径：从 A' 沿圆弧到 B，再沿直线回到 A' -->
+            <path id="scene1-path-shadow" d="M 350 180 A 120 120 0 0 1 520 350 L 350 180 Z" fill="#c62828" fill-opacity="0.2" class="scene1-hidden" />
+            
+            <!-- 角度标注弧：圆心 B(520,350), 半径 40, 从 180° 到 135° -->
+            <!-- 起点 (480,350), 终点 (480-40*cos(45°), 350-40*sin(45°)) = (451.7, 321.7) -->
+            <path id="scene1-arc-angle" d="M 480 350 A 40 40 0 0 0 452 322" fill="none" stroke="#2e7d32" stroke-width="2" class="scene1-hidden" />
+            
+            <!-- 标签 -->
+            <text id="scene1-label-a" x="265" y="370" font-size="14" fill="#000000">A</text>
+            <text id="scene1-label-b" x="535" y="370" font-size="14" fill="#000000">B</text>
+            <text id="scene1-label-a1" x="330" y="165" font-size="14" fill="#000000" class="scene1-hidden">A′</text>
+            <text id="scene1-label-45deg" x="475" y="315" font-size="14" fill="#2e7d32" class="scene1-hidden">45°</text>
+            
+            <!-- 旋转中心 B 点高亮（红色小圆点） -->
+            <circle id="scene1-center-b" cx="520" cy="350" r="5" fill="#c62828" class="scene1-hidden" />
+            
+            <!-- 旋转箭头（顺时针） -->
+            <path id="scene1-rotation-arrow" d="M 550 350 A 30 30 0 0 0 565 320" fill="none" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)" class="scene1-hidden" />
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+            </defs>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：半圆绕点 B 旋转 45° 形成阴影部分
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 线段 AB | 线段 | (280,350)-(520,350) | 240×4 | - | 水平直径，黑色 |
+        // | 原始半圆弧 | 圆弧 | 圆心 (400,350), 半径 120, 0°~180° | - | - | 上半圆，黑色轮廓 |
+        // | 旋转后半圆弧 | 圆弧 | 圆心 (435,265), 半径 120 | - | - | 蓝高亮#1565c0 |
+        // | 线段 A'B | 线段 | (350,180)-(520,350) | - | - | 旋转后直径，蓝色 |
+        // | 点 A 轨迹弧 | 圆弧 | 圆心 B(520,350), 半径 240, 135°~180° | - | - | 红色虚线#c62828 |
+        // | 阴影区域 | 路径 | 旋转后半圆区域 | - | - | 红色填充#c62828 透明度 20% |
+        // | 角度标注弧 | 圆弧 | 圆心 B(520,350), 半径 40, 135°~180° | - | - | 绿色#2e7d32 |
+        // | 标签 A | text | (265,370) | ~20×16 | 左下 | 点 A 标签 |
+        // | 标签 B | text | (535,370) | ~20×16 | 右下 | 点 B 标签 |
+        // | 标签 A' | text | (330,165) | ~25×16 | 左上 | 点 A'标签 |
+        // | 标签 45° | text | (475,315) | ~35×16 | 左上 | 角度值 |
+        
+        // 状态机：当前步骤 (0-4)
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 每步可见元素配置
+        // 步骤 0: 原始半圆（线段 AB + 上半圆弧），标签 A、B
+        // 步骤 1: 高亮旋转中心点 B，显示旋转箭头
+        // 步骤 2: 显示点 A 轨迹弧，标签 A'
+        // 步骤 3: 显示旋转后半圆（蓝色轮廓）
+        // 步骤 4: 显示角度标注弧、标签 45°、阴影区域
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                el.classList.add('scene1-fade');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有可选元素
+            hideElement('scene1-center-b');
+            hideElement('scene1-rotation-arrow');
+            hideElement('scene1-path-trajectory');
+            hideElement('scene1-label-a1');
+            hideElement('scene1-arc-rotated');
+            hideElement('scene1-line-a1b');
+            hideElement('scene1-arc-angle');
+            hideElement('scene1-label-45deg');
+            hideElement('scene1-path-shadow');
+            
+            // 根据当前步骤显示相应元素
+            if (currentStep >= 1) {
+                showElement('scene1-center-b');
+                showElement('scene1-rotation-arrow');
+            }
+            if (currentStep >= 2) {
+                showElement('scene1-path-trajectory');
+                showElement('scene1-label-a1');
+            }
+            if (currentStep >= 3) {
+                showElement('scene1-arc-rotated');
+                showElement('scene1-line-a1b');
+            }
+            if (currentStep >= 4) {
+                showElement('scene1-arc-angle');
+                showElement('scene1-label-45deg');
+                showElement('scene1-path-shadow');
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === totalSteps - 1);
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        }
+        
+        // 绑定事件
+        document.getElementById('scene1-btn-prev').addEventListener('click', prevStep);
+        document.getElementById('scene1-btn-next').addEventListener('click', nextStep);
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

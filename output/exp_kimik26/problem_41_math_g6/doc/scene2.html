@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路灯下影长变化规律 - 场景2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 18px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #555; min-width: 80px; text-align: center; }
+        .scene2-hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 地面线 -->
+            <line id="scene2-ground" x1="100" y1="360" x2="700" y2="360" stroke="#000000" stroke-width="2"/>
+
+            <!-- 灯杆 PO -->
+            <line id="scene2-pole" x1="560" y1="120" x2="560" y2="360" stroke="#000000" stroke-width="3"/>
+
+            <!-- 人 RQ -->
+            <line id="scene2-person" x1="340" y1="240" x2="340" y2="360" stroke="#000000" stroke-width="3"/>
+
+            <!-- 光线 PS -->
+            <line id="scene2-light-ray" class="scene2-hidden" x1="560" y1="120" x2="120" y2="360" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 影子 QS -->
+            <line id="scene2-shadow" class="scene2-hidden" x1="120" y1="360" x2="340" y2="360" stroke="#c62828" stroke-width="4"/>
+
+            <!-- 辅助线 RT -->
+            <line id="scene2-aux-line" class="scene2-hidden" x1="340" y1="240" x2="560" y2="240" stroke="#888888" stroke-width="2" stroke-dasharray="6,4"/>
+
+            <!-- △POS 填充 -->
+            <polygon id="scene2-triangle-pos" class="scene2-hidden" points="560,120 560,360 120,360" fill="#1565c0" opacity="0.15"/>
+
+            <!-- △RQS 填充 -->
+            <polygon id="scene2-triangle-rqs" class="scene2-hidden" points="340,240 340,360 120,360" fill="#c62828" opacity="0.15"/>
+
+            <!-- O点直角符号 -->
+            <path id="scene2-right-angle-o" d="M 555,360 L 555,350 L 560,350" stroke="#000000" stroke-width="1.5" fill="none"/>
+
+            <!-- Q点直角符号 -->
+            <path id="scene2-right-angle-q" d="M 335,360 L 335,350 L 340,350" stroke="#000000" stroke-width="1.5" fill="none"/>
+
+            <!-- 标签 -->
+            <text id="scene2-label-p" x="560" y="110" text-anchor="middle" font-size="16" fill="#000000">P</text>
+            <text id="scene2-label-o" x="575" y="375" text-anchor="start" font-size="16" fill="#000000">O</text>
+            <text id="scene2-label-q" x="340" y="375" text-anchor="middle" font-size="16" fill="#000000">Q</text>
+            <!-- R 标签上移到人头顶正上方，避开光线和三角形填充的包围盒 -->
+            <text id="scene2-label-r" x="340" y="100" text-anchor="middle" font-size="16" fill="#000000">R</text>
+            <text id="scene2-label-s" class="scene2-hidden" x="110" y="375" text-anchor="middle" font-size="16" fill="#000000">S</text>
+            <!-- T 左移，避免与 H 拥挤 -->
+            <text id="scene2-label-t" class="scene2-hidden" x="565" y="230" text-anchor="start" font-size="16" fill="#000000">T</text>
+
+            <!-- 长度标注 -->
+            <!-- H 在灯杆中上部右侧 -->
+            <text id="scene2-label-h" class="scene2-hidden" x="595" y="200" text-anchor="start" font-size="16" fill="#000000">H</text>
+            <!-- h 右移到灯杆右侧，避免与蓝色三角形填充重叠 -->
+            <text id="scene2-label-h-small" class="scene2-hidden" x="575" y="300" text-anchor="start" font-size="16" fill="#000000">h</text>
+            <text id="scene2-label-d" class="scene2-hidden" x="450" y="375" text-anchor="middle" font-size="16" fill="#000000">d</text>
+            <text id="scene2-label-l" class="scene2-hidden" x="230" y="375" text-anchor="middle" font-size="16" fill="#000000">l</text>
+
+            <!-- 相似符号：上移到几何图形上方空白处，避免与任何填充重叠 -->
+            <text id="scene2-similar" class="scene2-hidden" x="400" y="100" text-anchor="middle" font-size="20" fill="#2e7d32">∽</text>
+
+            <!-- 右侧公式区 -->
+            <text id="scene2-formula-ratio" class="scene2-hidden" x="620" y="160" text-anchor="start" font-size="16" fill="#000000">H : (d + l) = h : l</text>
+            <text id="scene2-formula-derive" class="scene2-hidden" x="620" y="220" text-anchor="start" font-size="16" fill="#000000">l = h·d / (H − h)</text>
+            <text id="scene2-analysis1" class="scene2-hidden" x="620" y="280" text-anchor="start" font-size="16" fill="#000000">靠近路灯：d↓ → l↓</text>
+            <!-- 分析文字2 下移，避免与前一行拥挤 -->
+            <text id="scene2-analysis2" class="scene2-hidden" x="620" y="320" text-anchor="start" font-size="16" fill="#000000">远离路灯：d↑ → l↑</text>
+            <!-- 结论左移，避免右边缘超出画布 -->
+            <text id="scene2-conclusion" class="scene2-hidden" x="600" y="360" text-anchor="start" font-size="18" fill="#2e7d32" font-weight="bold">结论：先变短后变长</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：路灯下影长变化规律
+        // 坐标表（来自实现计划，已根据 Playwright 检测微调）：
+        // 地面线: (100,360)-(700,360)
+        // 灯杆PO: (560,120)-(560,360)
+        // 人RQ: (340,240)-(340,360)
+        // 光线PS: (560,120)-(120,360)
+        // 影子QS: (120,360)-(340,360)
+        // 辅助线RT: (340,240)-(560,240)
+        // P标签: (560,110), O标签: (575,375), Q标签: (340,375)
+        // R标签: (340,100) [上移到人头顶正上方，避开光线/三角形包围盒]
+        // S标签: (110,375), T标签: (565,230) [左移避H]
+        // H标注: (595,200) [灯杆中上部右侧]
+        // h标注: (575,300) [右移避蓝色填充]
+        // d标注: (450,375), l标注: (230,375)
+        // 相似符号: (400,100) [上移到几何上方]
+        // 右侧公式区: x=620, y=160~360; 分析2 y=320; 结论 x=600,y=360
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 各步骤需要显示的元素ID列表
+        const stepElements = {
+            0: [], // 步骤0：基础几何（无额外隐藏元素，默认显示）
+            1: ['scene2-light-ray', 'scene2-shadow', 'scene2-triangle-pos', 'scene2-triangle-rqs', 'scene2-label-s'],
+            2: ['scene2-aux-line', 'scene2-label-t', 'scene2-label-h', 'scene2-label-h-small', 'scene2-label-d', 'scene2-label-l'],
+            3: ['scene2-similar', 'scene2-formula-ratio'],
+            4: ['scene2-formula-derive', 'scene2-analysis1', 'scene2-analysis2', 'scene2-conclusion']
+        };
+
+        function show(el) {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (el) {
+                el.classList.add('scene2-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        function renderStep() {
+            // 先隐藏所有步骤相关元素
+            for (let s = 1; s < totalSteps; s++) {
+                if (stepElements[s]) {
+                    stepElements[s].forEach(id => hide(id));
+                }
+            }
+
+            // 显示当前步骤及之前步骤的元素
+            for (let s = 1; s <= currentStep; s++) {
+                if (stepElements[s]) {
+                    stepElements[s].forEach(id => show(id));
+                }
+            }
+
+            // 更新指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路动态变化与电磁铁磁性变化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: none; border-radius: 4px; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-btn-prev { background: #e0e0e0; }
+        #scene1-btn-next { background: #1565c0; color: white; }
+        #scene1-step-indicator { position: absolute; bottom: 15px; right: 20px; font-size: 14px; color: #666; }
+        .scene1-hidden { opacity: 0; display: none; }
+        .scene1-visible { opacity: 1; display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 导线连接 -->
+            <!-- 电源正极(60,320) → 开关(140,320) → 电磁铁 → 定值电阻(100,180) → 电流表(60,240) → 滑动变阻器(60,380) → 电源负极 -->
+            
+            <!-- 电源：电池符号，位置(60,320)，左长右短，正极在左 -->
+            <line id="scene1-power-pos" x1="40" y1="320" x2="60" y2="320" stroke="#000" stroke-width="2"/>
+            <line id="scene1-power-neg" x1="80" y1="320" x2="100" y2="320" stroke="#000" stroke-width="2"/>
+            <line id="scene1-power-long" x1="60" y1="305" x2="60" y2="335" stroke="#000" stroke-width="2"/>
+            <line id="scene1-power-short" x1="80" y1="312" x2="80" y2="328" stroke="#000" stroke-width="2"/>
+            <text id="scene1-label-u" x="60" y="350" font-size="14" text-anchor="middle">U</text>
+            
+            <!-- 开关：闭合状态，位置(140,320) -->
+            <line id="scene1-switch-line" x1="100" y1="320" x2="180" y2="320" stroke="#000" stroke-width="2"/>
+            <text id="scene1-label-switch" x="140" y="340" font-size="12" text-anchor="middle">开关</text>
+            
+            <!-- 电磁铁：螺线管+铁芯，位置(520,280)，5匝线圈 -->
+            <line id="scene1-emu-wire1" x1="180" y1="320" x2="520" y2="320" stroke="#000" stroke-width="2"/>
+            <line id="scene1-emu-coil1" x1="520" y1="320" x2="540" y2="320" stroke="#000" stroke-width="2"/>
+            <path id="scene1-emu-coil" d="M540,320 L560,320 L540,340 L560,340 L540,360 L560,360 L540,380 L560,380 L540,400 L560,400" stroke="#000" stroke-width="2" fill="none"/>
+            <line id="scene1-emu-core" x1="550" y1="310" x2="550" y2="410" stroke="#666" stroke-width="4"/>
+            <text id="scene1-label-em" x="590" y="360" font-size="14">电磁铁</text>
+            
+            <!-- 电磁铁顶部导线连接到定值电阻 -->
+            <line id="scene1-emu-top-wire" x1="550" y1="310" x2="550" y2="180" stroke="#000" stroke-width="2"/>
+            <line id="scene1-emu-top-wire2" x1="550" y1="180" x2="180" y2="180" stroke="#000" stroke-width="2"/>
+            
+            <!-- 定值电阻：矩形框，位置(100,180) -->
+            <rect id="scene1-resistor-fixed" x="100" y="165" width="80" height="30" stroke="#000" stroke-width="2" fill="none"/>
+            <text id="scene1-label-r" x="140" y="155" font-size="12" text-anchor="middle">定值电阻</text>
+            
+            <!-- 定值电阻到电流表的导线 -->
+            <line id="scene1-wire-r-ammeter" x1="100" y1="180" x2="60" y2="180" stroke="#000" stroke-width="2"/>
+            <line id="scene1-wire-ammeter-down" x1="60" y1="180" x2="60" y2="220" stroke="#000" stroke-width="2"/>
+            
+            <!-- 电流表：圆圈+A，位置(60,240) -->
+            <circle id="scene1-ammeter-circle" cx="60" cy="240" r="20" stroke="#000" stroke-width="2" fill="none"/>
+            <text id="scene1-label-a" x="60" y="245" font-size="16" text-anchor="middle" font-weight="bold">A</text>
+            <!-- 电流表指针 -->
+            <line id="scene1-ammeter-pointer" x1="60" y1="240" x2="60" y2="225" stroke="#1565c0" stroke-width="2" style="transition: transform 0.5s ease; transform-origin: 60px 240px;"/>
+            <text id="scene1-label-ammeter" x="30" y="240" font-size="12">电流表</text>
+            
+            <!-- 电流表到滑动变阻器的导线 -->
+            <line id="scene1-wire-ammeter-rheostat" x1="60" y1="260" x2="60" y2="380" stroke="#000" stroke-width="2"/>
+            
+            <!-- 滑动变阻器：矩形+滑片，位置(60,380) -->
+            <rect id="scene1-rheostat" x="60" y="375" width="120" height="10" stroke="#000" stroke-width="2" fill="none"/>
+            <!-- 滑片 P：箭头触点，初始位置(120,375) -->
+            <polygon id="scene1-slider-p" points="120,365 115,375 125,375" fill="#000" style="transition: all 1s ease;"/>
+            <text id="scene1-label-p" x="120" y="355" font-size="14" text-anchor="middle" font-weight="bold">P</text>
+            <text id="scene1-label-rheostat" x="120" y="405" font-size="12" text-anchor="middle">滑动变阻器</text>
+            
+            <!-- 滑动变阻器到电源负极的导线 -->
+            <line id="scene1-wire-rheostat-power" x1="60" y1="380" x2="40" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-wire-rheostat-power2" x1="40" y1="380" x2="40" y2="320" stroke="#000" stroke-width="2"/>
+            
+            <!-- 弹簧测力计：悬挂装置，位置(620,40) -->
+            <line id="scene1-spring-top" x1="645" y1="20" x2="645" y2="40" stroke="#000" stroke-width="3"/>
+            <rect id="scene1-spring-scale" x="620" y="40" width="50" height="80" stroke="#000" stroke-width="2" fill="none"/>
+            <line id="scene1-spring-hook" x1="645" y1="120" x2="645" y2="130" stroke="#000" stroke-width="2"/>
+            <text id="scene1-label-spring" x="680" y="80" font-size="12">弹簧测力计</text>
+            
+            <!-- 铁球：实心圆，位置(645,150) -->
+            <circle id="scene1-iron-ball" cx="645" cy="150" r="10" fill="#000" style="transition: cy 0.5s ease;"/>
+            <text id="scene1-label-ball" x="670" y="155" font-size="12">铁球</text>
+            
+            <!-- 磁感线：绿色椭圆弧线环绕电磁铁，5条 -->
+            <ellipse id="scene1-mag-line-1" cx="550" cy="360" rx="50" ry="60" stroke="#2e7d32" stroke-width="2" fill="none" opacity="0.8"/>
+            <ellipse id="scene1-mag-line-2" cx="550" cy="360" rx="65" ry="75" stroke="#2e7d32" stroke-width="2" fill="none" opacity="0.7"/>
+            <ellipse id="scene1-mag-line-3" cx="550" cy="360" rx="80" ry="90" stroke="#2e7d32" stroke-width="2" fill="none" opacity="0.6"/>
+            <ellipse id="scene1-mag-line-4" cx="550" cy="360" rx="95" ry="105" stroke="#2e7d32" stroke-width="2" fill="none" opacity="0.5"/>
+            <ellipse id="scene1-mag-line-5" cx="550" cy="360" rx="110" ry="120" stroke="#2e7d32" stroke-width="2" fill="none" opacity="0.4"/>
+            
+            <!-- 右移箭头：蓝色，位置(150,390) -->
+            <path id="scene1-move-arrow" d="M150,390 L180,390 L175,385 M180,390 L175,395" stroke="#1565c0" stroke-width="2" fill="none" class="scene1-hidden"/>
+            
+            <!-- 动态标签 -->
+            <text id="scene1-label-res-up" x="180" y="420" font-size="14" fill="#c62828" font-weight="bold" class="scene1-hidden">电阻变大</text>
+            <text id="scene1-label-current-down" x="20" y="200" font-size="14" fill="#1565c0" font-weight="bold" class="scene1-hidden">电流变小</text>
+            <text id="scene1-label-mag-weak" x="590" y="220" font-size="14" fill="#2e7d32" font-weight="bold" class="scene1-hidden">磁性减弱</text>
+            
+            <!-- 公式区 -->
+            <text id="scene1-formula-box" x="400" y="460" font-size="14" text-anchor="middle" class="scene1-hidden"></text>
+            
+            <!-- 因果链（步骤5显示） -->
+            <text id="scene1-cause-chain" x="400" y="480" font-size="12" text-anchor="middle" fill="#333" class="scene1-hidden">滑片右移 → 电阻变大 → 电流变小 → 磁性减弱</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+        <div id="scene1-step-indicator">步骤 1/6</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：电路动态变化与电磁铁磁性变化
+        
+        const currentState = { step: 0 };
+        const totalSteps = 6;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 元素引用
+        const sliderP = document.getElementById('scene1-slider-p');
+        const moveArrow = document.getElementById('scene1-move-arrow');
+        const labelResUp = document.getElementById('scene1-label-res-up');
+        const labelCurrentDown = document.getElementById('scene1-label-current-down');
+        const labelMagWeak = document.getElementById('scene1-label-mag-weak');
+        const formulaBox = document.getElementById('scene1-formula-box');
+        const causeChain = document.getElementById('scene1-cause-chain');
+        const ammeterPointer = document.getElementById('scene1-ammeter-pointer');
+        const magLines = [
+            document.getElementById('scene1-mag-line-1'),
+            document.getElementById('scene1-mag-line-2'),
+            document.getElementById('scene1-mag-line-3'),
+            document.getElementById('scene1-mag-line-4'),
+            document.getElementById('scene1-mag-line-5')
+        ];
+        const ironBall = document.getElementById('scene1-iron-ball');
+        
+        // 工具函数：显示/隐藏元素
+        function show(el) {
+            el.classList.remove('scene1-hidden');
+            el.classList.add('scene1-visible');
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            el.classList.remove('scene1-visible');
+            el.classList.add('scene1-hidden');
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            stepIndicator.textContent = `步骤 ${currentState.step + 1}/${totalSteps}`;
+            btnPrev.disabled = currentState.step === 0;
+            btnNext.disabled = currentState.step === totalSteps - 1;
+            
+            // 根据步骤设置各元素状态
+            switch(currentState.step) {
+                case 0:
+                    // 初始状态：所有动态元素隐藏
+                    hide(moveArrow);
+                    hide(labelResUp);
+                    hide(labelCurrentDown);
+                    hide(labelMagWeak);
+                    hide(formulaBox);
+                    hide(causeChain);
+                    sliderP.setAttribute('points', '120,365 115,375 125,375');
+                    ammeterPointer.style.transform = 'rotate(0deg)';
+                    magLines.forEach((line, i) => {
+                        line.style.display = 'block';
+                        line.style.opacity = [0.8, 0.7, 0.6, 0.5, 0.4][i];
+                    });
+                    ironBall.setAttribute('cy', '150');
+                    break;
+                    
+                case 1:
+                    // 滑片右移
+                    show(moveArrow);
+                    hide(labelResUp);
+                    hide(labelCurrentDown);
+                    hide(labelMagWeak);
+                    hide(formulaBox);
+                    hide(causeChain);
+                    sliderP.setAttribute('points', '160,365 155,375 165,375');
+                    break;
+                    
+                case 2:
+                    // 显示电阻变大
+                    show(moveArrow);
+                    show(labelResUp);
+                    hide(labelCurrentDown);
+                    hide(labelMagWeak);
+                    show(formulaBox);
+                    formulaBox.textContent = 'R 总 = R 定 + R 变 + R 线圈';
+                    hide(causeChain);
+                    break;
+                    
+                case 3:
+                    // 电流变小
+                    show(moveArrow);
+                    show(labelResUp);
+                    show(labelCurrentDown);
+                    hide(labelMagWeak);
+                    show(formulaBox);
+                    formulaBox.textContent = 'I = U / R 总';
+                    hide(causeChain);
+                    ammeterPointer.style.transform = 'rotate(-15deg)';
+                    break;
+                    
+                case 4:
+                    // 磁性减弱
+                    show(moveArrow);
+                    show(labelResUp);
+                    show(labelCurrentDown);
+                    show(labelMagWeak);
+                    show(formulaBox);
+                    formulaBox.textContent = 'I = U / R 总';
+                    hide(causeChain);
+                    // 只显示前2条磁感线
+                    magLines.forEach((line, i) => {
+                        if (i < 2) {
+                            line.style.display = 'block';
+                            line.style.opacity = [0.8, 0.7][i];
+                        } else {
+                            line.style.display = 'none';
+                        }
+                    });
+                    ironBall.setAttribute('cy', '147');
+                    break;
+                    
+                case 5:
+                    // 结论：完整因果链
+                    show(moveArrow);
+                    show(labelResUp);
+                    show(labelCurrentDown);
+                    show(labelMagWeak);
+                    hide(formulaBox);
+                    show(causeChain);
+                    break;
+            }
+        }
+        
+        function stepForward() {
+            if (currentState.step < totalSteps - 1) {
+                currentState.step++;
+                updateStep();
+            }
+        }
+        
+        function stepBackward() {
+            if (currentState.step > 0) {
+                currentState.step--;
+                updateStep();
+            }
+        }
+        
+        btnNext.addEventListener('click', stepForward);
+        btnPrev.addEventListener('click', stepBackward);
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半球划分与特殊区域辨析</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene4-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene4-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene4-grid-line {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 1.5;
+        }
+        .scene4-point {
+            fill: #000000;
+        }
+        .scene4-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene4-coord-label {
+            font-size: 16px;
+            fill: #000000;
+        }
+        .scene4-hemisphere-label {
+            font-size: 18px;
+            fill: #000000;
+            font-weight: bold;
+        }
+        .scene4-dashed-line {
+            fill: none;
+            stroke: #888888;
+            stroke-width: 2;
+            stroke-dasharray: 8,4;
+        }
+        .scene4-north-fill {
+            fill: #1565c0;
+            opacity: 0.15;
+        }
+        .scene4-special-fill {
+            fill: #c62828;
+            opacity: 0.3;
+        }
+        .scene4-btn {
+            position: absolute;
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        #scene4-prev-btn {
+            left: 100px;
+            top: 465px;
+        }
+        #scene4-next-btn {
+            right: 100px;
+            top: 465px;
+        }
+        #scene4-step-indicator {
+            position: absolute;
+            left: 380px;
+            top: 465px;
+            font-size: 14px;
+            color: #333;
+        }
+        .scene4-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene4-option {
+            font-size: 12px;
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg id="scene4-svg" width="800" height="500">
+            <!-- 北半球填充区 (步骤 1 显示) - 缩小范围，y 从 80 到 88，避免覆盖 D/A 标签 -->
+            <rect id="scene4-north-hemisphere" class="scene4-north-fill scene4-hidden" x="100" y="80" width="600" height="8"/>
+            
+            <!-- 特殊区域填充 (步骤 4 显示) - 缩小范围，y 从 80 到 86，避免覆盖特殊标签 -->
+            <rect id="scene4-special-area" class="scene4-special-fill scene4-hidden" x="250" y="80" width="100" height="6"/>
+            
+            <!-- 赤道示意线 (步骤 1 显示) -->
+            <line id="scene4-equator" class="scene4-dashed-line scene4-hidden" x1="80" y1="420" x2="720" y2="420"/>
+            
+            <!-- 20°W 分界线 (步骤 2 显示) -->
+            <line id="scene4-20w-line" class="scene4-dashed-line scene4-hidden" x1="50" y1="80" x2="50" y2="380"/>
+            
+            <!-- 160°E 分界线高亮 (步骤 2 显示) -->
+            <line id="scene4-160e-line" class="scene4-dashed-line scene4-hidden" x1="250" y1="80" x2="250" y2="380"/>
+            
+            <!-- 经纬网格线 -->
+            <!-- 经线：140°E, 160°E, 180°, 160°W, 140°W -->
+            <path id="scene4-meridian-140e" class="scene4-grid-line" d="M150,80 Q150,230 150,380"/>
+            <path id="scene4-meridian-160e" class="scene4-grid-line" d="M250,80 Q250,230 250,380"/>
+            <path id="scene4-meridian-180" class="scene4-grid-line" d="M350,80 L350,380"/>
+            <path id="scene4-meridian-160w" class="scene4-grid-line" d="M450,80 Q450,230 450,380"/>
+            <path id="scene4-meridian-140w" class="scene4-grid-line" d="M550,80 Q550,230 550,380"/>
+            
+            <!-- 纬线：60°N, 50°N, 40°N -->
+            <path id="scene4-parallel-60n" class="scene4-grid-line" d="M150,130 Q350,130 550,130"/>
+            <path id="scene4-parallel-50n" class="scene4-grid-line" d="M150,230 Q350,230 550,230"/>
+            <path id="scene4-parallel-40n" class="scene4-grid-line" d="M150,330 Q350,330 550,330"/>
+            
+            <!-- 四个点：D, E, F, A -->
+            <circle id="scene4-point-d" class="scene4-point" cx="150" cy="130" r="5"/>
+            <circle id="scene4-point-e" class="scene4-point" cx="250" cy="330" r="5"/>
+            <circle id="scene4-point-f" class="scene4-point" cx="450" cy="230" r="5"/>
+            <circle id="scene4-point-a" class="scene4-point" cx="350" cy="130" r="5"/>
+            
+            <!-- 点标签 - 调整位置：D/A 放在点上方更远，F 放在点右侧，E 放在点下方 -->
+            <text id="scene4-label-d" class="scene4-label" x="150" y="98" text-anchor="middle">D</text>
+            <text id="scene4-label-e" class="scene4-label" x="250" y="355" text-anchor="middle">E</text>
+            <text id="scene4-label-f" class="scene4-label" x="470" y="235">F</text>
+            <text id="scene4-label-a" class="scene4-label" x="350" y="98" text-anchor="middle">A</text>
+            
+            <!-- 经度标签 - 下移并调整位置 -->
+            <text id="scene4-coord-140e" class="scene4-coord-label" x="150" y="415" text-anchor="middle">140°E</text>
+            <text id="scene4-coord-180" class="scene4-coord-label" x="350" y="415" text-anchor="middle">180°</text>
+            <text id="scene4-coord-140w" class="scene4-coord-label" x="550" y="415" text-anchor="middle">140°W</text>
+            
+            <!-- 纬度标签 -->
+            <text id="scene4-coord-60n" class="scene4-coord-label" x="720" y="135">60°N</text>
+            <text id="scene4-coord-50n" class="scene4-coord-label" x="720" y="235">50°N</text>
+            <text id="scene4-coord-40n" class="scene4-coord-label" x="720" y="335">40°N</text>
+            
+            <!-- 半球标签 (动态显示) - 调整位置：东半球移到左侧空白区，西半球下移 -->
+            <text id="scene4-label-north" class="scene4-hemisphere-label scene4-hidden" x="400" y="60" text-anchor="middle">北半球</text>
+            <text id="scene4-label-east" class="scene4-hemisphere-label scene4-hidden" x="60" y="455" text-anchor="start">东半球</text>
+            <text id="scene4-label-west" class="scene4-hemisphere-label scene4-hidden" x="500" y="410" text-anchor="middle">西半球</text>
+            <text id="scene4-label-special" class="scene4-hemisphere-label scene4-hidden" x="300" y="60" text-anchor="middle">西半球且东经度</text>
+            
+            <!-- 区域归属说明 (步骤 3 显示) - 调整位置避免与 F 标签重叠 -->
+            <text id="scene4-area-desc" class="scene4-label scene4-hidden" x="400" y="280" text-anchor="middle">图中大部分位于东半球</text>
+            
+            <!-- 选项区 (放在按钮之间，y=460) - 缩短选项文字并调整位置 -->
+            <text id="scene4-option-a" class="scene4-option" x="190" y="475">A 140°E-180°</text>
+            <text id="scene4-option-b" class="scene4-option" x="310" y="475">B 140°W-180°</text>
+            <text id="scene4-option-c" class="scene4-option scene4-hidden" x="430" y="475" fill="#c62828" font-weight="bold">C 160°E-180°</text>
+            <text id="scene4-option-d" class="scene4-option" x="550" y="475">D 160°W-180°</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <button id="scene4-prev-btn" class="scene4-btn">◀ 上一步</button>
+        <div id="scene4-step-indicator">步骤 0/5</div>
+        <button id="scene4-next-btn" class="scene4-btn">下一步 ▶</button>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4: 半球划分与特殊区域辨析
+        // 布局坐标表参考：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 经纬网背景 | rect | (100,80)-(700,380) | 600×300 | - | 主图区 |
+        // | 140°E 经线 | path | (150,80)-(150,380) | 曲线 | - | 左侧经线 |
+        // | 160°E 经线 | path | (250,80)-(250,380) | 曲线 | - | 左中经线 |
+        // | 180°经线 | path | (350,80)-(350,380) | 直线 | - | 中央经线 |
+        // | 160°W 经线 | path | (450,80)-(450,380) | 曲线 | - | 右中经线 |
+        // | 140°W 经线 | path | (550,80)-(550,380) | 曲线 | - | 右侧经线 |
+        // | 60°N 纬线 | path | (150,130)-(550,130) | 曲线 | - | 上方纬线 |
+        // | 50°N 纬线 | path | (150,230)-(550,230) | 曲线 | - | 中间纬线 |
+        // | 40°N 纬线 | path | (150,330)-(550,330) | 曲线 | - | 下方纬线 |
+        // | 点 D | circle | (150,130) | r=5 | 上方 | 140°E,60°N |
+        // | 点 E | circle | (250,330) | r=5 | 下方 | 160°E,40°N |
+        // | 点 F | circle | (450,230) | r=5 | 右侧 | 160°W,50°N |
+        // | 点 A | circle | (350,130) | r=5 | 上方 | 180°,60°N |
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene4-hidden');
+                el.style.opacity = '1';
+                el.style.display = '';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.add('scene4-hidden');
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+
+        // 获取元素
+        const northHemisphere = document.getElementById('scene4-north-hemisphere');
+        const specialArea = document.getElementById('scene4-special-area');
+        const equator = document.getElementById('scene4-equator');
+        const line20w = document.getElementById('scene4-20w-line');
+        const line160e = document.getElementById('scene4-160e-line');
+        const labelNorth = document.getElementById('scene4-label-north');
+        const labelEast = document.getElementById('scene4-label-east');
+        const labelWest = document.getElementById('scene4-label-west');
+        const labelSpecial = document.getElementById('scene4-label-special');
+        const areaDesc = document.getElementById('scene4-area-desc');
+        const optionC = document.getElementById('scene4-option-c');
+        const stepIndicator = document.getElementById('scene4-step-indicator');
+        const prevBtn = document.getElementById('scene4-prev-btn');
+        const nextBtn = document.getElementById('scene4-next-btn');
+
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有动态元素
+            hide(northHemisphere);
+            hide(specialArea);
+            hide(equator);
+            hide(line20w);
+            hide(line160e);
+            hide(labelNorth);
+            hide(labelEast);
+            hide(labelWest);
+            hide(labelSpecial);
+            hide(areaDesc);
+            hide(optionC);
+
+            // 根据当前步骤显示对应元素
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：只显示基础经纬网和点
+                    break;
+                case 1:
+                    // 步骤 1：南北半球划分
+                    show(equator);
+                    show(northHemisphere);
+                    show(labelNorth);
+                    break;
+                case 2:
+                    // 步骤 2：东西半球划分
+                    show(line20w);
+                    show(line160e);
+                    show(labelEast);
+                    show(labelWest);
+                    break;
+                case 3:
+                    // 步骤 3：图中区域归属
+                    show(line20w);
+                    show(line160e);
+                    show(labelEast);
+                    show(labelWest);
+                    show(areaDesc);
+                    break;
+                case 4:
+                    // 步骤 4：特殊区域高亮
+                    show(line20w);
+                    show(line160e);
+                    show(labelEast);
+                    show(labelWest);
+                    show(areaDesc);
+                    show(specialArea);
+                    show(labelSpecial);
+                    break;
+                case 5:
+                    // 结论：显示正确答案
+                    show(line20w);
+                    show(line160e);
+                    show(labelEast);
+                    show(labelWest);
+                    show(areaDesc);
+                    show(specialArea);
+                    show(labelSpecial);
+                    show(optionC);
+                    break;
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            // 更新按钮状态
+            prevBtn.disabled = currentStep === 0;
+            nextBtn.disabled = currentStep === totalSteps;
+        }
+
+        // 按钮事件绑定
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

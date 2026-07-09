@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景 3: 活塞 a 上升 - 等温压缩过程</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; pointer-events: none; }
+        #scene3-controls > * { pointer-events: auto; }
+        .scene3-progress-bg { fill: #e0e0e0; }
+        .scene3-progress-fill { fill: #1565c0; }
+        .scene3-value-text { font-size: 13px; fill: #333; }
+        .scene3-label-text { font-size: 13px; fill: #333; }
+        .scene3-title-text { font-size: 15px; fill: #000; font-weight: bold; }
+        .scene3-process-text { font-size: 13px; fill: #555; }
+        .scene3-cylinder-wall { stroke: #000; stroke-width: 2; fill: none; }
+        .scene3-piston-a { stroke: #c62828; stroke-width: 4; fill: none; }
+        .scene3-piston-b { stroke: #000; stroke-width: 4; fill: none; }
+        .scene3-oxygen-fill { fill: #1565c0; opacity: 0.15; }
+        .scene3-nitrogen-fill { fill: #2e7d32; opacity: 0.15; }
+        .scene3-heater { stroke: #000; stroke-width: 2; fill: none; }
+        .scene3-slider-track { stroke: #9e9e9e; stroke-width: 4; stroke-linecap: round; }
+        .scene3-slider-handle { fill: #1565c0; stroke: #0d47a1; stroke-width: 2; cursor: pointer; }
+        .scene3-slider-handle:hover { fill: #1976d2; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 标题区 (向下移动避免裁切) -->
+            <text x="400" y="30" class="scene3-title-text" text-anchor="middle">过程 (2): 活塞 a 上升 - 等温压缩</text>
+            <text x="400" y="52" class="scene3-process-text" text-anchor="middle">等温压缩过程 (T = T₀ 恒定)</text>
+
+            <!-- 气缸 A 左壁 -->
+            <line x1="150" y1="90" x2="150" y2="370" class="scene3-cylinder-wall" id="scene3-cylinder-a-left"/>
+            <!-- 气缸 A 右壁 -->
+            <line x1="350" y1="90" x2="350" y2="370" class="scene3-cylinder-wall" id="scene3-cylinder-a-right"/>
+            <!-- 气缸 A 顶壁 -->
+            <line x1="150" y1="90" x2="350" y2="90" class="scene3-cylinder-wall" id="scene3-cylinder-a-top"/>
+            <!-- 气缸 A 底壁 -->
+            <line x1="150" y1="370" x2="350" y2="370" class="scene3-cylinder-wall" id="scene3-cylinder-a-bottom"/>
+
+            <!-- 气缸 B 左壁 -->
+            <line x1="500" y1="90" x2="500" y2="370" class="scene3-cylinder-wall" id="scene3-cylinder-b-left"/>
+            <!-- 气缸 B 右壁 -->
+            <line x1="600" y1="90" x2="600" y2="370" class="scene3-cylinder-wall" id="scene3-cylinder-b-right"/>
+            <!-- 气缸 B 底壁 -->
+            <line x1="500" y1="370" x2="600" y2="370" class="scene3-cylinder-wall" id="scene3-cylinder-b-bottom"/>
+
+            <!-- 连通管 -->
+            <line x1="354" y1="340" x2="500" y2="340" class="scene3-cylinder-wall" id="scene3-connecting-tube"/>
+
+            <!-- 电阻丝 -->
+            <polyline points="200,380 210,375 220,385 230,375 240,380" class="scene3-heater" id="scene3-heater"/>
+
+            <!-- 氧气区域 (动态) - 初始高度 75px，从 y=90 开始 -->
+            <rect id="scene3-oxygen-area" class="scene3-oxygen-fill" x="150" y="90" width="200" height="75"/>
+
+            <!-- 氮气区域 (动态) -->
+            <polygon id="scene3-nitrogen-area" class="scene3-nitrogen-fill" points="150,165 350,165 350,370 354,370 354,340 500,340 500,370 600,370 600,94 500,94 500,340 354,340 354,370 150,370"/>
+
+            <!-- 活塞 a (红色，可移动) - 初始 y=165 -->
+            <line id="scene3-piston-a" class="scene3-piston-a" x1="150" y1="165" x2="350" y2="165"/>
+
+            <!-- 活塞 b (黑色，固定在顶部) -->
+            <line id="scene3-piston-b" class="scene3-piston-b" x1="500" y1="94" x2="600" y2="94"/>
+
+            <!-- 标签 - 移到填充区域外，使用白色背景矩形避免重叠 -->
+            <!-- 气缸 A 标签 - 移到氮气区域下方 -->
+            <text x="250" y="300" class="scene3-label-text" text-anchor="middle" font-weight="bold">A</text>
+            <!-- 气缸 B 标签 - 移到氮气区域下方 -->
+            <text x="550" y="300" class="scene3-label-text" text-anchor="middle" font-weight="bold">B</text>
+            <!-- 活塞 a 标签 - 移到活塞上方外部 -->
+            <text x="250" y="158" class="scene3-label-text" text-anchor="middle">a</text>
+            <!-- 活塞 b 标签 - 移到活塞上方外部 -->
+            <text x="550" y="84" class="scene3-label-text" text-anchor="middle">b</text>
+            <!-- O₂ 标签 - 移到氧气区域左侧外部 -->
+            <text x="135" y="135" class="scene3-label-text" text-anchor="end">O₂</text>
+            <!-- N₂ 标签 - 移到氮气区域左侧外部 -->
+            <text x="135" y="250" class="scene3-label-text" text-anchor="end">N₂</text>
+
+            <!-- 状态面板 - 调整布局避免重叠 -->
+            <text x="640" y="110" class="scene3-label-text" font-weight="bold">氧气状态</text>
+
+            <!-- P_氧 - 增加间距 -->
+            <text x="640" y="140" class="scene3-label-text">P_氧:</text>
+            <text id="scene3-val-p-ox" x="730" y="140" class="scene3-value-text" text-anchor="end">1.00 P₀</text>
+            <rect id="scene3-bar-p-ox-bg" x="640" y="152" width="60" height="8" class="scene3-progress-bg"/>
+            <rect id="scene3-bar-p-ox" x="640" y="152" width="60" height="8" class="scene3-progress-fill"/>
+
+            <!-- V_氧 -->
+            <text x="640" y="175" class="scene3-label-text">V_氧:</text>
+            <text id="scene3-val-v-ox" x="730" y="175" class="scene3-value-text" text-anchor="end">1.00 V₀</text>
+            <rect id="scene3-bar-v-ox-bg" x="640" y="187" width="60" height="8" class="scene3-progress-bg"/>
+            <rect id="scene3-bar-v-ox" x="640" y="187" width="60" height="8" class="scene3-progress-fill"/>
+
+            <!-- T_氧 -->
+            <text x="640" y="210" class="scene3-label-text">T_氧:</text>
+            <text id="scene3-val-t-ox" x="730" y="210" class="scene3-value-text" text-anchor="end">280 K</text>
+            <rect id="scene3-bar-t-ox-bg" x="640" y="222" width="60" height="8" class="scene3-progress-bg"/>
+            <rect id="scene3-bar-t-ox" x="640" y="222" width="60" height="8" class="scene3-progress-fill"/>
+
+            <!-- 滑块控件 -->
+            <line id="scene3-slider-track" class="scene3-slider-track" x1="250" y1="430" x2="550" y2="430"/>
+            <circle id="scene3-slider-handle" class="scene3-slider-handle" cx="250" cy="430" r="10"/>
+
+            <!-- 滑块标签 -->
+            <text x="250" y="460" class="scene3-label-text" text-anchor="middle">0</text>
+            <text x="550" y="460" class="scene3-label-text" text-anchor="middle">H/16</text>
+            <text id="scene3-delta-h-display" x="400" y="420" class="scene3-label-text" text-anchor="middle">Δh = 0</text>
+        </svg>
+
+        <div id="scene3-controls"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现 - 活塞 a 上升等温压缩过程
+
+        // 常量定义
+        const H = 280;           // 气缸高度 (px) - 从 y=90 到 y=370
+        const INITIAL_OXYGEN_HEIGHT = 75;  // 初始氧气体积高度 (H/4 ≈ 70px，取 75px)
+        const MAX_DELTA_H = H / 16;        // 最大上升距离 (H/16 = 17.5px)
+        const PISTON_A_INITIAL_Y = 90 + INITIAL_OXYGEN_HEIGHT;  // 活塞 a 初始 y 坐标 (165)
+        const SLIDER_LEFT = 250;
+        const SLIDER_RIGHT = 550;
+        const SLIDER_WIDTH = SLIDER_RIGHT - SLIDER_LEFT;  // 300px
+
+        // 状态变量
+        let delta_h = 0;  // 当前上升距离 (0 到 MAX_DELTA_H)
+        let isDragging = false;
+
+        // DOM 元素
+        const svg = document.getElementById('scene3-svg');
+        const pistonA = document.getElementById('scene3-piston-a');
+        const oxygenArea = document.getElementById('scene3-oxygen-area');
+        const nitrogenArea = document.getElementById('scene3-nitrogen-area');
+        const sliderHandle = document.getElementById('scene3-slider-handle');
+        const sliderTrack = document.getElementById('scene3-slider-track');
+        const deltaHDisplay = document.getElementById('scene3-delta-h-display');
+        const valPOx = document.getElementById('scene3-val-p-ox');
+        const barPOx = document.getElementById('scene3-bar-p-ox');
+        const valVOx = document.getElementById('scene3-val-v-ox');
+        const barVOx = document.getElementById('scene3-bar-v-ox');
+        const valTOx = document.getElementById('scene3-val-t-ox');
+        const barTOx = document.getElementById('scene3-bar-t-ox');
+
+        // 初始化
+        function init() {
+            updateDisplay();
+            setupSlider();
+        }
+
+        // 更新所有显示
+        function updateDisplay() {
+            // 计算当前状态
+            const currentOxygenHeight = INITIAL_OXYGEN_HEIGHT - delta_h;
+            const volumeRatio = currentOxygenHeight / INITIAL_OXYGEN_HEIGHT;  // V/V₀
+            const pressureRatio = INITIAL_OXYGEN_HEIGHT / currentOxygenHeight;  // P/P₀ (玻意耳定律)
+
+            // 更新活塞 a 位置
+            const pistonAY = PISTON_A_INITIAL_Y - delta_h;
+            pistonA.setAttribute('y1', pistonAY);
+            pistonA.setAttribute('y2', pistonAY);
+
+            // 更新氧气区域
+            oxygenArea.setAttribute('y', 90);
+            oxygenArea.setAttribute('height', currentOxygenHeight);
+
+            // 更新氮气区域 (活塞 a 下方 + 连通管 + 活塞 b 下方)
+            const nitrogenPoints = [
+                150, pistonAY,      // 活塞 a 左端
+                350, pistonAY,      // 活塞 a 右端
+                350, 370,           // 气缸 A 右下角
+                354, 370,           // 连通管右下
+                354, 340,           // 连通管右上
+                500, 340,           // 连通管左上
+                500, 370,           // 气缸 B 左下角
+                600, 370,           // 气缸 B 右下角
+                600, 94,            // 活塞 b 右端
+                500, 94,            // 活塞 b 左端
+                500, 340,           // 气缸 B 左侧中间
+                354, 340,           // 连通管左侧中间
+                354, 370,           // 连通管左下
+                150, 370            // 气缸 A 左下角
+            ];
+            nitrogenArea.setAttribute('points', nitrogenPoints.join(' '));
+
+            // 更新滑块位置
+            const sliderX = SLIDER_LEFT + (delta_h / MAX_DELTA_H) * SLIDER_WIDTH;
+            sliderHandle.setAttribute('cx', sliderX);
+
+            // 更新 Δh 显示
+            const deltaHFraction = (delta_h / H).toFixed(4);
+            deltaHDisplay.textContent = `Δh = ${delta_h.toFixed(2)} px`;
+
+            // 更新状态面板
+            valPOx.textContent = `${pressureRatio.toFixed(2)} P₀`;
+            barPOx.setAttribute('width', Math.min(60, pressureRatio * 60));
+
+            valVOx.textContent = `${volumeRatio.toFixed(2)} V₀`;
+            barVOx.setAttribute('width', Math.min(60, volumeRatio * 60));
+
+            // 温度恒定
+            valTOx.textContent = '280 K';
+            barTOx.setAttribute('width', 60);
+        }
+
+        // 滑块交互设置
+        function setupSlider() {
+            // 鼠标事件
+            sliderHandle.addEventListener('mousedown', onSliderMouseDown);
+            document.addEventListener('mousemove', onSliderMouseMove);
+            document.addEventListener('mouseup', onSliderMouseUp);
+
+            // 触摸事件
+            sliderHandle.addEventListener('touchstart', onSliderTouchStart, { passive: false });
+            document.addEventListener('touchmove', onSliderTouchMove, { passive: false });
+            document.addEventListener('touchend', onSliderTouchEnd);
+
+            // 滑块轨道点击
+            sliderTrack.addEventListener('click', onSliderTrackClick);
+        }
+
+        function onSliderMouseDown(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+
+        function onSliderMouseMove(e) {
+            if (!isDragging) return;
+            updateSliderFromEvent(e);
+        }
+
+        function onSliderMouseUp() {
+            isDragging = false;
+        }
+
+        function onSliderTouchStart(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+
+        function onSliderTouchMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            updateSliderFromEvent(e.touches[0]);
+        }
+
+        function onSliderTouchEnd() {
+            isDragging = false;
+        }
+
+        function onSliderTrackClick(e) {
+            updateSliderFromEvent(e);
+        }
+
+        function updateSliderFromEvent(e) {
+            const rect = sliderTrack.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+
+            // 限制在轨道范围内
+            x = Math.max(0, Math.min(SLIDER_WIDTH, x));
+
+            // 计算 delta_h
+            delta_h = (x / SLIDER_WIDTH) * MAX_DELTA_H;
+            delta_h = Math.max(0, Math.min(MAX_DELTA_H, delta_h));
+
+            updateDisplay();
+        }
+
+        // 启动
+        init();
+    })();
+    </script>
+</body>
+</html>

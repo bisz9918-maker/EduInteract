@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualSolver Scene</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-top-controls { position: absolute; top: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        .scene1-btn.active { background: #1565c0; color: white; border-color: #1565c0; }
+        .scene1-label { color: black; font-size: 14px; user-select: none; pointer-events: none; white-space: nowrap; }
+        input[type=range] { width: 200px; }
+    </style>
+    <!-- Import maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-top-controls">
+            <button id="scene1-btn-fig1" class="scene1-btn active">图①</button>
+            <button id="scene1-btn-fig2" class="scene1-btn">图②</button>
+        </div>
+        <div id="scene1-controls">
+            <span style="font-size: 14px;">展开</span>
+            <input type="range" id="scene1-slider-fold" min="0" max="100" value="0">
+            <span style="font-size: 14px;">折叠</span>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        (function() {
+            const container = document.getElementById('scene1-container');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            const camera = new THREE.PerspectiveCamera(45, 800 / 500, 0.1, 100);
+            camera.position.set(0, -8, 10);
+            camera.lookAt(0, 0, 0);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(800, 500);
+            container.appendChild(renderer.domElement);
+
+            const labelRenderer = new CSS2DRenderer();
+            labelRenderer.setSize(800, 500);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'none';
+            container.appendChild(labelRenderer.domElement);
+
+            const rectMat = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+            const triMat = new THREE.MeshBasicMaterial({ color: 0xc62828, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+            const edgeMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const dashMat = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 0.2, gapSize: 0.1 });
+
+            function createRect(w, h) {
+                const geo = new THREE.PlaneGeometry(w, h);
+                const mesh = new THREE.Mesh(geo, rectMat);
+                const edges = new THREE.EdgesGeometry(geo);
+                const line = new THREE.LineSegments(edges, edgeMat);
+                mesh.add(line);
+                return mesh;
+            }
+
+            function createTriangle(vertices) {
+                const geo = new THREE.BufferGeometry();
+                const positions = new Float32Array([
+                    vertices[0].x, vertices[0].y, vertices[0].z,
+                    vertices[1].x, vertices[1].y, vertices[1].z,
+                    vertices[2].x, vertices[2].y, vertices[2].z
+                ]);
+                geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geo.computeVertexNormals();
+                const mesh = new THREE.Mesh(geo, triMat);
+                
+                const edgeGeo = new THREE.BufferGeometry();
+                const edgePos = new Float32Array([
+                    vertices[0].x, vertices[0].y, vertices[0].z,
+                    vertices[1].x, vertices[1].y, vertices[1].z,
+                    vertices[1].x, vertices[1].y, vertices[1].z,
+                    vertices[2].x, vertices[2].y, vertices[2].z,
+                    vertices[2].x, vertices[2].y, vertices[2].z,
+                    vertices[0].x, vertices[0].y, vertices[0].z
+                ]);
+                edgeGeo.setAttribute('position', new THREE.BufferAttribute(edgePos, 3));
+                const line = new THREE.LineSegments(edgeGeo, edgeMat);
+                mesh.add(line);
+                
+                return mesh;
+            }
+
+            const centerGroup = new THREE.Group();
+            scene.add(centerGroup);
+
+            const centerRect = createRect(2, 4);
+            centerGroup.add(centerRect);
+
+            const leftHinge = new THREE.Group();
+            leftHinge.position.set(-1, 0, 0);
+            centerGroup.add(leftHinge);
+
+            const leftRect = createRect(2, 4);
+            leftRect.position.set(-1, 0, 0);
+            leftHinge.add(leftRect);
+
+            const rightHinge = new THREE.Group();
+            rightHinge.position.set(1, 0, 0);
+            centerGroup.add(rightHinge);
+
+            const rightRect = createRect(2, 4);
+            rightRect.position.set(1, 0, 0);
+            rightHinge.add(rightRect);
+
+            const leftTopHinge = new THREE.Group();
+            leftTopHinge.position.set(0, 2, 0);
+            leftHinge.add(leftTopHinge);
+
+            const leftBottomHinge = new THREE.Group();
+            leftBottomHinge.position.set(0, -2, 0);
+            leftHinge.add(leftBottomHinge);
+
+            const rightTopHinge = new THREE.Group();
+            rightTopHinge.position.set(0, 2, 0);
+            rightHinge.add(rightTopHinge);
+
+            const rightBottomHinge = new THREE.Group();
+            rightBottomHinge.position.set(0, -2, 0);
+            rightHinge.add(rightBottomHinge);
+
+            let leftTopTri, leftBottomTri, rightTopTri, rightBottomTri;
+            let leftTopMarker, leftBottomMarker, rightTopMarker, rightBottomMarker;
+            let leftTopLabel, leftBottomLabel, rightTopLabel, rightBottomLabel;
+
+            const h = 2 / Math.sqrt(3);
+
+            function createRightAngleMarker(p1, p2, p3) {
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array([
+                    p1.x, p1.y, p1.z,
+                    p2.x, p2.y, p2.z,
+                    p2.x, p2.y, p2.z,
+                    p3.x, p3.y, p3.z
+                ]);
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                return new THREE.LineSegments(geo, edgeMat);
+            }
+
+            function createLabel(text) {
+                const div = document.createElement('div');
+                div.className = 'scene1-label';
+                div.textContent = text;
+                return new CSS2DObject(div);
+            }
+
+            function updateFigure(fig) {
+                if (leftTopTri) {
+                    leftTopHinge.remove(leftTopTri, leftTopMarker, leftTopLabel);
+                    leftBottomHinge.remove(leftBottomTri, leftBottomMarker, leftBottomLabel);
+                    rightTopHinge.remove(rightTopTri, rightTopMarker, rightTopLabel);
+                    rightBottomHinge.remove(rightBottomTri, rightBottomMarker, rightBottomLabel);
+                }
+
+                let vLT, vLB, vRT, vRB;
+                let mLT, mLB, mRT, mRB;
+                let lLT, lLB, lRT, lRB;
+
+                if (fig === 1) {
+                    vLT = [new THREE.Vector3(0,0,0), new THREE.Vector3(-2,0,0), new THREE.Vector3(0,h,0)];
+                    mLT = [new THREE.Vector3(0,0.2,0), new THREE.Vector3(-0.2,0.2,0), new THREE.Vector3(-0.2,0,0)];
+                    lLT = new THREE.Vector3(-0.3, h - 0.3, 0);
+
+                    vLB = [new THREE.Vector3(0,0,0), new THREE.Vector3(-2,0,0), new THREE.Vector3(0,-h,0)];
+                    mLB = [new THREE.Vector3(0,-0.2,0), new THREE.Vector3(-0.2,-0.2,0), new THREE.Vector3(-0.2,0,0)];
+                    lLB = new THREE.Vector3(-0.3, -h + 0.3, 0);
+
+                    vRT = [new THREE.Vector3(0,0,0), new THREE.Vector3(2,0,0), new THREE.Vector3(0,h,0)];
+                    mRT = [new THREE.Vector3(0,0.2,0), new THREE.Vector3(0.2,0.2,0), new THREE.Vector3(0.2,0,0)];
+                    lRT = new THREE.Vector3(0.3, h - 0.3, 0);
+
+                    vRB = [new THREE.Vector3(0,0,0), new THREE.Vector3(2,0,0), new THREE.Vector3(0,-h,0)];
+                    mRB = [new THREE.Vector3(0,-0.2,0), new THREE.Vector3(0.2,-0.2,0), new THREE.Vector3(0.2,0,0)];
+                    lRB = new THREE.Vector3(0.3, -h + 0.3, 0);
+                } else {
+                    vLT = [new THREE.Vector3(-2,0,0), new THREE.Vector3(0,0,0), new THREE.Vector3(-2,h,0)];
+                    mLT = [new THREE.Vector3(-2,0.2,0), new THREE.Vector3(-1.8,0.2,0), new THREE.Vector3(-1.8,0,0)];
+                    lLT = new THREE.Vector3(-1.7, h - 0.3, 0);
+
+                    vLB = [new THREE.Vector3(-2,0,0), new THREE.Vector3(0,0,0), new THREE.Vector3(-2,-h,0)];
+                    mLB = [new THREE.Vector3(-2,-0.2,0), new THREE.Vector3(-1.8,-0.2,0), new THREE.Vector3(-1.8,0,0)];
+                    lLB = new THREE.Vector3(-1.7, -h + 0.3, 0);
+
+                    vRT = [new THREE.Vector3(2,0,0), new THREE.Vector3(0,0,0), new THREE.Vector3(2,h,0)];
+                    mRT = [new THREE.Vector3(2,0.2,0), new THREE.Vector3(1.8,0.2,0), new THREE.Vector3(1.8,0,0)];
+                    lRT = new THREE.Vector3(1.7, h - 0.3, 0);
+
+                    vRB = [new THREE.Vector3(2,0,0), new THREE.Vector3(0,0,0), new THREE.Vector3(2,-h,0)];
+                    mRB = [new THREE.Vector3(2,-0.2,0), new THREE.Vector3(1.8,-0.2,0), new THREE.Vector3(1.8,0,0)];
+                    lRB = new THREE.Vector3(1.7, -h + 0.3, 0);
+                }
+
+                leftTopTri = createTriangle(vLT);
+                leftTopMarker = createRightAngleMarker(mLT[0], mLT[1], mLT[2]);
+                leftTopLabel = createLabel('60°');
+                leftTopLabel.position.copy(lLT);
+                leftTopHinge.add(leftTopTri, leftTopMarker, leftTopLabel);
+
+                leftBottomTri = createTriangle(vLB);
+                leftBottomMarker = createRightAngleMarker(mLB[0], mLB[1], mLB[2]);
+                leftBottomLabel = createLabel('60°');
+                leftBottomLabel.position.copy(lLB);
+                leftBottomHinge.add(leftBottomTri, leftBottomMarker, leftBottomLabel);
+
+                rightTopTri = createTriangle(vRT);
+                rightTopMarker = createRightAngleMarker(mRT[0], mRT[1], mRT[2]);
+                rightTopLabel = createLabel('60°');
+                rightTopLabel.position.copy(lRT);
+                rightTopHinge.add(rightTopTri, rightTopMarker, rightTopLabel);
+
+                rightBottomTri = createTriangle(vRB);
+                rightBottomMarker = createRightAngleMarker(mRB[0], mRB[1], mRB[2]);
+                rightBottomLabel = createLabel('60°');
+                rightBottomLabel.position.copy(lRB);
+                rightBottomHinge.add(rightBottomTri, rightBottomMarker, rightBottomLabel);
+            }
+
+            updateFigure(1);
+
+            const baseLabel = createLabel('2');
+            baseLabel.position.set(0, -2.3, 0);
+            centerGroup.add(baseLabel);
+
+            const auxGeoTop = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-1, 2, 0),
+                new THREE.Vector3(1, 2, 0),
+                new THREE.Vector3(0, 2, Math.sqrt(3)),
+                new THREE.Vector3(-1, 2, 0)
+            ]);
+            const auxTop = new THREE.Line(auxGeoTop, dashMat);
+            auxTop.computeLineDistances();
+            scene.add(auxTop);
+
+            const auxGeoBottom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-1, -2, 0),
+                new THREE.Vector3(1, -2, 0),
+                new THREE.Vector3(0, -2, Math.sqrt(3)),
+                new THREE.Vector3(-1, -2, 0)
+            ]);
+            const auxBottom = new THREE.Line(auxGeoBottom, dashMat);
+            auxBottom.computeLineDistances();
+            scene.add(auxBottom);
+
+            const slider = document.getElementById('scene1-slider-fold');
+            const btnFig1 = document.getElementById('scene1-btn-fig1');
+            const btnFig2 = document.getElementById('scene1-btn-fig2');
+
+            function updateFold() {
+                const t = slider.value / 100;
+                
+                leftHinge.rotation.y = t * (Math.PI * 2 / 3);
+                rightHinge.rotation.y = t * (-Math.PI * 2 / 3);
+                
+                leftTopHinge.rotation.x = t * (Math.PI / 2);
+                rightTopHinge.rotation.x = t * (Math.PI / 2);
+                
+                leftBottomHinge.rotation.x = t * (-Math.PI / 2);
+                rightBottomHinge.rotation.x = t * (-Math.PI / 2);
+
+                const startCam = new THREE.Vector3(0, -8, 10);
+                const endCam = new THREE.Vector3(0, 0, 12);
+                camera.position.lerpVectors(startCam, endCam, t);
+                camera.lookAt(0, 0, 0);
+            }
+
+            slider.addEventListener('input', updateFold);
+
+            btnFig1.addEventListener('click', () => {
+                btnFig1.classList.add('active');
+                btnFig2.classList.remove('active');
+                updateFigure(1);
+            });
+
+            btnFig2.addEventListener('click', () => {
+                btnFig2.classList.add('active');
+                btnFig1.classList.remove('active');
+                updateFigure(2);
+            });
+
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+                labelRenderer.render(scene, camera);
+            }
+            animate();
+        })();
+    </script>
+</body>
+</html>

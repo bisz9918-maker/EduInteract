@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电化学装置演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { cursor: not-allowed; opacity: 0.5; }
+        .reaction-text { position: absolute; font-size: 16px; font-family: serif; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .polarity-label { position: absolute; font-size: 16px; font-weight: bold; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        
+        /* SVG Styles */
+        svg { position: absolute; top: 0; left: 0; }
+        .wire { fill: none; stroke: #000000; stroke-width: 2; }
+        .highlight-wire { fill: none; stroke-width: 4; opacity: 0; transition: opacity 0.3s; }
+        .highlight-green { stroke: #2e7d32; }
+        .highlight-red { stroke: #c62828; }
+        .electrode { fill: #ffffff; stroke: #000000; stroke-width: 2; }
+        .beaker { fill: none; stroke: #000000; stroke-width: 2; }
+        .solution { fill: #1565c0; opacity: 0.2; }
+        .solution-surface { fill: none; stroke: #000000; stroke-width: 1; stroke-dasharray: 5,5; }
+        .switch { fill: none; stroke: #000000; stroke-width: 2; transition: all 0.3s; }
+        .electron { fill: #1565c0; opacity: 0; }
+        .label { font-size: 16px; fill: #000000; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Highlights -->
+            <path id="scene1-hl-k1" class="highlight-wire highlight-green" d="M 320,180 L 320,80 L 480,80 L 480,180" />
+            <path id="scene1-hl-k2" class="highlight-wire highlight-red" d="M 320,180 L 320,140 L 480,140 L 480,180" />
+
+            <!-- Beaker and Solution -->
+            <rect x="250" y="280" width="300" height="140" class="solution" />
+            <line x1="250" y1="280" x2="550" y2="280" class="solution-surface" />
+            <line x1="250" y1="310" x2="550" y2="310" class="solution-surface" />
+            <line x1="250" y1="340" x2="550" y2="340" class="solution-surface" />
+            <line x1="250" y1="370" x2="550" y2="370" class="solution-surface" />
+            <line x1="250" y1="400" x2="550" y2="400" class="solution-surface" />
+            <polyline points="250,200 250,420 550,420 550,200" class="beaker" />
+            <text x="570" y="350" class="label">饱和NaCl溶液</text>
+
+            <!-- Electrodes -->
+            <rect x="300" y="180" width="40" height="220" class="electrode" />
+            <text x="270" y="200" class="label">C</text>
+            <rect x="460" y="180" width="40" height="220" class="electrode" />
+            <text x="510" y="200" class="label">Fe</text>
+
+            <!-- Wires -->
+            <line x1="320" y1="80" x2="320" y2="180" class="wire" />
+            <line x1="480" y1="80" x2="480" y2="180" class="wire" />
+            
+            <!-- Top Circuit -->
+            <line x1="320" y1="80" x2="380" y2="80" class="wire" />
+            <line x1="420" y1="80" x2="480" y2="80" class="wire" />
+            <line id="scene1-k1" x1="380" y1="80" x2="415" y2="60" class="switch" />
+            <text x="400" y="45" class="label">K₁</text>
+
+            <!-- Bottom Circuit -->
+            <line x1="320" y1="140" x2="340" y2="140" class="wire" />
+            <line x1="370" y1="140" x2="420" y2="140" class="wire" />
+            <line x1="440" y1="140" x2="480" y2="140" class="wire" />
+            <line id="scene1-k2" x1="340" y1="140" x2="365" y2="120" class="switch" />
+            <text x="355" y="100" class="label">K₂</text>
+
+            <!-- DC Power -->
+            <line x1="420" y1="125" x2="420" y2="155" class="wire" />
+            <line x1="440" y1="132" x2="440" y2="148" class="wire" style="stroke-width: 4;" />
+            <text x="410" y="100" class="label">+</text>
+            <text x="450" y="100" class="label">-</text>
+
+            <!-- Electrons -->
+            <circle id="scene1-e1" cx="0" cy="0" r="4" class="electron" />
+            <circle id="scene1-e2" cx="0" cy="0" r="4" class="electron" />
+            <circle id="scene1-e3" cx="0" cy="0" r="4" class="electron" />
+        </svg>
+
+        <!-- HTML Overlays -->
+        <div id="scene1-pol-left" class="polarity-label" style="left: 200px; top: 160px;"></div>
+        <div id="scene1-pol-right" class="polarity-label" style="left: 570px; top: 160px;"></div>
+        
+        <div id="scene1-rxn-left" class="reaction-text" style="left: 50px; top: 250px;"></div>
+        <div id="scene1-rxn-right" class="reaction-text" style="left: 570px; top: 250px;"></div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-text">0 / 2 : 初始状态</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 2;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+        
+        const k1 = document.getElementById('scene1-k1');
+        const k2 = document.getElementById('scene1-k2');
+        const hlK1 = document.getElementById('scene1-hl-k1');
+        const hlK2 = document.getElementById('scene1-hl-k2');
+        
+        const polLeft = document.getElementById('scene1-pol-left');
+        const polRight = document.getElementById('scene1-pol-right');
+        const rxnLeft = document.getElementById('scene1-rxn-left');
+        const rxnRight = document.getElementById('scene1-rxn-right');
+
+        const electrons = [
+            document.getElementById('scene1-e1'),
+            document.getElementById('scene1-e2'),
+            document.getElementById('scene1-e3')
+        ];
+
+        let animationFrameId = null;
+
+        function updateState() {
+            // Reset all
+            k1.setAttribute('x2', '415');
+            k1.setAttribute('y2', '60');
+            k2.setAttribute('x2', '365');
+            k2.setAttribute('y2', '120');
+            
+            hlK1.style.opacity = '0';
+            hlK2.style.opacity = '0';
+            
+            polLeft.style.opacity = '0';
+            polRight.style.opacity = '0';
+            rxnLeft.style.opacity = '0';
+            rxnRight.style.opacity = '0';
+            
+            electrons.forEach(e => e.style.opacity = '0');
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            if (currentStep === 0) {
+                stepText.textContent = '0 / 2 : 初始状态';
+                btnPrev.disabled = true;
+                btnNext.disabled = false;
+            } else if (currentStep === 1) {
+                stepText.textContent = '1 / 2 : 闭合 K₁ (原电池)';
+                btnPrev.disabled = false;
+                btnNext.disabled = false;
+                
+                k1.setAttribute('x2', '420');
+                k1.setAttribute('y2', '80');
+                hlK1.style.opacity = '1';
+                
+                polLeft.textContent = '正极';
+                polRight.textContent = '负极';
+                polLeft.style.opacity = '1';
+                polRight.style.opacity = '1';
+                
+                rxnLeft.innerHTML = 'O<sub>2</sub> + 2H<sub>2</sub>O + 4e<sup>-</sup> = 4OH<sup>-</sup>';
+                rxnRight.innerHTML = 'Fe - 2e<sup>-</sup> = Fe<sup>2+</sup>';
+                rxnLeft.style.opacity = '1';
+                rxnRight.style.opacity = '1';
+                
+                startElectronAnimation(1);
+            } else if (currentStep === 2) {
+                stepText.textContent = '2 / 2 : 闭合 K₂ (电解池)';
+                btnPrev.disabled = false;
+                btnNext.disabled = true;
+                
+                k2.setAttribute('x2', '370');
+                k2.setAttribute('y2', '140');
+                hlK2.style.opacity = '1';
+                
+                polLeft.textContent = '阳极';
+                polRight.textContent = '阴极';
+                polLeft.style.opacity = '1';
+                polRight.style.opacity = '1';
+                
+                rxnLeft.innerHTML = '2Cl<sup>-</sup> - 2e<sup>-</sup> = Cl<sub>2</sub>↑';
+                rxnRight.innerHTML = '2H<sub>2</sub>O + 2e<sup>-</sup> = H<sub>2</sub>↑ + 2OH<sup>-</sup>';
+                rxnLeft.style.opacity = '1';
+                rxnRight.style.opacity = '1';
+                
+                startElectronAnimation(2);
+            }
+        }
+
+        function startElectronAnimation(type) {
+            electrons.forEach(e => e.style.opacity = '1');
+            let startTime = performance.now();
+            
+            function animate(time) {
+                let t = ((time - startTime) % 3000) / 3000; // 0 to 1 over 3 seconds
+                
+                if (type === 1) {
+                    // Path: Fe (480,180) -> (480,80) -> (320,80) -> C (320,180)
+                    // Total length: 100 + 160 + 100 = 360
+                    electrons.forEach((el, i) => {
+                        let pt = (t + i * 0.33) % 1;
+                        let d = pt * 360;
+                        let x, y;
+                        if (d < 100) {
+                            x = 480; y = 180 - d;
+                        } else if (d < 260) {
+                            x = 480 - (d - 100); y = 80;
+                        } else {
+                            x = 320; y = 80 + (d - 260);
+                        }
+                        el.setAttribute('cx', x);
+                        el.setAttribute('cy', y);
+                    });
+                } else if (type === 2) {
+                    // Path 1: C (320,180) -> (320,140) -> (420,140) (Positive pole)
+                    // Total length: 40 + 100 = 140
+                    // Path 2: Negative pole (440,140) -> (480,140) -> Fe (480,180)
+                    // Total length: 40 + 40 = 80
+                    
+                    // Let's use e1, e2 for path 1, e3 for path 2
+                    let t1 = ((time - startTime) % 2000) / 2000;
+                    let t2 = ((time - startTime) % 1500) / 1500;
+                    
+                    [electrons[0], electrons[1]].forEach((el, i) => {
+                        let pt = (t1 + i * 0.5) % 1;
+                        let d = pt * 140;
+                        let x, y;
+                        if (d < 40) {
+                            x = 320; y = 180 - d;
+                        } else {
+                            x = 320 + (d - 40); y = 140;
+                        }
+                        el.setAttribute('cx', x);
+                        el.setAttribute('cy', y);
+                    });
+                    
+                    let pt2 = t2;
+                    let d2 = pt2 * 80;
+                    let x2, y2;
+                    if (d2 < 40) {
+                        x2 = 440 + d2; y2 = 140;
+                    } else {
+                        x2 = 480; y2 = 140 + (d2 - 40);
+                    }
+                    electrons[2].setAttribute('cx', x2);
+                    electrons[2].setAttribute('cy', y2);
+                }
+                
+                animationFrameId = requestAnimationFrame(animate);
+            }
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+
+        updateState();
+    })();
+    </script>
+</body>
+</html>

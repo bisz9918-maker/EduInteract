@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路短路分析</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #scene1-btn-prev {
+            background: #9e9e9e;
+            color: white;
+        }
+        #scene1-btn-prev:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-btn-next {
+            background: #1565c0;
+            color: white;
+        }
+        #scene1-btn-next:disabled {
+            background: #90caf9;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            position: absolute;
+            bottom: 15px;
+            right: 20px;
+            font-size: 14px;
+            color: #333;
+        }
+        /* 电流箭头动画 */
+        @keyframes flow1 {
+            0%, 100% { opacity: 0; }
+            20%, 80% { opacity: 1; }
+        }
+        @keyframes flow2 {
+            0%, 100% { opacity: 0; }
+            30%, 90% { opacity: 1; }
+        }
+        @keyframes flow3 {
+            0%, 100% { opacity: 0; }
+            40%, 100% { opacity: 1; }
+        }
+        @keyframes flow4 {
+            0%, 100% { opacity: 0; }
+            50%, 100% { opacity: 1; }
+        }
+        .scene1-arrow-anim-1 {
+            animation: flow1 1.5s infinite;
+        }
+        .scene1-arrow-anim-2 {
+            animation: flow2 1.5s infinite;
+        }
+        .scene1-arrow-anim-3 {
+            animation: flow3 1.5s infinite;
+        }
+        .scene1-arrow-anim-4 {
+            animation: flow4 1.5s infinite;
+        }
+        /* 开关闸刀过渡 */
+        #scene1-switch-blade {
+            transition: transform 0.5s ease;
+            transform-origin: 120px 315px;
+        }
+        /* 短路高亮过渡 */
+        .scene1-short-highlight {
+            transition: opacity 0.5s ease;
+        }
+        /* 结论文本框过渡 */
+        #scene1-label-conclusion {
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 电源外壳 -->
+            <rect id="scene1-power" x="220" y="50" width="160" height="35" fill="#9e9e9e" stroke="#000000" stroke-width="2"/>
+            <!-- 电源负极和正极标签 -->
+            <text id="scene1-label-neg" x="200" y="70" font-size="16" fill="#000000" text-anchor="end">-</text>
+            <text id="scene1-label-pos" x="400" y="70" font-size="16" fill="#000000" text-anchor="start">+</text>
+            
+            <!-- 电源接线柱 -->
+            <circle cx="220" cy="67" r="5" fill="#000000"/>
+            <circle cx="380" cy="67" r="5" fill="#000000"/>
+            
+            <!-- 开关 S 底座 -->
+            <rect id="scene1-switch-base" x="100" y="305" width="80" height="25" fill="#e0e0e0" stroke="#000000" stroke-width="2"/>
+            <!-- 开关接线柱 -->
+            <circle cx="120" cy="317" r="4" fill="#000000"/>
+            <circle cx="160" cy="317" r="4" fill="#000000"/>
+            <!-- 开关闸刀（初始断开状态，向上倾斜） -->
+            <line id="scene1-switch-blade" x1="120" y1="317" x2="155" y2="285" stroke="#000000" stroke-width="3"/>
+            <!-- S 标签 -->
+            <text id="scene1-label-s" x="140" y="275" font-size="14" fill="#000000" text-anchor="middle">S</text>
+            
+            <!-- 灯泡 L₂（上方） -->
+            <circle id="scene1-lamp-l2" cx="595" cy="145" r="20" fill="#fff9c4" stroke="#000000" stroke-width="2" opacity="0.7"/>
+            <!-- L₂内部灯丝 -->
+            <path d="M 585 145 Q 590 135 595 145 Q 600 135 605 145" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- 接线柱 C 和 D -->
+            <circle id="scene1-terminal-c" cx="570" cy="150" r="4" fill="#000000"/>
+            <circle id="scene1-terminal-d" cx="650" cy="150" r="4" fill="#000000"/>
+            <!-- L₂标签 -->
+            <text id="scene1-label-l2" x="670" y="150" font-size="14" fill="#000000" text-anchor="start">L₂</text>
+            <!-- C 和 D 标签 -->
+            <text id="scene1-label-c" x="555" y="165" font-size="12" fill="#000000" text-anchor="end">C</text>
+            <text id="scene1-label-d" x="665" y="165" font-size="12" fill="#000000" text-anchor="start">D</text>
+            
+            <!-- 灯泡 L₁（下方） -->
+            <circle id="scene1-lamp-l1" cx="595" cy="310" r="20" fill="#fff9c4" stroke="#000000" stroke-width="2" opacity="0.7"/>
+            <!-- L₁内部灯丝 -->
+            <path d="M 585 310 Q 590 300 595 310 Q 600 300 605 310" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- 接线柱 A 和 B -->
+            <circle id="scene1-terminal-a" cx="570" cy="310" r="4" fill="#000000"/>
+            <circle id="scene1-terminal-b" cx="650" cy="310" r="4" fill="#000000"/>
+            <!-- L₁标签 -->
+            <text id="scene1-label-l1" x="670" y="315" font-size="14" fill="#000000" text-anchor="start">L₁</text>
+            <!-- A 和 B 标签 -->
+            <text id="scene1-label-a" x="555" y="330" font-size="12" fill="#000000" text-anchor="end">A</text>
+            <text id="scene1-label-b" x="665" y="330" font-size="12" fill="#000000" text-anchor="start">B</text>
+            
+            <!-- 导线 a：C → A（竖直线） -->
+            <path id="scene1-wire-a" d="M 570 150 Q 540 200 570 310" fill="none" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-a-wire" x="535" y="230" font-size="12" fill="#000000" text-anchor="end">a</text>
+            
+            <!-- 导线 b：D → B（竖直线） -->
+            <line id="scene1-wire-b" x1="650" y1="150" x2="650" y2="310" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-b-wire" x="665" y="230" font-size="12" fill="#000000" text-anchor="start">b</text>
+            
+            <!-- 导线 M：S → B（曲线） -->
+            <path id="scene1-wire-m" d="M 160 317 Q 300 350 570 310" fill="none" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-m" x="400" y="360" font-size="12" fill="#000000" text-anchor="middle">M</text>
+            
+            <!-- 电源负极 → 开关 S 导线 -->
+            <path id="scene1-wire-neg" d="M 220 67 Q 180 100 120 317" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 电源正极 → D 导线 -->
+            <path id="scene1-wire-pos" d="M 380 67 Q 500 50 650 150" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 短路高亮线（初始隐藏） -->
+            <line id="scene1-short-b" class="scene1-short-highlight" x1="650" y1="150" x2="650" y2="310" stroke="#c62828" stroke-width="4" opacity="0"/>
+            <path id="scene1-short-m" class="scene1-short-highlight" d="M 160 317 Q 300 350 570 310" fill="none" stroke="#c62828" stroke-width="4" opacity="0"/>
+            
+            <!-- 电流箭头（初始隐藏，步骤 1 显示） -->
+            <!-- 箭头 1：沿导线 b 向下（D 附近） -->
+            <g id="scene1-arrow-1" class="scene1-arrow-anim-1" opacity="0">
+                <polygon points="650,170 645,180 655,180" fill="#c62828"/>
+            </g>
+            <!-- 箭头 2：沿导线 b 向下（中部） -->
+            <g id="scene1-arrow-2" class="scene1-arrow-anim-2" opacity="0">
+                <polygon points="650,230 645,240 655,240" fill="#c62828"/>
+            </g>
+            <!-- 箭头 3：沿导线 M 向左（B 附近） -->
+            <g id="scene1-arrow-3" class="scene1-arrow-anim-3" opacity="0">
+                <polygon points="600,315 590,310 600,305" fill="#c62828"/>
+            </g>
+            <!-- 箭头 4：沿导线 M 向左（中部） -->
+            <g id="scene1-arrow-4" class="scene1-arrow-anim-4" opacity="0">
+                <polygon points="400,345 390,340 400,335" fill="#c62828"/>
+            </g>
+            
+            <!-- 短路标注（初始隐藏） -->
+            <text id="scene1-label-short" x="400" y="400" font-size="14" fill="#c62828" text-anchor="middle" opacity="0">短路：电流不经过用电器</text>
+            
+            <!-- 结论文本框（初始隐藏） -->
+            <rect id="scene1-label-conclusion-bg" x="150" y="420" width="500" height="50" fill="#1565c0" opacity="0"/>
+            <text id="scene1-label-conclusion" x="400" y="450" font-size="14" fill="#ffffff" text-anchor="middle" opacity="0">选项 A 正确（确实短路），选项 B 错误（灯泡不发光）</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+        <div id="scene1-step-indicator">步骤 1/4</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：电路短路路径分析
+        
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const switchBlade = document.getElementById('scene1-switch-blade');
+        const arrows = [
+            document.getElementById('scene1-arrow-1'),
+            document.getElementById('scene1-arrow-2'),
+            document.getElementById('scene1-arrow-3'),
+            document.getElementById('scene1-arrow-4')
+        ];
+        const shortHighlights = [
+            document.getElementById('scene1-short-b'),
+            document.getElementById('scene1-short-m')
+        ];
+        const shortLabel = document.getElementById('scene1-label-short');
+        const conclusionBg = document.getElementById('scene1-label-conclusion-bg');
+        const conclusionText = document.getElementById('scene1-label-conclusion');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 辅助函数：显示元素
+        function showElement(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 辅助函数：隐藏元素
+        function hideElement(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps - 1);
+            stepIndicator.textContent = '步骤 ' + (currentState + 1) + '/' + totalSteps;
+            
+            // 步骤 0：初始状态 - 开关断开，无电流
+            // 步骤 1：开关闭合，显示电流箭头
+            // 步骤 2：高亮短路路径，显示短路标注
+            // 步骤 3：显示结论
+            
+            // 开关状态
+            if (currentState >= 1) {
+                // 闭合状态：闸刀水平
+                switchBlade.setAttribute('x2', '160');
+                switchBlade.setAttribute('y2', '317');
+            } else {
+                // 断开状态：闸刀向上倾斜
+                switchBlade.setAttribute('x2', '155');
+                switchBlade.setAttribute('y2', '285');
+            }
+            
+            // 电流箭头显示
+            if (currentState >= 1) {
+                arrows.forEach(function(arrow) {
+                    showElement(arrow);
+                });
+            } else {
+                arrows.forEach(function(arrow) {
+                    hideElement(arrow);
+                });
+            }
+            
+            // 短路高亮显示
+            if (currentState >= 2) {
+                shortHighlights.forEach(function(highlight) {
+                    showElement(highlight);
+                });
+                showElement(shortLabel);
+            } else {
+                shortHighlights.forEach(function(highlight) {
+                    hideElement(highlight);
+                });
+                hideElement(shortLabel);
+            }
+            
+            // 结论显示
+            if (currentState >= 3) {
+                showElement(conclusionBg);
+                showElement(conclusionText);
+                // 停止电流动画
+                arrows.forEach(function(arrow) {
+                    arrow.style.animation = 'none';
+                    arrow.style.opacity = '1';
+                });
+            } else {
+                hideElement(conclusionBg);
+                hideElement(conclusionText);
+            }
+        }
+        
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

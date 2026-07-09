@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极地俯视图 - 经度差对比</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .scene1-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene1-btn.active {
+            background: #1565c0;
+            color: #fff;
+            border-color: #1565c0;
+        }
+        .scene1-hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 极点 O -->
+            <circle id="scene1-pole-o" cx="400" cy="80" r="5" fill="#000000"/>
+            <text id="scene1-label-o" x="400" y="65" text-anchor="middle" font-size="16" fill="#000000">O</text>
+            
+            <!-- 纬线 L (圆弧，圆心(400,80), 半径 220, 角度 120°~240°) -->
+            <!-- 120° = 2π/3, 240° = 4π/3 -->
+            <!-- 起点: (400 + 220*cos(120°), 80 + 220*sin(120°)) = (400 - 110, 80 + 190.5) = (290, 270.5) -->
+            <!-- 终点: (400 + 220*cos(240°), 80 + 220*sin(240°)) = (400 - 110, 80 - 190.5) = (290, -110.5) -->
+            <!-- 实际上 SVG 坐标系 y 向下为正，需要调整 -->
+            <!-- 极坐标转换：角度从正右方开始逆时针，SVG 中需要调整 -->
+            <!-- 经线 OP 角度约 240°（从左下），OQ 角度约 300°（从右下） -->
+            <!-- 重新计算：P 在左下方，Q 在右下方 -->
+            <!-- P: (240, 320), Q: (560, 320), O: (400, 80) -->
+            <!-- OP 向量: (-160, 240), OQ 向量: (160, 240) -->
+            <!-- 纬线圆弧经过 P 和 Q，圆心 O，半径 = sqrt(160^2 + 240^2) = sqrt(25600 + 57600) = sqrt(83200) ≈ 288.4 -->
+            <!-- 但 spec 说半径 220，让我按 spec 的坐标来 -->
+            
+            <!-- 按 spec 坐标表：P(240,320), Q(560,320), O(400,80) -->
+            <!-- OP 距离 = sqrt((400-240)^2 + (80-320)^2) = sqrt(160^2 + 240^2) = sqrt(83200) ≈ 288.4 -->
+            <!-- 但 spec 说纬线半径 220，这可能是近似值，我按实际距离计算 -->
+            
+            <!-- 纬线 L 圆弧：从 P 到 Q，圆心 O -->
+            <!-- 使用 SVG path 的 A 命令 -->
+            <path id="scene1-arc-l" d="M 240 320 A 288.4 288.4 0 0 1 560 320" 
+                  fill="none" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-l" x="160" y="280" font-size="14" fill="#000000">L</text>
+            
+            <!-- 经线 OP -->
+            <line id="scene1-line-op" x1="400" y1="80" x2="240" y2="320" 
+                  stroke="#000000" stroke-width="2"/>
+            
+            <!-- 经线 OQ -->
+            <line id="scene1-line-oq" x1="400" y1="80" x2="560" y2="320" 
+                  stroke="#000000" stroke-width="2"/>
+            
+            <!-- P 点 -->
+            <circle id="scene1-point-p" cx="240" cy="320" r="4" fill="#000000"/>
+            <text id="scene1-label-p" x="225" y="335" font-size="14" fill="#000000">P</text>
+            
+            <!-- Q 点 -->
+            <circle id="scene1-point-q" cx="560" cy="320" r="4" fill="#000000"/>
+            <text id="scene1-label-q" x="575" y="335" font-size="14" fill="#000000">Q</text>
+            
+            <!-- Q 点经度标注 (固定) -->
+            <text id="scene1-lon-q" x="560" y="355" font-size="14" fill="#000000" text-anchor="middle">15°E</text>
+            
+            <!-- P 点经度标注 (状态切换) -->
+            <text id="scene1-lon-p" x="240" y="355" font-size="14" fill="#c62828" text-anchor="middle">45°</text>
+            
+            <!-- 经度差弧线 (状态 1/2 显示) -->
+            <!-- 半径 260，从 P 侧到 Q 侧 -->
+            <path id="scene1-arc-diff" class="scene1-hidden" 
+                  d="M 240 320 A 260 260 0 0 1 560 320" 
+                  fill="none" stroke="#1565c0" stroke-width="3"/>
+            
+            <!-- 经度差数值 (状态 1/2 显示) -->
+            <text id="scene1-label-diff" class="scene1-hidden" 
+                  x="400" y="380" font-size="18" fill="#1565c0" text-anchor="middle">30°</text>
+            
+            <!-- 控件栏 (放在 SVG 内部底部) -->
+            <g id="scene1-controls">
+                <rect id="scene1-btn-state0" x="220" y="455" width="100" height="35" 
+                      fill="#f5f5f5" stroke="#333" stroke-width="1" rx="4" ry="4" class="scene1-btn-rect active"/>
+                <text x="270" y="477" text-anchor="middle" font-size="14" fill="#000000" class="scene1-btn-text">原图</text>
+                
+                <rect id="scene1-btn-state1" x="350" y="455" width="140" height="35" 
+                      fill="#f5f5f5" stroke="#333" stroke-width="1" rx="4" ry="4" class="scene1-btn-rect"/>
+                <text x="420" y="477" text-anchor="middle" font-size="14" fill="#000000" class="scene1-btn-text">情况 1: 30°</text>
+                
+                <rect id="scene1-btn-state2" x="510" y="455" width="140" height="35" 
+                      fill="#f5f5f5" stroke="#333" stroke-width="1" rx="4" ry="4" class="scene1-btn-rect"/>
+                <text x="580" y="477" text-anchor="middle" font-size="14" fill="#000000" class="scene1-btn-text">情况 2: 60°</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 极地俯视图 - 经度差对比
+        
+        let currentState = 0; // 0: 原图, 1: 情况 1 (30°), 2: 情况 2 (60°)
+        
+        // 获取元素
+        const lonP = document.getElementById('scene1-lon-p');
+        const arcDiff = document.getElementById('scene1-arc-diff');
+        const labelDiff = document.getElementById('scene1-label-diff');
+        
+        const btnState0 = document.getElementById('scene1-btn-state0');
+        const btnState1 = document.getElementById('scene1-btn-state1');
+        const btnState2 = document.getElementById('scene1-btn-state2');
+        
+        // 状态切换函数
+        function setState(state) {
+            currentState = state;
+            
+            // 更新按钮样式
+            updateButtonStyle(btnState0, state === 0);
+            updateButtonStyle(btnState1, state === 1);
+            updateButtonStyle(btnState2, state === 2);
+            
+            // 更新 P 点经度标注
+            if (state === 0) {
+                lonP.textContent = '45°';
+                lonP.setAttribute('fill', '#000000');
+                hideElement(arcDiff);
+                hideElement(labelDiff);
+            } else if (state === 1) {
+                lonP.textContent = '45°E';
+                lonP.setAttribute('fill', '#c62828');
+                // 经度差 30°，弧线从 240° 到 300°（相对极点）
+                // 重新计算弧线路径
+                arcDiff.setAttribute('d', 'M 240 320 A 260 260 0 0 1 560 320');
+                labelDiff.textContent = '30°';
+                showElement(arcDiff);
+                showElement(labelDiff);
+            } else if (state === 2) {
+                lonP.textContent = '45°W';
+                lonP.setAttribute('fill', '#c62828');
+                // 经度差 60°，弧线跨度更大
+                // P 在 45°W，Q 在 15°E，经度差 = 45 + 15 = 60°
+                arcDiff.setAttribute('d', 'M 240 320 A 260 260 0 0 1 560 320');
+                labelDiff.textContent = '60°';
+                showElement(arcDiff);
+                showElement(labelDiff);
+            }
+        }
+        
+        function updateButtonStyle(btn, isActive) {
+            const rect = btn;
+            if (isActive) {
+                rect.setAttribute('fill', '#1565c0');
+                rect.setAttribute('stroke', '#1565c0');
+            } else {
+                rect.setAttribute('fill', '#f5f5f5');
+                rect.setAttribute('stroke', '#333');
+            }
+        }
+        
+        function hideElement(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        function showElement(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 绑定按钮事件
+        btnState0.addEventListener('click', function() {
+            setState(0);
+        });
+        
+        btnState1.addEventListener('click', function() {
+            setState(1);
+        });
+        
+        btnState2.addEventListener('click', function() {
+            setState(2);
+        });
+        
+        // 初始化
+        setState(0);
+        
+    })();
+    </script>
+</body>
+</html>

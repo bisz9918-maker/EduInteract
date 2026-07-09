@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑块斜面问题 - 场景1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Times New Roman", serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 5px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; font-family: sans-serif; }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; min-width: 70px; text-align: center; font-family: sans-serif; }
+        .scene1-anim { transition: transform 0.25s ease-in-out; }
+        .scene1-fade { transition: opacity 0.25s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 红色箭头（向右） -->
+                <marker id="scene1-arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <!-- 绿色箭头（向右） -->
+                <marker id="scene1-arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <!-- 绿色箭头（向左，用于双向箭头起点） -->
+                <marker id="scene1-arrowhead-green-left" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#2e7d32"/>
+                </marker>
+                <!-- 地面纹理 pattern -->
+                <pattern id="scene1-ground-pattern" x="0" y="0" width="15" height="10" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="10" x2="6" y2="0" stroke="#888888" stroke-width="1" opacity="0.3"/>
+                </pattern>
+            </defs>
+            
+            <!-- 地面纹理区域 -->
+            <rect x="50" y="410" width="700" height="10" fill="url(#scene1-ground-pattern)"/>
+            <!-- 地面线 -->
+            <line x1="50" y1="410" x2="750" y2="410" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 斜面：直角三角形，顶点 (80,245)、(260,380)、(80,380) -->
+            <polygon points="80,245 260,380 80,380" fill="#eeeeee" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 角度弧：圆心(260,380), r=18, 0°~-37° -->
+            <path d="M 278,380 A 18,18 0 0,0 274.4,369.2" fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 木板 B：初始位置 (260,380)，宽度75，高度20 -->
+            <g id="scene1-group-b" class="scene1-anim" style="transform: translate(0px, 0px);">
+                <rect x="260" y="380" width="75" height="20" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            </g>
+            
+            <!-- 滑块 A：初始位置 (73,235)，宽度14，高度10 -->
+            <g id="scene1-group-a" class="scene1-anim" style="transform: translate(0px, 0px);">
+                <rect x="73" y="235" width="14" height="10" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="1"/>
+            </g>
+            
+            <!-- 固定标签 -->
+            <!-- 斜面长度 9m — 放在斜面左侧上方 -->
+            <text x="165" y="225" font-size="14" fill="#000000" font-family="Times New Roman, serif">9m</text>
+            <!-- 角度 α=37° — 放在 B 右侧，地面线之上 -->
+            <text x="340" y="400" font-size="14" fill="#000000" font-family="Times New Roman, serif">α=37°</text>
+            <!-- 摩擦因数 μ₁=0.5 — 左上留白区 -->
+            <text x="110" y="205" font-size="14" fill="#000000" font-family="Times New Roman, serif">μ<tspan baseline-shift="sub" font-size="12">1</tspan>=0.5</text>
+            <!-- 木板 B 标签 — 放在 B 右侧外部 -->
+            <text id="scene1-label-b" x="360" y="365" font-size="16" fill="#000000" font-family="Times New Roman, serif">B</text>
+            <!-- B 长度 L=3m — 放在 B 上方远处，避免与 B 重叠 -->
+            <text x="380" y="325" font-size="14" fill="#000000" font-family="Times New Roman, serif">L=3m</text>
+            <!-- 滑块 A 标签 — 步骤0~2 固定在斜面左侧外部；步骤3~4 跟随 A 右上方 -->
+            <text id="scene1-label-a" x="55" y="195" font-size="16" fill="#000000" font-family="Times New Roman, serif" class="scene1-anim" style="transform: translate(0px, 0px);">A</text>
+            
+            <!-- 动态标签（步骤控制显隐） -->
+            <!-- a₁=2m/s² — 放在斜面左侧，左移避免与 polygon 重叠 -->
+            <text id="scene1-label-a1" x="40" y="250" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">
+                a<tspan baseline-shift="sub" font-size="12">1</tspan>=2m/s²
+            </text>
+            <!-- v₀=6m/s — 放在底端右侧 -->
+            <text id="scene1-label-v0" x="370" y="355" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">
+                v<tspan baseline-shift="sub" font-size="12">0</tspan>=6m/s
+            </text>
+            <!-- a_A=5m/s² — 放在 A 右侧外部 -->
+            <text id="scene1-label-aA" x="370" y="355" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">
+                a<tspan baseline-shift="sub" font-size="12">A</tspan>=5m/s²
+            </text>
+            <!-- a_B=1m/s² — 放在 B 右侧远处 -->
+            <text id="scene1-label-aB" x="450" y="355" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">
+                a<tspan baseline-shift="sub" font-size="12">B</tspan>=1m/s²
+            </text>
+            <!-- v=1m/s — 放在 a_B 下方，与 a_B 不同时显示 -->
+            <text id="scene1-label-v" x="450" y="375" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">v=1m/s</text>
+            <!-- Δx=3m — 放在右侧上方 -->
+            <text id="scene1-label-dx" x="430" y="335" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">Δx=3m</text>
+            <!-- x_A=3.5m — 放在 x_A 标注线下方 -->
+            <text id="scene1-label-xA" x="360" y="430" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">
+                x<tspan baseline-shift="sub" font-size="12">A</tspan>=3.5m
+            </text>
+            <!-- x_B=0.5m — 放在 x_B 标注线下方偏右 -->
+            <text id="scene1-label-xB" x="430" y="440" font-size="14" fill="#000000" font-family="Times New Roman, serif" opacity="0" class="scene1-fade">
+                x<tspan baseline-shift="sub" font-size="12">B</tspan>=0.5m
+            </text>
+            
+            <!-- 箭头（步骤控制显隐） -->
+            <!-- a₁ 箭头：绿色虚线，沿斜面向下 (130,275)->(170,305) -->
+            <path id="scene1-arrow-a1" d="M 130,275 L 170,305" stroke="#2e7d32" stroke-width="2" fill="none" stroke-dasharray="5,3" marker-end="url(#scene1-arrowhead-green)" opacity="0" class="scene1-fade"/>
+            <!-- v₀ 箭头：红色实线，水平向右 (300,365)->(340,365) -->
+            <path id="scene1-arrow-v0" d="M 300,365 L 340,365" stroke="#c62828" stroke-width="2" fill="none" marker-end="url(#scene1-arrowhead-red)" opacity="0" class="scene1-fade"/>
+            <!-- a_A 箭头：绿色虚线，水平向左 (280,375)->(250,375) -->
+            <path id="scene1-arrow-aA" d="M 280,375 L 250,375" stroke="#2e7d32" stroke-width="2" fill="none" stroke-dasharray="5,3" marker-end="url(#scene1-arrowhead-green)" opacity="0" class="scene1-fade"/>
+            <!-- a_B 箭头：绿色虚线，水平向右 (330,375)->(360,375) -->
+            <path id="scene1-arrow-aB" d="M 330,375 L 360,375" stroke="#2e7d32" stroke-width="2" fill="none" stroke-dasharray="5,3" marker-end="url(#scene1-arrowhead-green)" opacity="0" class="scene1-fade"/>
+            <!-- v 箭头：红色实线，水平向右 (355,375)->(375,375) -->
+            <path id="scene1-arrow-v" d="M 355,375 L 375,375" stroke="#c62828" stroke-width="2" fill="none" marker-end="url(#scene1-arrowhead-red)" opacity="0" class="scene1-fade"/>
+            
+            <!-- 位移标注线（步骤4） -->
+            <!-- x_A 标注线：y=405, x:260~348，绿色双向箭头 -->
+            <g id="scene1-disp-xA" opacity="0" class="scene1-fade">
+                <line x1="260" y1="405" x2="348" y2="405" stroke="#2e7d32" stroke-width="1.5" marker-end="url(#scene1-arrowhead-green)" marker-start="url(#scene1-arrowhead-green-left)"/>
+                <line x1="260" y1="400" x2="260" y2="410" stroke="#2e7d32" stroke-width="1"/>
+                <line x1="348" y1="400" x2="348" y2="410" stroke="#2e7d32" stroke-width="1"/>
+            </g>
+            <!-- x_B 标注线：y=420, x:260~273，绿色双向箭头 -->
+            <g id="scene1-disp-xB" opacity="0" class="scene1-fade">
+                <line x1="260" y1="420" x2="273" y2="420" stroke="#2e7d32" stroke-width="1.5" marker-end="url(#scene1-arrowhead-green)" marker-start="url(#scene1-arrowhead-green-left)"/>
+                <line x1="260" y1="415" x2="260" y2="425" stroke="#2e7d32" stroke-width="1"/>
+                <line x1="273" y1="415" x2="273" y2="425" stroke="#2e7d32" stroke-width="1"/>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        
+        // 元素引用
+        const groupA = document.getElementById('scene1-group-a');
+        const groupB = document.getElementById('scene1-group-b');
+        const labelA = document.getElementById('scene1-label-a');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // 步骤配置：每个步骤定义 A、B、标签的位置，以及需要显示/隐藏的元素
+        const stepConfig = [
+            // 步骤 0：初始状态
+            {
+                aTranslate: { x: 0, y: 0 },
+                bTranslate: { x: 0, y: 0 },
+                labelATranslate: { x: 0, y: 0 },
+                show: [],
+                hide: ['label-a1', 'arrow-a1', 'label-v0', 'arrow-v0', 'label-aA', 'arrow-aA', 'label-aB', 'arrow-aB', 'label-v', 'arrow-v', 'label-xA', 'disp-xA', 'label-xB', 'disp-xB', 'label-dx']
+            },
+            // 步骤 1：斜面下滑（A 移动到斜面中点）
+            {
+                aTranslate: { x: 90, y: 67 },
+                bTranslate: { x: 0, y: 0 },
+                labelATranslate: { x: 0, y: 0 },
+                show: ['label-a1', 'arrow-a1'],
+                hide: ['label-v0', 'arrow-v0', 'label-aA', 'arrow-aA', 'label-aB', 'arrow-aB', 'label-v', 'arrow-v', 'label-xA', 'disp-xA', 'label-xB', 'disp-xB', 'label-dx']
+            },
+            // 步骤 2：到达底端（A 移动到斜面底端）
+            {
+                aTranslate: { x: 180, y: 135 },
+                bTranslate: { x: 0, y: 0 },
+                labelATranslate: { x: 0, y: 0 },
+                show: ['label-v0', 'arrow-v0'],
+                hide: ['label-a1', 'arrow-a1', 'label-aA', 'arrow-aA', 'label-aB', 'arrow-aB', 'label-v', 'arrow-v', 'label-xA', 'disp-xA', 'label-xB', 'disp-xB', 'label-dx']
+            },
+            // 步骤 3：滑上 B（A 在 B 中部，B 示意性右移）
+            {
+                aTranslate: { x: 215, y: 145 },
+                bTranslate: { x: 8, y: 0 },
+                labelATranslate: { x: 250, y: 135 },
+                show: ['label-aA', 'arrow-aA', 'label-aB', 'arrow-aB'],
+                hide: ['label-a1', 'arrow-a1', 'label-v0', 'arrow-v0', 'label-v', 'arrow-v', 'label-xA', 'disp-xA', 'label-xB', 'disp-xB', 'label-dx']
+            },
+            // 步骤 4：共速临界（A 在 B 右端，B 右移更多）
+            {
+                aTranslate: { x: 261, y: 145 },
+                bTranslate: { x: 13, y: 0 },
+                labelATranslate: { x: 296, y: 135 },
+                show: ['label-v', 'arrow-v', 'label-xA', 'disp-xA', 'label-xB', 'disp-xB', 'label-dx'],
+                hide: ['label-a1', 'arrow-a1', 'label-v0', 'arrow-v0', 'label-aA', 'arrow-aA', 'label-aB', 'arrow-aB']
+            }
+        ];
+        
+        function setTranslate(el, x, y) {
+            el.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+        }
+        
+        function setOpacity(id, value) {
+            const el = document.getElementById('scene1-' + id);
+            if (el) el.style.opacity = value;
+        }
+        
+        function goToStep(n) {
+            if (n < 0 || n > 4) return;
+            currentStep = n;
+            
+            const config = stepConfig[n];
+            
+            // 移动 A、B 和标签
+            setTranslate(groupA, config.aTranslate.x, config.aTranslate.y);
+            setTranslate(groupB, config.bTranslate.x, config.bTranslate.y);
+            setTranslate(labelA, config.labelATranslate.x, config.labelATranslate.y);
+            
+            // 显示元素
+            config.show.forEach(function(id) {
+                setOpacity(id, '1');
+            });
+            
+            // 隐藏元素
+            config.hide.forEach(function(id) {
+                setOpacity(id, '0');
+            });
+            
+            // 更新控件状态
+            stepIndicator.textContent = '步骤 ' + n + '/4';
+            btnPrev.disabled = (n === 0);
+            btnNext.disabled = (n === 4);
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            goToStep(currentStep - 1);
+        });
+        btnNext.addEventListener('click', function() {
+            goToStep(currentStep + 1);
+        });
+        
+        // 初始化
+        goToStep(0);
+    })();
+    </script>
+</body>
+</html>

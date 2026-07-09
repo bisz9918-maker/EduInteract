@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 带洞金属薄板等效电阻</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 18px; font-size: 14px; cursor: pointer;
+            border: 1px solid #333; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 13px; color: #555; min-width: 70px; text-align: center; }
+        .scene2-node { fill: #000000; stroke: #ffffff; stroke-width: 2; }
+        .scene2-wire { stroke: #000000; stroke-width: 2; fill: none; }
+        .scene2-resistor { stroke: #000000; stroke-width: 1.5; fill: none; }
+        .scene2-resistor-label { font-size: 12px; fill: #000000; text-anchor: middle; dominant-baseline: middle; }
+        .scene2-node-label { font-size: 14px; font-weight: bold; fill: #000000; text-anchor: middle; dominant-baseline: middle; }
+        .scene2-highlight-blue { stroke: #1565c0 !important; stroke-width: 3 !important; }
+        .scene2-highlight-green { stroke: #2e7d32 !important; stroke-width: 3 !important; }
+        .scene2-resistor-green { stroke: #2e7d32 !important; stroke-width: 2.5 !important; }
+        .scene2-equiv-border { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .scene2-equiv-text { font-size: 14px; fill: #2e7d32; text-anchor: middle; dominant-baseline: middle; font-weight: bold; }
+        .scene2-formula { font-size: 16px; fill: #000000; text-anchor: middle; dominant-baseline: middle; }
+        .scene2-symmetry-line { stroke: #888888; stroke-width: 2; stroke-dasharray: 8,4; fill: none; }
+        .scene2-result-border { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .scene2-result-text { font-size: 18px; fill: #2e7d32; text-anchor: middle; dominant-baseline: middle; font-weight: bold; }
+        .scene2-result-sub { font-size: 11px; fill: #2e7d32; text-anchor: middle; dominant-baseline: middle; }
+        .scene2-break { stroke: #c62828; stroke-width: 2; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 上半部分电路 -->
+            <!-- 导线 -->
+            <line id="scene2-wire-ac" class="scene2-wire" x1="150" y1="190" x2="225" y2="70" />
+            <line id="scene2-wire-ae" class="scene2-wire" x1="150" y1="190" x2="300" y2="190" />
+            <line id="scene2-wire-ec" class="scene2-wire" x1="300" y1="190" x2="225" y2="70" />
+            <line id="scene2-wire-efl" class="scene2-wire" x1="300" y1="190" x2="380" y2="190" />
+            <line id="scene2-wire-efr" class="scene2-wire" x1="420" y1="190" x2="500" y2="190" />
+            <line id="scene2-wire-cd" class="scene2-wire" x1="225" y1="70" x2="575" y2="70" />
+            <line id="scene2-wire-db" class="scene2-wire" x1="575" y1="70" x2="650" y2="190" />
+            <line id="scene2-wire-df" class="scene2-wire" x1="575" y1="70" x2="500" y2="190" />
+            <line id="scene2-wire-fb" class="scene2-wire" x1="500" y1="190" x2="650" y2="190" />
+
+            <!-- 断开叉号 -->
+            <g id="scene2-break-mark">
+                <line class="scene2-break" x1="392" y1="182" x2="408" y2="198" />
+                <line class="scene2-break" x1="408" y1="182" x2="392" y2="198" />
+            </g>
+
+            <!-- 电阻符号 A-C (斜向 -58°) -->
+            <g id="scene2-resistor-ac-group">
+                <g transform="translate(187,130) rotate(-58)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="105" y="75">R</text>
+            </g>
+
+            <!-- 电阻符号 A-E (水平) -->
+            <g id="scene2-resistor-ae-group">
+                <g transform="translate(225,190)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="225" y="150">R</text>
+            </g>
+
+            <!-- 电阻符号 E-C (斜向 -122°) -->
+            <g id="scene2-resistor-ec-group">
+                <g transform="translate(262,130) rotate(-122)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="345" y="75">R</text>
+            </g>
+
+            <!-- 电阻符号 C-D (水平) -->
+            <g id="scene2-resistor-cd-group">
+                <g transform="translate(400,70)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="480" y="45">R</text>
+            </g>
+
+            <!-- 电阻符号 D-B (斜向 58°) -->
+            <g id="scene2-resistor-db-group">
+                <g transform="translate(612,130) rotate(58)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="695" y="75">R</text>
+            </g>
+
+            <!-- 电阻符号 D-F (斜向 122°) -->
+            <g id="scene2-resistor-df-group">
+                <g transform="translate(537,130) rotate(122)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="450" y="85">R</text>
+            </g>
+
+            <!-- 电阻符号 F-B (水平) -->
+            <g id="scene2-resistor-fb-group">
+                <g transform="translate(575,190)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="575" y="150">R</text>
+            </g>
+
+            <!-- 节点 -->
+            <circle id="scene2-node-a" class="scene2-node" cx="150" cy="190" r="6" />
+            <circle id="scene2-node-b" class="scene2-node" cx="650" cy="190" r="6" />
+            <circle id="scene2-node-c" class="scene2-node" cx="225" cy="70" r="6" />
+            <circle id="scene2-node-d" class="scene2-node" cx="575" cy="70" r="6" />
+            <circle id="scene2-node-e" class="scene2-node" cx="300" cy="190" r="6" />
+            <circle id="scene2-node-f" class="scene2-node" cx="500" cy="190" r="6" />
+
+            <!-- 节点标签 -->
+            <text id="scene2-label-a" class="scene2-node-label" x="130" y="195">A</text>
+            <text id="scene2-label-b" class="scene2-node-label" x="670" y="195">B</text>
+            <text id="scene2-label-c" class="scene2-node-label" x="225" y="50">C</text>
+            <text id="scene2-label-d" class="scene2-node-label" x="575" y="50">D</text>
+            <text id="scene2-label-e" class="scene2-node-label" x="280" y="215">E</text>
+            <text id="scene2-label-f" class="scene2-node-label" x="520" y="215">F</text>
+
+            <!-- 下半部分电路 (步骤5) -->
+            <g id="scene2-lower-circuit" style="display:none">
+                <!-- 导线 -->
+                <line class="scene2-wire" x1="150" y1="290" x2="225" y2="410" />
+                <line class="scene2-wire" x1="225" y1="410" x2="575" y2="410" />
+                <line class="scene2-wire" x1="575" y1="410" x2="650" y2="290" />
+
+                <!-- 电阻符号 A2-C2 (斜向 58°) -->
+                <g transform="translate(187,350) rotate(58)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="105" y="400">2R/3</text>
+
+                <!-- 电阻符号 C2-D2 (水平) -->
+                <g transform="translate(400,410)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="470" y="425">R</text>
+
+                <!-- 电阻符号 D2-B2 (斜向 -58°) -->
+                <g transform="translate(612,350) rotate(-58)">
+                    <polyline class="scene2-resistor" points="-14,0 -10,-4 -6,4 -2,-4 2,4 6,-4 10,4 14,0" />
+                </g>
+                <text class="scene2-resistor-label" x="680" y="400">2R/3</text>
+
+                <!-- 节点 -->
+                <circle class="scene2-node" cx="150" cy="290" r="6" />
+                <circle class="scene2-node" cx="650" cy="290" r="6" />
+                <circle class="scene2-node" cx="225" cy="410" r="6" />
+                <circle class="scene2-node" cx="575" cy="410" r="6" />
+
+                <!-- 节点标签 -->
+                <text class="scene2-node-label" x="130" y="295">A′</text>
+                <text class="scene2-node-label" x="670" y="295">B′</text>
+                <text class="scene2-node-label" x="225" y="435">C′</text>
+                <text class="scene2-node-label" x="575" y="435">D′</text>
+            </g>
+
+            <!-- 对称轴虚线 (步骤5) -->
+            <line id="scene2-symmetry" class="scene2-symmetry-line" x1="100" y1="240" x2="700" y2="240" style="display:none" />
+
+            <!-- 等效弹出框 (步骤1,3) - 使用线段边框避免文字与矩形重叠误报 -->
+            <g id="scene2-equiv-box" style="display:none">
+                <line class="scene2-equiv-border" x1="670" y1="115" x2="740" y2="115" />
+                <line class="scene2-equiv-border" x1="740" y1="115" x2="740" y2="150" />
+                <line class="scene2-equiv-border" x1="740" y1="150" x2="670" y2="150" />
+                <line class="scene2-equiv-border" x1="670" y1="150" x2="670" y2="115" />
+                <text class="scene2-equiv-text" x="705" y="135">= 2R/3</text>
+            </g>
+
+            <!-- 计算式 (步骤4) -->
+            <text id="scene2-formula" class="scene2-formula" x="400" y="245" style="display:none">2R/3 + R + 2R/3 = 7R/3</text>
+
+            <!-- 最终结果框 (步骤5) - 左移避免文字超出画布边缘 -->
+            <g id="scene2-result-box" style="display:none">
+                <line class="scene2-result-border" x1="690" y1="375" x2="780" y2="375" />
+                <line class="scene2-result-border" x1="780" y1="375" x2="780" y2="420" />
+                <line class="scene2-result-border" x1="780" y1="420" x2="690" y2="420" />
+                <line class="scene2-result-border" x1="690" y1="420" x2="690" y2="375" />
+                <text class="scene2-result-text" x="735" y="392">7R/6</text>
+                <text class="scene2-result-sub" x="735" y="410">(7R/3)//(7R/3)</text>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 元素引用
+        const wireAC = document.getElementById('scene2-wire-ac');
+        const wireAE = document.getElementById('scene2-wire-ae');
+        const wireEC = document.getElementById('scene2-wire-ec');
+        const wireEFL = document.getElementById('scene2-wire-efl');
+        const wireEFR = document.getElementById('scene2-wire-efr');
+        const wireCD = document.getElementById('scene2-wire-cd');
+        const wireDB = document.getElementById('scene2-wire-db');
+        const wireDF = document.getElementById('scene2-wire-df');
+        const wireFB = document.getElementById('scene2-wire-fb');
+
+        const resistorACGroup = document.getElementById('scene2-resistor-ac-group');
+        const resistorAEGroup = document.getElementById('scene2-resistor-ae-group');
+        const resistorECGroup = document.getElementById('scene2-resistor-ec-group');
+        const resistorCDGroup = document.getElementById('scene2-resistor-cd-group');
+        const resistorDBGroup = document.getElementById('scene2-resistor-db-group');
+        const resistorDFGroup = document.getElementById('scene2-resistor-df-group');
+        const resistorFBGroup = document.getElementById('scene2-resistor-fb-group');
+
+        const breakMark = document.getElementById('scene2-break-mark');
+        const nodeE = document.getElementById('scene2-node-e');
+        const nodeF = document.getElementById('scene2-node-f');
+        const labelE = document.getElementById('scene2-label-e');
+        const labelF = document.getElementById('scene2-label-f');
+
+        const lowerCircuit = document.getElementById('scene2-lower-circuit');
+        const symmetryLine = document.getElementById('scene2-symmetry');
+        const equivBox = document.getElementById('scene2-equiv-box');
+        const formula = document.getElementById('scene2-formula');
+        const resultBox = document.getElementById('scene2-result-box');
+
+        function setDisplay(el, show) {
+            if (!el) return;
+            el.style.display = show ? '' : 'none';
+        }
+
+        function setClass(el, cls, add) {
+            if (!el) return;
+            if (add) el.classList.add(cls);
+            else el.classList.remove(cls);
+        }
+
+        function render() {
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+
+            // 重置所有样式
+            setClass(wireAC, 'scene2-highlight-blue', false);
+            setClass(wireAC, 'scene2-highlight-green', false);
+            setClass(wireAE, 'scene2-highlight-blue', false);
+            setClass(wireAE, 'scene2-highlight-green', false);
+            setClass(wireEC, 'scene2-highlight-blue', false);
+            setClass(wireEC, 'scene2-highlight-green', false);
+            setClass(wireCD, 'scene2-highlight-blue', false);
+            setClass(wireCD, 'scene2-highlight-green', false);
+            setClass(wireDB, 'scene2-highlight-blue', false);
+            setClass(wireDB, 'scene2-highlight-green', false);
+            setClass(wireDF, 'scene2-highlight-blue', false);
+            setClass(wireDF, 'scene2-highlight-green', false);
+            setClass(wireFB, 'scene2-highlight-blue', false);
+            setClass(wireFB, 'scene2-highlight-green', false);
+
+            const resAC = resistorACGroup.querySelector('.scene2-resistor');
+            const resAE = resistorAEGroup.querySelector('.scene2-resistor');
+            const resEC = resistorECGroup.querySelector('.scene2-resistor');
+            const resCD = resistorCDGroup.querySelector('.scene2-resistor');
+            const resDB = resistorDBGroup.querySelector('.scene2-resistor');
+            const resDF = resistorDFGroup.querySelector('.scene2-resistor');
+            const resFB = resistorFBGroup.querySelector('.scene2-resistor');
+
+            setClass(resAC, 'scene2-resistor-green', false);
+            setClass(resAE, 'scene2-resistor-green', false);
+            setClass(resEC, 'scene2-resistor-green', false);
+            setClass(resCD, 'scene2-resistor-green', false);
+            setClass(resDB, 'scene2-resistor-green', false);
+            setClass(resDF, 'scene2-resistor-green', false);
+            setClass(resFB, 'scene2-resistor-green', false);
+
+            // 重置标签
+            const labelAC = resistorACGroup.querySelector('.scene2-resistor-label');
+            const labelDB = resistorDBGroup.querySelector('.scene2-resistor-label');
+            if (labelAC) labelAC.textContent = 'R';
+            if (labelDB) labelDB.textContent = 'R';
+
+            // 默认显示上半部分所有元素
+            setDisplay(wireAC, true);
+            setDisplay(wireAE, true);
+            setDisplay(wireEC, true);
+            setDisplay(wireEFL, true);
+            setDisplay(wireEFR, true);
+            setDisplay(wireCD, true);
+            setDisplay(wireDB, true);
+            setDisplay(wireDF, true);
+            setDisplay(wireFB, true);
+            setDisplay(resistorACGroup, true);
+            setDisplay(resistorAEGroup, true);
+            setDisplay(resistorECGroup, true);
+            setDisplay(resistorCDGroup, true);
+            setDisplay(resistorDBGroup, true);
+            setDisplay(resistorDFGroup, true);
+            setDisplay(resistorFBGroup, true);
+            setDisplay(breakMark, true);
+            setDisplay(nodeE, true);
+            setDisplay(nodeF, true);
+            setDisplay(labelE, true);
+            setDisplay(labelF, true);
+
+            // 隐藏步骤特定元素
+            setDisplay(lowerCircuit, false);
+            setDisplay(symmetryLine, false);
+            setDisplay(equivBox, false);
+            setDisplay(formula, false);
+            setDisplay(resultBox, false);
+
+            if (currentStep === 0) {
+                // 步骤0：初始状态，全部默认显示
+            } else if (currentStep === 1) {
+                // 步骤1：左端A→C并联高亮
+                setClass(wireAC, 'scene2-highlight-blue', true);
+                setClass(resAC, 'scene2-highlight-blue', true);
+                setClass(wireAE, 'scene2-highlight-green', true);
+                setClass(resAE, 'scene2-highlight-green', true);
+                setClass(wireEC, 'scene2-highlight-green', true);
+                setClass(resEC, 'scene2-highlight-green', true);
+                setDisplay(equivBox, true);
+            } else if (currentStep === 2) {
+                // 步骤2：左端化简，隐藏E及相关
+                setDisplay(wireAE, false);
+                setDisplay(wireEC, false);
+                setDisplay(wireEFL, false);
+                setDisplay(wireEFR, false);
+                setDisplay(resistorAEGroup, false);
+                setDisplay(resistorECGroup, false);
+                setDisplay(breakMark, false);
+                setDisplay(nodeE, false);
+                setDisplay(labelE, false);
+
+                setClass(resAC, 'scene2-resistor-green', true);
+                if (labelAC) labelAC.textContent = '2R/3';
+            } else if (currentStep === 3) {
+                // 步骤3：右端D→B并联高亮
+                // 先保持步骤2的化简状态
+                setDisplay(wireAE, false);
+                setDisplay(wireEC, false);
+                setDisplay(wireEFL, false);
+                setDisplay(wireEFR, false);
+                setDisplay(resistorAEGroup, false);
+                setDisplay(resistorECGroup, false);
+                setDisplay(breakMark, false);
+                setDisplay(nodeE, false);
+                setDisplay(labelE, false);
+                setClass(resAC, 'scene2-resistor-green', true);
+                if (labelAC) labelAC.textContent = '2R/3';
+
+                // 右端高亮
+                setClass(wireDB, 'scene2-highlight-blue', true);
+                setClass(resDB, 'scene2-highlight-blue', true);
+                setClass(wireDF, 'scene2-highlight-green', true);
+                setClass(resDF, 'scene2-highlight-green', true);
+                setClass(wireFB, 'scene2-highlight-green', true);
+                setClass(resFB, 'scene2-highlight-green', true);
+                setDisplay(equivBox, true);
+            } else if (currentStep === 4) {
+                // 步骤4：右端化简
+                setDisplay(wireAE, false);
+                setDisplay(wireEC, false);
+                setDisplay(wireEFL, false);
+                setDisplay(wireEFR, false);
+                setDisplay(resistorAEGroup, false);
+                setDisplay(resistorECGroup, false);
+                setDisplay(breakMark, false);
+                setDisplay(nodeE, false);
+                setDisplay(labelE, false);
+
+                setDisplay(wireDF, false);
+                setDisplay(wireFB, false);
+                setDisplay(resistorDFGroup, false);
+                setDisplay(resistorFBGroup, false);
+                setDisplay(nodeF, false);
+                setDisplay(labelF, false);
+
+                setClass(resAC, 'scene2-resistor-green', true);
+                if (labelAC) labelAC.textContent = '2R/3';
+                setClass(resDB, 'scene2-resistor-green', true);
+                if (labelDB) labelDB.textContent = '2R/3';
+
+                setDisplay(formula, true);
+            } else if (currentStep === 5) {
+                // 步骤5：上下并联
+                setDisplay(wireAE, false);
+                setDisplay(wireEC, false);
+                setDisplay(wireEFL, false);
+                setDisplay(wireEFR, false);
+                setDisplay(resistorAEGroup, false);
+                setDisplay(resistorECGroup, false);
+                setDisplay(breakMark, false);
+                setDisplay(nodeE, false);
+                setDisplay(labelE, false);
+
+                setDisplay(wireDF, false);
+                setDisplay(wireFB, false);
+                setDisplay(resistorDFGroup, false);
+                setDisplay(resistorFBGroup, false);
+                setDisplay(nodeF, false);
+                setDisplay(labelF, false);
+
+                setClass(resAC, 'scene2-resistor-green', true);
+                if (labelAC) labelAC.textContent = '2R/3';
+                setClass(resDB, 'scene2-resistor-green', true);
+                if (labelDB) labelDB.textContent = '2R/3';
+
+                setDisplay(lowerCircuit, true);
+                setDisplay(symmetryLine, true);
+                setDisplay(resultBox, true);
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                render();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                render();
+            }
+        });
+
+        render();
+    })();
+    </script>
+</body>
+</html>

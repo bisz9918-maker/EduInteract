@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电粒子在复合场中的受力分析与运动分解</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 淡入动画 */
+        .scene2-fade-in {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .scene2-fade-in.visible {
+            opacity: 1;
+        }
+        /* 脉冲动画 */
+        @keyframes scene2-pulse {
+            0%, 100% { r: 6; }
+            50% { r: 8; }
+        }
+        .scene2-pulse {
+            animation: scene2-pulse 1s ease-in-out infinite;
+        }
+        /* 按钮样式 */
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .scene2-btn-prev {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .scene2-btn-prev:hover {
+            background-color: #c0c0c0;
+        }
+        .scene2-btn-next {
+            background-color: #1565c0;
+            color: #fff;
+        }
+        .scene2-btn-next:hover {
+            background-color: #0d47a1;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        /* 结论文本框 */
+        #scene2-conclusion-box {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        #scene2-conclusion-box.visible {
+            opacity: 1;
+        }
+        /* 控件栏 */
+        #scene2-controls-bar {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            height: 35px;
+        }
+        #scene2-step-indicator {
+            font-size: 13px;
+            color: #333;
+            min-width: 70px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrow-head" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#888888" />
+                </marker>
+                <marker id="scene2-arrow-head-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene2-arrow-head-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrow-head-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 电场线区域 (步骤 0) -->
+            <g id="scene2-field-lines">
+                <line x1="50" y1="100" x2="350" y2="100" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrow-head)" />
+                <line x1="50" y1="150" x2="350" y2="150" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrow-head)" />
+                <line x1="50" y1="200" x2="350" y2="200" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrow-head)" />
+                <line x1="50" y1="250" x2="350" y2="250" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrow-head)" />
+                <line x1="50" y1="300" x2="350" y2="300" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrow-head)" />
+            </g>
+
+            <!-- 粒子 P (步骤 0) -->
+            <circle id="scene2-particle" cx="200" cy="200" r="6" fill="#000000" />
+
+            <!-- 重力 G 箭头 (步骤 0) -->
+            <g id="scene2-arrow-G">
+                <line x1="200" y1="200" x2="200" y2="260" stroke="#c62828" stroke-width="2.5" marker-end="url(#scene2-arrow-head-red)" />
+                <text id="scene2-label-G" x="210" y="235" fill="#c62828" font-size="14" font-family="Arial">G=mg</text>
+            </g>
+
+            <!-- 电场力 Fe 箭头 (步骤 0) -->
+            <g id="scene2-arrow-Fe">
+                <line x1="200" y1="200" x2="270" y2="200" stroke="#1565c0" stroke-width="2.5" marker-end="url(#scene2-arrow-head-blue)" />
+                <text id="scene2-label-Fe" x="235" y="190" fill="#1565c0" font-size="14" font-family="Arial">F_e=qE</text>
+            </g>
+
+            <!-- 竖直分运动区 (步骤 1) -->
+            <g id="scene2-vertical-group" class="scene2-fade-in">
+                <text x="420" y="60" fill="#333" font-size="16" font-family="Arial" font-weight="bold">竖直方向</text>
+                <!-- v0 向上箭头 -->
+                <line x1="480" y1="150" x2="480" y2="90" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrow-head-green)" />
+                <text x="465" y="120" fill="#2e7d32" font-size="14" font-family="Arial">v₀</text>
+                <!-- g 向下箭头 -->
+                <line x1="500" y1="100" x2="500" y2="140" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrow-head-green)" />
+                <text x="510" y="125" fill="#2e7d32" font-size="14" font-family="Arial">g</text>
+                <text x="420" y="180" fill="#666" font-size="12" font-family="Arial">竖直上抛运动</text>
+            </g>
+
+            <!-- 水平分运动区 (步骤 2) - 向上移动，远离 v-t 图 -->
+            <g id="scene2-horizontal-group" class="scene2-fade-in">
+                <text x="420" y="220" fill="#333" font-size="16" font-family="Arial" font-weight="bold">水平方向</text>
+                <!-- Fe 向右箭头 -->
+                <line x1="480" y1="270" x2="550" y2="270" stroke="#1565c0" stroke-width="2.5" marker-end="url(#scene2-arrow-head-blue)" />
+                <text x="515" y="260" fill="#1565c0" font-size="14" font-family="Arial">F_e</text>
+                <!-- ax 向右箭头 -->
+                <line x1="480" y1="305" x2="540" y2="305" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrow-head-green)" />
+                <text x="510" y="330" fill="#2e7d32" font-size="14" font-family="Arial">a_x</text>
+                <text x="420" y="355" fill="#666" font-size="12" font-family="Arial">匀加速直线运动</text>
+            </g>
+
+            <!-- v-t 图像区 (步骤 3) - 向右下移动，避开水平分运动区 -->
+            <g id="scene2-vt-charts" class="scene2-fade-in">
+                <text x="580" y="360" fill="#333" font-size="14" font-family="Arial" font-weight="bold">v-t 图</text>
+                
+                <!-- vy-t 图 (左) -->
+                <g id="scene2-vy-chart">
+                    <!-- 坐标轴 -->
+                    <line x1="590" y1="380" x2="710" y2="380" stroke="#333" stroke-width="1.5" />
+                    <line x1="590" y1="380" x2="590" y2="420" stroke="#333" stroke-width="1.5" />
+                    <!-- 图线：vy 从 v0 到 0 -->
+                    <line x1="590" y1="380" x2="710" y2="420" stroke="#2e7d32" stroke-width="2" />
+                    <!-- 标签 -->
+                    <text x="570" y="402" fill="#333" font-size="12" font-family="Arial">v_y</text>
+                    <text x="650" y="440" fill="#333" font-size="11" font-family="Arial">t</text>
+                    <text x="575" y="385" fill="#2e7d32" font-size="10" font-family="Arial">v₀</text>
+                </g>
+
+                <!-- vx-t 图 (右) -->
+                <g id="scene2-vx-chart">
+                    <!-- 坐标轴 -->
+                    <line x1="720" y1="380" x2="780" y2="380" stroke="#333" stroke-width="1.5" />
+                    <line x1="720" y1="380" x2="720" y2="420" stroke="#333" stroke-width="1.5" />
+                    <!-- 图线：vx 从 0 到 2v0 -->
+                    <line x1="720" y1="420" x2="780" y2="380" stroke="#1565c0" stroke-width="2" />
+                    <!-- 标签 -->
+                    <text x="705" y="402" fill="#333" font-size="11" font-family="Arial">v_x</text>
+                    <text x="750" y="440" fill="#333" font-size="11" font-family="Arial">t</text>
+                    <text x="785" y="385" fill="#1565c0" font-size="10" font-family="Arial">2v₀</text>
+                </g>
+            </g>
+
+            <!-- 结论文本框 (步骤 4) - 放在左侧电场线下方 -->
+            <g id="scene2-conclusion-box">
+                <rect x="50" y="350" width="340" height="80" fill="rgba(255,255,255,0.95)" stroke="#333" stroke-width="1" rx="5" />
+                <text x="70" y="375" fill="#333" font-size="12" font-family="Arial">竖直方向：竖直上抛运动（v_y 从 v₀ 减至 0）</text>
+                <text x="70" y="405" fill="#333" font-size="12" font-family="Arial">水平方向：匀加速直线运动（v_x 从 0 增至 2v₀）</text>
+            </g>
+        </svg>
+
+        <!-- HTML 控件栏 -->
+        <div id="scene2-controls-bar">
+            <button id="scene2-btn-prev" class="scene2-btn scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/4</span>
+            <button id="scene2-btn-next" class="scene2-btn scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 带电粒子在复合场中的受力分析与运动分解
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 每步可见元素 ID 列表
+        const stepElements = {
+            0: ['scene2-field-lines', 'scene2-particle', 'scene2-arrow-G', 'scene2-arrow-Fe'],
+            1: ['scene2-field-lines', 'scene2-particle', 'scene2-arrow-G', 'scene2-arrow-Fe', 'scene2-vertical-group'],
+            2: ['scene2-field-lines', 'scene2-particle', 'scene2-arrow-G', 'scene2-arrow-Fe', 'scene2-vertical-group', 'scene2-horizontal-group'],
+            3: ['scene2-field-lines', 'scene2-particle', 'scene2-arrow-G', 'scene2-arrow-Fe', 'scene2-vertical-group', 'scene2-horizontal-group', 'scene2-vt-charts'],
+            4: ['scene2-field-lines', 'scene2-particle', 'scene2-arrow-G', 'scene2-arrow-Fe', 'scene2-vertical-group', 'scene2-horizontal-group', 'scene2-vt-charts', 'scene2-conclusion-box']
+        };
+
+        // 获取元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const particle = document.getElementById('scene2-particle');
+        const conclusionBox = document.getElementById('scene2-conclusion-box');
+
+        // 显示/隐藏元素工具函数
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                if (el.classList.contains('scene2-fade-in')) {
+                    // 使用 requestAnimationFrame 确保 transition 生效
+                    requestAnimationFrame(() => {
+                        el.classList.add('visible');
+                    });
+                }
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.classList.contains('scene2-fade-in')) {
+                    el.classList.remove('visible');
+                    // 等待 transition 完成后隐藏
+                    setTimeout(() => {
+                        if (!el.classList.contains('visible')) {
+                            el.style.display = 'none';
+                        }
+                    }, 500);
+                } else {
+                    el.style.display = 'none';
+                }
+            }
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有元素
+            for (let step = 0; step <= totalSteps; step++) {
+                stepElements[step].forEach(id => {
+                    if (id !== 'scene2-field-lines' && id !== 'scene2-particle' && id !== 'scene2-arrow-G' && id !== 'scene2-arrow-Fe') {
+                        hideElement(id);
+                    }
+                });
+            }
+
+            // 显示当前步骤及之前步骤的元素
+            const visibleIds = stepElements[currentStep];
+            visibleIds.forEach(id => {
+                showElement(id);
+            });
+
+            // 确保基础元素始终可见
+            showElement('scene2-field-lines');
+            showElement('scene2-particle');
+            showElement('scene2-arrow-G');
+            showElement('scene2-arrow-Fe');
+
+            // 步骤 4 时添加脉冲动画
+            if (currentStep === 4) {
+                particle.classList.add('scene2-pulse');
+                conclusionBox.classList.add('visible');
+            } else {
+                particle.classList.remove('scene2-pulse');
+                conclusionBox.classList.remove('visible');
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+        }
+
+        // 下一步
+        function stepForward() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        }
+
+        // 上一步
+        function stepBackward() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', stepBackward);
+        btnNext.addEventListener('click', stepForward);
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

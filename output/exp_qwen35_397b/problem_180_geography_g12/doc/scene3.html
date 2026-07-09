@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昼长计算原理 - 纬线圈被晨昏线分割的昼弧与夜弧</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-label {
+            font-size: 14px;
+            fill: #333333;
+        }
+        .scene3-formula {
+            font-size: 14px;
+            fill: #333333;
+        }
+        .scene3-value {
+            font-size: 18px;
+            font-weight: bold;
+            fill: #c62828;
+        }
+        .scene3-point {
+            fill: #c62828;
+        }
+        .scene3-slider-handle {
+            fill: #c62828;
+            cursor: pointer;
+        }
+        .scene3-slider-track {
+            stroke: #1565c0;
+            stroke-width: 3;
+        }
+        .scene3-earth {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        .scene3-terminator {
+            stroke: #1565c0;
+            stroke-width: 3;
+        }
+        .scene3-night {
+            fill: #888888;
+            fill-opacity: 0.3;
+        }
+        .scene3-day {
+            fill: #2e7d32;
+            fill-opacity: 0.2;
+        }
+        .scene3-equator {
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 5,5;
+            fill: none;
+        }
+        .scene3-latitude {
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 5,5;
+            fill: none;
+        }
+        .scene3-day-arc {
+            fill: #2e7d32;
+            fill-opacity: 0.4;
+        }
+        .scene3-night-arc {
+            fill: #888888;
+            fill-opacity: 0.5;
+        }
+        .scene3-sun-ray {
+            stroke: #ffa000;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* 点标签样式 */
+        .scene3-point-label {
+            font-size: 14px;
+            fill: #333333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 地球轮廓 -->
+            <circle id="scene3-earth-circle" class="scene3-earth" cx="280" cy="250" r="180"/>
+            
+            <!-- 晨昏线 -->
+            <line id="scene3-terminator-line" class="scene3-terminator" x1="180" y1="150" x2="380" y2="350"/>
+            
+            <!-- 夜半球（晨昏线左侧） -->
+            <path id="scene3-night-region" class="scene3-night" d="M 180 150 A 180 180 0 0 0 380 350 L 280 250 Z"/>
+            
+            <!-- 昼半球（晨昏线右侧） -->
+            <path id="scene3-day-region" class="scene3-day" d="M 180 150 A 180 180 0 0 1 380 350 L 280 250 Z"/>
+            
+            <!-- 赤道 -->
+            <ellipse id="scene3-equator-line" class="scene3-equator" cx="280" cy="250" rx="180" ry="30"/>
+            
+            <!-- B 点纬线（北半球） -->
+            <ellipse id="scene3-lat-b" class="scene3-latitude" cx="280" cy="160" rx="160" ry="20"/>
+            
+            <!-- 南半球纬线 -->
+            <ellipse id="scene3-lat-south" class="scene3-latitude" cx="280" cy="340" rx="160" ry="20"/>
+            
+            <!-- 昼弧高亮段 -->
+            <path id="scene3-day-arc-highlight" class="scene3-day-arc" d=""/>
+            
+            <!-- 夜弧高亮段 -->
+            <path id="scene3-night-arc-highlight" class="scene3-night-arc" d=""/>
+            
+            <!-- A 点标签：放在晨昏线中点右侧，完全在昼半球内，远离所有图形 -->
+            <text id="scene3-label-a" class="scene3-point-label" x="370" y="210">A</text>
+            
+            <!-- B 点标签：放在纬线左侧外部，远离地球 -->
+            <text id="scene3-label-b" class="scene3-point-label" x="90" y="140">B</text>
+            
+            <!-- C 点（赤道右侧边缘） -->
+            <circle id="scene3-point-c" class="scene3-point" cx="460" cy="250" r="5"/>
+            <text id="scene3-label-c" class="scene3-label" x="475" y="270">C</text>
+            
+            <!-- 太阳光线（3 条平行箭头） -->
+            <line class="scene3-sun-ray" x1="550" y1="150" x2="630" y2="170"/>
+            <polygon points="630,170 620,165 620,175" fill="#ffa000"/>
+            <line class="scene3-sun-ray" x1="550" y1="250" x2="630" y2="270"/>
+            <polygon points="630,270 620,265 620,275" fill="#ffa000"/>
+            <line class="scene3-sun-ray" x1="550" y1="350" x2="630" y2="370"/>
+            <polygon points="630,370 620,365 620,375" fill="#ffa000"/>
+            
+            <!-- 滑块轨道 -->
+            <line id="scene3-slider-track" class="scene3-slider-track" x1="680" y1="120" x2="680" y2="380"/>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene3-slider-handle" class="scene3-slider-handle" cx="680" cy="160" r="12"/>
+            
+            <!-- 北极 N -->
+            <text id="scene3-label-n" class="scene3-label" x="275" y="50" font-weight="bold">N</text>
+            
+            <!-- 南极 S -->
+            <text id="scene3-label-s" class="scene3-label" x="275" y="450" font-weight="bold">S</text>
+            
+            <!-- 昼弧标注 - 移到地球外侧右上方，远离地球 -->
+            <text id="scene3-label-day-arc" class="scene3-label" x="450" y="80">昼弧</text>
+            
+            <!-- 夜弧标注 - 移到地球外侧左上方，远离地球 -->
+            <text id="scene3-label-night-arc" class="scene3-label" x="60" y="80">夜弧</text>
+            
+            <!-- 公式标签 -->
+            <text id="scene3-formula-label" class="scene3-formula" x="550" y="80">昼长 = 昼弧/360°×24 小时</text>
+            
+            <!-- 昼长数值显示 - 下移 -->
+            <text id="scene3-daylength-value" class="scene3-value" x="550" y="410">B 点昼长≈16 小时</text>
+            
+            <!-- A 点夜长标签 - 下移，增加间距到 25px -->
+            <text id="scene3-point-a-night" class="scene3-label" x="550" y="445">A 点（赤道）夜长 = 12 小时</text>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 昼长计算原理 - 拖拽滑块交互
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地球轮廓 | 圆形 | 圆心 (280,250) | r=180 | - | 居中偏左 |
+        // | 晨昏线 | 线段 | (180,150)-(380,350) | 约 280×280 | - | 倾斜分割昼夜 |
+        // | 夜半球 | 扇形填充 | 晨昏线左侧 | - | - | 灰色半透明 |
+        // | 昼半球 | 扇形填充 | 晨昏线右侧 | - | - | 绿色半透明 |
+        // | 赤道 | 虚线椭圆弧 | y=250 水平线 | 宽 360 | - | 穿过 A 点 |
+        // | B 点纬线 | 虚线椭圆弧 | y=160 水平线 | 宽约 320 | - | 北半球纬线 |
+        // | 南半球纬线 | 虚线椭圆弧 | y=340 水平线 | 宽约 320 | - | 与 B 对称 |
+        // | A 点 | 标签 | (370,210) | - | 晨昏线中点右侧 | 赤道与晨昏线交点 |
+        // | B 点 | 标签 | (90,140) | - | 纬线左侧外部 | 北半球纬线上 |
+        // | C 点 | 实心圆 | (460,250) | r=5 | 右下方 | 赤道右侧边缘 |
+        // | 太阳光线 | 箭头组 | (550,150),(550,250),(550,350) | 长 80 | - | 3 条平行箭头 |
+        // | 纬度滑块轨道 | 竖直线段 | (680,120)-(680,380) | 260×4 | - | 右侧控制区 |
+        // | 滑块手柄 | 圆形 | (680,160) | r=12 | - | 可上下拖动 |
+        // | 昼长数值显示 | text | (600,450) | ~150×20 | - | 动态显示 |
+        // | A 点夜长标签 | text | (600,475) | ~120×16 | - | 固定显示 12 小时 |
+        // | 昼弧标注 | text | (450,80) | ~40×14 | 上方 | 地球外侧右上方 |
+        // | 夜弧标注 | text | (60,80) | ~40×14 | 上方 | 地球外侧左上方 |
+        // | 公式标签 | text | (550,80) | ~180×30 | - | 昼长计算公式 |
+        // | 北极 N | text | (280,50) | ~20×16 | 上方 | 地球顶部 |
+        // | 南极 S | text | (280,450) | ~20×16 | 下方 | 地球底部 |
+        
+        const EARTH_CENTER = { x: 280, y: 250 };
+        const EARTH_RADIUS = 180;
+        const SLIDER_X = 680;
+        const SLIDER_Y_MIN = 120;
+        const SLIDER_Y_MAX = 380;
+        
+        // 获取 DOM 元素
+        const sliderHandle = document.getElementById('scene3-slider-handle');
+        const dayArcHighlight = document.getElementById('scene3-day-arc-highlight');
+        const nightArcHighlight = document.getElementById('scene3-night-arc-highlight');
+        const dayLengthValue = document.getElementById('scene3-daylength-value');
+        const latBEllipse = document.getElementById('scene3-lat-b');
+        
+        // 状态变量
+        let isDragging = false;
+        let currentSliderY = 160; // 初始位置在 B 点纬线
+        
+        // 计算给定纬线 y 坐标对应的昼弧比例
+        function calculateDayArcRatio(sliderY) {
+            // 将滑块 y 映射到纬度（-90 到 90）
+            const normalizedY = (sliderY - SLIDER_Y_MIN) / (SLIDER_Y_MAX - SLIDER_Y_MIN); // 0 到 1
+            const latitude = 90 - normalizedY * 180; // 90（北极）到 -90（南极）
+            
+            // 简化模型：假设夏至日，北半球昼长夜短
+            let dayArcAngle;
+            if (latitude > 0) {
+                // 北半球：纬度越高，昼越长
+                dayArcAngle = 180 + latitude * 0.8;
+                if (dayArcAngle > 360) dayArcAngle = 360;
+            } else {
+                // 南半球：纬度越低（负值越大），昼越短
+                dayArcAngle = 180 + latitude * 0.8;
+                if (dayArcAngle < 0) dayArcAngle = 0;
+            }
+            
+            return dayArcAngle / 360;
+        }
+        
+        // 更新昼弧和夜弧的高亮显示
+        function updateArcHighlights(sliderY) {
+            const ratio = calculateDayArcRatio(sliderY);
+            const dayArcAngle = ratio * 360;
+            
+            // 计算当前纬线的椭圆参数
+            const latY = sliderY;
+            const latRX = Math.sqrt(EARTH_RADIUS * EARTH_RADIUS - (latY - EARTH_CENTER.y) * (latY - EARTH_CENTER.y));
+            const latRY = 20;
+            
+            // 计算昼弧和夜弧的路径
+            const centerX = EARTH_CENTER.x;
+            const centerY = latY;
+            
+            // 昼弧起点和终点角度（从正右方开始逆时针）
+            const startAngle = -dayArcAngle / 2 * Math.PI / 180;
+            const endAngle = dayArcAngle / 2 * Math.PI / 180;
+            
+            // 计算昼弧路径
+            const dayStartX = centerX + latRX * Math.cos(startAngle);
+            const dayStartY = centerY + latRY * Math.sin(startAngle);
+            const dayEndX = centerX + latRX * Math.cos(endAngle);
+            const dayEndY = centerY + latRY * Math.sin(endAngle);
+            
+            // 昼弧路径（椭圆弧）
+            const dayPath = `M ${dayStartX} ${dayStartY} A ${latRX} ${latRY} 0 0 1 ${dayEndX} ${dayEndY}`;
+            dayArcHighlight.setAttribute('d', dayPath);
+            
+            // 夜弧路径
+            const nightPath = `M ${dayEndX} ${dayEndY} A ${latRX} ${latRY} 0 0 1 ${dayStartX} ${dayStartY}`;
+            nightArcHighlight.setAttribute('d', nightPath);
+            
+            // 更新昼长数值
+            const dayLength = (ratio * 24).toFixed(1);
+            let locationText;
+            if (sliderY < 250) {
+                locationText = "北半球";
+            } else if (sliderY > 250) {
+                locationText = "南半球";
+            } else {
+                locationText = "赤道";
+            }
+            dayLengthValue.textContent = `${locationText}昼长≈${dayLength}小时`;
+        }
+        
+        // 更新滑块手柄位置
+        function updateSliderHandle(y) {
+            currentSliderY = Math.max(SLIDER_Y_MIN, Math.min(SLIDER_Y_MAX, y));
+            sliderHandle.setAttribute('cy', currentSliderY);
+            updateArcHighlights(currentSliderY);
+        }
+        
+        // 鼠标/触摸事件处理
+        function handleStart(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function handleMove(e) {
+            if (!isDragging) return;
+            
+            let clientY;
+            if (e.touches) {
+                clientY = e.touches[0].clientY;
+            } else {
+                clientY = e.clientY;
+            }
+            
+            const svg = document.getElementById('scene3-svg');
+            const rect = svg.getBoundingClientRect();
+            const y = clientY - rect.top;
+            
+            updateSliderHandle(y);
+        }
+        
+        function handleEnd() {
+            isDragging = false;
+        }
+        
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', handleStart);
+        sliderHandle.addEventListener('touchstart', handleStart);
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove);
+        
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchend', handleEnd);
+        
+        // 初始化
+        updateSliderHandle(160);
+        
+    })();
+    </script>
+</body>
+</html>

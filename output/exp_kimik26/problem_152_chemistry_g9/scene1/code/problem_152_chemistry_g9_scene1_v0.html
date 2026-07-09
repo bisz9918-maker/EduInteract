@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>红磷燃烧法测定空气中氧气含量</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-step-name { position: absolute; bottom: 48px; left: 0; right: 0; text-align: center; font-size: 15px; color: #333; font-weight: bold; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 6px 18px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene1-btn-prev:hover:not(:disabled), #scene1-btn-next:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 步骤专属元素默认隐藏 */
+        .scene1-step-hidden { display: none; }
+
+        /* tooltip */
+        #scene1-tooltip {
+            position: absolute; background: rgba(255,255,255,0.95); border: 1px solid #ccc;
+            border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #333;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15); pointer-events: none; opacity: 0; transition: opacity 0.2s;
+            max-width: 260px; line-height: 1.6; z-index: 20;
+        }
+        #scene1-tooltip.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500" style="display:block;">
+            <!-- 定义 -->
+            <defs>
+                <linearGradient id="scene1-flame-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ff6f00"/>
+                    <stop offset="100%" stop-color="#c62828"/>
+                </linearGradient>
+            </defs>
+
+            <!-- ========== 基础装置（步骤0-5始终显示） ========== -->
+
+            <!-- 集气瓶 -->
+            <!-- 瓶身直壁 -->
+            <rect id="scene1-bottle-body" x="120" y="140" width="120" height="200" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 瓶底半圆 -->
+            <path id="scene1-bottle-bottom" d="M 120 340 A 60 60 0 0 0 240 340" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 瓶颈 -->
+            <rect id="scene1-bottle-neck" x="150" y="120" width="60" height="20" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 瓶口橡皮塞 -->
+            <rect id="scene1-bottle-cork" x="160" y="90" width="40" height="30" fill="#d7ccc8" stroke="#000" stroke-width="2"/>
+
+            <!-- 瓶内水（初始状态，步骤0-3） -->
+            <path id="scene1-bottle-water" d="M 122 320 L 238 320 L 238 398 A 58 58 0 0 1 122 398 Z" fill="#1565c0" fill-opacity="0.2" stroke="none"/>
+
+            <!-- 刻度线（1-5） -->
+            <line id="scene1-mark-1" x1="130" y1="320" x2="230" y2="320" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-mark-2" x1="130" y1="276" x2="230" y2="276" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-mark-3" x1="130" y1="232" x2="230" y2="232" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-mark-4" x1="130" y1="188" x2="230" y2="188" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-mark-5" x1="130" y1="144" x2="230" y2="144" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+
+            <!-- 数字1-5 -->
+            <text id="scene1-num-1" x="95" y="325" font-size="14" fill="#000" text-anchor="middle">1</text>
+            <text id="scene1-num-2" x="95" y="281" font-size="14" fill="#000" text-anchor="middle">2</text>
+            <text id="scene1-num-3" x="95" y="237" font-size="14" fill="#000" text-anchor="middle">3</text>
+            <text id="scene1-num-4" x="95" y="193" font-size="14" fill="#000" text-anchor="middle">4</text>
+            <text id="scene1-num-5" x="95" y="149" font-size="14" fill="#000" text-anchor="middle">5</text>
+
+            <!-- 燃烧匙 -->
+            <rect id="scene1-spoon-rod" x="178" y="120" width="4" height="100" fill="#000"/>
+            <ellipse id="scene1-spoon-bowl" cx="180" cy="235" rx="18" ry="12" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- 红磷 -->
+            <ellipse id="scene1-phosphorus" cx="180" cy="235" rx="14" ry="8" fill="#c62828" fill-opacity="0.25" stroke="none"/>
+
+            <!-- 导管 -->
+            <line id="scene1-tube-h" x1="210" y1="118" x2="460" y2="118" stroke="#000" stroke-width="3"/>
+            <line id="scene1-tube-v" x1="460" y1="118" x2="460" y2="380" stroke="#000" stroke-width="3"/>
+
+            <!-- 止水夹（关闭状态，默认） -->
+            <g id="scene1-clamp-closed">
+                <rect x="350" y="108" width="20" height="20" fill="none" stroke="#000" stroke-width="2"/>
+                <line x1="355" y1="108" x2="355" y2="128" stroke="#000" stroke-width="2"/>
+                <line x1="365" y1="108" x2="365" y2="128" stroke="#000" stroke-width="2"/>
+            </g>
+            <!-- 止水夹（打开状态，步骤4-5） -->
+            <g id="scene1-clamp-open" class="scene1-step-hidden">
+                <rect x="350" y="108" width="20" height="20" fill="none" stroke="#000" stroke-width="2"/>
+                <line x1="350" y1="113" x2="370" y2="123" stroke="#000" stroke-width="2"/>
+                <line x1="350" y1="123" x2="370" y2="113" stroke="#000" stroke-width="2"/>
+            </g>
+
+            <!-- 烧杯 -->
+            <line id="scene1-beaker-top" x1="490" y1="250" x2="630" y2="250" stroke="#000" stroke-width="2"/>
+            <line id="scene1-beaker-left" x1="490" y1="250" x2="490" y2="400" stroke="#000" stroke-width="2"/>
+            <line id="scene1-beaker-right" x1="630" y1="250" x2="630" y2="400" stroke="#000" stroke-width="2"/>
+            <line id="scene1-beaker-bottom" x1="490" y1="400" x2="630" y2="400" stroke="#000" stroke-width="2"/>
+
+            <!-- 烧杯水（初始状态，步骤0-3） -->
+            <rect id="scene1-beaker-water" x="492" y="310" width="136" height="90" fill="#1565c0" fill-opacity="0.2" stroke="none"/>
+
+            <!-- ========== 标签（基础，始终显示） ========== -->
+            <!-- 集气瓶标签：x=52确保左边缘>20px（3字约42px宽，左边缘约52-21=31px） -->
+            <text id="scene1-label-bottle" x="52" y="240" font-size="14" fill="#000" text-anchor="middle">集气瓶</text>
+            <!-- 燃烧匙标签：上移避免与瓶口/数字5重叠 -->
+            <text id="scene1-label-spoon" x="110" y="110" font-size="14" fill="#000" text-anchor="middle">燃烧匙</text>
+            <!-- 红磷标签：右移避免与瓶身重叠 -->
+            <text id="scene1-label-phosphorus" x="255" y="235" font-size="14" fill="#000" text-anchor="start">红磷</text>
+            <text id="scene1-label-tube" x="320" y="95" font-size="14" fill="#000" text-anchor="middle">导管</text>
+            <text id="scene1-label-clamp" x="370" y="80" font-size="14" fill="#000" text-anchor="middle">止水夹</text>
+            <text id="scene1-label-beaker" x="640" y="330" font-size="14" fill="#000" text-anchor="start">烧杯</text>
+            <text id="scene1-label-beaker-water" x="640" y="295" font-size="14" fill="#000" text-anchor="start">水</text>
+
+            <!-- ========== 步骤0专属：装置认知 ========== -->
+            <text id="scene1-label-bottle-water-purpose" x="260" y="360" font-size="14" fill="#2e7d32" text-anchor="start" class="scene1-step-hidden">吸收热量与白烟</text>
+
+            <!-- 集气瓶水区域热区（用于tooltip） -->
+            <rect id="scene1-bottle-water-hit" x="122" y="320" width="116" height="78" fill="transparent" cursor="pointer" style="pointer-events:all;"/>
+
+            <!-- ========== 步骤1专属：点燃红磷 ========== -->
+            <!-- 右移至x=250避免与瓶身(右边界x=240)重叠 -->
+            <text id="scene1-label-ignite" x="250" y="150" font-size="14" fill="#c62828" text-anchor="start" class="scene1-step-hidden">点燃</text>
+            <text id="scene1-label-excess" x="250" y="200" font-size="14" fill="#c62828" text-anchor="start" class="scene1-step-hidden">足量红磷</text>
+            <text id="scene1-label-deplete" x="250" y="270" font-size="14" fill="#c62828" text-anchor="start" class="scene1-step-hidden">耗尽氧气</text>
+
+            <!-- ========== 步骤2专属：燃烧反应 ========== -->
+            <!-- 火焰 -->
+            <ellipse id="scene1-flame" cx="180" cy="255" rx="10" ry="18" fill="url(#scene1-flame-grad)" opacity="0.85" class="scene1-step-hidden"/>
+            <!-- 白烟 -->
+            <circle id="scene1-smoke-1" cx="170" cy="225" r="8" fill="#fff" fill-opacity="0.4" class="scene1-step-hidden"/>
+            <circle id="scene1-smoke-2" cx="190" cy="220" r="10" fill="#fff" fill-opacity="0.3" class="scene1-step-hidden"/>
+            <circle id="scene1-smoke-3" cx="180" cy="210" r="6" fill="#fff" fill-opacity="0.5" class="scene1-step-hidden"/>
+
+            <!-- 反应式标签：右移避免与导管/止水夹标签重叠；增大行距避免拥挤 -->
+            <text id="scene1-label-reaction" x="500" y="45" font-size="14" fill="#000" text-anchor="start" class="scene1-step-hidden">红磷+氧气→五氧化二磷</text>
+            <text id="scene1-label-solid" x="500" y="95" font-size="14" fill="#2e7d32" text-anchor="start" class="scene1-step-hidden">消耗氧气，生成固体</text>
+
+            <!-- ========== 步骤3专属：冷却至室温 ========== -->
+            <!-- 雪花图标 -->
+            <g id="scene1-snowflake" class="scene1-step-hidden">
+                <text x="260" y="200" font-size="20" fill="#1565c0" text-anchor="middle">❄</text>
+            </g>
+            <text id="scene1-label-cool" x="300" y="160" font-size="14" fill="#2e7d32" text-anchor="start" class="scene1-step-hidden">冷却至室温</text>
+            <!-- 下移避免与上一行拥挤 -->
+            <text id="scene1-label-cool-note" x="300" y="200" font-size="13" fill="#2e7d32" text-anchor="start" class="scene1-step-hidden">必须冷却至室温再打开止水夹</text>
+
+            <!-- ========== 步骤4专属：打开止水夹 ========== -->
+            <!-- 上移避免与导管标签重叠 -->
+            <text id="scene1-label-open" x="420" y="65" font-size="14" fill="#2e7d32" text-anchor="start" class="scene1-step-hidden">打开止水夹</text>
+            <!-- 水流箭头 -->
+            <polygon id="scene1-water-arrow" points="430,113 430,123 415,118" fill="#1565c0" class="scene1-step-hidden"/>
+
+            <!-- ========== 步骤5专属：实验结论 ========== -->
+            <text id="scene1-label-conclusion" x="280" y="300" font-size="14" fill="#c62828" font-weight="bold" text-anchor="start" class="scene1-step-hidden">氧气约占空气体积1/5</text>
+            <text id="scene1-label-nitrogen" x="280" y="200" font-size="14" fill="#2e7d32" text-anchor="start" class="scene1-step-hidden">剩余气体主要为氮气(约4/5)</text>
+
+            <!-- 氮气区域背景（淡绿色） -->
+            <rect id="scene1-nitrogen-bg" x="122" y="144" width="116" height="132" fill="#81c784" fill-opacity="0.15" stroke="none" class="scene1-step-hidden"/>
+
+        </svg>
+
+        <!-- 步骤名称 -->
+        <div id="scene1-step-name">步骤 1/6：装置认知</div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+
+        <!-- Tooltip -->
+        <div id="scene1-tooltip">
+            目的：<br>
+            ① 吸收热量加速冷却<br>
+            ② 吸收五氧化二磷白烟<br>
+            ③ 便于观察液面变化
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+        const stepNames = [
+            "步骤 1/6：装置认知",
+            "步骤 2/6：点燃红磷",
+            "步骤 3/6：燃烧反应",
+            "步骤 4/6：冷却至室温",
+            "步骤 5/6：打开止水夹",
+            "步骤 6/6：实验结论"
+        ];
+
+        // 每步对应的元素ID列表（要显示的元素）
+        const stepElements = [
+            // 步骤0：装置认知
+            ["scene1-label-bottle-water-purpose"],
+            // 步骤1：点燃红磷
+            ["scene1-label-ignite", "scene1-label-excess", "scene1-label-deplete"],
+            // 步骤2：燃烧反应
+            ["scene1-flame", "scene1-smoke-1", "scene1-smoke-2", "scene1-smoke-3",
+             "scene1-label-reaction", "scene1-label-solid"],
+            // 步骤3：冷却至室温
+            ["scene1-snowflake", "scene1-label-cool", "scene1-label-cool-note"],
+            // 步骤4：打开止水夹
+            ["scene1-clamp-open", "scene1-label-open", "scene1-water-arrow"],
+            // 步骤5：实验结论
+            ["scene1-label-conclusion", "scene1-label-nitrogen", "scene1-nitrogen-bg"]
+        ];
+
+        // 获取DOM元素
+        const btnPrev = document.getElementById("scene1-btn-prev");
+        const btnNext = document.getElementById("scene1-btn-next");
+        const stepNameEl = document.getElementById("scene1-step-name");
+        const bottleWater = document.getElementById("scene1-bottle-water");
+        const beakerWater = document.getElementById("scene1-beaker-water");
+        const tooltip = document.getElementById("scene1-tooltip");
+        const bottleWaterHit = document.getElementById("scene1-bottle-water-hit");
+
+        // 数字和刻度线元素
+        const num2 = document.getElementById("scene1-num-2");
+        const mark2 = document.getElementById("scene1-mark-2");
+
+        // 统一显隐控制
+        function showEl(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = "";
+                el.style.opacity = "1";
+                if (el.classList.contains("scene1-step-hidden")) {
+                    el.classList.remove("scene1-step-hidden");
+                }
+            }
+        }
+        function hideEl(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = "none";
+                el.style.opacity = "0";
+            }
+        }
+
+        // 隐藏所有步骤专属元素
+        function hideAllStepElements() {
+            for (let i = 0; i < stepElements.length; i++) {
+                stepElements[i].forEach(hideEl);
+            }
+            // 也隐藏一些特殊元素
+            hideEl("scene1-clamp-open");
+            hideEl("scene1-nitrogen-bg");
+        }
+
+        // 水面动画（步骤4）
+        let animFrame = null;
+        function animateWaterLevel() {
+            const duration = 800;
+            const startTime = performance.now();
+
+            // 集气瓶水面：从 y=320, h=78 到 y=276, h=122
+            const bottleStartY = 320, bottleEndY = 276;
+
+            // 烧杯水面：从 y=310, h=90 到 y=346, h=54
+            const beakerStartY = 310, beakerEndY = 346;
+            const beakerStartH = 90, beakerEndH = 54;
+
+            function easeOut(t) {
+                return 1 - Math.pow(1 - t, 3);
+            }
+
+            function frame(now) {
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / duration, 1);
+                const e = easeOut(t);
+
+                // 集气瓶水
+                const bY = bottleStartY + (bottleEndY - bottleStartY) * e;
+                const bottomY = 398;
+                bottleWater.setAttribute("d", `M 122 ${bY} L 238 ${bY} L 238 ${bottomY} A 58 58 0 0 1 122 ${bottomY} Z`);
+
+                // 烧杯水
+                const beakerY = beakerStartY + (beakerEndY - beakerStartY) * e;
+                const beakerH = beakerStartH + (beakerEndH - beakerStartH) * e;
+                beakerWater.setAttribute("y", beakerY);
+                beakerWater.setAttribute("height", beakerH);
+
+                if (t < 1) {
+                    animFrame = requestAnimationFrame(frame);
+                }
+            }
+
+            if (animFrame) cancelAnimationFrame(animFrame);
+            animFrame = requestAnimationFrame(frame);
+        }
+
+        // 重置水面到初始状态
+        function resetWaterLevel() {
+            if (animFrame) cancelAnimationFrame(animFrame);
+            bottleWater.setAttribute("d", "M 122 320 L 238 320 L 238 398 A 58 58 0 0 1 122 398 Z");
+            beakerWater.setAttribute("y", "310");
+            beakerWater.setAttribute("height", "90");
+        }
+
+        // 应用步骤状态
+        function applyStep(step) {
+            hideAllStepElements();
+
+            // 显示当前步骤的元素
+            if (stepElements[step]) {
+                stepElements[step].forEach(showEl);
+            }
+
+            // 步骤名称
+            stepNameEl.textContent = stepNames[step];
+
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+
+            // 止水夹状态
+            if (step >= 4) {
+                hideEl("scene1-clamp-closed");
+                showEl("scene1-clamp-open");
+            } else {
+                showEl("scene1-clamp-closed");
+                hideEl("scene1-clamp-open");
+            }
+
+            // 水面状态
+            if (step === 4) {
+                // 步骤4：播放动画
+                animateWaterLevel();
+            } else if (step === 5) {
+                // 步骤5：保持最终水面，不再播放动画
+                bottleWater.setAttribute("d", "M 122 276 L 238 276 L 238 398 A 58 58 0 0 1 122 398 Z");
+                beakerWater.setAttribute("y", "346");
+                beakerWater.setAttribute("height", "54");
+            } else {
+                resetWaterLevel();
+            }
+
+            // 步骤5：高亮刻度2和数字2
+            if (step === 5) {
+                num2.setAttribute("fill", "#c62828");
+                num2.setAttribute("font-weight", "bold");
+                mark2.setAttribute("stroke", "#c62828");
+                mark2.setAttribute("stroke-width", "2");
+            } else {
+                num2.setAttribute("fill", "#000");
+                num2.setAttribute("font-weight", "normal");
+                mark2.setAttribute("stroke", "#888");
+                mark2.setAttribute("stroke-width", "1");
+            }
+
+            // tooltip只在步骤0显示
+            if (step !== 0) {
+                tooltip.classList.remove("visible");
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener("click", function() {
+            if (currentStep > 0) {
+                currentStep--;
+                applyStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener("click", function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                applyStep(currentStep);
+            }
+        });
+
+        // Tooltip事件
+        bottleWaterHit.addEventListener("mouseenter", function() {
+            if (currentStep === 0) {
+                tooltip.classList.add("visible");
+            }
+        });
+        bottleWaterHit.addEventListener("mousemove", function(e) {
+            const rect = document.getElementById("scene1-container").getBoundingClientRect();
+            tooltip.style.left = (e.clientX - rect.left + 12) + "px";
+            tooltip.style.top = (e.clientY - rect.top - 10) + "px";
+        });
+        bottleWaterHit.addEventListener("mouseleave", function() {
+            tooltip.classList.remove("visible");
+        });
+
+        // 初始化
+        applyStep(0);
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路灯下影子变化 - problem_41_math_g6</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-instruction { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 4px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .control-btn { padding: 8px 16px; font-size: 14px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .control-btn:hover { background: #1565c0; }
+        .control-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 地面线 -->
+            <line id="scene1-ground" x1="50" y1="350" x2="750" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 路灯杆 -->
+            <line id="scene1-pole" x1="600" y1="100" x2="600" y2="350" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 灯泡 -->
+            <circle id="scene1-bulb" cx="600" cy="100" r="15" fill="#ffeb3b"/>
+            
+            <!-- 路灯标签 -->
+            <text id="scene1-pole-label" x="580" y="80" font-size="14" fill="#000000">路灯</text>
+            
+            <!-- A 点标记 -->
+            <circle id="scene1-point-a" cx="100" cy="350" r="5" fill="#2e7d32"/>
+            <text id="scene1-label-a" x="90" y="370" font-size="14" fill="#000000">A</text>
+            
+            <!-- B 点标记 -->
+            <circle id="scene1-point-b" cx="700" cy="350" r="5" fill="#2e7d32"/>
+            <text id="scene1-label-b" x="710" y="370" font-size="14" fill="#000000">B</text>
+            
+            <!-- 影子区域（动态） -->
+            <rect id="scene1-shadow" x="130" y="345" width="620" height="5" fill="#c62828" opacity="0.3"/>
+            
+            <!-- 光线（动态虚线） -->
+            <line id="scene1-light-ray" x1="600" y1="100" x2="750" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 小人（可拖拽） -->
+            <g id="scene1-person-group" transform="translate(100, 250)">
+                <rect id="scene1-person" x="0" y="0" width="30" height="100" fill="#1565c0" opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+                <text id="scene1-person-label" x="-10" y="-30" font-size="14" fill="#000000">小亮</text>
+            </g>
+            
+            <!-- 影子长度显示 -->
+            <text id="scene1-shadow-text" x="620" y="40" font-size="16" fill="#000000" font-weight="bold">影子长度：6.2 米</text>
+            
+            <!-- 最短提示 -->
+            <text id="scene1-shortest-hint" x="550" y="150" font-size="16" fill="#ff5722" font-weight="bold" opacity="0">最短!</text>
+        </svg>
+        
+        <div id="scene1-instruction">拖动小人观察影子长度变化</div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-reset-btn" class="control-btn">重置到 A 点</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // ===== 布局坐标表（实现对照依据）=====
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地面线 | 线段 | (50,350)-(750,350) | 700×2 | - | 黑色实线 |
+        // | 路灯杆 | 线段 | (600,100)-(600,350) | 2×250 | - | 黑色实线 |
+        // | 灯泡 | 圆形 | (600,100) | 半径 15 | - | 黄色填充 |
+        // | A 点标记 | 圆点 | (100,350) | 半径 5 | 左下方 | 绿色实心 |
+        // | B 点标记 | 圆点 | (700,350) | 半径 5 | 右下方 | 绿色实心 |
+        // | A 标签 | text | (90,370) | 20×16 | 下方 | 黑色 14px |
+        // | B 标签 | text | (710,370) | 20×16 | 下方 | 黑色 14px |
+        // | 路灯标签 | text | (580,80) | 40×16 | 上方 | 黑色 14px |
+        // | 小人 | 矩形 | (x,250)-(x+30,350) | 30×100 | - | x 可拖动 80-720 |
+        // | 小人标签 | text | (x-10,220) | 40×16 | 上方 | 黑色 14px |
+        // | 光线 | 虚线 | (600,100)-(影子落点，350) | 动态 | - | 灰色虚线 |
+        // | 影子区域 | 矩形 | (小人脚 x,345)-(影子落点，350) | 动态×5 | - | 红色填充 |
+        // | 影子长度显示 | text | (620,40) | 120×18 | - | 右上角固定 |
+        // | 最短影子提示 | text | (550,150) | 80×16 | - | 路灯下方高亮时显示 |
+        
+        // ===== 常量定义 =====
+        const LAMP_X = 600;        // 路灯杆 x 坐标
+        const LAMP_TOP_Y = 100;    // 灯泡中心 y 坐标
+        const GROUND_Y = 350;      // 地面 y 坐标
+        const LAMP_HEIGHT = GROUND_Y - LAMP_TOP_Y;  // 路灯高度 = 250px
+        const PERSON_WIDTH = 30;   // 小人宽度
+        const PERSON_HEIGHT = 100; // 小人高度
+        const PERSON_HEAD_Y = 250; // 小人头顶 y 坐标
+        const PERSON_FOOT_Y = 350; // 小人脚底 y 坐标
+        const PERSON_HEAD_OFFSET_X = 15; // 小人头顶中心相对于小人左边缘的偏移
+        const PERSON_LABEL_Y_OFFSET = -30; // 小人标签相对于头顶的 y 偏移
+        
+        // 影子长度计算比例：人高/(路灯高 - 人高) = 100/150 = 2/3
+        const SHADOW_RATIO = 2 / 3;
+        
+        // 小人拖动范围
+        const PERSON_MIN_X = 80;
+        const PERSON_MAX_X = 720;
+        
+        // ===== DOM 元素引用 =====
+        const svg = document.getElementById('scene1-svg');
+        const personGroup = document.getElementById('scene1-person-group');
+        const personLabel = document.getElementById('scene1-person-label');
+        const shadowRect = document.getElementById('scene1-shadow');
+        const lightRay = document.getElementById('scene1-light-ray');
+        const shadowText = document.getElementById('scene1-shadow-text');
+        const shortestHint = document.getElementById('scene1-shortest-hint');
+        const resetBtn = document.getElementById('scene1-reset-btn');
+        
+        // ===== 状态变量 =====
+        let personX = 100;  // 小人左边缘 x 坐标（初始在 A 点）
+        let isDragging = false;
+        
+        // ===== 影子长度计算 =====
+        function calculateShadowLength(px) {
+            // 人到路灯的水平距离（从人到路灯杆中心）
+            const personCenterX = px + PERSON_WIDTH / 2;
+            const distance = Math.abs(LAMP_X - personCenterX);
+            // 影子长度 = 距离 × 人高 / (路灯高 - 人高)
+            const shadowLengthPx = distance * SHADOW_RATIO;
+            // 转换为米（假设 100px = 1 米）
+            const shadowLengthMeters = shadowLengthPx / 100;
+            return {
+                lengthPx: shadowLengthPx,
+                lengthMeters: shadowLengthMeters
+            };
+        }
+        
+        // ===== 光线落点计算 =====
+        function calculateRayIntersection(px) {
+            // 小人头顶中心坐标
+            const headX = px + PERSON_HEAD_OFFSET_X;
+            const headY = PERSON_HEAD_Y;
+            
+            // 光线从灯泡 (600,100) 经过小人头顶 (headX, headY) 到地面
+            // 直线方程：y - y1 = k(x - x1)
+            // k = (headY - LAMP_TOP_Y) / (headX - LAMP_X)
+            const k = (headY - LAMP_TOP_Y) / (headX - LAMP_X);
+            
+            // 求 y = GROUND_Y 时的 x 值
+            // GROUND_Y - LAMP_TOP_Y = k(x - LAMP_X)
+            // x = LAMP_X + (GROUND_Y - LAMP_TOP_Y) / k
+            const intersectionX = LAMP_X + (GROUND_Y - LAMP_TOP_Y) / k;
+            
+            return intersectionX;
+        }
+        
+        // ===== 更新影子和光线 =====
+        function updateShadowAndRay() {
+            const shadowInfo = calculateShadowLength(personX);
+            const rayIntersection = calculateRayIntersection(personX);
+            
+            // 判断影子方向
+            const personCenterX = personX + PERSON_WIDTH / 2;
+            const shadowInLeft = personCenterX > LAMP_X;  // 影子在左侧
+            
+            // 更新影子矩形
+            let shadowX, shadowWidth;
+            if (shadowInLeft) {
+                // 影子在左侧：从光线落点到小人脚
+                shadowX = Math.max(50, Math.min(rayIntersection, personX + PERSON_WIDTH));
+                shadowWidth = Math.max(0, (personX + PERSON_WIDTH) - shadowX);
+            } else {
+                // 影子在右侧：从小人脚到光线落点
+                shadowX = personX + PERSON_WIDTH;
+                shadowWidth = Math.max(0, Math.min(rayIntersection, 750) - shadowX);
+            }
+            
+            shadowRect.setAttribute('x', shadowX);
+            shadowRect.setAttribute('width', shadowWidth);
+            
+            // 更新光线（从灯泡到光线落点）
+            lightRay.setAttribute('x1', LAMP_X);
+            lightRay.setAttribute('y1', LAMP_TOP_Y);
+            lightRay.setAttribute('x2', Math.max(50, Math.min(750, rayIntersection)));
+            lightRay.setAttribute('y2', GROUND_Y);
+            
+            // 更新影子长度显示
+            shadowText.textContent = `影子长度：${shadowInfo.lengthMeters.toFixed(1)} 米`;
+            
+            // 更新最短提示
+            const distanceToLamp = Math.abs(personCenterX - LAMP_X);
+            if (distanceToLamp < 30) {
+                shortestHint.setAttribute('opacity', '1');
+                shortestHint.setAttribute('x', LAMP_X - 40);
+                shortestHint.setAttribute('y', 150);
+            } else {
+                shortestHint.setAttribute('opacity', '0');
+            }
+        }
+        
+        // ===== 更新小人位置 =====
+        function updatePersonPosition() {
+            personGroup.setAttribute('transform', `translate(${personX}, ${PERSON_HEAD_Y})`);
+            personLabel.setAttribute('x', personX - 10);
+            personLabel.setAttribute('y', PERSON_HEAD_Y + PERSON_LABEL_Y_OFFSET);
+        }
+        
+        // ===== 完整更新 =====
+        function updateScene() {
+            updatePersonPosition();
+            updateShadowAndRay();
+        }
+        
+        // ===== 拖拽事件处理 =====
+        function handleMouseDown(e) {
+            const rect = svg.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 检查是否在小人区域内
+            if (mouseX >= personX && mouseX <= personX + PERSON_WIDTH &&
+                mouseY >= PERSON_HEAD_Y && mouseY <= PERSON_HEAD_Y + PERSON_HEIGHT) {
+                isDragging = true;
+                e.preventDefault();
+            }
+        }
+        
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            
+            const rect = svg.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            
+            // 更新小人位置（限制在拖动范围内）
+            personX = Math.max(PERSON_MIN_X, Math.min(PERSON_MAX_X, mouseX - PERSON_WIDTH / 2));
+            
+            updateScene();
+        }
+        
+        function handleMouseUp() {
+            isDragging = false;
+        }
+        
+        // ===== 重置功能 =====
+        function resetToA() {
+            personX = 100;
+            updateScene();
+        }
+        
+        // ===== 触摸事件支持 =====
+        function handleTouchStart(e) {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                handleMouseDown({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    preventDefault: () => e.preventDefault()
+                });
+            }
+        }
+        
+        function handleTouchMove(e) {
+            if (isDragging && e.touches.length === 1) {
+                const touch = e.touches[0];
+                handleMouseMove({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    preventDefault: () => e.preventDefault()
+                });
+            }
+        }
+        
+        function handleTouchEnd() {
+            handleMouseUp();
+        }
+        
+        // ===== 初始化 =====
+        function init() {
+            // 绑定事件
+            svg.addEventListener('mousedown', handleMouseDown);
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            
+            // 触摸支持
+            svg.addEventListener('touchstart', handleTouchStart, { passive: false });
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('touchend', handleTouchEnd);
+            
+            // 重置按钮
+            resetBtn.addEventListener('click', resetToA);
+            
+            // 初始更新
+            updateScene();
+        }
+        
+        // 启动
+        init();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景 2：沿斜面方向的力分解与平衡方程可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; pointer-events: none; }
+        #scene2-controls > * { pointer-events: auto; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #1565c0; background: #e3f2fd; border-radius: 4px; }
+        .scene2-btn:hover:not(:disabled) { background: #bbdefb; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #1565c0; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 Z" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrowhead-red" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 Z" fill="#c62828" />
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 Z" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 电场线背景（5 条水平箭头） -->
+            <g id="scene2-e-field-group">
+                <line x1="50" y1="100" x2="750" y2="100" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene2-arrowhead)" />
+                <line x1="50" y1="180" x2="750" y2="180" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene2-arrowhead)" />
+                <line x1="50" y1="260" x2="750" y2="260" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene2-arrowhead)" />
+                <line x1="50" y1="340" x2="750" y2="340" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene2-arrowhead)" />
+                <line x1="50" y1="420" x2="750" y2="420" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene2-arrowhead)" />
+                <text x="765" y="90" font-size="16" fill="#1565c0" font-weight="bold">E</text>
+            </g>
+
+            <!-- 斜面 -->
+            <polygon id="scene2-incline" points="80,380 480,380 480,160" fill="#e8f5e9" fill-opacity="0.8" stroke="#000000" stroke-width="2" />
+            
+            <!-- 37°角标注 -->
+            <path d="M 105,380 A 25,25 0 0,0 100,358" fill="none" stroke="#000000" stroke-width="1.5" />
+            <text x="115" y="368" font-size="14" fill="#000000">37°</text>
+
+            <!-- B 球（固定） -->
+            <circle id="scene2-ball-b" cx="250" cy="290" r="12" fill="#90a4ae" stroke="#000000" stroke-width="2" />
+            <text x="255" y="280" font-size="14" fill="#000000" font-weight="bold">B</text>
+
+            <!-- A 球 -->
+            <circle id="scene2-ball-a" cx="380" cy="220" r="12" fill="#ffffff" stroke="#000000" stroke-width="2" />
+            <text x="385" y="210" font-size="14" fill="#000000" font-weight="bold">A</text>
+
+            <!-- 重力 mg（初始浅色） -->
+            <line id="scene2-force-mg" x1="380" y1="220" x2="380" y2="290" stroke="#cccccc" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+            <text id="scene2-label-mg" x="385" y="305" font-size="13" fill="#cccccc">mg</text>
+
+            <!-- 重力分力 mg sin37°（沿斜面向下，红色） -->
+            <g id="scene2-force-mg-sin-group" style="opacity: 0;">
+                <line x1="380" y1="220" x2="420" y2="285" stroke="#c62828" stroke-width="2.5" marker-end="url(#scene2-arrowhead-red)" />
+                <text x="435" y="300" font-size="13" fill="#c62828">mg sin37°</text>
+            </g>
+
+            <!-- 重力分力 mg cos37°（垂直斜面向下，红色） -->
+            <g id="scene2-force-mg-cos-group" style="opacity: 0;">
+                <line x1="380" y1="220" x2="335" y2="255" stroke="#c62828" stroke-width="2.5" marker-end="url(#scene2-arrowhead-red)" />
+                <text x="285" y="270" font-size="13" fill="#c62828">mg cos37°</text>
+            </g>
+
+            <!-- 电场力 qE（初始浅色，水平向左因为 A 带负电） -->
+            <line id="scene2-force-qe" x1="380" y1="220" x2="310" y2="220" stroke="#cccccc" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+            <text id="scene2-label-qe" x="285" y="210" font-size="13" fill="#cccccc">qE</text>
+
+            <!-- 电场力分力 qE cos37°（沿斜面向上，绿色） -->
+            <g id="scene2-force-qe-cos-group" style="opacity: 0;">
+                <line x1="380" y1="220" x2="325" y2="255" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrowhead-green)" />
+                <text x="265" y="255" font-size="13" fill="#2e7d32">qE cos37°</text>
+            </g>
+
+            <!-- 电场力分力 qE sin37°（垂直斜面向上，绿色） -->
+            <g id="scene2-force-qe-sin-group" style="opacity: 0;">
+                <line x1="380" y1="220" x2="345" y2="185" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrowhead-green)" />
+                <text x="340" y="170" font-size="13" fill="#2e7d32">qE sin37°</text>
+            </g>
+
+            <!-- 库仑力 F_C（沿斜面向上，绿色） -->
+            <g id="scene2-force-fc-group" style="opacity: 0;">
+                <line x1="380" y1="220" x2="330" y2="250" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrowhead-green)" />
+                <text x="295" y="265" font-size="13" fill="#2e7d32">F_C</text>
+            </g>
+
+            <!-- 分解辅助虚线 -->
+            <g id="scene2-dash-group" style="opacity: 0;">
+                <!-- 重力分解矩形辅助线 -->
+                <line x1="380" y1="290" x2="420" y2="285" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="380" y1="290" x2="335" y2="255" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                <!-- 电场力分解矩形辅助线 -->
+                <line x1="310" y1="220" x2="325" y2="255" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="310" y1="220" x2="345" y2="185" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            </g>
+
+            <!-- 方程框 -->
+            <rect id="scene2-equation-box" x="520" y="150" width="260" height="200" fill="#f5f5f5" stroke="#1565c0" stroke-width="2" rx="8" />
+            <text id="scene2-equation-text" x="535" y="180" font-size="14" fill="#1565c0">受力分析中...</text>
+
+            <!-- 控件栏（SVG 内部底部绝对定位） -->
+            <g id="scene2-controls">
+                <rect x="200" y="450" width="100" height="35" fill="#e3f2fd" stroke="#1565c0" stroke-width="1" rx="4" class="scene2-btn-bg" />
+                <text x="250" y="472" font-size="14" fill="#1565c0" text-anchor="middle" id="scene2-btn-prev-text">◀ 上一步</text>
+                
+                <text x="400" y="472" font-size="14" fill="#1565c0" text-anchor="middle" id="scene2-step-indicator">步骤 0/5</text>
+                
+                <rect x="500" y="450" width="100" height="35" fill="#e3f2fd" stroke="#1565c0" stroke-width="1" rx="4" class="scene2-btn-bg" />
+                <text x="550" y="472" font-size="14" fill="#1565c0" text-anchor="middle" id="scene2-btn-next-text">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：沿斜面方向的力分解与平衡方程可视化
+
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 |
+        // | 斜面 | 三角形 | (80,380)-(480,380)-(480,160) | 底 400×高 220 |
+        // | A 球 | 圆形 | (380,220) | r=12 |
+        // | B 球 | 圆形 | (250,290) | r=12 |
+        // | 电场线 | 箭头 | 5 条水平线 y=100,180,260,340,420 |
+        // | 重力 mg | 箭头 | (380,220)-(380,290) | 长 70 |
+        // | mg sin37° | 箭头 | (380,220)-(420,285) | 沿斜面向下 |
+        // | mg cos37° | 箭头 | (380,220)-(335,255) | 垂直斜面向下 |
+        // | qE | 箭头 | (380,220)-(310,220) | 水平向左 |
+        // | qE cos37° | 箭头 | (380,220)-(325,255) | 沿斜面向上 |
+        // | qE sin37° | 箭头 | (380,220)-(345,185) | 垂直斜面向上 |
+        // | F_C | 箭头 | (380,220)-(330,250) | 沿斜面向上 |
+        // | 方程框 | 矩形 | (520,150)-(780,350) | 260×200 |
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 方程文本内容
+        const equationTexts = [
+            "受力分析中...",
+            "重力分解完成",
+            "电场力分解完成",
+            "库仑力 F_C = kq²/L²（沿斜面向上）",
+            "沿斜面方向平衡：\nmg sin37° = qE cos37° + F_C",
+            "E = (mg sin37° - kq²/L²) / (q cos37°)"
+        ];
+
+        // 获取 DOM 元素
+        const forceMg = document.getElementById('scene2-force-mg');
+        const labelMg = document.getElementById('scene2-label-mg');
+        const forceQe = document.getElementById('scene2-force-qe');
+        const labelQe = document.getElementById('scene2-label-qe');
+        const forceMgSinGroup = document.getElementById('scene2-force-mg-sin-group');
+        const forceMgCosGroup = document.getElementById('scene2-force-mg-cos-group');
+        const forceQeCosGroup = document.getElementById('scene2-force-qe-cos-group');
+        const forceQeSinGroup = document.getElementById('scene2-force-qe-sin-group');
+        const forceFcGroup = document.getElementById('scene2-force-fc-group');
+        const dashGroup = document.getElementById('scene2-dash-group');
+        const equationText = document.getElementById('scene2-equation-text');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const btnPrevText = document.getElementById('scene2-btn-prev-text');
+        const btnNextText = document.getElementById('scene2-btn-next-text');
+
+        // 显示/隐藏辅助函数
+        function show(el) {
+            el.style.opacity = '1';
+            el.style.display = 'block';
+        }
+        function hide(el) {
+            el.style.opacity = '0';
+            el.style.display = 'none';
+        }
+
+        // 更新步骤
+        function updateStep() {
+            // 更新步骤指示
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            // 更新按钮状态
+            btnPrevText.parentElement.style.opacity = currentStep === 0 ? '0.5' : '1';
+            btnNextText.parentElement.style.opacity = currentStep === totalSteps ? '0.5' : '1';
+
+            // 根据步骤显示/隐藏元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示原始力
+                    forceMg.style.stroke = '#cccccc';
+                    labelMg.style.fill = '#cccccc';
+                    show(forceMg);
+                    show(labelMg);
+                    forceQe.style.stroke = '#cccccc';
+                    labelQe.style.fill = '#cccccc';
+                    show(forceQe);
+                    show(labelQe);
+                    hide(forceMgSinGroup);
+                    hide(forceMgCosGroup);
+                    hide(forceQeCosGroup);
+                    hide(forceQeSinGroup);
+                    hide(forceFcGroup);
+                    hide(dashGroup);
+                    equationText.textContent = equationTexts[0];
+                    break;
+                case 1:
+                    // 步骤 1：重力分解
+                    forceMg.style.stroke = '#cccccc';
+                    labelMg.style.fill = '#cccccc';
+                    show(forceMgSinGroup);
+                    show(forceMgCosGroup);
+                    hide(forceQeCosGroup);
+                    hide(forceQeSinGroup);
+                    hide(forceFcGroup);
+                    show(dashGroup);
+                    equationText.textContent = equationTexts[1];
+                    break;
+                case 2:
+                    // 步骤 2：电场力分解
+                    forceQe.style.stroke = '#cccccc';
+                    labelQe.style.fill = '#cccccc';
+                    show(forceQeCosGroup);
+                    show(forceQeSinGroup);
+                    hide(forceFcGroup);
+                    equationText.textContent = equationTexts[2];
+                    break;
+                case 3:
+                    // 步骤 3：库仑力出现
+                    show(forceFcGroup);
+                    equationText.textContent = equationTexts[3];
+                    break;
+                case 4:
+                    // 步骤 4：沿斜面方向高亮
+                    equationText.textContent = equationTexts[4];
+                    break;
+                case 5:
+                    // 步骤 5：最终结果
+                    equationText.textContent = equationTexts[5];
+                    break;
+            }
+        }
+
+        // 按钮点击事件
+        btnPrevText.parentElement.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNextText.parentElement.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

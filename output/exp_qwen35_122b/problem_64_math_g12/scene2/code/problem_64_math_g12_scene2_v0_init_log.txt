@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 四棱柱底面对角线垂直条件</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 10px; z-index: 10; }
+        #scene2-controls button {
+            width: 90px; height: 30px;
+            font-size: 13px;
+            background: #e3f2fd;
+            border: 2px solid #1976d2;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #1565c0;
+            font-weight: bold;
+        }
+        #scene2-controls button:hover { background: #bbdefb; }
+        #scene2-controls button.active { background: #1976d2; color: #ffffff; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 四边形轮廓 -->
+            <polygon id="scene2-poly-quad" fill="rgba(25,118,210,0.1)" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 对角线 AC (蓝色) -->
+            <line id="scene2-line-ac" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 对角线 BD (绿色) -->
+            <line id="scene2-line-bd" stroke="#2e7d32" stroke-width="2"/>
+            
+            <!-- 直角符号 (红色) -->
+            <path id="scene2-right-angle" fill="none" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 顶点标签 -->
+            <text id="scene2-label-a" font-size="16" font-weight="bold" fill="#000000">A</text>
+            <text id="scene2-label-b" font-size="16" font-weight="bold" fill="#000000">B</text>
+            <text id="scene2-label-c" font-size="16" font-weight="bold" fill="#000000">C</text>
+            <text id="scene2-label-d" font-size="16" font-weight="bold" fill="#000000">D</text>
+            
+            <!-- 交点标签 O -->
+            <text id="scene2-label-o" font-size="14" fill="#000000">O</text>
+            
+            <!-- AC⊥BD 标注 -->
+            <text id="scene2-label-perp" font-size="14" fill="#c62828" font-weight="bold">AC⊥BD</text>
+            
+            <!-- 四边形类型标签 -->
+            <text id="scene2-label-type" font-size="14" fill="#000000" font-weight="bold"></text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-0" class="active">初始条件</button>
+            <button id="scene2-btn-1">菱形</button>
+            <button id="scene2-btn-2">正方形</button>
+            <button id="scene2-btn-3">任意四边形</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 四棱柱底面四边形对角线垂直条件
+        // 布局坐标表（从 spec.json 提取，已调整避免重叠）：
+        // 状态 0（一般四边形，对角线垂直）：A(400,180), B(340,250), C(400,320), D(480,250), O(400,250)
+        // 状态 1（菱形）：A(400,160), B(320,250), C(400,340), D(480,250), O(400,250)
+        // 状态 2（正方形，旋转 45°）：A(400,170), B(330,240), C(400,310), D(470,240), O(400,240)
+        // 状态 3（一般对角线垂直四边形，非对称）：A(390,170), B(330,240), C(410,330), D(490,260), O(395,245)
+        
+        const scenes = [
+            {
+                name: "一般对角线垂直四边形",
+                vertices: { A: {x: 400, y: 180}, B: {x: 340, y: 250}, C: {x: 400, y: 320}, D: {x: 480, y: 250} },
+                intersection: { x: 400, y: 250 }
+            },
+            {
+                name: "菱形（对角线垂直且平分）",
+                vertices: { A: {x: 400, y: 160}, B: {x: 320, y: 250}, C: {x: 400, y: 340}, D: {x: 480, y: 250} },
+                intersection: { x: 400, y: 250 }
+            },
+            {
+                name: "正方形（对角线垂直且相等）",
+                vertices: { A: {x: 400, y: 170}, B: {x: 330, y: 240}, C: {x: 400, y: 310}, D: {x: 470, y: 240} },
+                intersection: { x: 400, y: 240 }
+            },
+            {
+                name: "任意对角线垂直四边形",
+                vertices: { A: {x: 390, y: 170}, B: {x: 330, y: 240}, C: {x: 410, y: 330}, D: {x: 490, y: 260} },
+                intersection: { x: 395, y: 245 }
+            }
+        ];
+        
+        let currentScene = 0;
+        
+        // DOM 元素引用
+        const svg = document.getElementById('scene2-svg');
+        const polyQuad = document.getElementById('scene2-poly-quad');
+        const lineAC = document.getElementById('scene2-line-ac');
+        const lineBD = document.getElementById('scene2-line-bd');
+        const rightAngle = document.getElementById('scene2-right-angle');
+        const labelA = document.getElementById('scene2-label-a');
+        const labelB = document.getElementById('scene2-label-b');
+        const labelC = document.getElementById('scene2-label-c');
+        const labelD = document.getElementById('scene2-label-d');
+        const labelO = document.getElementById('scene2-label-o');
+        const labelPerp = document.getElementById('scene2-label-perp');
+        const labelType = document.getElementById('scene2-label-type');
+        const buttons = [
+            document.getElementById('scene2-btn-0'),
+            document.getElementById('scene2-btn-1'),
+            document.getElementById('scene2-btn-2'),
+            document.getElementById('scene2-btn-3')
+        ];
+        
+        // 绘制四边形
+        function drawPolygon(vertices) {
+            const points = [vertices.A, vertices.B, vertices.C, vertices.D]
+                .map(v => `${v.x},${v.y}`)
+                .join(' ');
+            polyQuad.setAttribute('points', points);
+        }
+        
+        // 绘制对角线
+        function drawDiagonals(vertices) {
+            lineAC.setAttribute('x1', vertices.A.x);
+            lineAC.setAttribute('y1', vertices.A.y);
+            lineAC.setAttribute('x2', vertices.C.x);
+            lineAC.setAttribute('y2', vertices.C.y);
+            
+            lineBD.setAttribute('x1', vertices.B.x);
+            lineBD.setAttribute('y1', vertices.B.y);
+            lineBD.setAttribute('x2', vertices.D.x);
+            lineBD.setAttribute('y2', vertices.D.y);
+        }
+        
+        // 绘制直角符号（在交点处）
+        function drawRightAngle(intersection) {
+            const size = 15;
+            const x = intersection.x;
+            const y = intersection.y;
+            // 直角符号：从交点向右和向上各画一条短线
+            const path = `M ${x} ${y} L ${x + size} ${y} L ${x + size} ${y - size}`;
+            rightAngle.setAttribute('d', path);
+        }
+        
+        // 绘制顶点标签
+        function drawVertexLabels(vertices) {
+            // A 标签（上方）
+            labelA.setAttribute('x', vertices.A.x);
+            labelA.setAttribute('y', vertices.A.y - 15);
+            labelA.setAttribute('text-anchor', 'middle');
+            
+            // B 标签（左方）
+            labelB.setAttribute('x', vertices.B.x - 15);
+            labelB.setAttribute('y', vertices.B.y + 5);
+            labelB.setAttribute('text-anchor', 'end');
+            
+            // C 标签（下方）
+            labelC.setAttribute('x', vertices.C.x);
+            labelC.setAttribute('y', vertices.C.y + 20);
+            labelC.setAttribute('text-anchor', 'middle');
+            
+            // D 标签（右方）
+            labelD.setAttribute('x', vertices.D.x + 15);
+            labelD.setAttribute('y', vertices.D.y + 5);
+            labelD.setAttribute('text-anchor', 'start');
+        }
+        
+        // 绘制交点标签（移到四边形外部右下方更远处，确保不重叠）
+        function drawIntersectionLabel(intersection) {
+            labelO.setAttribute('x', intersection.x + 85);
+            labelO.setAttribute('y', intersection.y + 95);
+            labelO.setAttribute('text-anchor', 'start');
+        }
+        
+        // 绘制垂直标注（移到四边形外部左上方更远处，确保不重叠）
+        function drawPerpLabel(intersection) {
+            labelPerp.setAttribute('x', intersection.x - 115);
+            labelPerp.setAttribute('y', intersection.y - 100);
+            labelPerp.setAttribute('text-anchor', 'middle');
+        }
+        
+        // 绘制类型标签（左移避免裁切）
+        function drawTypeLabel(sceneName) {
+            labelType.setAttribute('x', 520);
+            labelType.setAttribute('y', 220);
+            labelType.setAttribute('text-anchor', 'start');
+            labelType.textContent = sceneName;
+        }
+        
+        // 更新场景
+        function updateScene(sceneIndex) {
+            const scene = scenes[sceneIndex];
+            
+            drawPolygon(scene.vertices);
+            drawDiagonals(scene.vertices);
+            drawRightAngle(scene.intersection);
+            drawVertexLabels(scene.vertices);
+            drawIntersectionLabel(scene.intersection);
+            drawPerpLabel(scene.intersection);
+            drawTypeLabel(scene.name);
+            
+            // 更新按钮高亮
+            buttons.forEach((btn, idx) => {
+                btn.classList.toggle('active', idx === sceneIndex);
+            });
+            
+            currentScene = sceneIndex;
+        }
+        
+        // 绑定按钮事件
+        buttons.forEach((btn, idx) => {
+            btn.addEventListener('click', () => {
+                updateScene(idx);
+            });
+        });
+        
+        // 初始化：显示状态 0
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

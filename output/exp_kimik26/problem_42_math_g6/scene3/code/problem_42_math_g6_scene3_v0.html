@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scene 3 - 三视图还原几何体</title>
+<style>
+body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+#scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+#scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+#scene3-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+#scene3-controls button:hover { background: #e0e0e0; }
+#scene3-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+#scene3-step-indicator { font-size: 14px; color: #333; min-width: 70px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="scene3-container">
+<svg width="800" height="500" id="scene3-svg">
+  <!-- 底座网格 -->
+  <g id="scene3-base-group">
+    <polyline points="310,340 344,358 378,376" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+    <polyline points="276,358 310,376 344,394" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+    <line x1="310" y1="340" x2="276" y2="358" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+    <line x1="344" y1="358" x2="310" y2="376" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+    <line x1="378" y1="376" x2="344" y2="394" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+  </g>
+
+  <!-- B3: 行1列3底层 (最右后，先画) -->
+  <g id="scene3-cube-b3">
+    <polygon id="scene3-cube-b3-right" points="412,394 378,412 378,374 412,356" fill="#90caf9" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b3-front" points="378,376 412,394 412,356 378,338" fill="#bbdefb" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b3-top" points="378,338 412,356 378,374 344,356" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+  </g>
+
+  <!-- B2: 行1列2底层 -->
+  <g id="scene3-cube-b2">
+    <polygon id="scene3-cube-b2-right" points="378,376 344,394 344,356 378,338" fill="#90caf9" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b2-front" points="344,358 378,376 378,338 344,320" fill="#bbdefb" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b2-top" points="344,320 378,338 344,356 310,338" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+  </g>
+
+  <!-- B1: 行1列1底层 -->
+  <g id="scene3-cube-b1">
+    <polygon id="scene3-cube-b1-right" points="344,358 310,376 310,338 344,320" fill="#90caf9" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b1-front" points="310,340 344,358 344,320 310,302" fill="#bbdefb" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b1-top" points="310,302 344,320 310,338 276,320" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+  </g>
+
+  <!-- B4: 行2列1底层 (左前) -->
+  <g id="scene3-cube-b4">
+    <polygon id="scene3-cube-b4-right" points="310,376 276,394 276,356 310,338" fill="#90caf9" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b4-front" points="276,358 310,376 310,338 276,320" fill="#bbdefb" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b4-top" points="276,320 310,338 276,356 242,338" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+  </g>
+
+  <!-- B5: 行1列1上层 (最上，最后画) -->
+  <g id="scene3-cube-b5">
+    <polygon id="scene3-cube-b5-right" points="344,320 310,338 310,300 344,282" fill="#90caf9" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b5-front" points="310,302 344,320 344,282 310,264" fill="#bbdefb" stroke="#000000" stroke-width="1"/>
+    <polygon id="scene3-cube-b5-top" points="310,264 344,282 310,300 276,282" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+  </g>
+
+  <!-- 方位标签 -->
+  <text id="scene3-label-front" x="320" y="430" font-size="14" fill="#000000" text-anchor="middle">前</text>
+  <text id="scene3-label-back" x="200" y="240" font-size="14" fill="#000000" text-anchor="middle">后</text>
+  <text id="scene3-label-left" x="160" y="350" font-size="14" fill="#000000" text-anchor="middle">左</text>
+  <text id="scene3-label-right" x="430" y="380" font-size="14" fill="#000000" text-anchor="middle">右</text>
+
+  <!-- 高度标签 -->
+  <text id="scene3-label-height" x="350" y="280" font-size="16" fill="#000000" text-anchor="start">2</text>
+
+  <!-- 总数标签 -->
+  <text id="scene3-label-total" x="320" y="230" font-size="18" fill="#000000" text-anchor="middle" font-weight="bold">共5个正方体</text>
+
+  <!-- 左侧投影图 - 正面 (步骤3) -->
+  <g id="scene3-proj-front-group">
+    <rect x="178" y="298" width="92" height="60" fill="none" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,2"/>
+    <rect x="180" y="300" width="28" height="28" fill="rgba(21,101,192,0.2)" stroke="none"/>
+    <rect x="180" y="330" width="28" height="28" fill="rgba(21,101,192,0.2)" stroke="none"/>
+    <rect x="210" y="330" width="28" height="28" fill="rgba(21,101,192,0.2)" stroke="none"/>
+    <rect x="240" y="330" width="28" height="28" fill="rgba(21,101,192,0.2)" stroke="none"/>
+    <text x="224" y="290" font-size="14" fill="#000000" text-anchor="middle">正面看</text>
+  </g>
+
+  <!-- 左侧投影图 - 左面 (步骤4) -->
+  <g id="scene3-proj-left-group">
+    <rect x="178" y="298" width="62" height="60" fill="none" stroke="#2e7d32" stroke-width="1" stroke-dasharray="4,2"/>
+    <rect x="180" y="300" width="28" height="28" fill="rgba(46,125,50,0.2)" stroke="none"/>
+    <rect x="180" y="330" width="28" height="28" fill="rgba(46,125,50,0.2)" stroke="none"/>
+    <rect x="210" y="330" width="28" height="28" fill="rgba(46,125,50,0.2)" stroke="none"/>
+    <text x="209" y="290" font-size="14" fill="#000000" text-anchor="middle">左面看</text>
+  </g>
+
+  <!-- 左侧投影图 - 上面 (步骤5) -->
+  <g id="scene3-proj-top-group">
+    <rect x="178" y="298" width="92" height="60" fill="none" stroke="#c62828" stroke-width="1" stroke-dasharray="4,2"/>
+    <rect x="180" y="300" width="28" height="28" fill="rgba(198,40,40,0.2)" stroke="none"/>
+    <rect x="210" y="300" width="28" height="28" fill="rgba(198,40,40,0.2)" stroke="none"/>
+    <rect x="240" y="300" width="28" height="28" fill="rgba(198,40,40,0.2)" stroke="none"/>
+    <rect x="180" y="330" width="28" height="28" fill="rgba(198,40,40,0.2)" stroke="none"/>
+    <text x="224" y="290" font-size="14" fill="#000000" text-anchor="middle">上面看</text>
+  </g>
+
+  <!-- 右侧标准视图 - 主视图 (步骤3) -->
+  <g id="scene3-ref-front-group">
+    <rect x="618" y="156" width="113" height="76" fill="none" stroke="#1565c0" stroke-width="3"/>
+    <rect x="620" y="160" width="35" height="35" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+    <rect x="620" y="197" width="35" height="35" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+    <rect x="657" y="197" width="35" height="35" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+    <rect x="694" y="197" width="35" height="35" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+    <text x="675" y="145" font-size="14" fill="#000000" text-anchor="middle">主视图</text>
+  </g>
+
+  <!-- 右侧标准视图 - 左视图 (步骤4) -->
+  <g id="scene3-ref-left-group">
+    <rect x="618" y="156" width="75" height="76" fill="none" stroke="#2e7d32" stroke-width="3"/>
+    <rect x="620" y="160" width="35" height="35" fill="#e3f2fd" stroke="#2e7d32" stroke-width="1"/>
+    <rect x="620" y="197" width="35" height="35" fill="#e3f2fd" stroke="#2e7d32" stroke-width="1"/>
+    <rect x="657" y="197" width="35" height="35" fill="#e3f2fd" stroke="#2e7d32" stroke-width="1"/>
+    <text x="656" y="145" font-size="14" fill="#000000" text-anchor="middle">左视图</text>
+  </g>
+
+  <!-- 右侧标准视图 - 俯视图 (步骤5) -->
+  <g id="scene3-ref-top-group">
+    <rect x="618" y="156" width="113" height="76" fill="none" stroke="#c62828" stroke-width="3"/>
+    <rect x="620" y="160" width="35" height="35" fill="#e3f2fd" stroke="#c62828" stroke-width="1"/>
+    <rect x="657" y="160" width="35" height="35" fill="#e3f2fd" stroke="#c62828" stroke-width="1"/>
+    <rect x="694" y="160" width="35" height="35" fill="#e3f2fd" stroke="#c62828" stroke-width="1"/>
+    <rect x="620" y="197" width="35" height="35" fill="#e3f2fd" stroke="#c62828" stroke-width="1"/>
+    <text x="675" y="145" font-size="14" fill="#000000" text-anchor="middle">俯视图</text>
+  </g>
+</svg>
+
+<div id="scene3-controls">
+  <button id="scene3-btn-prev">◀ 上一步</button>
+  <span id="scene3-step-indicator">步骤 1/7</span>
+  <button id="scene3-btn-next">下一步 ▶</button>
+</div>
+</div>
+
+<script>
+(function() {
+  var currentStep = 0;
+  var totalSteps = 7; // 步骤 0~6
+
+  // 元素引用
+  var baseGroup = document.getElementById('scene3-base-group');
+  var cubeB1 = document.getElementById('scene3-cube-b1');
+  var cubeB2 = document.getElementById('scene3-cube-b2');
+  var cubeB3 = document.getElementById('scene3-cube-b3');
+  var cubeB4 = document.getElementById('scene3-cube-b4');
+  var cubeB5 = document.getElementById('scene3-cube-b5');
+
+  var labelFront = document.getElementById('scene3-label-front');
+  var labelBack = document.getElementById('scene3-label-back');
+  var labelLeft = document.getElementById('scene3-label-left');
+  var labelRight = document.getElementById('scene3-label-right');
+  var labelHeight = document.getElementById('scene3-label-height');
+  var labelTotal = document.getElementById('scene3-label-total');
+
+  var projFront = document.getElementById('scene3-proj-front-group');
+  var projLeft = document.getElementById('scene3-proj-left-group');
+  var projTop = document.getElementById('scene3-proj-top-group');
+
+  var refFront = document.getElementById('scene3-ref-front-group');
+  var refLeft = document.getElementById('scene3-ref-left-group');
+  var refTop = document.getElementById('scene3-ref-top-group');
+
+  var btnPrev = document.getElementById('scene3-btn-prev');
+  var btnNext = document.getElementById('scene3-btn-next');
+  var stepIndicator = document.getElementById('scene3-step-indicator');
+
+  // 正面元素（用于高亮）
+  var frontFaces = [
+    document.getElementById('scene3-cube-b1-front'),
+    document.getElementById('scene3-cube-b2-front'),
+    document.getElementById('scene3-cube-b3-front'),
+    document.getElementById('scene3-cube-b4-front'),
+    document.getElementById('scene3-cube-b5-front')
+  ];
+
+  // 顶面元素（用于高亮）
+  var topFaces = [
+    document.getElementById('scene3-cube-b1-top'),
+    document.getElementById('scene3-cube-b2-top'),
+    document.getElementById('scene3-cube-b3-top'),
+    document.getElementById('scene3-cube-b4-top'),
+    document.getElementById('scene3-cube-b5-top')
+  ];
+
+  // B1 顶面（B5 叠加后需隐藏）
+  var b1Top = document.getElementById('scene3-cube-b1-top');
+
+  function setDisplay(el, visible) {
+    el.style.display = visible ? 'block' : 'none';
+  }
+
+  function setOpacity(el, opacity) {
+    el.style.opacity = opacity;
+  }
+
+  function highlightFaces(faces, color, width) {
+    faces.forEach(function(face) {
+      if (color) {
+        face.setAttribute('stroke', color);
+        face.setAttribute('stroke-width', width);
+      } else {
+        face.setAttribute('stroke', '#000000');
+        face.setAttribute('stroke-width', '1');
+      }
+    });
+  }
+
+  function render() {
+    // 默认隐藏所有动态元素
+    setDisplay(cubeB1, false);
+    setDisplay(cubeB2, false);
+    setDisplay(cubeB3, false);
+    setDisplay(cubeB4, false);
+    setDisplay(cubeB5, false);
+    setDisplay(labelHeight, false);
+    setDisplay(labelTotal, false);
+    setDisplay(projFront, false);
+    setDisplay(projLeft, false);
+    setDisplay(projTop, false);
+    setDisplay(refFront, false);
+    setDisplay(refLeft, false);
+    setDisplay(refTop, false);
+
+    // 方位标签始终显示
+    setDisplay(labelFront, true);
+    setDisplay(labelBack, true);
+    setDisplay(labelLeft, true);
+    setDisplay(labelRight, true);
+
+    // 默认无高亮
+    highlightFaces(frontFaces, null, '1');
+    highlightFaces(topFaces, null, '1');
+
+    // 底座网格显隐与透明度
+    if (currentStep === 0) {
+      setDisplay(baseGroup, true);
+      setOpacity(baseGroup, '1');
+    } else if (currentStep === 1 || currentStep === 2) {
+      setDisplay(baseGroup, true);
+      setOpacity(baseGroup, '0.3');
+    } else if (currentStep === 6) {
+      setDisplay(baseGroup, true);
+      setOpacity(baseGroup, '0.15');
+    } else {
+      setDisplay(baseGroup, false);
+    }
+
+    // 底层方块
+    if (currentStep >= 1) {
+      setDisplay(cubeB1, true);
+      setDisplay(cubeB2, true);
+      setDisplay(cubeB3, true);
+      setDisplay(cubeB4, true);
+    }
+
+    // 上层方块与高度标签
+    if (currentStep >= 2) {
+      setDisplay(cubeB5, true);
+      setDisplay(labelHeight, true);
+    }
+
+    // B1 顶面：当 B5 显示时隐藏 B1 顶面（避免穿帮）
+    if (currentStep >= 2) {
+      b1Top.style.display = 'none';
+    } else if (currentStep >= 1) {
+      b1Top.style.display = 'block';
+    }
+
+    // 步骤3：正面验证
+    if (currentStep === 3) {
+      setDisplay(projFront, true);
+      setDisplay(refFront, true);
+      highlightFaces(frontFaces, '#1565c0', '2');
+    }
+
+    // 步骤4：左面验证
+    if (currentStep === 4) {
+      setDisplay(projLeft, true);
+      setDisplay(refLeft, true);
+    }
+
+    // 步骤5：上面验证
+    if (currentStep === 5) {
+      setDisplay(projTop, true);
+      setDisplay(refTop, true);
+      highlightFaces(topFaces, '#c62828', '2');
+    }
+
+    // 步骤6：完整模型与结论
+    if (currentStep === 6) {
+      setDisplay(labelTotal, true);
+    }
+
+    // 更新按钮与指示器
+    btnPrev.disabled = currentStep <= 0;
+    btnNext.disabled = currentStep >= 6;
+    stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/7';
+  }
+
+  btnPrev.addEventListener('click', function() {
+    if (currentStep > 0) {
+      currentStep--;
+      render();
+    }
+  });
+
+  btnNext.addEventListener('click', function() {
+    if (currentStep < 6) {
+      currentStep++;
+      render();
+    }
+  });
+
+  // 初始渲染
+  render();
+})();
+</script>
+</body>
+</html>

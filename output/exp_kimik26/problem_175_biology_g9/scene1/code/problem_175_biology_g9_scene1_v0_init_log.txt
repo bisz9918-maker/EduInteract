@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>植物类群分类图解</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        .scene1-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #1565c0;
+            background: #ffffff;
+            color: #1565c0;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #888888; color: #888888; }
+
+        .scene1-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* 高亮样式 */
+        .scene1-highlight-blue {
+            fill: rgba(21, 101, 192, 0.2) !important;
+            stroke: #1565c0 !important;
+            stroke-width: 3 !important;
+        }
+        .scene1-path-highlight {
+            stroke: #1565c0 !important;
+            stroke-width: 4 !important;
+        }
+        .scene1-card-highlight {
+            stroke: #1565c0 !important;
+            stroke-width: 3 !important;
+        }
+
+        /* 淡入动画 */
+        .scene1-fade-in {
+            opacity: 1 !important;
+            transition: opacity 0.5s ease;
+        }
+        .scene1-slide-up {
+            transform: translateY(0) !important;
+            opacity: 1 !important;
+            transition: all 0.4s ease;
+        }
+
+        /* 初始隐藏 */
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+        .scene1-hidden-display { display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义 -->
+            <defs>
+                <style>
+                    .scene1-tree-rect { fill: #ffffff; stroke: #000000; stroke-width: 1.5; }
+                    .scene1-tree-circle { fill: #ffffff; stroke: #000000; stroke-width: 1.5; }
+                    .scene1-tree-text { font-size: 13px; fill: #000000; text-anchor: middle; dominant-baseline: middle; }
+                    .scene1-label-text { font-size: 14px; fill: #000000; text-anchor: start; dominant-baseline: middle; }
+                    .scene1-path { fill: none; stroke: #000000; stroke-width: 2; }
+                    .scene1-card-rect { fill: #f5f5f5; stroke: #000000; stroke-width: 1; rx: 4; }
+                    .scene1-card-title { font-size: 15px; font-weight: bold; fill: #000000; }
+                    .scene1-card-content { font-size: 11px; fill: #333333; }
+                    .scene1-option-rect-correct { fill: rgba(46, 125, 50, 0.1); stroke: #2e7d32; stroke-width: 2; rx: 4; }
+                    .scene1-option-rect-wrong { fill: rgba(198, 40, 40, 0.1); stroke: #c62828; stroke-width: 2; rx: 4; }
+                    .scene1-option-text { font-size: 12px; fill: #000000; }
+                    .scene1-option-reason { font-size: 10px; fill: #c62828; }
+                    .scene1-option-correct-mark { font-size: 11px; fill: #2e7d32; }
+                </style>
+            </defs>
+
+            <!-- ========== 分类树连线 ========== -->
+            <!-- L1: 无果实植物 → 无种子 -->
+            <polyline id="scene1-path-root-seedless" class="scene1-path" points="220,70 220,110 130,110" />
+            <!-- L2: 无果实植物 → 有种子 -->
+            <polyline id="scene1-path-root-seed" class="scene1-path" points="220,70 220,110 350,110" />
+            <!-- L3: 无种子 → 无茎叶 -->
+            <polyline id="scene1-path-seedless-nostem" class="scene1-path" points="130,140 130,170 70,170 70,180" />
+            <!-- L4: 无种子 → 有茎叶 -->
+            <polyline id="scene1-path-seedless-stem" class="scene1-path" points="130,140 130,170 190,170 190,180" />
+            <!-- L5: 有种子 → ① -->
+            <polyline id="scene1-path-seed-end1" class="scene1-path" points="350,140 350,180" />
+            <!-- L6: 无茎叶 → ② -->
+            <polyline id="scene1-path-nostem-end2" class="scene1-path" points="70,210 70,250" />
+            <!-- L7: 有茎叶 → 有输导组织 -->
+            <polyline id="scene1-path-stem-vascular" class="scene1-path" points="190,210 190,235 170,235 170,250" />
+            <!-- L8: 有茎叶 → 无输导组织 -->
+            <polyline id="scene1-path-stem-novascular" class="scene1-path" points="190,210 190,235 290,235 290,250" />
+            <!-- L9: 有输导组织 → ③ -->
+            <polyline id="scene1-path-vascular-end3" class="scene1-path" points="170,280 170,320" />
+            <!-- L10: 无输导组织 → ④ -->
+            <polyline id="scene1-path-novascular-end4" class="scene1-path" points="290,280 290,320" />
+
+            <!-- ========== 分类树节点 ========== -->
+            <!-- 顶层：无果实植物 -->
+            <rect id="scene1-tree-root" class="scene1-tree-rect" x="170" y="40" width="100" height="30" />
+            <text class="scene1-tree-text" x="220" y="55">无果实植物</text>
+
+            <!-- 第二层 -->
+            <rect id="scene1-tree-node-seedless" class="scene1-tree-rect" x="90" y="110" width="80" height="30" />
+            <text class="scene1-tree-text" x="130" y="125">无种子</text>
+
+            <rect id="scene1-tree-node-seed" class="scene1-tree-rect" x="310" y="110" width="80" height="30" />
+            <text class="scene1-tree-text" x="350" y="125">有种子</text>
+
+            <!-- 第三层 -->
+            <rect id="scene1-tree-node-nostem" class="scene1-tree-rect" x="30" y="180" width="80" height="30" />
+            <text class="scene1-tree-text" x="70" y="195">无茎叶</text>
+
+            <rect id="scene1-tree-node-stem" class="scene1-tree-rect" x="150" y="180" width="80" height="30" />
+            <text class="scene1-tree-text" x="190" y="195">有茎叶</text>
+
+            <circle id="scene1-tree-end-1" class="scene1-tree-circle" cx="350" cy="195" r="15" />
+            <text class="scene1-tree-text" x="350" y="195">①</text>
+
+            <!-- 第四层 -->
+            <circle id="scene1-tree-end-2" class="scene1-tree-circle" cx="70" cy="265" r="15" />
+            <text class="scene1-tree-text" x="70" y="265">②</text>
+
+            <rect id="scene1-tree-node-vascular" class="scene1-tree-rect" x="120" y="250" width="100" height="30" />
+            <text class="scene1-tree-text" x="170" y="265">有输导组织</text>
+
+            <rect id="scene1-tree-node-novascular" class="scene1-tree-rect" x="240" y="250" width="100" height="30" />
+            <text class="scene1-tree-text" x="290" y="265">无输导组织</text>
+
+            <!-- 第五层 -->
+            <circle id="scene1-tree-end-3" class="scene1-tree-circle" cx="170" cy="335" r="15" />
+            <text class="scene1-tree-text" x="170" y="335">③</text>
+
+            <circle id="scene1-tree-end-4" class="scene1-tree-circle" cx="290" cy="335" r="15" />
+            <text class="scene1-tree-text" x="290" y="335">④</text>
+
+            <!-- ========== 类群名称标签（步骤1显示） ========== -->
+            <g id="scene1-labels-group" class="scene1-hidden">
+                <text id="scene1-label-gymnosperm" class="scene1-label-text scene1-hidden" x="390" y="200">裸子植物</text>
+                <text id="scene1-label-algae" class="scene1-label-text scene1-hidden" x="350" y="270">藻类植物</text>
+                <text id="scene1-label-fern" class="scene1-label-text scene1-hidden" x="210" y="340">蕨类植物</text>
+                <text id="scene1-label-moss" class="scene1-label-text scene1-hidden" x="330" y="340">苔藓植物</text>
+            </g>
+
+            <!-- ========== 特征对比卡片（步骤2显示） ========== -->
+            <g id="scene1-cards-group" class="scene1-hidden" style="opacity: 0;">
+                <!-- 藻类卡片 -->
+                <g id="scene1-card-algae">
+                    <rect class="scene1-card-rect" x="450" y="40" width="160" height="148" />
+                    <text class="scene1-card-title" x="460" y="64">藻类植物</text>
+                    <text class="scene1-card-content" x="460" y="94">结构：无根茎叶分化</text>
+                    <text class="scene1-card-content" x="460" y="122">环境：多生活在水中</text>
+                    <text class="scene1-card-content" x="460" y="150">繁殖：孢子繁殖</text>
+                    <text class="scene1-card-content" x="460" y="178">代表：海带、水绵</text>
+                </g>
+                <!-- 苔藓卡片 -->
+                <g id="scene1-card-moss">
+                    <rect class="scene1-card-rect" x="620" y="40" width="160" height="148" />
+                    <text class="scene1-card-title" x="630" y="64">苔藓植物</text>
+                    <text class="scene1-card-content" x="630" y="94">结构：有茎叶，无真根</text>
+                    <text class="scene1-card-content" x="630" y="122">环境：阴湿陆地</text>
+                    <text class="scene1-card-content" x="630" y="150">繁殖：孢子繁殖</text>
+                    <text class="scene1-card-content" x="630" y="178">代表：葫芦藓、地钱</text>
+                </g>
+                <!-- 蕨类卡片 -->
+                <g id="scene1-card-fern">
+                    <rect class="scene1-card-rect" x="450" y="196" width="160" height="148" />
+                    <text class="scene1-card-title" x="460" y="220">蕨类植物</text>
+                    <text class="scene1-card-content" x="460" y="250">结构：有根茎叶分化</text>
+                    <text class="scene1-card-content" x="460" y="278">环境：阴湿陆地</text>
+                    <text class="scene1-card-content" x="460" y="306">繁殖：孢子繁殖</text>
+                    <text class="scene1-card-content" x="460" y="334">代表：肾蕨、满江红</text>
+                </g>
+                <!-- 裸子卡片 -->
+                <g id="scene1-card-gymnosperm">
+                    <rect class="scene1-card-rect" x="620" y="196" width="160" height="148" />
+                    <text class="scene1-card-title" x="630" y="220">裸子植物</text>
+                    <text class="scene1-card-content" x="630" y="250">结构：有根茎叶种子</text>
+                    <text class="scene1-card-content" x="630" y="278">环境：干旱陆地</text>
+                    <text class="scene1-card-content" x="630" y="306">繁殖：种子繁殖</text>
+                    <text class="scene1-card-content" x="630" y="334">代表：松、柏、银杏</text>
+                </g>
+            </g>
+
+            <!-- ========== 选项辨析区（步骤3显示） ========== -->
+            <g id="scene1-options-group" class="scene1-hidden" style="opacity: 0; transform: translateY(20px);">
+                <!-- A选项 -->
+                <g id="scene1-option-a">
+                    <rect class="scene1-option-rect-correct" x="20" y="358" width="370" height="58" />
+                    <text class="scene1-option-text" x="32" y="378">A．①指的是种子植物，适应干旱的陆地生活</text>
+                    <text class="scene1-option-correct-mark" x="32" y="408">✓ 正确</text>
+                </g>
+                <!-- B选项 -->
+                <g id="scene1-option-b">
+                    <rect class="scene1-option-rect-wrong" x="410" y="358" width="370" height="58" />
+                    <text class="scene1-option-text" x="422" y="378">B．②指的是藻类植物，只能生活在水中</text>
+                    <text class="scene1-option-reason" x="422" y="408">错误："只能"过于绝对，藻类也可生活在潮湿环境</text>
+                </g>
+                <!-- C选项 -->
+                <g id="scene1-option-c">
+                    <rect class="scene1-option-rect-wrong" x="20" y="422" width="370" height="58" />
+                    <text class="scene1-option-text" x="32" y="442">C．③指的植物有真正的根，但长的都很矮小</text>
+                    <text class="scene1-option-reason" x="32" y="472">错误："都"不准确，蕨类可长得高大</text>
+                </g>
+                <!-- D选项 -->
+                <g id="scene1-option-d">
+                    <rect class="scene1-option-rect-wrong" x="410" y="422" width="370" height="58" />
+                    <text class="scene1-option-text" x="422" y="442">D．③指的植物没有根，叶结构简单易受有毒气体伤害</text>
+                    <text class="scene1-option-reason" x="422" y="472">错误：类群错位，③蕨类有真正的根</text>
+                </g>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        const labelsGroup = document.getElementById('scene1-labels-group');
+        const cardsGroup = document.getElementById('scene1-cards-group');
+        const optionsGroup = document.getElementById('scene1-options-group');
+
+        const labelGymnosperm = document.getElementById('scene1-label-gymnosperm');
+        const labelAlgae = document.getElementById('scene1-label-algae');
+        const labelFern = document.getElementById('scene1-label-fern');
+        const labelMoss = document.getElementById('scene1-label-moss');
+
+        const end1 = document.getElementById('scene1-tree-end-1');
+        const end2 = document.getElementById('scene1-tree-end-2');
+        const end3 = document.getElementById('scene1-tree-end-3');
+        const end4 = document.getElementById('scene1-tree-end-4');
+
+        const pathRootSeed = document.getElementById('scene1-path-root-seed');
+        const pathSeedEnd1 = document.getElementById('scene1-path-seed-end1');
+        const pathRootSeedless = document.getElementById('scene1-path-root-seedless');
+        const pathSeedlessNostem = document.getElementById('scene1-path-seedless-nostem');
+        const pathNostemEnd2 = document.getElementById('scene1-path-nostem-end2');
+        const pathSeedlessStem = document.getElementById('scene1-path-seedless-stem');
+        const pathStemVascular = document.getElementById('scene1-path-stem-vascular');
+        const pathVascularEnd3 = document.getElementById('scene1-path-vascular-end3');
+        const pathStemNovascular = document.getElementById('scene1-path-stem-novascular');
+        const pathNovascularEnd4 = document.getElementById('scene1-path-novascular-end4');
+
+        const cardAlgae = document.getElementById('scene1-card-algae');
+        const cardMoss = document.getElementById('scene1-card-moss');
+        const cardFern = document.getElementById('scene1-card-fern');
+        const cardGymnosperm = document.getElementById('scene1-card-gymnosperm');
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function show(el) {
+            el.style.display = '';
+            el.style.opacity = '1';
+            el.classList.remove('scene1-hidden');
+        }
+
+        function hide(el) {
+            el.style.opacity = '0';
+            el.classList.add('scene1-hidden');
+        }
+
+        function hideDisplay(el) {
+            el.style.display = 'none';
+            el.classList.add('scene1-hidden-display');
+        }
+
+        function showDisplay(el) {
+            el.style.display = '';
+            el.classList.remove('scene1-hidden-display');
+        }
+
+        // 清除所有高亮
+        function clearHighlights() {
+            [end1, end2, end3, end4].forEach(el => el.classList.remove('scene1-highlight-blue'));
+            [pathRootSeed, pathSeedEnd1, pathRootSeedless, pathSeedlessNostem, pathNostemEnd2,
+             pathSeedlessStem, pathStemVascular, pathVascularEnd3, pathStemNovascular, pathNovascularEnd4]
+                .forEach(el => el.classList.remove('scene1-path-highlight'));
+            [cardAlgae, cardMoss, cardFern, cardGymnosperm].forEach(el => {
+                const rect = el.querySelector('rect');
+                if (rect) rect.classList.remove('scene1-card-highlight');
+            });
+        }
+
+        // 高亮分支
+        function highlightBranch(endEl, pathEls) {
+            endEl.classList.add('scene1-highlight-blue');
+            pathEls.forEach(p => p.classList.add('scene1-path-highlight'));
+        }
+
+        // 步骤1：依次高亮四个末端节点
+        async function runStep1() {
+            showDisplay(labelsGroup);
+            // ① 裸子植物
+            highlightBranch(end1, [pathRootSeed, pathSeedEnd1]);
+            show(labelGymnosperm);
+            await sleep(700);
+            // ② 藻类植物
+            highlightBranch(end2, [pathRootSeedless, pathSeedlessNostem, pathNostemEnd2]);
+            show(labelAlgae);
+            await sleep(700);
+            // ③ 蕨类植物
+            highlightBranch(end3, [pathRootSeedless, pathSeedlessStem, pathStemVascular, pathVascularEnd3]);
+            show(labelFern);
+            await sleep(700);
+            // ④ 苔藓植物
+            highlightBranch(end4, [pathRootSeedless, pathSeedlessStem, pathStemNovascular, pathNovascularEnd4]);
+            show(labelMoss);
+            await sleep(700);
+        }
+
+        // 步骤2：卡片淡入并依次高亮
+        async function runStep2() {
+            showDisplay(cardsGroup);
+            // 触发reflow
+            void cardsGroup.offsetWidth;
+            cardsGroup.classList.add('scene1-fade-in');
+            await sleep(500);
+
+            // 依次高亮卡片：藻类 → 苔藓 → 蕨类 → 裸子
+            const cardOrder = [cardAlgae, cardMoss, cardFern, cardGymnosperm];
+            for (const card of cardOrder) {
+                const rect = card.querySelector('rect');
+                if (rect) rect.classList.add('scene1-card-highlight');
+                await sleep(800);
+                if (rect) rect.classList.remove('scene1-card-highlight');
+            }
+        }
+
+        // 步骤3：选项滑入
+        async function runStep3() {
+            showDisplay(optionsGroup);
+            void optionsGroup.offsetWidth;
+            optionsGroup.classList.add('scene1-slide-up');
+        }
+
+        // 隐藏所有步骤元素
+        function hideAllStepElements() {
+            hideDisplay(labelsGroup);
+            hideDisplay(cardsGroup);
+            hideDisplay(optionsGroup);
+            hide(labelGymnosperm);
+            hide(labelAlgae);
+            hide(labelFern);
+            hide(labelMoss);
+            cardsGroup.classList.remove('scene1-fade-in');
+            optionsGroup.classList.remove('scene1-slide-up');
+            clearHighlights();
+        }
+
+        // 跳转到指定步骤
+        async function goToStep(step) {
+            currentStep = step;
+            stepIndicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+            btnPrev.disabled = step === 0;
+            btnNext.textContent = step === totalSteps - 1 ? '完成' : '下一步 ▶';
+
+            hideAllStepElements();
+
+            if (step === 0) {
+                // 步骤0：只显示分类树
+            } else if (step === 1) {
+                await runStep1();
+            } else if (step === 2) {
+                // 先显示步骤1的内容（保持显示）
+                showDisplay(labelsGroup);
+                show(labelGymnosperm);
+                show(labelAlgae);
+                show(labelFern);
+                show(labelMoss);
+                end1.classList.add('scene1-highlight-blue');
+                end2.classList.add('scene1-highlight-blue');
+                end3.classList.add('scene1-highlight-blue');
+                end4.classList.add('scene1-highlight-blue');
+                await runStep2();
+            } else if (step === 3) {
+                // 显示之前步骤的内容
+                showDisplay(labelsGroup);
+                show(labelGymnosperm);
+                show(labelAlgae);
+                show(labelFern);
+                show(labelMoss);
+                end1.classList.add('scene1-highlight-blue');
+                end2.classList.add('scene1-highlight-blue');
+                end3.classList.add('scene1-highlight-blue');
+                end4.classList.add('scene1-highlight-blue');
+                showDisplay(cardsGroup);
+                cardsGroup.style.opacity = '1';
+                await runStep3();
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) goToStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < totalSteps - 1) goToStep(currentStep + 1);
+        });
+
+        // 初始化
+        goToStep(0);
+    })();
+    </script>
+</body>
+</html>

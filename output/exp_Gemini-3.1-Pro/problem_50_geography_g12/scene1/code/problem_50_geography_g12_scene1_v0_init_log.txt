@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昼半球图的几何解析与坐标推导</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e9e9e9; }
+        
+        /* SVG Elements */
+        .scene1-element { transition: all 0.3s ease; }
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+        .scene1-visible { opacity: 1; }
+        
+        text { font-size: 14px; fill: #000; user-select: none; }
+        .scene1-text-blue { fill: #1565c0; }
+        .scene1-text-red { fill: #c62828; }
+        .scene1-text-green { fill: #2e7d32; }
+        
+        .scene1-stroke-black { stroke: #000000; }
+        .scene1-stroke-blue { stroke: #1565c0; }
+        .scene1-stroke-red { stroke: #c62828; }
+        .scene1-stroke-green { stroke: #2e7d32; }
+        .scene1-stroke-gray { stroke: #888888; }
+        
+        .scene1-fill-black { fill: #000000; }
+        .scene1-fill-blue { fill: #1565c0; }
+        .scene1-fill-red { fill: #c62828; }
+        .scene1-fill-none { fill: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- Definitions for markers -->
+            <defs>
+                <marker id="scene1-arrow-left" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 10 0 L 0 5 L 10 10 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- Base Geometry -->
+            <circle id="scene1-circle" cx="400" cy="190" r="140" class="scene1-element scene1-stroke-black scene1-fill-none" stroke-width="2" />
+            
+            <!-- Equator and Latitude Lines -->
+            <path id="scene1-equator" d="M 260.4 200 Q 400 260 539.6 200" class="scene1-element scene1-stroke-gray scene1-fill-none" stroke-width="1.5" stroke-dasharray="4 4" />
+            <path id="scene1-lat-a" d="M 261.5 170 Q 400 210 538.5 170" class="scene1-element scene1-stroke-gray scene1-fill-none" stroke-width="1.5" stroke-dasharray="4 4" />
+            
+            <!-- Meridian CAB -->
+            <line id="scene1-line-cab" x1="400" y1="50" x2="400" y2="330" class="scene1-element scene1-stroke-black" stroke-width="2" />
+            
+            <!-- Points -->
+            <circle id="scene1-point-a" cx="400" cy="190" r="4" class="scene1-element scene1-fill-black" />
+            <circle id="scene1-point-b" cx="400" cy="330" r="4" class="scene1-element scene1-fill-black" />
+            <circle id="scene1-point-c" cx="400" cy="50" r="4" class="scene1-element scene1-fill-black" />
+            <circle id="scene1-point-n" cx="400" cy="90" r="4" class="scene1-element scene1-fill-red scene1-hidden" />
+            
+            <!-- Base Labels -->
+            <text id="scene1-label-a" x="385" y="185" text-anchor="end">A</text>
+            <text id="scene1-label-b" x="400" y="350" text-anchor="middle">B</text>
+            <text id="scene1-label-c" x="400" y="40" text-anchor="middle">C</text>
+            <text id="scene1-label-equator" x="510" y="240" class="scene1-element">赤道</text>
+            
+            <!-- Step 1 Labels -->
+            <text id="scene1-label-a-coords1" x="410" y="205" class="scene1-element scene1-text-blue scene1-hidden">160°E (12:00)</text>
+            
+            <!-- Step 2 Labels & Elements -->
+            <text id="scene1-label-a-coords2" x="410" y="205" class="scene1-element scene1-text-red scene1-hidden">15°N, 160°E (12:00)</text>
+            <text id="scene1-label-b-coords" x="415" y="335" class="scene1-element scene1-text-red scene1-hidden">75°S</text>
+            
+            <g id="scene1-lat-diff" class="scene1-element scene1-hidden">
+                <line x1="370" y1="190" x2="370" y2="330" class="scene1-stroke-green" stroke-width="1.5" stroke-dasharray="4 4" />
+                <line x1="365" y1="190" x2="375" y2="190" class="scene1-stroke-green" stroke-width="1.5" />
+                <line x1="365" y1="330" x2="375" y2="330" class="scene1-stroke-green" stroke-width="1.5" />
+                <text x="360" y="265" text-anchor="end" class="scene1-text-green">90°</text>
+            </g>
+            
+            <!-- Step 3 Labels -->
+            <text id="scene1-label-n" x="415" y="95" class="scene1-element scene1-text-red scene1-hidden">N(北极点)</text>
+            <text id="scene1-label-c-coords" x="415" y="55" class="scene1-element scene1-text-red scene1-hidden">75°N, 20°W</text>
+            
+            <!-- Step 4 Time Axis -->
+            <g id="scene1-time-axis" class="scene1-element scene1-hidden">
+                <line x1="200" y1="430" x2="600" y2="430" class="scene1-stroke-blue" stroke-width="2" />
+                
+                <line x1="300" y1="425" x2="300" y2="435" class="scene1-stroke-blue" stroke-width="2" />
+                <text x="300" y="415" text-anchor="middle" class="scene1-text-blue">120°E</text>
+                <text x="300" y="450" text-anchor="middle" class="scene1-text-blue">9:20</text>
+                
+                <line x1="500" y1="425" x2="500" y2="435" class="scene1-stroke-blue" stroke-width="2" />
+                <text x="500" y1="415" text-anchor="middle" class="scene1-text-blue">160°E</text>
+                <text x="500" y1="450" text-anchor="middle" class="scene1-text-blue">12:00</text>
+                
+                <line x1="480" y1="390" x2="320" y2="390" class="scene1-stroke-green" stroke-width="2" marker-end="url(#scene1-arrow-left)" />
+                <text x="400" y="380" text-anchor="middle" class="scene1-text-green">-2小时40分</text>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // Elements
+        const lineCab = document.getElementById('scene1-line-cab');
+        const pointA = document.getElementById('scene1-point-a');
+        const pointB = document.getElementById('scene1-point-b');
+        const pointC = document.getElementById('scene1-point-c');
+        const pointN = document.getElementById('scene1-point-n');
+        const equator = document.getElementById('scene1-equator');
+        
+        const labelACoords1 = document.getElementById('scene1-label-a-coords1');
+        const labelACoords2 = document.getElementById('scene1-label-a-coords2');
+        const labelBCoords = document.getElementById('scene1-label-b-coords');
+        const latDiff = document.getElementById('scene1-lat-diff');
+        const labelN = document.getElementById('scene1-label-n');
+        const labelCCoords = document.getElementById('scene1-label-c-coords');
+        const timeAxis = document.getElementById('scene1-time-axis');
+        
+        function updateState() {
+            // Reset all
+            lineCab.setAttribute('class', 'scene1-element scene1-stroke-black');
+            pointA.setAttribute('class', 'scene1-element scene1-fill-black');
+            pointB.setAttribute('class', 'scene1-element scene1-fill-black');
+            pointC.setAttribute('class', 'scene1-element scene1-fill-black');
+            equator.setAttribute('class', 'scene1-element scene1-stroke-gray scene1-fill-none');
+            
+            hide(labelACoords1);
+            hide(labelACoords2);
+            hide(labelBCoords);
+            hide(latDiff);
+            hide(pointN);
+            hide(labelN);
+            hide(labelCCoords);
+            hide(timeAxis);
+            
+            if (currentStep >= 1) {
+                lineCab.setAttribute('class', 'scene1-element scene1-stroke-blue');
+                pointA.setAttribute('class', 'scene1-element scene1-fill-blue');
+                if (currentStep === 1) {
+                    show(labelACoords1);
+                }
+            }
+            
+            if (currentStep >= 2) {
+                pointA.setAttribute('class', 'scene1-element scene1-fill-red');
+                pointB.setAttribute('class', 'scene1-element scene1-fill-red');
+                equator.setAttribute('class', 'scene1-element scene1-stroke-red scene1-fill-none');
+                show(labelACoords2);
+                show(labelBCoords);
+                show(latDiff);
+            }
+            
+            if (currentStep >= 3) {
+                pointC.setAttribute('class', 'scene1-element scene1-fill-red');
+                show(pointN);
+                show(labelN);
+                show(labelCCoords);
+            }
+            
+            if (currentStep >= 4) {
+                show(timeAxis);
+            }
+            
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+        
+        function show(el) {
+            el.classList.remove('scene1-hidden');
+            el.classList.add('scene1-visible');
+        }
+        
+        function hide(el) {
+            el.classList.remove('scene1-visible');
+            el.classList.add('scene1-hidden');
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+        
+        // Init
+        updateState();
+    })();
+    </script>
+</body>
+</html>

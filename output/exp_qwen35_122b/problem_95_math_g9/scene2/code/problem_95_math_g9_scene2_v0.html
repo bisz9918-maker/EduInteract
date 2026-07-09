@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 函数图像分析与验证</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; cursor: pointer; font-weight: bold; }
+        .scene2-btn:hover { background: #e3f2fd; }
+        .scene2-btn:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+        .scene2-step-indicator { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 背景 -->
+            <rect id="scene2-bg" x="0" y="0" width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 坐标系边框 -->
+            <rect id="scene2-plot-border" x="100" y="50" width="650" height="370" fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 坐标系 -->
+            <g id="scene2-coordinates">
+                <!-- x轴 -->
+                <line id="scene2-axis-x" x1="100" y1="420" x2="750" y2="420" stroke="#000000" stroke-width="2"/>
+                <!-- y轴 -->
+                <line id="scene2-axis-y" x1="100" y1="50" x2="100" y2="420" stroke="#000000" stroke-width="2"/>
+                <!-- x轴箭头 -->
+                <polygon id="scene2-arrow-x" points="750,420 740,416 740,424" fill="#000000"/>
+                <!-- y轴箭头 -->
+                <polygon id="scene2-arrow-y" points="100,50 96,60 104,60" fill="#000000"/>
+                <!-- x轴标签 -->
+                <text id="scene2-label-x" x="760" y="425" font-size="14" fill="#000000">x/h</text>
+                <!-- y轴标签 -->
+                <text id="scene2-label-y" x="70" y="40" font-size="14" fill="#000000">y/km</text>
+                <!-- x轴刻度 -->
+                <text id="scene2-kx-0" x="95" y="435" font-size="12" fill="#000000">0</text>
+                <text id="scene2-kx-1" x="188" y="435" font-size="12" fill="#000000">1</text>
+                <text id="scene2-kx-4" x="466" y="435" font-size="12" fill="#000000">4</text>
+                <text id="scene2-kx-6" x="649" y="435" font-size="12" fill="#000000">6</text>
+                <!-- y轴刻度 -->
+                <text id="scene2-ky-400" x="60" y="85" font-size="12" fill="#000000">400</text>
+            </g>
+            
+            <!-- 函数图像 -->
+            <g id="scene2-graph">
+                <!-- 甲船折线：(0,400) -> (4,0) -> (6,200) -->
+                <polyline id="scene2-line-jia" points="100,91 471,420 649,256" fill="none" stroke="#1565c0" stroke-width="3"/>
+                <!-- 乙船直线：(1,0) -> (6,400) -->
+                <line id="scene2-line-yi" x1="193" y1="420" x2="649" y2="91" stroke="#c62828" stroke-width="3"/>
+                <!-- 甲船第一段高亮层 -->
+                <polyline id="scene2-line-jia-seg1" points="100,91 471,420" fill="none" stroke="#2e7d32" stroke-width="4" opacity="0"/>
+                <!-- 甲船第二段高亮层 -->
+                <polyline id="scene2-line-jia-seg2" points="471,420 649,256" fill="none" stroke="#2e7d32" stroke-width="4" opacity="0"/>
+                <!-- 乙船高亮层 -->
+                <line id="scene2-line-yi-highlight" x1="193" y1="420" x2="649" y2="91" stroke="#2e7d32" stroke-width="4" opacity="0"/>
+            </g>
+            
+            <!-- 关键点 -->
+            <g id="scene2-points">
+                <circle id="scene2-point-0-400" cx="100" cy="91" r="4" fill="#000000"/>
+                <circle id="scene2-point-4-0" cx="471" cy="420" r="4" fill="#000000"/>
+                <circle id="scene2-point-1-0" cx="193" cy="420" r="4" fill="#000000"/>
+                <circle id="scene2-point-6-400" cx="649" cy="91" r="4" fill="#000000"/>
+                <circle id="scene2-point-6-200" cx="649" cy="256" r="4" fill="#000000"/>
+                <!-- 高亮圈 -->
+                <circle id="scene2-point-0-400-highlight" cx="100" cy="91" r="8" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            </g>
+            
+            <!-- 坐标标注 -->
+            <g id="scene2-labels">
+                <text id="scene2-label-0-400" x="70" y="75" font-size="14" fill="#000000">(0,400)</text>
+                <text id="scene2-label-4-0" x="465" y="440" font-size="14" fill="#000000">(4,0)</text>
+                <text id="scene2-label-1-0" x="180" y="440" font-size="14" fill="#000000">(1,0)</text>
+                <text id="scene2-label-6-400" x="655" y="75" font-size="14" fill="#000000">(6,400)</text>
+                <text id="scene2-label-6-200" x="660" y="256" font-size="14" fill="#000000">(6,200)</text>
+            </g>
+            
+            <!-- 辅助线（动态） -->
+            <g id="scene2-aid-lines">
+                <!-- 水平虚线从(0,400)到y轴 -->
+                <line id="scene2-aid-horz" x1="100" y1="91" x2="100" y2="91" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" opacity="0"/>
+                <!-- 垂直虚线在x=5处 -->
+                <line id="scene2-aid-vert" x1="562" y1="420" x2="562" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" opacity="0"/>
+                <!-- 甲船位置点 x=5 -->
+                <circle id="scene2-point-x5-jia" cx="562" cy="328" r="4" fill="#1565c0" opacity="0"/>
+                <!-- 乙船位置点 x=5 -->
+                <circle id="scene2-point-x5-yi" cx="562" cy="156" r="4" fill="#c62828" opacity="0"/>
+            </g>
+            
+            <!-- 说法验证区 -->
+            <g id="scene2-statements">
+                <!-- 说法① -->
+                <g id="scene2-statement-1">
+                    <rect id="scene2-stmt-1-box" x="770" y="80" width="25" height="25" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                    <text id="scene2-stmt-1-num" x="777" y="98" font-size="14" font-weight="bold" fill="#000000">①</text>
+                    <text id="scene2-stmt-1-text" x="770" y="110" font-size="14" fill="#000000">A、B相距400km</text>
+                    <text id="scene2-stmt-1-result" x="895" y="115" font-size="20" font-weight="bold" fill="#2e7d32" opacity="0">✓</text>
+                </g>
+                <!-- 说法② -->
+                <g id="scene2-statement-2">
+                    <rect id="scene2-stmt-2-box" x="770" y="140" width="25" height="25" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                    <text id="scene2-stmt-2-num" x="777" y="158" font-size="14" font-weight="bold" fill="#000000">②</text>
+                    <text id="scene2-stmt-2-text" x="770" y="170" font-size="14" fill="#000000">甲速100km/h</text>
+                    <text id="scene2-stmt-2-result" x="895" y="175" font-size="20" font-weight="bold" fill="#2e7d32" opacity="0">✓</text>
+                </g>
+                <!-- 说法③ -->
+                <g id="scene2-statement-3">
+                    <rect id="scene2-stmt-3-box" x="770" y="200" width="25" height="25" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                    <text id="scene2-stmt-3-num" x="777" y="218" font-size="14" font-weight="bold" fill="#000000">③</text>
+                    <text id="scene2-stmt-3-text" x="770" y="230" font-size="14" fill="#000000">B、C相距200km</text>
+                    <text id="scene2-stmt-3-result" x="895" y="235" font-size="20" font-weight="bold" fill="#2e7d32" opacity="0">✓</text>
+                </g>
+                <!-- 说法④ -->
+                <g id="scene2-statement-4">
+                    <rect id="scene2-stmt-4-box" x="770" y="260" width="25" height="25" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                    <text id="scene2-stmt-4-num" x="777" y="278" font-size="14" font-weight="bold" fill="#000000">④</text>
+                    <text id="scene2-stmt-4-text" x="770" y="290" font-size="14" fill="#000000">乙出发4h相距220km</text>
+                    <text id="scene2-stmt-4-result" x="915" y="295" font-size="20" font-weight="bold" fill="#2e7d32" opacity="0">✓</text>
+                </g>
+            </g>
+            
+            <!-- 验证信息框 -->
+            <g id="scene2-verify-info">
+                <rect id="scene2-verify-box" x="770" y="340" width="180" height="60" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="5"/>
+                <text id="scene2-verify-text" x="780" y="370" font-size="13" fill="#000000">点击'下一步'开始验证</text>
+            </g>
+            
+            <!-- 总结框 -->
+            <g id="scene2-summary" opacity="0">
+                <rect id="scene2-summary-box" x="770" y="410" width="180" height="40" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="5"/>
+                <text id="scene2-summary-text" x="780" y="435" font-size="14" font-weight="bold" fill="#e65100">4个说法全部正确 → 答案：A</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+        <text id="scene2-step-indicator" class="scene2-step-indicator">步骤 0/5</text>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 坐标转换函数：数据坐标 -> SVG像素坐标
+        // x_pixel = 100 + (x_value / 7) * 650
+        // y_pixel = 420 - (y_value / 450) * 370
+        function coordToPixel(x, y) {
+            return {
+                x: 100 + (x / 7) * 650,
+                y: 420 - (y / 450) * 370
+            };
+        }
+        
+        // 步骤状态定义
+        const steps = [
+            { // 步骤0：初始状态
+                info: "点击'下一步'开始验证",
+                highlight: [],
+                results: {},
+                summary: false
+            },
+            { // 步骤1：验证说法①
+                info: "说法①：x=0时，甲与B港距离=400km → A、B相距400km",
+                highlight: ['point-0-400-highlight', 'line-jia-seg1'],
+                results: {1: 'correct'},
+                summary: false
+            },
+            { // 步骤2：验证说法②
+                info: "说法②：甲速=400km÷4h=100km/h",
+                highlight: ['line-jia-seg1'],
+                results: {1: 'correct', 2: 'correct'},
+                summary: false
+            },
+            { // 步骤3：验证说法③
+                info: "说法③：甲从B到C用时2h，BC=100×2=200km",
+                highlight: ['line-jia-seg2'],
+                results: {1: 'correct', 2: 'correct', 3: 'correct'},
+                summary: false
+            },
+            { // 步骤4：验证说法④
+                info: "说法④：x=5时，甲距B=100km，乙距B=320km，相距220km",
+                highlight: ['aid-vert', 'point-x5-jia', 'point-x5-yi'],
+                results: {1: 'correct', 2: 'correct', 3: 'correct', 4: 'correct'},
+                summary: false
+            },
+            { // 步骤5：总结
+                info: "正确说法个数：4个 → 答案：A",
+                highlight: [],
+                results: {1: 'correct', 2: 'correct', 3: 'correct', 4: 'correct'},
+                summary: true
+            }
+        ];
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 工具函数：设置元素透明度
+        function setOpacity(elId, opacity) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = opacity;
+            }
+        }
+        
+        // 渲染当前步骤
+        function renderStep() {
+            const step = steps[currentStep];
+            
+            // 重置所有高亮
+            ['point-0-400-highlight', 'line-jia-seg1', 'line-jia-seg2', 'line-yi-highlight',
+             'aid-vert', 'aid-horz', 'point-x5-jia', 'point-x5-yi'].forEach(id => {
+                setOpacity(id, '0');
+            });
+            
+            // 应用当前步骤的高亮
+            step.highlight.forEach(id => {
+                setOpacity(id, '1');
+            });
+            
+            // 更新结果标记
+            for (let i = 1; i <= 4; i++) {
+                const resultEl = document.getElementById(`scene2-stmt-${i}-result`);
+                if (resultEl) {
+                    if (step.results[i]) {
+                        resultEl.style.display = 'block';
+                        resultEl.style.opacity = '1';
+                    } else {
+                        resultEl.style.display = 'none';
+                        resultEl.style.opacity = '0';
+                    }
+                }
+            }
+            
+            // 更新验证信息
+            const verifyText = document.getElementById('scene2-verify-text');
+            if (verifyText) {
+                verifyText.textContent = step.info;
+            }
+            
+            // 更新总结框
+            const summary = document.getElementById('scene2-summary');
+            if (summary) {
+                summary.style.opacity = step.summary ? '1' : '0';
+            }
+            
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene2-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            }
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            if (prevBtn) {
+                prevBtn.disabled = currentStep === 0;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = currentStep === totalSteps;
+                nextBtn.textContent = currentStep === totalSteps ? '完成' : '下一步 ▶';
+            }
+        }
+        
+        // 事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

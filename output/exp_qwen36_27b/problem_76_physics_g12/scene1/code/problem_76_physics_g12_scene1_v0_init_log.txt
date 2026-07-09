@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理场景1 - 物块滑动过程</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+        .scene1-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            font-family: "Microsoft YaHei", sans-serif;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0; right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="scene1-mk-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0,10 3.5,0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-mk-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0,10 3.5,0 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene1-mk-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0,10 3.5,0 7" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-mk-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0,10 3.5,0 7" fill="#888888"/>
+                </marker>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#ccc" stroke-width="1.5"/>
+                </pattern>
+            </defs>
+
+            <!-- 地面 -->
+            <line x1="60" y1="360" x2="740" y2="360" stroke="#333" stroke-width="2"/>
+            <rect x="60" y="362" width="680" height="28" fill="url(#scene1-hatch)"/>
+
+            <!-- 木块A -->
+            <rect id="scene1-rect-a" x="160" y="280" width="200" height="80" fill="#e3f2fd" fill-opacity="0.3" stroke="#333" stroke-width="2" rx="2"/>
+            <text id="scene1-label-a" x="260" y="272" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">A</text>
+            <text id="scene1-label-ma" x="260" y="402" text-anchor="middle" font-size="14" fill="#333">m<tspan baseline-shift="sub" font-size="10">A</tspan>=0.5kg</text>
+
+            <!-- 木块B -->
+            <g id="scene1-group-b">
+                <rect id="scene1-rect-b" x="360" y="280" width="200" height="80" fill="#e8f5e9" fill-opacity="0.3" stroke="#333" stroke-width="2" rx="2"/>
+                <text id="scene1-label-b" x="460" y="272" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">B</text>
+                <text id="scene1-label-mb" x="460" y="402" text-anchor="middle" font-size="14" fill="#333">m<tspan baseline-shift="sub" font-size="10">B</tspan>=0.3kg</text>
+            </g>
+
+            <!-- 小物块C -->
+            <g id="scene1-group-c">
+                <rect id="scene1-rect-c" x="180" y="240" width="40" height="40" fill="#fff3e0" fill-opacity="0.6" stroke="#333" stroke-width="2" rx="2"/>
+                <text id="scene1-label-c" x="200" y="232" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">C</text>
+                <text id="scene1-label-m0" x="200" y="215" text-anchor="middle" font-size="14" fill="#333">m<tspan baseline-shift="sub" font-size="10">0</tspan>=0.08kg</text>
+            </g>
+
+            <!-- v_0 箭头 (步骤0) -->
+            <g id="scene1-arrow-v0" style="display:none;">
+                <line x1="225" y1="258" x2="320" y2="258" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-mk-blue)"/>
+                <text id="scene1-label-v0" x="272" y="248" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">v<tspan baseline-shift="sub" font-size="10">0</tspan>=25m/s</text>
+            </g>
+
+            <!-- v_C 箭头 (步骤1-3) -->
+            <g id="scene1-arrow-vc" style="display:none;">
+                <line id="scene1-line-vc" x1="225" y1="258" x2="300" y2="258" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-mk-blue)"/>
+                <text id="scene1-label-vc" x="262" y="248" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">v<tspan baseline-shift="sub" font-size="10">C</tspan></text>
+            </g>
+
+            <!-- v_A 箭头 (步骤2,4) -->
+            <g id="scene1-arrow-va" style="display:none;">
+                <line x1="260" y1="300" x2="310" y2="300" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene1-mk-green)"/>
+                <text id="scene1-label-va" x="285" y="292" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">v<tspan baseline-shift="sub" font-size="10">A</tspan>=?</text>
+            </g>
+
+            <!-- v_BC 箭头 (步骤4) -->
+            <g id="scene1-arrow-vbc" style="display:none;">
+                <line id="scene1-line-vbc" x1="530" y1="300" x2="610" y2="300" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-mk-red)"/>
+                <text id="scene1-label-v" x="570" y="292" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">v=2.5m/s</text>
+            </g>
+
+            <!-- 摩擦力 - C受摩擦力 (步骤1,3) -->
+            <g id="scene1-friction-c" style="display:none;">
+                <line id="scene1-line-fc" x1="200" y1="260" x2="155" y2="260" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-mk-gray)"/>
+                <text id="scene1-label-fc" x="178" y="252" text-anchor="middle" font-size="12" fill="#888888">f</text>
+            </g>
+
+            <!-- 摩擦力 - A/B受摩擦力 (步骤1) -->
+            <g id="scene1-friction-ab" style="display:none;">
+                <line x1="260" y1="340" x2="305" y2="340" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-mk-gray)"/>
+                <text x="282" y="334" text-anchor="middle" font-size="12" fill="#888888">f</text>
+            </g>
+
+            <!-- 摩擦力 - B受摩擦力 (步骤3) -->
+            <g id="scene1-friction-b" style="display:none;">
+                <line id="scene1-line-fb" x1="460" y1="340" x2="505" y2="340" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-mk-gray)"/>
+                <text id="scene1-label-fb" x="482" y="334" text-anchor="middle" font-size="12" fill="#888888">f</text>
+            </g>
+
+            <!-- 步骤指示器 -->
+            <text id="scene1-step-indicator" x="400" y="448" text-anchor="middle" font-size="15" fill="#555" font-weight="bold">步骤 0/4</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var currentStep = 0;
+        var totalSteps = 4;
+        var cPositions = [180, 300, 340, 420, 490];
+        var bOffsets = [0, 0, 0, 0, 70];
+
+        var groupC = document.getElementById('scene1-group-c');
+        var groupB = document.getElementById('scene1-group-b');
+        var arrowV0 = document.getElementById('scene1-arrow-v0');
+        var arrowVC = document.getElementById('scene1-arrow-vc');
+        var arrowVA = document.getElementById('scene1-arrow-va');
+        var arrowVBC = document.getElementById('scene1-arrow-vbc');
+        var frictionC = document.getElementById('scene1-friction-c');
+        var frictionAB = document.getElementById('scene1-friction-ab');
+        var frictionB = document.getElementById('scene1-friction-b');
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        function showEl(el) { el.style.display = ''; el.style.opacity = '1'; }
+        function hideEl(el) { el.style.display = 'none'; el.style.opacity = '0'; }
+
+        function updateScene(step) {
+            var cX = cPositions[step];
+            var bOff = bOffsets[step];
+            var cDx = cX - 180;
+            groupC.setAttribute('transform', 'translate(' + cDx + ',0)');
+            groupB.setAttribute('transform', 'translate(' + bOff + ',0)');
+
+            hideEl(arrowV0); hideEl(arrowVC); hideEl(arrowVA);
+            hideEl(arrowVBC); hideEl(frictionC); hideEl(frictionAB); hideEl(frictionB);
+
+            switch(step) {
+                case 0: showEl(arrowV0); break;
+                case 1: showEl(arrowVC); showEl(frictionC); showEl(frictionAB); break;
+                case 2: showEl(arrowVC); showEl(arrowVA); break;
+                case 3: showEl(arrowVC); showEl(frictionC); showEl(frictionB); break;
+                case 4: showEl(arrowVA); showEl(arrowVBC); break;
+            }
+
+            stepIndicator.textContent = '步骤 ' + step + '/4';
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps);
+        }
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) { currentStep++; updateScene(currentStep); }
+        });
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; updateScene(currentStep); }
+        });
+
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

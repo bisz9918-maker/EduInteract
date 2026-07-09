@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆剪拼成长方形 - 周长计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            width: 80px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        #scene1-btn-prev {
+            background: #e0e0e0;
+            color: #333;
+        }
+        #scene1-btn-prev:hover:not(:disabled) {
+            background: #bdbdbd;
+        }
+        #scene1-btn-next {
+            background: #1565c0;
+            color: #fff;
+        }
+        #scene1-btn-next:hover:not(:disabled) {
+            background: #0d47a1;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #666;
+            min-width: 70px;
+            text-align: center;
+        }
+        .sector {
+            transition: all 0.5s ease-in-out;
+        }
+        .formula-text {
+            font-size: 14px;
+            fill: #333;
+        }
+        .label-text {
+            font-size: 13px;
+            fill: #333;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-start" markerWidth="10" markerHeight="10" refX="0" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-end" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-green-start" markerWidth="10" markerHeight="10" refX="0" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene1-arrow-green-end" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 Z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 左侧原始圆区域 -->
+            <g id="scene1-circle-group">
+                <!-- 圆轮廓 -->
+                <circle id="scene1-circle" cx="150" cy="200" r="80" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+                <!-- 圆心点 -->
+                <circle id="scene1-center-o" cx="150" cy="200" r="4" fill="#000000"/>
+                <text id="scene1-label-o" x="158" y="215" class="label-text" style="opacity: 0;">O</text>
+                <!-- 半径线 -->
+                <line id="scene1-radius-line" x1="150" y1="200" x2="230" y2="200" stroke="#1565c0" stroke-width="2" style="opacity: 0;"/>
+                <text id="scene1-label-r" x="190" y="190" class="label-text" style="opacity: 0;">r=10cm</text>
+            </g>
+
+            <!-- 16 个扇形（初始在圆内，后续移动到长方形位置） -->
+            <g id="scene1-sectors-group">
+                <!-- 扇形将通过 JS 动态生成 -->
+            </g>
+
+            <!-- 右侧长方形区域 -->
+            <g id="scene1-rectangle-group" style="opacity: 0;">
+                <!-- 长方形轮廓 -->
+                <rect id="scene1-rect-outline" x="420" y="180" width="251" height="80" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- 长标注线 -->
+                <line id="scene1-label-length-line" x1="420" y1="160" x2="671" y2="160" stroke="#1565c0" stroke-width="2" marker-start="url(#scene1-arrow-start)" marker-end="url(#scene1-arrow-end)"/>
+                <text id="scene1-label-length" x="545" y="150" text-anchor="middle" class="label-text" fill="#1565c0" font-weight="bold">长=πr</text>
+                <!-- 宽标注线 -->
+                <line id="scene1-label-width-line" x1="685" y1="180" x2="685" y2="260" stroke="#2e7d32" stroke-width="2" marker-start="url(#scene1-arrow-green-start)" marker-end="url(#scene1-arrow-green-end)"/>
+                <text id="scene1-label-width" x="705" y="225" text-anchor="middle" class="label-text" fill="#2e7d32" font-weight="bold">宽=r</text>
+            </g>
+
+            <!-- 公式文本框 -->
+            <g id="scene1-formula-group" style="opacity: 0;">
+                <rect id="scene1-formula-box" x="580" y="320" width="200" height="80" fill="#f5f5f5" stroke="#1565c0" stroke-width="1" rx="5"/>
+                <text id="scene1-formula-line1" x="590" y="345" class="formula-text">周长 = 2(长 + 宽)</text>
+                <text id="scene1-formula-line2" x="590" y="365" class="formula-text">= 2(πr + r)</text>
+                <text id="scene1-formula-line3" x="590" y="385" class="formula-text">= 2 × 10 × (3.14 + 1)</text>
+                <text id="scene1-formula-line4" x="590" y="405" class="formula-text" fill="#1565c0" font-weight="bold">= 82.8 cm</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/6</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 圆剪拼成长方形 - 周长计算
+        // 布局坐标表参考:
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 原始圆 | 圆心(150,200) r=80 | 左侧区域中心 |
+        // | 圆心点 O | (150,200) | 标注点 O |
+        // | 半径线 | (150,200)-(230,200) | 水平向右 |
+        // | r=10cm 标签 | (190,185) | 半径线上方 |
+        // | 长方形主体 | (420,180) 251×80px | 由扇形交错排列 |
+        // | 长=πr 标签 | (545,140) | 长标注线上方居中 |
+        // | 宽=r 标签 | (695,220) | 宽标注线右侧居中 |
+        // | 公式文本框 | (580,320) 200×80px | 浅灰背景蓝边框 |
+
+        const STATE_COUNT = 6;
+        let currentState = 0;
+
+        // 获取 DOM 元素
+        const sectorsGroup = document.getElementById('scene1-sectors-group');
+        const circleGroup = document.getElementById('scene1-circle-group');
+        const centerO = document.getElementById('scene1-center-o');
+        const labelO = document.getElementById('scene1-label-o');
+        const radiusLine = document.getElementById('scene1-radius-line');
+        const labelR = document.getElementById('scene1-label-r');
+        const rectangleGroup = document.getElementById('scene1-rectangle-group');
+        const formulaGroup = document.getElementById('scene1-formula-group');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 生成 16 个扇形路径
+        function createSectorPath(index, cx, cy, r) {
+            const anglePerSector = 360 / 16; // 22.5 度
+            const startAngle = index * anglePerSector;
+            const endAngle = (index + 1) * anglePerSector;
+
+            // 转换为弧度
+            const startRad = (startAngle - 90) * Math.PI / 180;
+            const endRad = (endAngle - 90) * Math.PI / 180;
+
+            // 计算起点和终点坐标
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy + r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy + r * Math.sin(endRad);
+
+            // 创建扇形路径
+            const largeArcFlag = anglePerSector > 180 ? 1 : 0;
+            const pathData = `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+
+            return pathData;
+        }
+
+        // 计算扇形在长方形中的位置
+        function getSectorRectPosition(index, isUpper) {
+            const sectorWidth = 251 / 8; // 每份宽度约 31.375px
+            const sectorHeight = 40; // 半高
+            const baseX = 420;
+            const baseY = 220; // 中心线
+
+            const xPos = baseX + index * sectorWidth;
+            const yPos = isUpper ? baseY - sectorHeight : baseY;
+
+            return { x: xPos, y: yPos, index };
+        }
+
+        // 创建扇形元素
+        function createSectors() {
+            sectorsGroup.innerHTML = '';
+            const cx = 150, cy = 200, r = 80;
+
+            for (let i = 0; i < 16; i++) {
+                const pathData = createSectorPath(i, cx, cy, r);
+                const isGray = i >= 8; // 后 8 个扇形为灰色（下半圆）
+
+                const sector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                sector.setAttribute('d', pathData);
+                sector.setAttribute('fill', isGray ? '#cccccc' : '#ffffff');
+                sector.setAttribute('stroke', '#000000');
+                sector.setAttribute('stroke-width', '0.5');
+                sector.setAttribute('class', 'sector');
+                sector.setAttribute('id', `scene1-sector-${i}`);
+                sector.setAttribute('data-index', i);
+                sector.setAttribute('data-is-gray', isGray);
+
+                // 初始位置在圆内
+                sector.setAttribute('transform', `translate(0, 0)`);
+
+                sectorsGroup.appendChild(sector);
+            }
+        }
+
+        // 更新扇形位置
+        function updateSectorsForState(state) {
+            const sectors = sectorsGroup.querySelectorAll('.sector');
+            const cx = 150, cy = 200, r = 80;
+
+            sectors.forEach((sector, i) => {
+                const isGray = i >= 8;
+                const sectorIndex = isGray ? i - 8 : i;
+
+                if (state === 0 || state === 1) {
+                    // 在圆内原始位置
+                    const pathData = createSectorPath(i, cx, cy, r);
+                    sector.setAttribute('d', pathData);
+                    sector.setAttribute('transform', 'translate(0, 0)');
+                    sector.setAttribute('opacity', '1');
+                } else if (state === 2) {
+                    // 分离状态：上半圆向上，下半圆向下
+                    const pathData = createSectorPath(i, cx, cy, r);
+                    sector.setAttribute('d', pathData);
+                    const translateY = isGray ? 30 : -30;
+                    sector.setAttribute('transform', `translate(0, ${translateY})`);
+                    sector.setAttribute('opacity', '1');
+                } else if (state >= 3) {
+                    // 移动到长方形位置
+                    const sectorWidth = 251 / 8;
+                    const baseX = 420 + sectorIndex * sectorWidth;
+                    const centerY = 220;
+
+                    // 创建长方形中的扇形路径（近似三角形）
+                    const triWidth = sectorWidth;
+                    const triHeight = 40;
+
+                    let pathData;
+                    if (isGray) {
+                        // 灰色扇形：齿尖向上
+                        const x1 = baseX;
+                        const y1 = centerY;
+                        const x2 = baseX + triWidth / 2;
+                        const y2 = centerY - triHeight;
+                        const x3 = baseX + triWidth;
+                        const y3 = centerY;
+                        pathData = `M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} Z`;
+                    } else {
+                        // 白色扇形：齿尖向下
+                        const x1 = baseX;
+                        const y1 = centerY - triHeight;
+                        const x2 = baseX + triWidth / 2;
+                        const y2 = centerY;
+                        const x3 = baseX + triWidth;
+                        const y3 = centerY - triHeight;
+                        pathData = `M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} Z`;
+                    }
+
+                    sector.setAttribute('d', pathData);
+                    sector.setAttribute('transform', 'translate(0, 0)');
+                    sector.setAttribute('opacity', '1');
+                }
+            });
+        }
+
+        // 显示/隐藏元素
+        function showElement(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideElement(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 300);
+            }
+        }
+
+        // 更新状态
+        function updateState(newState) {
+            if (newState < 0) newState = 0;
+            if (newState >= STATE_COUNT) newState = STATE_COUNT - 1;
+
+            currentState = newState;
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${STATE_COUNT}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === STATE_COUNT - 1;
+
+            // 根据状态显示/隐藏元素
+            if (currentState === 0) {
+                // 初始状态：只显示圆和圆心
+                showElement(centerO);
+                hideElement(labelO);
+                hideElement(radiusLine);
+                hideElement(labelR);
+                hideElement(rectangleGroup);
+                hideElement(formulaGroup);
+                updateSectorsForState(0);
+            } else if (currentState === 1) {
+                // 显示半径标注
+                showElement(centerO);
+                showElement(labelO);
+                showElement(radiusLine);
+                showElement(labelR);
+                hideElement(rectangleGroup);
+                hideElement(formulaGroup);
+                updateSectorsForState(1);
+            } else if (currentState === 2) {
+                // 扇形分离
+                showElement(centerO);
+                showElement(labelO);
+                showElement(radiusLine);
+                showElement(labelR);
+                hideElement(rectangleGroup);
+                hideElement(formulaGroup);
+                updateSectorsForState(2);
+            } else if (currentState === 3) {
+                // 开始重排
+                showElement(centerO);
+                showElement(labelO);
+                showElement(radiusLine);
+                showElement(labelR);
+                hideElement(rectangleGroup);
+                hideElement(formulaGroup);
+                updateSectorsForState(3);
+            } else if (currentState === 4) {
+                // 完整长方形
+                showElement(centerO);
+                showElement(labelO);
+                showElement(radiusLine);
+                showElement(labelR);
+                showElement(rectangleGroup);
+                hideElement(formulaGroup);
+                updateSectorsForState(4);
+            } else if (currentState === 5) {
+                // 显示公式
+                showElement(centerO);
+                showElement(labelO);
+                showElement(radiusLine);
+                showElement(labelR);
+                showElement(rectangleGroup);
+                showElement(formulaGroup);
+                updateSectorsForState(5);
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', () => {
+            if (currentState > 0) {
+                updateState(currentState - 1);
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentState < STATE_COUNT - 1) {
+                updateState(currentState + 1);
+            }
+        });
+
+        // 初始化
+        createSectors();
+        updateState(0);
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平移法演示周长计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-slider-container { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-slider-track { width: 400px; height: 8px; background: #cccccc; border-radius: 4px; position: relative; cursor: pointer; }
+        #scene2-slider-handle { width: 20px; height: 20px; background: #1565c0; border-radius: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); cursor: grab; }
+        #scene2-slider-handle:hover { background: #0d47a1; }
+        .scene2-label { font-size: 14px; fill: #000000; }
+        .scene2-dim-label { font-size: 16px; fill: #000000; font-weight: bold; }
+        .scene2-perimeter-label { font-size: 14px; fill: #000000; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 原长方形参考轮廓 (虚线，50%透明) -->
+            <rect id="scene2-rect-original" x="150" y="100" width="480" height="320" 
+                  fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0.5"/>
+            
+            <!-- 不规则图形路径 (实线) -->
+            <!-- 顶点: (150,100)→(630,100)→(630,180)→(470,180)→(470,340)→(630,340)→(630,420)→(150,420)→闭合 -->
+            <path id="scene2-path-irregular" 
+                  d="M 150 100 L 630 100 L 630 180 L 470 180 L 470 340 L 630 340 L 630 420 L 150 420 Z"
+                  fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 凹槽上边 (可平移，蓝色) -->
+            <line id="scene2-line-groove-top" x1="470" y1="180" x2="630" y2="180" 
+                  stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 凹槽下边 (可平移，蓝色) -->
+            <line id="scene2-line-groove-bottom" x1="470" y1="340" x2="630" y2="340" 
+                  stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 凹槽左边 (固定，绿色加粗) -->
+            <line id="scene2-line-groove-left" x1="470" y1="180" x2="470" y2="340" 
+                  stroke="#2e7d32" stroke-width="3"/>
+            
+            <!-- 平移轨迹 (虚线) -->
+            <line id="scene2-line-trajectory-top" x1="630" y1="180" x2="790" y2="180" 
+                  stroke="#888888" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+            <line id="scene2-line-trajectory-bottom" x1="630" y1="340" x2="790" y2="340" 
+                  stroke="#888888" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+            
+            <!-- 平移箭头 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" 
+                        orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+            </defs>
+            <line id="scene2-arrow-top" x1="700" y1="170" x2="750" y2="170" 
+                  stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+            <line id="scene2-arrow-bottom" x1="700" y1="350" x2="750" y2="350" 
+                  stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+            
+            <!-- 尺寸标注 -->
+            <text id="scene2-label-4" x="120" y="260" class="scene2-dim-label" text-anchor="end">4</text>
+            <text id="scene2-label-6" x="390" y="475" class="scene2-dim-label" text-anchor="middle">6</text>
+            <text id="scene2-label-2" x="550" y="250" class="scene2-dim-label" text-anchor="middle">2</text>
+            
+            <!-- 周长计算标注 -->
+            <text id="scene2-text-original-perimeter" x="680" y="200" class="scene2-perimeter-label">原周长:20cm</text>
+            <text id="scene2-text-added" x="680" y="230" class="scene2-perimeter-label">新增:2×2=4cm</text>
+            <text id="scene2-text-total" x="680" y="260" class="scene2-perimeter-label">总周长:24cm</text>
+            <text id="scene2-text-formula" x="680" y="300" class="scene2-perimeter-label" font-weight="bold">20+2×2=24(cm)</text>
+            
+            <!-- 滑块控件容器 (放在SVG内部底部) -->
+            <g id="scene2-slider-group">
+                <rect id="scene2-slider-track-svg" x="200" y="450" width="400" height="8" fill="#cccccc" rx="4"/>
+                <circle id="scene2-slider-handle-svg" cx="200" cy="454" r="10" fill="#1565c0" style="cursor: grab;"/>
+                <text x="400" y="485" text-anchor="middle" font-size="12px" fill="#666">拖动滑块观察平移过程</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 平移法演示周长计算
+        
+        // 坐标表参考（实现对照）：
+        // | 元素 | 位置/范围 | 备注 |
+        // |------|-----------|------|
+        // | 原长方形 | (150,100)-(630,420) | 480×320 |
+        // | 凹槽上边 | 初始(470,180)-(630,180) | 蓝色可平移 |
+        // | 凹槽下边 | 初始(470,340)-(630,340) | 蓝色可平移 |
+        // | 凹槽左边 | (470,180)-(470,340) | 绿色固定 |
+        // | 平移轨迹 | (630,180)-(790,180) | 虚线 |
+        // | 标注"4" | (120,260) | 左侧宽 |
+        // | 标注"6" | (390,475) | 底部长 |
+        // | 标注"2" | (550,250) | 凹槽边长 |
+        // | 滑块轨道 | (200,450)-(600,458) | 宽400px |
+        // | 滑块手柄 | 初始cx=200 | 可拖拽范围200~600 |
+        
+        const MAX_OFFSET = 160; // 最大平移距离 (2cm = 160px)
+        const SLIDER_START_X = 200;
+        const SLIDER_END_X = 600;
+        const SLIDER_RANGE = SLIDER_END_X - SLIDER_START_X;
+        
+        let isDragging = false;
+        let currentPercent = 0; // 0~1
+        
+        // 获取元素
+        const sliderTrack = document.getElementById('scene2-slider-track-svg');
+        const sliderHandle = document.getElementById('scene2-slider-handle-svg');
+        const grooveTop = document.getElementById('scene2-line-groove-top');
+        const grooveBottom = document.getElementById('scene2-line-groove-bottom');
+        
+        // 更新图形位置
+        function updateGraphics(percent) {
+            const offset = percent * MAX_OFFSET;
+            
+            // 更新凹槽上边位置
+            grooveTop.setAttribute('x1', 470 + offset);
+            grooveTop.setAttribute('x2', 630 + offset);
+            
+            // 更新凹槽下边位置
+            grooveBottom.setAttribute('x1', 470 + offset);
+            grooveBottom.setAttribute('x2', 630 + offset);
+            
+            // 更新滑块手柄位置
+            const handleX = SLIDER_START_X + percent * SLIDER_RANGE;
+            sliderHandle.setAttribute('cx', handleX);
+        }
+        
+        // 鼠标/触摸事件处理
+        function handleStart(e) {
+            isDragging = true;
+            sliderHandle.style.cursor = 'grabbing';
+            e.preventDefault();
+        }
+        
+        function handleMove(e) {
+            if (!isDragging) return;
+            
+            const rect = sliderTrack.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let newX = clientX - rect.left;
+            
+            // 限制范围
+            newX = Math.max(0, Math.min(SLIDER_RANGE, newX));
+            const percent = newX / SLIDER_RANGE;
+            currentPercent = percent;
+            
+            updateGraphics(percent);
+        }
+        
+        function handleEnd() {
+            isDragging = false;
+            sliderHandle.style.cursor = 'grab';
+        }
+        
+        // 绑定事件
+        sliderTrack.addEventListener('mousedown', handleStart);
+        sliderTrack.addEventListener('touchstart', handleStart, { passive: false });
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchend', handleEnd);
+        
+        // 点击轨道直接跳转
+        sliderTrack.addEventListener('click', function(e) {
+            const rect = sliderTrack.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percent = Math.max(0, Math.min(1, clickX / SLIDER_RANGE));
+            currentPercent = percent;
+            updateGraphics(percent);
+        });
+        
+        // 初始化
+        updateGraphics(0);
+        
+    })();
+    </script>
+</body>
+</html>

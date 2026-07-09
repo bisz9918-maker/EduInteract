@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 4 - 昼夜平分时的夜半球范围绘制</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene4-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene4-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene4-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        #scene4-controls button:hover { background: #e0e0e0; }
+        #scene4-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene4-step-indicator { font-size: 14px; line-height: 34px; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <svg width="800" height="500" id="scene4-svg">
+            <!-- 经线网格 -->
+            <line id="scene4-meridian-180l" x1="100" y1="50" x2="100" y2="450" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-meridian-120w" x1="200" y1="50" x2="200" y2="450" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-meridian-60w" x1="300" y1="50" x2="300" y2="450" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-meridian-0" x1="400" y1="50" x2="400" y2="450" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-meridian-60e" x1="500" y1="50" x2="500" y2="450" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-meridian-120e" x1="600" y1="50" x2="600" y2="450" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-meridian-180r" x1="700" y1="50" x2="700" y2="450" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 纬线网格 -->
+            <line id="scene4-latitude-90n" x1="100" y1="50" x2="700" y2="50" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-latitude-60n" x1="100" y1="117" x2="700" y2="117" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-latitude-30n" x1="100" y1="183" x2="700" y2="183" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-latitude-0" x1="100" y1="250" x2="700" y2="250" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-latitude-30s" x1="100" y1="317" x2="700" y2="317" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-latitude-60s" x1="100" y1="383" x2="700" y2="383" stroke="#000000" stroke-width="2"/>
+            <line id="scene4-latitude-90s" x1="100" y1="450" x2="700" y2="450" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 经度标签 -->
+            <text id="scene4-longitude-180l" x="90" y="40" font-size="12" fill="#000000">180°</text>
+            <text id="scene4-longitude-120w" x="175" y="40" font-size="12" fill="#000000">120°W</text>
+            <text id="scene4-longitude-60w" x="280" y="40" font-size="12" fill="#000000">60°W</text>
+            <text id="scene4-longitude-0" x="392" y="40" font-size="12" fill="#000000">0°</text>
+            <text id="scene4-longitude-60e" x="485" y="40" font-size="12" fill="#000000">60°E</text>
+            <text id="scene4-longitude-120e" x="575" y="40" font-size="12" fill="#000000">120°E</text>
+            <text id="scene4-longitude-180r" x="680" y="40" font-size="12" fill="#000000">180°</text>
+            
+            <!-- 纬度标签 -->
+            <text id="scene4-latitude-label-90n" x="720" y="55" font-size="12" fill="#000000">90°N</text>
+            <text id="scene4-latitude-label-60n" x="720" y="122" font-size="12" fill="#000000">60°N</text>
+            <text id="scene4-latitude-label-30n" x="720" y="188" font-size="12" fill="#000000">30°N</text>
+            <text id="scene4-latitude-label-0" x="720" y="255" font-size="12" fill="#000000">0°</text>
+            <text id="scene4-latitude-label-30s" x="720" y="322" font-size="12" fill="#000000">30°S</text>
+            <text id="scene4-latitude-label-60s" x="720" y="388" font-size="12" fill="#000000">60°S</text>
+            <text id="scene4-latitude-label-90s" x="720" y="455" font-size="12" fill="#000000">90°S</text>
+            
+            <!-- A 点 -->
+            <circle id="scene4-point-a" cx="300" cy="183" r="10" fill="#1565c0"/>
+            <text id="scene4-label-a" x="285" y="165" font-size="14" fill="#000000">A</text>
+            <text id="scene4-label-a-coord" x="285" y="210" font-size="12" fill="#000000">(60°W, 30°N)</text>
+            
+            <!-- 时间标注 A -->
+            <text id="scene4-label-a-time" x="320" y="188" font-size="14" fill="#000000" opacity="0">14:00</text>
+            
+            <!-- 晨线 (180°经线) -->
+            <line id="scene4-terminator-dawn" x1="100" y1="50" x2="100" y2="450" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            <text id="scene4-label-dawn" x="75" y="65" font-size="14" fill="#2e7d32" opacity="0">晨线 (6:00)</text>
+            <text id="scene4-label-dawn-time" x="75" y="255" font-size="14" fill="#2e7d32" opacity="0">6:00</text>
+            
+            <!-- 昏线 (0°经线) -->
+            <line id="scene4-terminator-dusk" x1="400" y1="50" x2="400" y2="450" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            <text id="scene4-label-dusk" x="410" y="65" font-size="14" fill="#2e7d32" opacity="0">昏线 (18:00)</text>
+            <text id="scene4-label-dusk-time" x="410" y="255" font-size="14" fill="#2e7d32" opacity="0">18:00</text>
+            
+            <!-- 夜半球区域 (0°~180°，即 x=400~700，不覆盖 A 点) -->
+            <rect id="scene4-night-hemisphere" x="400" y="50" width="300" height="400" fill="#c62828" opacity="0"/>
+            <rect id="scene4-night-hemisphere-border" x="400" y="50" width="300" height="400" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            <text id="scene4-label-night" x="530" y="420" font-size="14" fill="#c62828" opacity="0">夜半球</text>
+            <text id="scene4-label-day" x="230" y="420" font-size="14" fill="#000000" opacity="0">昼半球</text>
+            
+            <!-- 说明文字 (移到画布下方 y>360 区域，避开夜半球) -->
+            <text id="scene4-explanation-1" x="120" y="360" font-size="12" fill="#333" opacity="0">昼夜平分 → 太阳直射赤道</text>
+            <text id="scene4-explanation-1b" x="120" y="378" font-size="12" fill="#333" opacity="0">晨昏线与经线重合</text>
+            <text id="scene4-explanation-2" x="120" y="400" font-size="11" fill="#333" opacity="0">晨线=6:00，与 A 点 (14:00) 相差 8h</text>
+            <text id="scene4-explanation-2b" x="120" y="418" font-size="11" fill="#333" opacity="0">经度差=120°，晨线在 180°经线</text>
+            <text id="scene4-explanation-3" x="450" y="400" font-size="11" fill="#333" opacity="0">昏线=18:00，与 A 点 (14:00) 相差 4h</text>
+            <text id="scene4-explanation-3b" x="450" y="418" font-size="11" fill="#333" opacity="0">经度差=60°，昏线在 0°经线</text>
+            <text id="scene4-explanation-4" x="120" y="440" font-size="12" fill="#333" opacity="0">夜半球范围：180°经线向东至 0°经线</text>
+        </svg>
+        
+        <div id="scene4-controls">
+            <button id="scene4-prev-btn">◀ 上一步</button>
+            <span id="scene4-step-indicator">步骤 0/6</span>
+            <button id="scene4-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4 实现
+        // 坐标映射：经度 -180°~180° → x(100~700)，纬度 90°~-90° → y(50~450)
+        // 经线：180°(x=100), 120°W(x=200), 60°W(x=300), 0°(x=400), 60°E(x=500), 120°E(x=600), 180°(x=700)
+        // 纬线：90°N(y=50), 60°N(y=117), 30°N(y=183), 0°(y=250), 30°S(y=317), 60°S(y=383), 90°S(y=450)
+        // A 点：(60°W, 30°N) → (300, 183)
+        // 夜半球区域：0°~180° (x=400~700)，不覆盖 A 点 (x=300)
+        // 说明文字：移到画布下方 y>360 区域，避开夜半球区域
+        
+        const scene4 = {
+            currentStep: 0,
+            totalSteps: 6,
+            
+            // 元素可见性配置：{ stepNumber: [elementId, ...] }
+            elementVisibility: {
+                // 步骤 0：基础经纬网 + A 点
+                0: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord'
+                ],
+                // 步骤 1：+ A 点时间标注
+                1: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord', 'scene4-label-a-time'
+                ],
+                // 步骤 2：+ 昼夜平分说明
+                2: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord', 'scene4-label-a-time',
+                    'scene4-explanation-1', 'scene4-explanation-1b'
+                ],
+                // 步骤 3：+ 晨线
+                3: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord', 'scene4-label-a-time',
+                    'scene4-explanation-1', 'scene4-explanation-1b',
+                    'scene4-terminator-dawn', 'scene4-label-dawn', 'scene4-label-dawn-time',
+                    'scene4-explanation-2', 'scene4-explanation-2b'
+                ],
+                // 步骤 4：+ 昏线
+                4: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord', 'scene4-label-a-time',
+                    'scene4-explanation-1', 'scene4-explanation-1b',
+                    'scene4-terminator-dawn', 'scene4-label-dawn', 'scene4-label-dawn-time',
+                    'scene4-explanation-2', 'scene4-explanation-2b',
+                    'scene4-terminator-dusk', 'scene4-label-dusk', 'scene4-label-dusk-time',
+                    'scene4-explanation-3', 'scene4-explanation-3b'
+                ],
+                // 步骤 5：+ 夜半球范围说明
+                5: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord', 'scene4-label-a-time',
+                    'scene4-explanation-1', 'scene4-explanation-1b',
+                    'scene4-terminator-dawn', 'scene4-label-dawn', 'scene4-label-dawn-time',
+                    'scene4-explanation-2', 'scene4-explanation-2b',
+                    'scene4-terminator-dusk', 'scene4-label-dusk', 'scene4-label-dusk-time',
+                    'scene4-explanation-3', 'scene4-explanation-3b',
+                    'scene4-night-hemisphere-border', 'scene4-label-day', 'scene4-explanation-4'
+                ],
+                // 步骤 6：+ 夜半球阴影填充（最终状态）
+                6: [
+                    'scene4-meridian-180l', 'scene4-meridian-120w', 'scene4-meridian-60w',
+                    'scene4-meridian-0', 'scene4-meridian-60e', 'scene4-meridian-120e', 'scene4-meridian-180r',
+                    'scene4-latitude-90n', 'scene4-latitude-60n', 'scene4-latitude-30n',
+                    'scene4-latitude-0', 'scene4-latitude-30s', 'scene4-latitude-60s', 'scene4-latitude-90s',
+                    'scene4-longitude-180l', 'scene4-longitude-120w', 'scene4-longitude-60w',
+                    'scene4-longitude-0', 'scene4-longitude-60e', 'scene4-longitude-120e', 'scene4-longitude-180r',
+                    'scene4-latitude-label-90n', 'scene4-latitude-label-60n', 'scene4-latitude-label-30n',
+                    'scene4-latitude-label-0', 'scene4-latitude-label-30s', 'scene4-latitude-label-60s', 'scene4-latitude-label-90s',
+                    'scene4-point-a', 'scene4-label-a', 'scene4-label-a-coord', 'scene4-label-a-time',
+                    'scene4-explanation-1', 'scene4-explanation-1b',
+                    'scene4-terminator-dawn', 'scene4-label-dawn', 'scene4-label-dawn-time',
+                    'scene4-explanation-2', 'scene4-explanation-2b',
+                    'scene4-terminator-dusk', 'scene4-label-dusk', 'scene4-label-dusk-time',
+                    'scene4-explanation-3', 'scene4-explanation-3b',
+                    'scene4-night-hemisphere-border', 'scene4-label-day', 'scene4-explanation-4',
+                    'scene4-night-hemisphere', 'scene4-label-night'
+                ]
+            },
+            
+            init: function() {
+                this.updateStep();
+                this.bindEvents();
+            },
+            
+            bindEvents: function() {
+                const prevBtn = document.getElementById('scene4-prev-btn');
+                const nextBtn = document.getElementById('scene4-next-btn');
+                
+                prevBtn.addEventListener('click', () => {
+                    if (this.currentStep > 0) {
+                        this.currentStep--;
+                        this.updateStep();
+                    }
+                });
+                
+                nextBtn.addEventListener('click', () => {
+                    if (this.currentStep < this.totalSteps) {
+                        this.currentStep++;
+                        this.updateStep();
+                    }
+                });
+            },
+            
+            updateStep: function() {
+                // 更新按钮状态
+                const prevBtn = document.getElementById('scene4-prev-btn');
+                const nextBtn = document.getElementById('scene4-next-btn');
+                const stepIndicator = document.getElementById('scene4-step-indicator');
+                
+                prevBtn.disabled = (this.currentStep === 0);
+                nextBtn.disabled = (this.currentStep === this.totalSteps);
+                stepIndicator.textContent = '步骤 ' + this.currentStep + '/' + this.totalSteps;
+                
+                // 更新元素可见性
+                this.updateVisibility();
+            },
+            
+            updateVisibility: function() {
+                const visibleElements = this.elementVisibility[this.currentStep] || [];
+                const allElements = new Set();
+                
+                // 收集所有可能的元素 ID
+                for (const step in this.elementVisibility) {
+                    this.elementVisibility[step].forEach(id => allElements.add(id));
+                }
+                
+                // 设置可见性
+                allElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (visibleElements.includes(id)) {
+                            el.style.display = 'block';
+                            el.style.opacity = '1';
+                        } else {
+                            el.style.display = 'none';
+                            el.style.opacity = '0';
+                        }
+                    }
+                });
+            }
+        };
+        
+        scene4.init();
+    })();
+    </script>
+</body>
+</html>

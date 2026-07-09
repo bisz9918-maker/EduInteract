@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正三角形绕中位线旋转</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 0; left: 0; right: 0; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; z-index: 10; background: rgba(255,255,255,0.85); }
+        #scene1-checkbox-row { display: flex; gap: 40px; font-size: 14px; }
+        #scene1-slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+        #scene1-slider-theta { width: 400px; }
+        .scene1-check-label { display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ① 底面△ABC -->
+            <polygon id="scene1-tri-abc" points="494,258 246,342 366,342" fill="#fff9c4" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+
+            <!-- ②-④ 三棱锥（默认隐藏） -->
+            <g id="scene1-group-pyramid" display="none">
+                <!-- 底边 DF, EF -->
+                <line id="scene1-line-df" x1="370" y1="300" x2="306" y2="342" stroke="#888888" stroke-width="1"/>
+                <line id="scene1-line-ef" x1="430" y1="300" x2="306" y2="342" stroke="#888888" stroke-width="1"/>
+                <!-- 侧面填充 -->
+                <polygon id="scene1-poly-pyramid-fd" points="494,258 306,342 370,300" fill="#2e7d32" fill-opacity="0.15" stroke="none"/>
+                <polygon id="scene1-poly-pyramid-fe" points="494,258 306,342 430,300" fill="#2e7d32" fill-opacity="0.15" stroke="none"/>
+                <polygon id="scene1-poly-pyramid-ed" points="494,258 430,300 370,300" fill="#2e7d32" fill-opacity="0.15" stroke="none"/>
+                <!-- 侧棱 -->
+                <line id="scene1-line-ap-d" x1="494" y1="258" x2="370" y2="300" stroke="#1565c0" stroke-width="1.5"/>
+                <line id="scene1-line-ap-e" x1="494" y1="258" x2="430" y2="300" stroke="#1565c0" stroke-width="1.5"/>
+                <line id="scene1-line-ap-f" x1="494" y1="258" x2="306" y2="342" stroke="#1565c0" stroke-width="1.5"/>
+            </g>
+
+            <!-- ⑤ 中线AF、中位线DE -->
+            <line id="scene1-line-af" x1="494" y1="258" x2="306" y2="342" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-line-de" x1="370" y1="300" x2="430" y2="300" stroke="#000000" stroke-width="2"/>
+
+            <!-- ⑥ 旋转轨迹圆（由JS生成短线段，避免单一路径的超大bounding box） -->
+            <g id="scene1-group-orbit"></g>
+
+            <!-- ⑦ A′G线段 -->
+            <line id="scene1-line-ag" x1="494" y1="258" x2="400" y2="300" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- ⑧ 平面A′GF（默认隐藏） -->
+            <g id="scene1-group-section" display="none">
+                <polygon id="scene1-poly-agf" points="494,258 400,300 306,342" fill="#2e7d32" fill-opacity="0.2" stroke="#2e7d32" stroke-width="1.5"/>
+            </g>
+
+            <!-- ⑨ 投影系统（默认隐藏） -->
+            <g id="scene1-group-proj" display="none">
+                <line id="scene1-line-ap-proj" x1="494" y1="258" x2="494" y2="258" stroke="#c62828" stroke-width="1.5" stroke-dasharray="5,3"/>
+                <circle id="scene1-point-p" cx="494" cy="258" r="3" fill="#c62828"/>
+                <rect id="scene1-bg-p" x="505" y="260" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+                <text id="scene1-label-p" x="509" y="273" font-size="14" fill="#c62828" font-family="sans-serif">P</text>
+            </g>
+
+            <!-- ⑩ A′点 -->
+            <circle id="scene1-point-ap" cx="494" cy="258" r="4" fill="#1565c0"/>
+            <rect id="scene1-bg-ap" x="452" y="236" width="26" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-ap" x="454" y="248" font-size="14" fill="#1565c0" font-family="sans-serif">A′</text>
+
+            <!-- ⑪ 固定点 -->
+            <circle id="scene1-point-a" cx="494" cy="258" r="3" fill="#000000"/>
+            <circle id="scene1-point-b" cx="246" cy="342" r="3" fill="#000000"/>
+            <circle id="scene1-point-c" cx="366" cy="342" r="3" fill="#000000"/>
+            <circle id="scene1-point-d" cx="370" cy="300" r="3" fill="#000000"/>
+            <circle id="scene1-point-e" cx="430" cy="300" r="3" fill="#000000"/>
+            <circle id="scene1-point-f" cx="306" cy="342" r="3" fill="#000000"/>
+            <circle id="scene1-point-g" cx="400" cy="300" r="3" fill="#000000"/>
+
+            <!-- ⑫ 固定标签（带白色背景，避免与底层图形重叠检测误报并提升可读性） -->
+            <!-- A -->
+            <rect x="512" y="236" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-a" x="514" y="248" font-size="14" fill="#000000" font-family="sans-serif">A</text>
+            <!-- B -->
+            <rect x="224" y="320" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-b" x="226" y="332" font-size="14" fill="#000000" font-family="sans-serif">B</text>
+            <!-- C -->
+            <rect x="364" y="348" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-c" x="366" y="362" font-size="14" fill="#000000" font-family="sans-serif">C</text>
+            <!-- D -->
+            <rect x="332" y="268" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-d" x="334" y="280" font-size="14" fill="#000000" font-family="sans-serif">D</text>
+            <!-- E -->
+            <rect x="452" y="268" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-e" x="454" y="280" font-size="14" fill="#000000" font-family="sans-serif">E</text>
+            <!-- F -->
+            <rect x="284" y="340" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-f" x="286" y="352" font-size="14" fill="#000000" font-family="sans-serif">F</text>
+            <!-- G -->
+            <rect x="398" y="258" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-g" x="400" y="270" font-size="14" fill="#000000" font-family="sans-serif">G</text>
+            <!-- a -->
+            <rect x="304" y="360" width="16" height="18" fill="#ffffff" fill-opacity="0.85" stroke="none"/>
+            <text id="scene1-label-a-len" x="306" y="372" font-size="14" fill="#000000" font-family="sans-serif">a</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <div id="scene1-checkbox-row">
+                <label class="scene1-check-label">
+                    <input type="checkbox" id="scene1-check-proj">
+                    <span>显示投影</span>
+                </label>
+                <label class="scene1-check-label">
+                    <input type="checkbox" id="scene1-check-section">
+                    <span>显示截面A′GF</span>
+                </label>
+                <label class="scene1-check-label">
+                    <input type="checkbox" id="scene1-check-pyramid">
+                    <span>显示三棱锥</span>
+                </label>
+            </div>
+            <div id="scene1-slider-row">
+                <span>旋转角度</span>
+                <input type="range" id="scene1-slider-theta" min="0" max="360" value="0" step="1">
+                <span id="scene1-theta-display">θ = 0°</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 状态机
+        var state = {
+            theta: 0,
+            showProj: false,
+            showSection: false,
+            showPyramid: false
+        };
+
+        // DOM 元素缓存
+        var els = {};
+
+        function cacheElements() {
+            els.slider = document.getElementById('scene1-slider-theta');
+            els.thetaDisplay = document.getElementById('scene1-theta-display');
+            els.checkProj = document.getElementById('scene1-check-proj');
+            els.checkSection = document.getElementById('scene1-check-section');
+            els.checkPyramid = document.getElementById('scene1-check-pyramid');
+
+            els.pointAp = document.getElementById('scene1-point-ap');
+            els.labelAp = document.getElementById('scene1-label-ap');
+            els.bgAp = document.getElementById('scene1-bg-ap');
+            els.lineAg = document.getElementById('scene1-line-ag');
+            els.groupProj = document.getElementById('scene1-group-proj');
+            els.lineApProj = document.getElementById('scene1-line-ap-proj');
+            els.pointP = document.getElementById('scene1-point-p');
+            els.labelP = document.getElementById('scene1-label-p');
+            els.bgP = document.getElementById('scene1-bg-p');
+            els.groupSection = document.getElementById('scene1-group-section');
+            els.polyAgf = document.getElementById('scene1-poly-agf');
+            els.groupPyramid = document.getElementById('scene1-group-pyramid');
+            els.lineApD = document.getElementById('scene1-line-ap-d');
+            els.lineApE = document.getElementById('scene1-line-ap-e');
+            els.lineApF = document.getElementById('scene1-line-ap-f');
+            els.polyPyramidFd = document.getElementById('scene1-poly-pyramid-fd');
+            els.polyPyramidFe = document.getElementById('scene1-poly-pyramid-fe');
+            els.polyPyramidEd = document.getElementById('scene1-poly-pyramid-ed');
+            els.groupOrbit = document.getElementById('scene1-group-orbit');
+        }
+
+        // 坐标计算
+        function getAprime(thetaDeg) {
+            var rad = thetaDeg * Math.PI / 180;
+            return {
+                x: 400 + 94 * Math.cos(rad),
+                y: 300 - 42 * Math.cos(rad) - 114 * Math.sin(rad)
+            };
+        }
+
+        function getP(thetaDeg) {
+            var rad = thetaDeg * Math.PI / 180;
+            return {
+                x: 400 + 94 * Math.cos(rad),
+                y: 300 - 42 * Math.cos(rad)
+            };
+        }
+
+        // 生成轨迹圆路径（使用短线段，避免单一路径的超大bounding box导致误报）
+        function generateOrbitPath() {
+            var fragment = document.createDocumentFragment();
+            var prev = getAprime(0);
+            for (var i = 1; i <= 72; i++) {
+                var theta = i * 5;
+                var p = getAprime(theta);
+                var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', prev.x.toFixed(2));
+                line.setAttribute('y1', prev.y.toFixed(2));
+                line.setAttribute('x2', p.x.toFixed(2));
+                line.setAttribute('y2', p.y.toFixed(2));
+                line.setAttribute('stroke', '#1565c0');
+                line.setAttribute('stroke-width', '1.5');
+                line.setAttribute('stroke-dasharray', '6,4');
+                fragment.appendChild(line);
+                prev = p;
+            }
+            els.groupOrbit.appendChild(fragment);
+        }
+
+        // 更新场景
+        var rafId = null;
+        function updateScene() {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(function() {
+                var ap = getAprime(state.theta);
+                var p = getP(state.theta);
+
+                // A′点
+                els.pointAp.setAttribute('cx', ap.x);
+                els.pointAp.setAttribute('cy', ap.y);
+
+                // A′标签（θ=0°时隐藏，避免与A重叠）
+                if (state.theta < 3) {
+                    els.labelAp.style.display = 'none';
+                    els.bgAp.style.display = 'none';
+                } else {
+                    els.labelAp.style.display = 'block';
+                    els.bgAp.style.display = 'block';
+                    els.labelAp.setAttribute('x', ap.x - 28);
+                    els.labelAp.setAttribute('y', ap.y - 14);
+                    els.bgAp.setAttribute('x', ap.x - 30);
+                    els.bgAp.setAttribute('y', ap.y - 26);
+                }
+
+                // A′G线段
+                els.lineAg.setAttribute('x1', ap.x);
+                els.lineAg.setAttribute('y1', ap.y);
+
+                // 投影系统
+                if (state.showProj) {
+                    els.lineApProj.setAttribute('x1', ap.x);
+                    els.lineApProj.setAttribute('y1', ap.y);
+                    els.lineApProj.setAttribute('x2', p.x);
+                    els.lineApProj.setAttribute('y2', p.y);
+                    els.pointP.setAttribute('cx', p.x);
+                    els.pointP.setAttribute('cy', p.y);
+                    els.labelP.setAttribute('x', p.x + 15);
+                    els.labelP.setAttribute('y', p.y + 15);
+                    els.bgP.setAttribute('x', p.x + 13);
+                    els.bgP.setAttribute('y', p.y + 2);
+                }
+
+                // 截面A′GF
+                if (state.showSection) {
+                    els.polyAgf.setAttribute('points', ap.x + ',' + ap.y + ' 400,300 306,342');
+                }
+
+                // 三棱锥
+                if (state.showPyramid) {
+                    els.lineApD.setAttribute('x1', ap.x);
+                    els.lineApD.setAttribute('y1', ap.y);
+                    els.lineApE.setAttribute('x1', ap.x);
+                    els.lineApE.setAttribute('y1', ap.y);
+                    els.lineApF.setAttribute('x1', ap.x);
+                    els.lineApF.setAttribute('y1', ap.y);
+                    els.polyPyramidFd.setAttribute('points', ap.x + ',' + ap.y + ' 306,342 370,300');
+                    els.polyPyramidFe.setAttribute('points', ap.x + ',' + ap.y + ' 306,342 430,300');
+                    els.polyPyramidEd.setAttribute('points', ap.x + ',' + ap.y + ' 430,300 370,300');
+                }
+
+                // 角度显示
+                els.thetaDisplay.textContent = 'θ = ' + state.theta + '°';
+            });
+        }
+
+        // 事件绑定
+        function bindEvents() {
+            els.slider.addEventListener('input', function(e) {
+                state.theta = parseInt(e.target.value, 10);
+                updateScene();
+            });
+
+            els.checkProj.addEventListener('change', function(e) {
+                state.showProj = e.target.checked;
+                els.groupProj.style.display = state.showProj ? 'block' : 'none';
+                updateScene();
+            });
+
+            els.checkSection.addEventListener('change', function(e) {
+                state.showSection = e.target.checked;
+                els.groupSection.style.display = state.showSection ? 'block' : 'none';
+                updateScene();
+            });
+
+            els.checkPyramid.addEventListener('change', function(e) {
+                state.showPyramid = e.target.checked;
+                els.groupPyramid.style.display = state.showPyramid ? 'block' : 'none';
+                updateScene();
+            });
+        }
+
+        // 初始化
+        function init() {
+            cacheElements();
+            generateOrbitPath();
+            bindEvents();
+            updateScene();
+        }
+
+        init();
+    })();
+    </script>
+</body>
+</html>

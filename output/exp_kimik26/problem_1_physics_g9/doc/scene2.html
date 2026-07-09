@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>杠杆最小力原理 - Scene 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+
+        /* 滑块样式 */
+        #scene2-angle-slider {
+            -webkit-appearance: none; appearance: none;
+            width: 400px; height: 6px; background: #e0e0e0; border-radius: 3px; outline: none;
+        }
+        #scene2-angle-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px; border-radius: 50%; background: #1565c0; cursor: pointer;
+            border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        #scene2-angle-slider::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%; background: #1565c0; cursor: pointer;
+            border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* 重置按钮 */
+        #scene2-reset-btn {
+            padding: 6px 16px; font-size: 14px; color: #fff; background: #1565c0;
+            border: none; border-radius: 4px; cursor: pointer;
+        }
+        #scene2-reset-btn:hover { background: #0d47a1; }
+
+        /* 数值面板 */
+        #scene2-panel {
+            position: absolute; top: 40px; right: 20px; width: 160px;
+            background: #f5f5f5; border: 1px solid #000; border-radius: 4px;
+            padding: 12px 14px; font-size: 14px; line-height: 26px; z-index: 10;
+        }
+        #scene2-panel-hint {
+            color: #2e7d32; font-weight: bold; font-size: 12px; line-height: 20px;
+            opacity: 0; transition: opacity 0.2s;
+        }
+        .panel-highlight { border-color: #2e7d32 !important; border-width: 2px !important; }
+        .panel-text-highlight { color: #2e7d32 !important; font-weight: bold !important; }
+
+        /* 滑块刻度 */
+        #scene2-slider-labels {
+            position: absolute; bottom: 32px; left: 200px; width: 400px;
+            display: flex; justify-content: space-between; font-size: 12px;
+            color: #000; pointer-events: none; z-index: 10;
+        }
+
+        /* SVG高亮 */
+        .highlight-arm { stroke: #2e7d32 !important; stroke-width: 3px !important; stroke-dasharray: none !important; }
+        .highlight-vector { stroke: #2e7d32 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 力作用线延长线（虚线，最底层） -->
+            <line id="scene2-action-line" x1="0" y1="0" x2="0" y2="0" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- 力臂垂线 -->
+            <line id="scene2-moment-arm" x1="150" y1="220" x2="150" y2="220" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+
+            <!-- 杠杆 -->
+            <line id="scene2-lever" x1="150" y1="220" x2="600" y2="220" stroke="#000000" stroke-width="3" />
+
+            <!-- 支点O（三角形） -->
+            <polygon id="scene2-pivot" points="150,220 140,240 160,240" fill="#000000" />
+
+            <!-- 悬挂线 -->
+            <line id="scene2-hang-line" x1="350" y1="220" x2="350" y2="260" stroke="#000000" stroke-width="2" />
+
+            <!-- 重物G -->
+            <rect id="scene2-weight" x="330" y="260" width="40" height="30" fill="#e0e0e0" stroke="#000000" stroke-width="1" />
+
+            <!-- 四力方向标记点（静态） -->
+            <circle cx="628" cy="248" r="4" fill="#c62828" />
+            <circle cx="628" cy="192" r="4" fill="#1565c0" />
+            <circle cx="600" cy="180" r="4" fill="#2e7d32" />
+            <circle cx="572" cy="192" r="4" fill="#ed6c02" />
+
+            <!-- 力矢量箭头 -->
+            <line id="scene2-force-vector" x1="600" y1="220" x2="600" y2="150" stroke="#1565c0" stroke-width="3" marker-end="url(#scene2-arrowhead-blue)" />
+
+            <!-- 角度标注弧线 -->
+            <path id="scene2-angle-arc" d="" fill="none" stroke="#000000" stroke-width="1.5" />
+
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 固定标签 -->
+            <text x="130" y="200" font-size="16" fill="#000000" text-anchor="middle" font-style="italic">O</text>
+            <text x="350" y="195" font-size="16" fill="#000000" text-anchor="middle" font-style="italic">A</text>
+            <text x="665" y="205" font-size="16" fill="#000000" text-anchor="start" font-style="italic">B</text>
+            <text x="350" y="325" font-size="16" fill="#000000" text-anchor="middle" font-style="italic">G</text>
+
+            <text x="670" y="280" font-size="14" fill="#c62828" text-anchor="start" font-style="italic">F₁</text>
+            <text x="665" y="165" font-size="14" fill="#1565c0" text-anchor="start" font-style="italic">F₂</text>
+            <text x="620" y="140" font-size="14" fill="#2e7d32" text-anchor="start" font-style="italic">F₃</text>
+            <text x="530" y="165" font-size="14" fill="#ed6c02" text-anchor="end" font-style="italic">F₄</text>
+
+            <!-- 动态标签：仅保留F -->
+            <text id="scene2-text-F" x="0" y="0" font-size="14" fill="#1565c0" text-anchor="middle" font-style="italic">F</text>
+        </svg>
+
+        <!-- 数值面板（HTML绝对定位） -->
+        <div id="scene2-panel">
+            <div id="scene2-panel-theta">θ = 30°</div>
+            <div id="scene2-panel-d">d = 2.3 m</div>
+            <div id="scene2-panel-F">F = 4.0 N</div>
+            <div id="scene2-panel-hint">✓ 力臂最大 / 力最小</div>
+        </div>
+
+        <!-- 滑块刻度标签 -->
+        <div id="scene2-slider-labels">
+            <span>0°</span>
+            <span>90°</span>
+            <span>180°</span>
+        </div>
+
+        <div id="scene2-controls">
+            <input type="range" id="scene2-angle-slider" min="0" max="180" value="30" step="1">
+            <button id="scene2-reset-btn">重置</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：杠杆最小力原理动态演示
+
+        // 常量定义
+        var OX = 150, OY = 220;      // 支点O
+        var AX = 350, AY = 220;      // A点
+        var BX = 600, BY = 220;      // B点
+        var OB_LEN_PX = 450;         // OB长度（像素）
+        var OB_LEN_M = 4.5;          // OB长度（米）
+        var OA_LEN_M = 2.0;          // OA长度（米）
+        var G_WEIGHT = 4.5;          // 重物G（N）
+        var FORCE_ARROW_LEN = 70;    // 力矢量箭头长度
+        var ACTION_LINE_EXT_FWD = 55;   // 力作用线正向延伸长度
+        var ACTION_LINE_EXT_BWD = 20;   // 力作用线反向延伸长度
+
+        // 获取元素
+        var slider = document.getElementById('scene2-angle-slider');
+        var resetBtn = document.getElementById('scene2-reset-btn');
+
+        var actionLine = document.getElementById('scene2-action-line');
+        var momentArm = document.getElementById('scene2-moment-arm');
+        var forceVector = document.getElementById('scene2-force-vector');
+        var angleArc = document.getElementById('scene2-angle-arc');
+
+        var textF = document.getElementById('scene2-text-F');
+
+        var panelDiv = document.getElementById('scene2-panel');
+        var panelTheta = document.getElementById('scene2-panel-theta');
+        var panelD = document.getElementById('scene2-panel-d');
+        var panelF = document.getElementById('scene2-panel-F');
+        var panelHint = document.getElementById('scene2-panel-hint');
+
+        // 角度转弧度
+        function toRad(deg) { return deg * Math.PI / 180; }
+
+        // 更新函数
+        function update(thetaDeg) {
+            var theta = toRad(thetaDeg);
+            var cosT = Math.cos(theta);
+            var sinT = Math.sin(theta);
+
+            // 方向向量（SVG坐标系：y向下，所以sin取负）
+            var vx = cosT;
+            var vy = -sinT;
+
+            // ========== 力作用线延长线 ==========
+            var x1 = BX + ACTION_LINE_EXT_FWD * vx;
+            var y1 = BY + ACTION_LINE_EXT_FWD * vy;
+            var x2 = BX - ACTION_LINE_EXT_BWD * vx;
+            var y2 = BY - ACTION_LINE_EXT_BWD * vy;
+            actionLine.setAttribute('x1', x1);
+            actionLine.setAttribute('y1', y1);
+            actionLine.setAttribute('x2', x2);
+            actionLine.setAttribute('y2', y2);
+
+            // ========== 力矢量箭头 ==========
+            var fxEnd = BX + FORCE_ARROW_LEN * vx;
+            var fyEnd = BY + FORCE_ARROW_LEN * vy;
+            forceVector.setAttribute('x2', fxEnd);
+            forceVector.setAttribute('y2', fyEnd);
+
+            // ========== 垂足H计算 ==========
+            var t = -OB_LEN_PX * cosT;
+            var hx = BX + t * vx;
+            var hy = BY + t * vy;
+
+            // ========== 力臂垂线 ==========
+            momentArm.setAttribute('x2', hx);
+            momentArm.setAttribute('y2', hy);
+
+            // ========== 角度弧线 ==========
+            var arcRadius = 8;
+            var ex = BX + arcRadius * Math.cos(-theta);
+            var ey = BY + arcRadius * Math.sin(-theta);
+            var largeArc = Math.abs(thetaDeg) > 180 ? 1 : 0;
+            var d = 'M ' + (BX + arcRadius) + ' ' + BY +
+                    ' A ' + arcRadius + ' ' + arcRadius + ' 0 ' + largeArc + ' 0 ' + ex + ' ' + ey;
+            angleArc.setAttribute('d', d);
+
+            // ========== F标签：箭头末端外侧55px ==========
+            var fLabelX = BX + (FORCE_ARROW_LEN + 55) * vx;
+            var fLabelY = BY + (FORCE_ARROW_LEN + 55) * vy;
+            textF.setAttribute('x', fLabelX);
+            textF.setAttribute('y', fLabelY);
+
+            // ========== 数值计算 ==========
+            var dMeter = OB_LEN_M * Math.abs(sinT);
+            var forceN;
+            if (Math.abs(sinT) < 0.02) {
+                forceN = null;
+            } else {
+                forceN = (G_WEIGHT * OA_LEN_M) / dMeter;
+            }
+
+            // ========== 数值面板更新 ==========
+            panelTheta.textContent = 'θ = ' + thetaDeg + '°';
+            panelD.textContent = 'd = ' + dMeter.toFixed(1) + ' m';
+            if (forceN === null) {
+                panelF.textContent = 'F = —';
+            } else {
+                panelF.textContent = 'F = ' + forceN.toFixed(1) + ' N';
+            }
+
+            // ========== 90°高亮状态 ==========
+            var is90 = Math.abs(thetaDeg - 90) < 1;
+            if (is90) {
+                momentArm.setAttribute('class', 'highlight-arm');
+                forceVector.setAttribute('class', 'highlight-vector');
+                forceVector.setAttribute('marker-end', 'url(#scene2-arrowhead-green)');
+                panelDiv.classList.add('panel-highlight');
+                panelTheta.classList.add('panel-text-highlight');
+                panelD.classList.add('panel-text-highlight');
+                panelF.classList.add('panel-text-highlight');
+                panelHint.style.opacity = '1';
+                textF.setAttribute('fill', '#2e7d32');
+            } else {
+                momentArm.setAttribute('class', '');
+                forceVector.setAttribute('class', '');
+                forceVector.setAttribute('marker-end', 'url(#scene2-arrowhead-blue)');
+                panelDiv.classList.remove('panel-highlight');
+                panelTheta.classList.remove('panel-text-highlight');
+                panelD.classList.remove('panel-text-highlight');
+                panelF.classList.remove('panel-text-highlight');
+                panelHint.style.opacity = '0';
+                textF.setAttribute('fill', '#1565c0');
+            }
+        }
+
+        // 事件监听
+        slider.addEventListener('input', function() {
+            update(parseInt(slider.value, 10));
+        });
+
+        resetBtn.addEventListener('click', function() {
+            slider.value = 30;
+            update(30);
+        });
+
+        // 初始状态
+        update(30);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正三棱柱晶体结构 - 粒子分摊计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        #scene1-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            font-weight: bold;
+            min-width: 80px;
+            text-align: center;
+        }
+        .particle-a { fill: #000000; }
+        .particle-a.highlight { fill: #1565c0; }
+        .particle-b { fill: #000000; }
+        .particle-b.highlight { fill: #2e7d32; }
+        .particle-c { fill: #ffffff; stroke: #000000; stroke-width: 2; }
+        .particle-c.highlight { stroke: #c62828; }
+        .faded { opacity: 0.3; }
+        .edge-visible { stroke: #000000; stroke-width: 2; fill: none; }
+        .edge-hidden { stroke: #888888; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <!-- 
+        布局坐标表（实现对照依据）：
+        | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        |------|------|-----------|------|------|
+        | 上底面三角形 | 线段组 | T1(400,50)-T2(480,170)-T3(320,170)-T1 | 线宽2px | 实线#000000 |
+        | 下底面三角形前边 | 线段 | B2(480,370)-B1(400,250)-B3(320,370) | 线宽2px | 实线#000000 |
+        | 下底面三角形后边 | 线段 | B2(480,370)-B3(320,370) | 线宽2px | 虚线#888888 |
+        | 侧棱 | 线段 | T1-B1, T2-B2, T3-B3 | 线宽2px | 实线#000000 |
+        | A粒子-顶点 | 实心圆 | 6个顶点 | r=8px | 默认#000，高亮#1565c0 |
+        | B粒子-棱中点 | 实心圆 | 9条棱中点 | r=5px | 默认#000，高亮#2e7d32 |
+        | C粒子-体心 | 空心圆 | (400,220) | r=10px | 默认stroke#000，高亮#c62828 |
+        | 图例A/B/C | 圆+text | (280,40)起 | - | 左上角 |
+        | 计算公式区 | text | (550,100)起 | - | 右侧 |
+        | 控件栏 | 按钮组 | y=460 | - | 底部中央 |
+        -->
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 图例区 -->
+            <g id="scene1-legend">
+                <circle cx="280" cy="40" r="6" class="particle-a"/>
+                <text x="300" y="45" font-size="14" fill="#000">A</text>
+                <circle cx="320" cy="40" r="4" class="particle-b"/>
+                <text x="340" y="45" font-size="14" fill="#000">B</text>
+                <circle cx="360" cy="40" r="6" class="particle-c"/>
+                <text x="380" y="45" font-size="14" fill="#000">C</text>
+            </g>
+
+            <!-- 计算公式区 -->
+            <text id="scene1-formula" x="550" y="100" font-size="16" fill="#000">正三棱柱晶体结构</text>
+            <text id="scene1-formula-line2" x="550" y="125" font-size="14" fill="#666"></text>
+
+            <!-- 正三棱柱线框 -->
+            <!-- 上底面三角形 -->
+            <line id="scene1-edge-t1t2" x1="400" y1="50" x2="480" y2="170" class="edge-visible"/>
+            <line id="scene1-edge-t2t3" x1="480" y1="170" x2="320" y2="170" class="edge-visible"/>
+            <line id="scene1-edge-t3t1" x1="320" y1="170" x2="400" y2="50" class="edge-visible"/>
+
+            <!-- 下底面三角形（前边实线，后边虚线） -->
+            <line id="scene1-edge-b1b2" x1="400" y1="250" x2="480" y2="370" class="edge-visible"/>
+            <line id="scene1-edge-b3b1" x1="320" y1="370" x2="400" y2="250" class="edge-visible"/>
+            <line id="scene1-edge-b2b3" x1="480" y1="370" x2="320" y2="370" class="edge-hidden"/>
+
+            <!-- 侧棱 -->
+            <line id="scene1-edge-t1b1" x1="400" y1="50" x2="400" y2="250" class="edge-visible"/>
+            <line id="scene1-edge-t2b2" x1="480" y1="170" x2="480" y2="370" class="edge-visible"/>
+            <line id="scene1-edge-t3b3" x1="320" y1="170" x2="320" y2="370" class="edge-visible"/>
+
+            <!-- A粒子（顶点，6个） -->
+            <circle id="scene1-a1" cx="400" cy="50" r="8" class="particle-a"/>
+            <circle id="scene1-a2" cx="480" cy="170" r="8" class="particle-a"/>
+            <circle id="scene1-a3" cx="320" cy="170" r="8" class="particle-a"/>
+            <circle id="scene1-a4" cx="400" cy="250" r="8" class="particle-a"/>
+            <circle id="scene1-a5" cx="480" cy="370" r="8" class="particle-a"/>
+            <circle id="scene1-a6" cx="320" cy="370" r="8" class="particle-a"/>
+
+            <!-- B粒子（棱中点，9个） -->
+            <!-- 上底面3个 -->
+            <circle id="scene1-b1" cx="440" cy="110" r="5" class="particle-b"/>
+            <circle id="scene1-b2" cx="400" cy="170" r="5" class="particle-b"/>
+            <circle id="scene1-b3" cx="360" cy="110" r="5" class="particle-b"/>
+            <!-- 下底面3个 -->
+            <circle id="scene1-b4" cx="440" cy="310" r="5" class="particle-b"/>
+            <circle id="scene1-b5" cx="400" cy="370" r="5" class="particle-b"/>
+            <circle id="scene1-b6" cx="360" cy="310" r="5" class="particle-b"/>
+            <!-- 侧棱3个 -->
+            <circle id="scene1-b7" cx="400" cy="150" r="5" class="particle-b"/>
+            <circle id="scene1-b8" cx="480" cy="270" r="5" class="particle-b"/>
+            <circle id="scene1-b9" cx="320" cy="270" r="5" class="particle-b"/>
+
+            <!-- C粒子（体心，1个） -->
+            <circle id="scene1-c1" cx="400" cy="220" r="10" class="particle-c"/>
+
+            <!-- 控件栏（SVG内部底部） -->
+            <g id="scene1-controls" transform="translate(0, 450)">
+                <rect x="280" y="0" width="240" height="40" fill="#ffffff" stroke="#ddd" rx="4"/>
+                <text id="scene1-step-indicator" x="400" y="26" font-size="14" font-weight="bold" text-anchor="middle" fill="#333">步骤 0/4</text>
+            </g>
+        </svg>
+
+        <!-- HTML 按钮控件（叠在 SVG 底部） -->
+        <div id="scene1-html-controls" style="position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 20;">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 正三棱柱晶体结构 - 粒子分摊计算
+        const currentStep = { value: 0 };
+        const totalSteps = 4;
+
+        // 元素引用
+        const formulaText = document.getElementById('scene1-formula');
+        const formulaLine2 = document.getElementById('scene1-formula-line2');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        // A粒子（6个顶点）
+        const aParticles = [
+            document.getElementById('scene1-a1'),
+            document.getElementById('scene1-a2'),
+            document.getElementById('scene1-a3'),
+            document.getElementById('scene1-a4'),
+            document.getElementById('scene1-a5'),
+            document.getElementById('scene1-a6')
+        ];
+
+        // B粒子（9个棱中点）
+        const bParticles = [
+            document.getElementById('scene1-b1'),
+            document.getElementById('scene1-b2'),
+            document.getElementById('scene1-b3'),
+            document.getElementById('scene1-b4'),
+            document.getElementById('scene1-b5'),
+            document.getElementById('scene1-b6'),
+            document.getElementById('scene1-b7'),
+            document.getElementById('scene1-b8'),
+            document.getElementById('scene1-b9')
+        ];
+
+        // C粒子（体心）
+        const cParticle = document.getElementById('scene1-c1');
+
+        // 更新步骤显示
+        function updateStepDisplay() {
+            stepIndicator.textContent = `步骤 ${currentStep.value}/${totalSteps}`;
+            btnPrev.disabled = currentStep.value === 0;
+            btnNext.disabled = currentStep.value === totalSteps;
+        }
+
+        // 重置所有粒子状态
+        function resetParticles() {
+            aParticles.forEach(p => {
+                p.classList.remove('highlight', 'faded');
+            });
+            bParticles.forEach(p => {
+                p.classList.remove('highlight', 'faded');
+            });
+            cParticle.classList.remove('highlight', 'faded');
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            resetParticles();
+
+            switch (currentStep.value) {
+                case 0:
+                    // 初始状态：完整结构
+                    formulaText.textContent = '正三棱柱晶体结构';
+                    formulaLine2.textContent = '';
+                    break;
+
+                case 1:
+                    // 步骤1：高亮A粒子（顶点）
+                    aParticles.forEach(p => p.classList.add('highlight'));
+                    bParticles.forEach(p => p.classList.add('faded'));
+                    cParticle.classList.add('faded');
+                    formulaText.textContent = 'A粒子（顶点）：6 × 1/12 = 0.5';
+                    formulaLine2.textContent = '顶点被12个晶胞共享';
+                    break;
+
+                case 2:
+                    // 步骤2：高亮B粒子（棱中点）
+                    aParticles.forEach(p => p.classList.add('faded'));
+                    bParticles.forEach(p => p.classList.add('highlight'));
+                    cParticle.classList.add('faded');
+                    formulaText.textContent = 'B粒子（棱上）：9 × 1/6 = 1.5';
+                    formulaLine2.textContent = '棱上被6个晶胞共享';
+                    break;
+
+                case 3:
+                    // 步骤3：高亮C粒子（体心）
+                    aParticles.forEach(p => p.classList.add('faded'));
+                    bParticles.forEach(p => p.classList.add('faded'));
+                    cParticle.classList.add('highlight');
+                    formulaText.textContent = 'C粒子（体心）：1 × 1 = 1';
+                    formulaLine2.textContent = '体心完全属于本晶胞';
+                    break;
+
+                case 4:
+                    // 步骤4：最终比例
+                    formulaText.textContent = 'A : B : C = 0.5 : 1.5 : 1 = 1 : 3 : 2';
+                    formulaLine2.textContent = '化为整数比：2 : 9 : 4';
+                    // 用不同颜色标注
+                    aParticles.forEach(p => p.classList.add('highlight'));
+                    bParticles.forEach(p => p.classList.add('highlight'));
+                    cParticle.classList.add('highlight');
+                    break;
+            }
+
+            updateStepDisplay();
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep.value > 0) {
+                currentStep.value--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep.value < totalSteps) {
+                currentStep.value++;
+                renderStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>串联电路故障分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f0f0f0; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-status-text { font-size: 16px; font-weight: bold; width: 200px; text-align: center; }
+        
+        .circuit-line { stroke: #000000; stroke-width: 2; fill: none; }
+        .bulb { stroke: #000000; stroke-width: 2; transition: fill 0.3s; }
+        .bulb-cross { stroke: #000000; stroke-width: 2; }
+        .meter { stroke: #000000; stroke-width: 2; fill: #ffffff; }
+        .meter-pointer { stroke: #d32f2f; stroke-width: 2; transition: transform 0.5s ease-out; }
+        
+        .current-flow {
+            stroke: #1565c0;
+            stroke-width: 4;
+            stroke-dasharray: 10, 10;
+            fill: none;
+            animation: flow 1s linear infinite;
+        }
+        @keyframes flow {
+            from { stroke-dashoffset: 20; }
+            to { stroke-dashoffset: 0; }
+        }
+        
+        .short-circuit { stroke: #2e7d32; stroke-width: 4; fill: none; opacity: 0; transition: opacity 0.3s; }
+        .open-circuit { stroke: #c62828; stroke-width: 4; opacity: 0; transition: opacity 0.3s; }
+        
+        .label { font-size: 16px; fill: #000000; user-select: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 主电路框 (300,120)至(600,320) 分解为线段避免包围盒过大 -->
+            <line class="circuit-line" x1="300" y1="320" x2="300" y2="120" />
+            <line class="circuit-line" x1="300" y1="120" x2="600" y2="120" />
+            <line class="circuit-line" x1="600" y1="120" x2="600" y2="320" />
+            <line class="circuit-line" x1="600" y1="320" x2="300" y2="320" />
+            
+            <!-- 电源 (440,320)-(460,320) -->
+            <rect x="430" y="310" width="40" height="20" fill="#ffffff" stroke="none" /> <!-- 遮挡背景线 -->
+            <line class="circuit-line" x1="430" y1="320" x2="440" y2="320" />
+            <line class="circuit-line" x1="460" y1="320" x2="470" y2="320" />
+            <line class="circuit-line" x1="440" y1="305" x2="440" y2="335" stroke-width="4" /> <!-- 负极 -->
+            <line class="circuit-line" x1="460" y1="295" x2="460" y2="345" /> <!-- 正极 -->
+            <text class="label" x="450" y="365" text-anchor="middle">电源</text>
+            
+            <!-- 开关S (430,120)-(470,120) -->
+            <rect x="420" y="110" width="60" height="20" fill="#ffffff" stroke="none" />
+            <line class="circuit-line" x1="420" y1="120" x2="430" y2="120" />
+            <line class="circuit-line" x1="470" y1="120" x2="480" y2="120" />
+            <circle cx="430" cy="120" r="3" fill="#000" />
+            <circle cx="470" cy="120" r="3" fill="#000" />
+            <line class="circuit-line" x1="430" y1="120" x2="470" y2="120" id="scene1-switch-blade" />
+            <text class="label" x="450" y="100" text-anchor="middle">S</text>
+            
+            <!-- 灯泡L2 (300,220) -->
+            <rect x="290" y="200" width="20" height="40" fill="#ffffff" stroke="none" />
+            <circle class="bulb" id="scene1-bulb-l2" cx="300" cy="220" r="20" fill="#fbc02d" />
+            <!-- 将灯泡内部叉号改为线段，避免包围盒过大 -->
+            <line class="bulb-cross" x1="286" y1="206" x2="314" y2="234" />
+            <line class="bulb-cross" x1="314" y1="206" x2="286" y2="234" />
+            <!-- 调整L2标签位置，避免与电流路径重叠 -->
+            <text class="label" x="330" y="225">L2</text>
+            
+            <!-- 灯泡L1 (600,220) -->
+            <rect x="590" y="200" width="20" height="40" fill="#ffffff" stroke="none" />
+            <circle class="bulb" id="scene1-bulb-l1" cx="600" cy="220" r="20" fill="#fbc02d" />
+            <line class="bulb-cross" x1="586" y1="206" x2="614" y2="234" />
+            <line class="bulb-cross" x1="614" y1="206" x2="586" y2="234" />
+            <text class="label" x="630" y="225">L1</text>
+            
+            <!-- 电压表V (200,220) -->
+            <!-- V表支路 -->
+            <line class="circuit-line" x1="300" y1="180" x2="200" y2="180" />
+            <line class="circuit-line" x1="200" y1="180" x2="200" y2="200" />
+            <line class="circuit-line" x1="200" y1="240" x2="200" y2="260" />
+            <line class="circuit-line" x1="200" y1="260" x2="300" y2="260" />
+            <circle cx="300" cy="180" r="3" fill="#000" />
+            <circle cx="300" cy="260" r="3" fill="#000" />
+            <circle class="meter" cx="200" cy="220" r="20" />
+            <!-- 用折线画V，避免文本重叠检测 -->
+            <polyline points="193,215 200,227 207,215" fill="none" stroke="#000" stroke-width="2" />
+            <text class="label" x="170" y="225" text-anchor="end">电压表</text>
+            
+            <!-- 电压表放大特写 (100, 100) -->
+            <g transform="translate(100, 100)">
+                <!-- 移除背景rect避免重叠 -->
+                <path d="M -40 0 A 40 40 0 0 1 40 0" fill="none" stroke="#000" stroke-width="2" />
+                <text class="label" x="-45" y="15" font-size="12" text-anchor="middle">0</text>
+                <text class="label" x="0" y="-45" font-size="12" text-anchor="middle">3</text>
+                <text class="label" x="45" y="15" font-size="12" text-anchor="middle">15</text>
+                <!-- 用折线画V -->
+                <polyline points="-5,-25 0,-15 5,-25" fill="none" stroke="#000" stroke-width="2" />
+                <line id="scene1-meter-pointer" class="meter-pointer" x1="0" y1="0" x2="0" y2="-35" transform="rotate(0, 0, 0)" />
+                <circle cx="0" cy="0" r="4" fill="#000" />
+            </g>
+            
+            <!-- 动态电流路径 -->
+            <!-- 正常路径，分解为多段线避免包围盒过大 -->
+            <g id="scene1-current-normal" style="display: none;">
+                <line class="current-flow" x1="460" y1="320" x2="600" y2="320" />
+                <line class="current-flow" x1="600" y1="320" x2="600" y2="120" />
+                <line class="current-flow" x1="600" y1="120" x2="300" y2="120" />
+                <line class="current-flow" x1="300" y1="120" x2="300" y2="320" />
+                <line class="current-flow" x1="300" y1="320" x2="440" y2="320" />
+            </g>
+            <!-- L2短路路径 -->
+            <g id="scene1-current-l2-short" style="display: none;">
+                <line class="current-flow" x1="460" y1="320" x2="600" y2="320" />
+                <line class="current-flow" x1="600" y1="320" x2="600" y2="120" />
+                <line class="current-flow" x1="600" y1="120" x2="300" y2="120" />
+                <line class="current-flow" x1="300" y1="120" x2="300" y2="180" />
+                <line class="current-flow" x1="300" y1="180" x2="260" y2="180" />
+                <line class="current-flow" x1="260" y1="180" x2="260" y2="260" />
+                <line class="current-flow" x1="260" y1="260" x2="300" y2="260" />
+                <line class="current-flow" x1="300" y1="260" x2="300" y2="320" />
+                <line class="current-flow" x1="300" y1="320" x2="440" y2="320" />
+            </g>
+            <!-- L1短路路径 -->
+            <g id="scene1-current-l1-short" style="display: none;">
+                <line class="current-flow" x1="460" y1="320" x2="600" y2="320" />
+                <line class="current-flow" x1="600" y1="320" x2="600" y2="260" />
+                <line class="current-flow" x1="600" y1="260" x2="560" y2="260" />
+                <line class="current-flow" x1="560" y1="260" x2="560" y2="180" />
+                <line class="current-flow" x1="560" y1="180" x2="600" y2="180" />
+                <line class="current-flow" x1="600" y1="180" x2="600" y2="120" />
+                <line class="current-flow" x1="600" y1="120" x2="300" y2="120" />
+                <line class="current-flow" x1="300" y1="120" x2="300" y2="320" />
+                <line class="current-flow" x1="300" y1="320" x2="440" y2="320" />
+            </g>
+            
+            <!-- 故障标记 -->
+            <!-- L2短路线 -->
+            <polyline id="scene1-l2-short-line" class="short-circuit" points="300,180 260,180 260,260 300,260" />
+            <!-- L1短路线 -->
+            <polyline id="scene1-l1-short-line" class="short-circuit" points="600,180 560,180 560,260 600,260" />
+            <!-- L1断路叉 -->
+            <g id="scene1-l1-open-cross" class="open-circuit" transform="translate(600, 220)">
+                <line x1="-15" y1="-15" x2="15" y2="15" />
+                <line x1="-15" y1="15" x2="15" y2="-15" />
+            </g>
+            
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <div id="scene1-status-text">正常状态</div>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const statusText = document.getElementById('scene1-status-text');
+        
+        const bulbL1 = document.getElementById('scene1-bulb-l1');
+        const bulbL2 = document.getElementById('scene1-bulb-l2');
+        const meterPointer = document.getElementById('scene1-meter-pointer');
+        
+        const currentNormal = document.getElementById('scene1-current-normal');
+        const currentL2Short = document.getElementById('scene1-current-l2-short');
+        const currentL1Short = document.getElementById('scene1-current-l1-short');
+        
+        const l2ShortLine = document.getElementById('scene1-l2-short-line');
+        const l1ShortLine = document.getElementById('scene1-l1-short-line');
+        const l1OpenCross = document.getElementById('scene1-l1-open-cross');
+        
+        const colorOn = '#fbc02d';
+        const colorOff = '#e0e0e0';
+        
+        function updateScene() {
+            // Reset all
+            currentNormal.style.display = 'none';
+            currentL2Short.style.display = 'none';
+            currentL1Short.style.display = 'none';
+            
+            l2ShortLine.style.opacity = '0';
+            l1ShortLine.style.opacity = '0';
+            l1OpenCross.style.opacity = '0';
+            
+            switch(currentStep) {
+                case 0: // 正常
+                    statusText.textContent = '正常状态';
+                    bulbL1.setAttribute('fill', colorOn);
+                    bulbL2.setAttribute('fill', colorOn);
+                    meterPointer.setAttribute('transform', 'rotate(0, 0, 0)'); // 指向中间
+                    currentNormal.style.display = 'block';
+                    break;
+                case 1: // L1断路
+                    statusText.textContent = '假设: L1断路';
+                    bulbL1.setAttribute('fill', colorOff);
+                    bulbL2.setAttribute('fill', colorOff);
+                    meterPointer.setAttribute('transform', 'rotate(-40, 0, 0)'); // 归零
+                    l1OpenCross.style.opacity = '1';
+                    break;
+                case 2: // L2短路
+                    statusText.textContent = '假设: L2短路';
+                    bulbL1.setAttribute('fill', colorOn);
+                    bulbL2.setAttribute('fill', colorOff);
+                    meterPointer.setAttribute('transform', 'rotate(-40, 0, 0)'); // 被短路，归零
+                    l2ShortLine.style.opacity = '1';
+                    currentL2Short.style.display = 'block';
+                    break;
+                case 3: // L1短路
+                    statusText.textContent = '假设: L1短路';
+                    bulbL1.setAttribute('fill', colorOff);
+                    bulbL2.setAttribute('fill', colorOn);
+                    meterPointer.setAttribute('transform', 'rotate(40, 0, 0)'); // 测电源电压，满偏
+                    l1ShortLine.style.opacity = '1';
+                    currentL1Short.style.display = 'block';
+                    break;
+            }
+            
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // Init
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四棱锥表面积</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-info-panel { position: absolute; top: 20px; right: 20px; width: 240px; background: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; padding: 10px; border-radius: 5px; z-index: 10; font-size: 14px; line-height: 1.5; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .scene1-label { position: absolute; font-size: 14px; color: #000; background: rgba(255, 255, 255, 0.8); padding: 2px 4px; border-radius: 3px; pointer-events: none; transform: translate(-50%, -50%); white-space: nowrap; z-index: 5; transition: opacity 0.3s; opacity: 0; }
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f8f8; border-radius: 4px; }
+        button:disabled { color: #aaa; cursor: not-allowed; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-info-panel">
+            <div id="scene1-info-text">观察三视图，想象几何体形状</div>
+        </div>
+        <div id="scene1-labels">
+            <!-- Labels will be injected here -->
+        </div>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const container = document.getElementById('scene1-container');
+        const labelsContainer = document.getElementById('scene1-labels');
+        const infoText = document.getElementById('scene1-info-text');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        let currentStep = 0;
+        const maxStep = 5;
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const camera = new THREE.PerspectiveCamera(45, 800 / 500, 0.1, 100);
+        camera.position.set(10, 8, 12);
+        camera.lookAt(0, 1.5, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(800, 500);
+        container.insertBefore(renderer.domElement, container.firstChild);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 1.5, 0);
+
+        // Data structures for objects
+        const objects = {
+            step0: [], // Projection planes and lines
+            step1: [], // 3D Pyramid edges and vertices
+            step2: [], // Base and back face highlight
+            step3: [], // Front face highlight, N, VN, MN
+            step4: [], // Side faces highlight, VD, MD
+            step5: []  // All faces highlight
+        };
+
+        const labels = [];
+
+        function createLabel(id, text, pos3D, offset2D, step) {
+            const el = document.createElement('div');
+            el.className = 'scene1-label';
+            el.id = `scene1-label-${id}`;
+            el.innerHTML = text;
+            labelsContainer.appendChild(el);
+            labels.push({ el, pos3D: new THREE.Vector3(...pos3D), offset2D, step });
+        }
+
+        // Materials
+        const matProjPlane = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+        const matProjLine = new THREE.LineBasicMaterial({ color: 0x000000 });
+        const matProjDashed = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 0.2, gapSize: 0.1 });
+        const matEdge = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+        const matAuxDashed = new THREE.LineDashedMaterial({ color: 0xc62828, dashSize: 0.2, gapSize: 0.1 });
+        const matFaceGreen = new THREE.MeshBasicMaterial({ color: 0x2e7d32, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+        const matFaceBlue = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+        const matFaceRed = new THREE.MeshBasicMaterial({ color: 0xc62828, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+
+        // Helper to create lines
+        function createLine(p1, p2, mat) {
+            const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...p1), new THREE.Vector3(...p2)]);
+            const line = new THREE.Line(geo, mat);
+            if (mat.isLineDashedMaterial) line.computeLineDistances();
+            return line;
+        }
+
+        // Helper to create faces
+        function createFace(points, mat) {
+            const shape = new THREE.Shape();
+            shape.moveTo(points[0][0], points[0][2]);
+            for (let i = 1; i < points.length; i++) {
+                shape.lineTo(points[i][0], points[i][2]);
+            }
+            // This is a bit tricky for 3D faces, better to use BufferGeometry directly
+            const vertices = [];
+            // Triangulate simple convex polygons (triangles or quads)
+            if (points.length === 3) {
+                vertices.push(...points[0], ...points[1], ...points[2]);
+            } else if (points.length === 4) {
+                vertices.push(...points[0], ...points[1], ...points[2]);
+                vertices.push(...points[0], ...points[2], ...points[3]);
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geo.computeVertexNormals();
+            return new THREE.Mesh(geo, mat);
+        }
+
+        // Step 0: Projections
+        // Top view (y = -3)
+        const topPlane = createFace([[-3, -3, 1], [3, -3, 1], [3, -3, -1], [-3, -3, -1]], matProjPlane);
+        objects.step0.push(topPlane);
+        objects.step0.push(createLine([-3, -3, 1], [3, -3, 1], matProjLine));
+        objects.step0.push(createLine([3, -3, 1], [3, -3, -1], matProjLine));
+        objects.step0.push(createLine([3, -3, -1], [-3, -3, -1], matProjLine));
+        objects.step0.push(createLine([-3, -3, -1], [-3, -3, 1], matProjLine));
+        objects.step0.push(createLine([-3, -3, 1], [0, -3, -1], matProjLine));
+        objects.step0.push(createLine([3, -3, 1], [0, -3, -1], matProjLine));
+
+        // Front view (z = -4)
+        const frontPlane = createFace([[-3, 0, -4], [3, 0, -4], [0, 4, -4]], matProjPlane);
+        objects.step0.push(frontPlane);
+        objects.step0.push(createLine([-3, 0, -4], [3, 0, -4], matProjLine));
+        objects.step0.push(createLine([3, 0, -4], [0, 4, -4], matProjLine));
+        objects.step0.push(createLine([0, 4, -4], [-3, 0, -4], matProjLine));
+        objects.step0.push(createLine([0, 0, -4], [0, 4, -4], matProjDashed));
+
+        // Side view (x = -6)
+        const sidePlane = createFace([[-6, 0, 1], [-6, 0, -1], [-6, 4, -1]], matProjPlane);
+        objects.step0.push(sidePlane);
+        objects.step0.push(createLine([-6, 0, 1], [-6, 0, -1], matProjLine));
+        objects.step0.push(createLine([-6, 0, -1], [-6, 4, -1], matProjLine));
+        objects.step0.push(createLine([-6, 4, -1], [-6, 0, 1], matProjLine));
+
+        // Step 1: 3D Pyramid
+        const pV = [0, 4, -1], pA = [-3, 0, 1], pB = [3, 0, 1], pC = [3, 0, -1], pD = [-3, 0, -1], pM = [0, 0, -1];
+        
+        // Projection lines
+        objects.step1.push(createLine(pV, [0, -3, -1], matProjDashed));
+        objects.step1.push(createLine(pV, [0, 4, -4], matProjDashed));
+        objects.step1.push(createLine(pV, [-6, 4, -1], matProjDashed));
+        
+        // Edges
+        objects.step1.push(createLine(pA, pB, matEdge));
+        objects.step1.push(createLine(pB, pC, matEdge));
+        objects.step1.push(createLine(pC, pD, matProjDashed)); // Hidden edge
+        objects.step1.push(createLine(pD, pA, matProjDashed)); // Hidden edge
+        objects.step1.push(createLine(pV, pA, matEdge));
+        objects.step1.push(createLine(pV, pB, matEdge));
+        objects.step1.push(createLine(pV, pC, matEdge));
+        objects.step1.push(createLine(pV, pD, matProjDashed)); // Hidden edge
+
+        createLabel('V', 'V', pV, [0, -25], 1);
+        createLabel('A', 'A', pA, [-20, 20], 1);
+        createLabel('B', 'B', pB, [20, 20], 1);
+        createLabel('C', 'C', pC, [20, -20], 1);
+        createLabel('D', 'D', pD, [-20, -20], 1);
+        createLabel('M', 'M', pM, [15, -15], 1);
+
+        // Step 2: Base and back face
+        const faceABCD = createFace([pA, pB, pC, pD], matFaceGreen);
+        const faceVCD = createFace([pV, pC, pD], matFaceGreen);
+        objects.step2.push(faceABCD, faceVCD);
+        objects.step2.push(createLine(pV, pM, matAuxDashed));
+        
+        createLabel('AB', '6', [0, 0, 1], [0, 25], 2);
+        createLabel('BC', '2', [3, 0, 0], [25, 0], 2);
+        createLabel('VM', '4', [0, 2, -1], [-20, 0], 2);
+
+        // Step 3: Front face
+        const pN = [0, 0, 1];
+        const faceVAB = createFace([pV, pA, pB], matFaceBlue);
+        const faceVMN = createFace([pV, pM, pN], matFaceRed);
+        objects.step3.push(faceVAB, faceVMN);
+        objects.step3.push(createLine(pV, pN, matAuxDashed));
+        objects.step3.push(createLine(pM, pN, matAuxDashed));
+        
+        // Right angle at M for VMN
+        objects.step3.push(createLine([0, 0.3, -1], [0, 0.3, -0.7], matAuxDashed));
+        objects.step3.push(createLine([0, 0.3, -0.7], [0, 0, -0.7], matAuxDashed));
+
+        createLabel('N', 'N', pN, [0, -20], 3);
+        createLabel('MN', '2', [0, 0, 0], [20, 10], 3);
+        createLabel('VN', '\(2\sqrt{5}\)', [0, 2, 0], [35, 0], 3);
+
+        // Step 4: Side faces
+        const faceVAD = createFace([pV, pA, pD], matFaceBlue);
+        const faceVBC = createFace([pV, pB, pC], matFaceBlue);
+        const faceVMD = createFace([pV, pM, pD], matFaceRed);
+        objects.step4.push(faceVAD, faceVBC, faceVMD);
+        objects.step4.push(createLine(pM, pD, matAuxDashed));
+        
+        // Right angle at M for VMD
+        objects.step4.push(createLine([-0.3, 0, -1], [-0.3, 0.3, -1], matAuxDashed));
+        objects.step4.push(createLine([-0.3, 0.3, -1], [0, 0.3, -1], matAuxDashed));
+        
+        // Right angle at D for VDA
+        // VD vector is (3, 4, 0), DA vector is (0, 0, 2)
+        // We need a small square at D.
+        const d_vd = new THREE.Vector3(3, 4, 0).normalize().multiplyScalar(0.4);
+        const d_da = new THREE.Vector3(0, 0, 2).normalize().multiplyScalar(0.4);
+        const pD_vec = new THREE.Vector3(...pD);
+        const pD1 = pD_vec.clone().add(d_vd);
+        const pD2 = pD1.clone().add(d_da);
+        const pD3 = pD_vec.clone().add(d_da);
+        objects.step4.push(createLine([pD1.x, pD1.y, pD1.z], [pD2.x, pD2.y, pD2.z], matAuxDashed));
+        objects.step4.push(createLine([pD2.x, pD2.y, pD2.z], [pD3.x, pD3.y, pD3.z], matAuxDashed));
+
+        createLabel('MD', '3', [-1.5, 0, -1], [0, 20], 4);
+        createLabel('VD', '5', [-1.5, 2, -1], [-20, -10], 4);
+
+        // Add all to scene
+        Object.values(objects).forEach(arr => arr.forEach(obj => {
+            obj.visible = false;
+            scene.add(obj);
+        }));
+
+        // Info texts
+        const infoTexts = [
+            "观察三视图，想象几何体形状",
+            "还原为四棱锥 V-ABCD，M为CD中点",
+            "\(S_{底} = 6 \times 2 = 12\)<br>\(S_{后} = \frac{1}{2} \times 6 \times 4 = 12\)",
+            "\(S_{底} = 12\)<br>\(S_{后} = 12\)<br>\(S_{前} = \frac{1}{2} \times 6 \times 2\sqrt{5} = 6\sqrt{5}\)",
+            "\(S_{底} = 12\)<br>\(S_{后} = 12\)<br>\(S_{前} = 6\sqrt{5}\)<br>\(S_{左} = S_{右} = \frac{1}{2} \times 2 \times 5 = 5\)",
+            "总表面积 \(S = 12 + 12 + 6\sqrt{5} + 5 + 5 = 34 + 6\sqrt{5}\)"
+        ];
+
+        function updateState() {
+            // Update visibility
+            objects.step0.forEach(obj => obj.visible = true);
+            objects.step1.forEach(obj => obj.visible = currentStep >= 1);
+            objects.step2.forEach(obj => obj.visible = currentStep >= 2);
+            objects.step3.forEach(obj => obj.visible = currentStep >= 3);
+            objects.step4.forEach(obj => obj.visible = currentStep >= 4);
+            
+            // Step 5: all faces slightly highlighted
+            if (currentStep === 5) {
+                matFaceGreen.opacity = 0.3;
+                matFaceBlue.opacity = 0.3;
+                matFaceRed.opacity = 0.1;
+            } else {
+                matFaceGreen.opacity = 0.2;
+                matFaceBlue.opacity = 0.2;
+                matFaceRed.opacity = 0.2;
+            }
+
+            // Update labels
+            labels.forEach(l => {
+                if (currentStep >= l.step) {
+                    l.el.style.opacity = 1;
+                } else {
+                    l.el.style.opacity = 0;
+                }
+            });
+
+            // Update info text
+            infoText.innerHTML = infoTexts[currentStep];
+            if (window.MathJax) {
+                MathJax.typesetPromise([infoText]);
+            }
+
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Update label positions
+            const widthHalf = 400;
+            const heightHalf = 250;
+            labels.forEach(l => {
+                if (l.el.style.opacity > 0) {
+                    const pos = l.pos3D.clone();
+                    pos.project(camera);
+                    const x = (pos.x * widthHalf) + widthHalf + l.offset2D[0];
+                    const y = -(pos.y * heightHalf) + heightHalf + l.offset2D[1];
+                    l.el.style.left = `${x}px`;
+                    l.el.style.top = `${y}px`;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Initialize
+        updateState();
+        animate();
+    </script>
+</body>
+</html>

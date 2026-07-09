@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 斜面电场中两球系统的受力分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover { background: #e0e0e0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #333; }
+        .force-arrow { stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+        .force-label { font-size: 13px; font-weight: bold; }
+        .equation-box { fill: rgba(255,255,255,0.98); stroke: #000; stroke-width: 1; }
+        .equation-text { font-size: 12px; }
+        .hidden { opacity: 0; }
+        .visible { opacity: 1; }
+        .fade-transition { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000"/>
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 匀强电场：6 条水平向右平行箭头线 -->
+            <line x1="50" y1="50" x2="740" y2="50" stroke="#000" stroke-width="1.5"/>
+            <polygon points="740,50 730,45 730,55" fill="#000"/>
+            <line x1="50" y1="95" x2="740" y2="95" stroke="#000" stroke-width="1.5"/>
+            <polygon points="740,95 730,90 730,100" fill="#000"/>
+            <line x1="50" y1="140" x2="740" y2="140" stroke="#000" stroke-width="1.5"/>
+            <polygon points="740,140 730,135 730,145" fill="#000"/>
+            <line x1="50" y1="185" x2="740" y2="185" stroke="#000" stroke-width="1.5"/>
+            <polygon points="740,185 730,180 730,190" fill="#000"/>
+            <line x1="50" y1="230" x2="740" y2="230" stroke="#000" stroke-width="1.5"/>
+            <polygon points="740,230 730,225 730,235" fill="#000"/>
+            <line x1="50" y1="275" x2="740" y2="275" stroke="#000" stroke-width="1.5"/>
+            <polygon points="740,275 730,270 730,280" fill="#000"/>
+
+            <!-- E 标签 -->
+            <text x="755" y="55" font-size="16" fill="#000">E</text>
+
+            <!-- 斜面：直角三角形（位置上移，底部留出方程框空间） -->
+            <line x1="150" y1="320" x2="650" y2="320" stroke="#000" stroke-width="2"/>
+            <line x1="150" y1="320" x2="650" y2="80" stroke="#000" stroke-width="2"/>
+            <line x1="650" y1="80" x2="650" y2="320" stroke="#000" stroke-width="2"/>
+
+            <!-- 37°弧线 -->
+            <path d="M 180 320 A 30 30 0 0 0 175 295" stroke="#000" stroke-width="1.5" fill="none"/>
+            <text x="175" y="310" font-size="14" fill="#000">37°</text>
+
+            <!-- A 球（沿斜面上移） -->
+            <circle id="scene1-ball-a" cx="500" cy="160" r="15" fill="rgba(0,0,0,0.2)" stroke="#000" stroke-width="2"/>
+            <text id="scene1-label-a" x="500" y="130" font-size="16" fill="#000" text-anchor="middle">A</text>
+
+            <!-- B 球（沿斜面下移） -->
+            <circle id="scene1-ball-b" cx="320" cy="260" r="15" fill="rgba(0,0,0,0.2)" stroke="#000" stroke-width="2"/>
+            <text id="scene1-label-b" x="320" y="230" font-size="16" fill="#000" text-anchor="middle">B</text>
+
+            <!-- L 虚线 -->
+            <line id="scene1-line-l" x1="320" y1="260" x2="500" y2="160" stroke="#888" stroke-width="1.5" stroke-dasharray="5,5"/>
+            <text id="scene1-label-l" x="430" y="205" font-size="14" fill="#888">L</text>
+
+            <!-- A 球受力矢量（步骤 1 显示） -->
+            <g id="scene1-forces-a" class="hidden fade-transition">
+                <!-- mg 箭头 (A) - 竖直向下 -->
+                <line id="scene1-force-mg-a" x1="500" y1="160" x2="500" y2="240" stroke="#000" stroke-width="2" class="force-arrow"/>
+                <text id="scene1-label-mg-a" x="500" y="255" font-size="13" fill="#000" class="force-label" text-anchor="middle">mg</text>
+                
+                <!-- N 箭头 (A) - 垂直斜面向上 -->
+                <line id="scene1-force-n-a" x1="500" y1="160" x2="430" y2="80" stroke="#000" stroke-width="2" class="force-arrow"/>
+                <text id="scene1-label-n-a" x="415" y="70" font-size="13" fill="#000" class="force-label" text-anchor="middle">N</text>
+                
+                <!-- F_E 箭头 (A) - 水平向左，蓝色 -->
+                <line id="scene1-force-fe-a" x1="500" y1="160" x2="380" y2="160" stroke="#1565c0" stroke-width="2" class="force-arrow" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene1-label-fe-a" x="370" y="155" font-size="13" fill="#1565c0" class="force-label" text-anchor="end">F_E</text>
+                
+                <!-- F_C 箭头 (A) - 沿斜面向上，红色 -->
+                <line id="scene1-force-fc-a" x1="500" y1="160" x2="580" y2="115" stroke="#c62828" stroke-width="2" class="force-arrow" marker-end="url(#arrowhead-red)"/>
+                <text id="scene1-label-fc-a" x="595" y="110" font-size="13" fill="#c62828" class="force-label" text-anchor="start">F_C</text>
+            </g>
+
+            <!-- B 球受力矢量（步骤 3 显示） -->
+            <g id="scene1-forces-b" class="hidden fade-transition">
+                <!-- mg 箭头 (B) - 竖直向下 -->
+                <line id="scene1-force-mg-b" x1="320" y1="260" x2="320" y2="340" stroke="#000" stroke-width="2" class="force-arrow"/>
+                <text id="scene1-label-mg-b" x="320" y="355" font-size="13" fill="#000" class="force-label" text-anchor="middle">mg</text>
+                
+                <!-- N'箭头 (B) - 垂直斜面向上 -->
+                <line id="scene1-force-nb-b" x1="320" y1="260" x2="250" y2="180" stroke="#000" stroke-width="2" class="force-arrow"/>
+                <text id="scene1-label-nb-b" x="235" y="170" font-size="13" fill="#000" class="force-label" text-anchor="middle">N'</text>
+                
+                <!-- F_E'箭头 (B) - 水平向左，蓝色 -->
+                <line id="scene1-force-feb-b" x1="320" y1="260" x2="200" y2="260" stroke="#1565c0" stroke-width="2" class="force-arrow" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene1-label-feb-b" x="190" y="255" font-size="13" fill="#1565c0" class="force-label" text-anchor="end">F_E'</text>
+                
+                <!-- F_C'箭头 (B) - 沿斜面向下，红色 -->
+                <line id="scene1-force-fcb-b" x1="320" y1="260" x2="240" y2="305" stroke="#c62828" stroke-width="2" class="force-arrow" marker-end="url(#arrowhead-red)"/>
+                <text id="scene1-label-fcb-b" x="225" y="320" font-size="13" fill="#c62828" class="force-label" text-anchor="middle">F_C'</text>
+            </g>
+
+            <!-- 加速度 a 箭头（步骤 4 显示） -->
+            <g id="scene1-acceleration" class="hidden fade-transition">
+                <line id="scene1-acc-a" x1="320" y1="260" x2="240" y2="305" stroke="#2e7d32" stroke-width="2" class="force-arrow" marker-end="url(#arrowhead-green)"/>
+                <text id="scene1-label-acc-a" x="210" y="335" font-size="13" fill="#2e7d32" class="force-label" text-anchor="middle">a</text>
+            </g>
+
+            <!-- 方程框 1（步骤 2 显示）- 左下方 -->
+            <g id="scene1-equation1" class="hidden fade-transition">
+                <rect id="scene1-box1" x="60" y="340" width="340" height="60" class="equation-box"/>
+                <text id="scene1-eq1-title" x="75" y="365" font-size="12" fill="#000" class="equation-text">沿斜面方向平衡方程:</text>
+                <text id="scene1-eq1-math" x="75" y="385" font-size="13" fill="#000" class="equation-text">mg·sin37° = qE·cos37° + kq²/L²</text>
+            </g>
+
+            <!-- 方程框 2（步骤 4 显示）- 右下方 -->
+            <g id="scene1-equation2" class="hidden fade-transition">
+                <rect id="scene1-box2" x="460" y="340" width="290" height="60" class="equation-box"/>
+                <text id="scene1-eq2-title" x="475" y="365" font-size="12" fill="#000" class="equation-text">沿斜面方向牛顿第二定律:</text>
+                <text id="scene1-eq2-math" x="475" y="385" font-size="13" fill="#000" class="equation-text">mg·sin37° + kq²/L² - qE·cos37° = ma</text>
+            </g>
+        </svg>
+
+        <div id="scene1-step-indicator">步骤 1/5</div>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照（斜面整体上移 60px，底部留出方程框空间）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 斜面底边 | (150,320)-(650,320) | 水平底边（上移 60px） |
+        // | 斜面斜边 | (150,320)-(650,80) | 倾角 37°（上移 60px） |
+        // | A 球 | (500,160) r=15 | 上方小球（上移 40px） |
+        // | B 球 | (320,260) r=15 | 下方小球（上移 40px） |
+        // | L 虚线 | (320,260)-(500,160) | 两球距离 |
+        // | 37°标签 | (175,310) | 角度值（上移 60px） |
+        // | E 标签 | (755,50) | 电场标注（上移 10px） |
+
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+
+        // 元素引用
+        const ballA = document.getElementById('scene1-ball-a');
+        const ballB = document.getElementById('scene1-ball-b');
+        const forcesA = document.getElementById('scene1-forces-a');
+        const forcesB = document.getElementById('scene1-forces-b');
+        const acceleration = document.getElementById('scene1-acceleration');
+        const equation1 = document.getElementById('scene1-equation1');
+        const equation2 = document.getElementById('scene1-equation2');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('hidden');
+                el.classList.add('visible');
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.remove('visible');
+                el.classList.add('hidden');
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新场景状态
+        function updateScene() {
+            // 重置所有动态元素
+            hide(forcesA);
+            hide(forcesB);
+            hide(acceleration);
+            hide(equation1);
+            hide(equation2);
+            
+            // 恢复球体默认填充
+            ballA.style.fill = 'rgba(0,0,0,0.2)';
+            ballB.style.fill = 'rgba(0,0,0,0.2)';
+
+            // 根据当前步骤显示对应元素
+            switch(currentStep) {
+                case 0: // 初始状态 - 仅显示基础图
+                    break;
+                    
+                case 1: // A 球受力分析
+                    show(forcesA);
+                    ballA.style.fill = 'rgba(21,101,192,0.4)';
+                    break;
+                    
+                case 2: // A 球平衡方程
+                    show(forcesA);
+                    show(equation1);
+                    ballA.style.fill = 'rgba(21,101,192,0.4)';
+                    break;
+                    
+                case 3: // B 球受力分析
+                    show(forcesB);
+                    ballB.style.fill = 'rgba(21,101,192,0.4)';
+                    break;
+                    
+                case 4: // B 球加速度分析
+                    show(forcesB);
+                    show(acceleration);
+                    show(equation2);
+                    ballB.style.fill = 'rgba(21,101,192,0.4)';
+                    break;
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === TOTAL_STEPS - 1;
+        }
+
+        // 切换步骤
+        function changeStep(delta) {
+            const newStep = currentStep + delta;
+            if (newStep >= 0 && newStep < TOTAL_STEPS) {
+                currentStep = newStep;
+                updateScene();
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', () => changeStep(-1));
+        btnNext.addEventListener('click', () => changeStep(1));
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

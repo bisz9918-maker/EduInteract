@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>溶液导电性微观原理</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn-prev { background: #e0e0e0; color: #333; }
+        .scene1-btn-next { background: #1976d2; color: #fff; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-step-indicator { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        /* 离子脉动动画 */
+        @keyframes scene1-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+        .scene1-ion { animation: scene1-pulse 1s ease-in-out infinite; }
+        /* 导线流动动画 */
+        @keyframes scene1-flow {
+            0% { stroke-dashoffset: 20; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .scene1-wire-flow {
+            stroke-dasharray: 5, 5;
+            animation: scene1-flow 1s linear infinite;
+        }
+        /* 灯泡发光效果 */
+        .scene1-bulb-glow {
+            filter: url(#scene1-glow);
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 灯泡发光滤镜 -->
+                <filter id="scene1-glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+                <!-- 箭头标记 -->
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888888"/>
+                </marker>
+                <marker id="scene1-arrowhead-dark" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#333333"/>
+                </marker>
+            </defs>
+
+            <!-- ========== 电池组 (60,40)-(220,85) ========== -->
+            <g id="scene1-battery">
+                <!-- 电池底座 -->
+                <rect x="60" y="70" width="160" height="15" fill="#e0e0e0" stroke="#333" stroke-width="2"/>
+                <!-- 电池1 -->
+                <rect x="70" y="45" width="65" height="25" fill="#fff" stroke="#333" stroke-width="2"/>
+                <!-- 电池2 -->
+                <rect x="145" y="45" width="65" height="25" fill="#fff" stroke="#333" stroke-width="2"/>
+                <!-- 电池正极凸起 -->
+                <rect x="205" y="40" width="10" height="5" fill="#333"/>
+                <!-- 电池标签 -->
+                <text x="140" y="30" text-anchor="middle" font-size="16" font-weight="bold">电池</text>
+                <!-- 极性符号（步骤1显示） -->
+                <text id="scene1-battery-plus" x="215" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#333" opacity="0">+</text>
+                <text id="scene1-battery-minus" x="65" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#333" opacity="0">−</text>
+            </g>
+
+            <!-- ========== 灯泡 (80,180)-(140,240) ========== -->
+            <g id="scene1-bulb-group">
+                <!-- 灯泡标签 -->
+                <text x="110" y="165" text-anchor="middle" font-size="14" fill="#333">灯泡</text>
+                <!-- 灯泡玻璃泡 -->
+                <circle id="scene1-bulb" cx="110" cy="205" r="22" fill="#cccccc" stroke="#333" stroke-width="2"/>
+                <!-- 灯丝 -->
+                <path d="M 102 205 Q 106 198 110 205 Q 114 198 118 205" fill="none" stroke="#666" stroke-width="1.5"/>
+                <!-- 灯泡底座 -->
+                <rect x="98" y="225" width="24" height="15" fill="#999" stroke="#333" stroke-width="2"/>
+            </g>
+
+            <!-- ========== 烧杯容器 (520,160)-(720,380) ========== -->
+            <g id="scene1-beaker">
+                <!-- 烧杯轮廓（梯形） -->
+                <path d="M 530 170 L 710 170 L 700 370 L 540 370 Z" fill="none" stroke="#333" stroke-width="2"/>
+                <!-- 瓶塞 -->
+                <rect x="595" y="155" width="50" height="15" fill="#666" stroke="#333" stroke-width="2"/>
+                <!-- 溶液区域 (530,220)-(710,370) -->
+                <rect x="535" y="220" width="170" height="145" fill="#e3f2fd" fill-opacity="0.5" stroke="none"/>
+                <!-- 溶液表面线 -->
+                <line x1="535" y1="220" x2="705" y2="220" stroke="#90caf9" stroke-width="1" stroke-dasharray="3,3"/>
+            </g>
+
+            <!-- ========== 电极 ========== -->
+            <!-- 电极A(阳极) (550,180)-(575,360) -->
+            <rect id="scene1-electrode-a" x="550" y="180" width="25" height="180" fill="#666666" stroke="#333" stroke-width="2"/>
+            <!-- 电极B(阴极) (665,180)-(690,360) -->
+            <rect id="scene1-electrode-b" x="665" y="180" width="25" height="180" fill="#666666" stroke="#333" stroke-width="2"/>
+            <!-- 电极标签（步骤1显示） -->
+            <text id="scene1-label-anode" x="562" y="165" text-anchor="middle" font-size="14" fill="#333" opacity="0">阳极</text>
+            <text id="scene1-label-cathode" x="677" y="165" text-anchor="middle" font-size="14" fill="#333" opacity="0">阴极</text>
+
+            <!-- ========== 导线 ========== -->
+            <!-- 导线1: 电池+ → 电极A -->
+            <path id="scene1-wire1" d="M 220 62 C 280 62, 280 180, 562 180" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+            <!-- 导线2: 电极B → 灯泡 -->
+            <path id="scene1-wire2" d="M 677 180 C 677 150, 200 150, 122 205" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+            <!-- 导线3: 灯泡 → 电池- -->
+            <path id="scene1-wire3" d="M 98 215 C 50 215, 50 80, 70 70" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+            <!-- 流动动画层（步骤3显示） -->
+            <path id="scene1-wire1-flow" d="M 220 62 C 280 62, 280 180, 562 180" fill="none" stroke="#ffd54f" stroke-width="2" stroke-linecap="round" stroke-dasharray="5,5" opacity="0" class="scene1-wire-flow"/>
+            <path id="scene1-wire2-flow" d="M 677 180 C 677 150, 200 150, 122 205" fill="none" stroke="#ffd54f" stroke-width="2" stroke-linecap="round" stroke-dasharray="5,5" opacity="0" class="scene1-wire-flow"/>
+            <path id="scene1-wire3-flow" d="M 98 215 C 50 215, 50 80, 70 70" fill="none" stroke="#ffd54f" stroke-width="2" stroke-linecap="round" stroke-dasharray="5,5" opacity="0" class="scene1-wire-flow"/>
+
+            <!-- ========== 离子（步骤2显示） ========== -->
+            <!-- 阳离子（红色，带+号） -->
+            <g id="scene1-cation-1" class="scene1-ion" opacity="0">
+                <circle cx="590" cy="250" r="6" fill="#c62828"/>
+                <text x="590" y="254" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">+</text>
+            </g>
+            <g id="scene1-cation-2" class="scene1-ion" opacity="0">
+                <circle cx="610" cy="280" r="6" fill="#c62828"/>
+                <text x="610" y="284" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">+</text>
+            </g>
+            <g id="scene1-cation-3" class="scene1-ion" opacity="0">
+                <circle cx="630" cy="250" r="6" fill="#c62828"/>
+                <text x="630" y="254" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">+</text>
+            </g>
+            <g id="scene1-cation-4" class="scene1-ion" opacity="0">
+                <circle cx="650" cy="300" r="6" fill="#c62828"/>
+                <text x="650" y="304" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">+</text>
+            </g>
+            <!-- 阴离子（蓝色，带-号） -->
+            <g id="scene1-anion-1" class="scene1-ion" opacity="0">
+                <circle cx="600" cy="310" r="6" fill="#1565c0"/>
+                <text x="600" y="314" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">−</text>
+            </g>
+            <g id="scene1-anion-2" class="scene1-ion" opacity="0">
+                <circle cx="620" cy="340" r="6" fill="#1565c0"/>
+                <text x="620" y="344" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">−</text>
+            </g>
+            <g id="scene1-anion-3" class="scene1-ion" opacity="0">
+                <circle cx="640" cy="310" r="6" fill="#1565c0"/>
+                <text x="640" y="314" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">−</text>
+            </g>
+            <g id="scene1-anion-4" class="scene1-ion" opacity="0">
+                <circle cx="660" cy="340" r="6" fill="#1565c0"/>
+                <text x="660" y="344" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">−</text>
+            </g>
+
+            <!-- ========== 离子移动箭头（步骤2显示虚线，步骤3变实线） ========== -->
+            <!-- 阳离子移动箭头：指向阴极（右侧） -->
+            <line id="scene1-arrow-cation" x1="580" y1="275" x2="660" y2="275" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrowhead)" opacity="0"/>
+            <!-- 阴离子移动箭头：指向阳极（左侧） -->
+            <line id="scene1-arrow-anion" x1="670" y1="325" x2="590" y2="325" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrowhead)" opacity="0"/>
+
+            <!-- ========== 离子标签（步骤2显示） ========== -->
+            <text id="scene1-label-cation" x="730" y="265" font-size="14" fill="#c62828" opacity="0">阳离子</text>
+            <text id="scene1-label-anion" x="730" y="325" font-size="14" fill="#1565c0" opacity="0">阴离子</text>
+
+            <!-- ========== 电流方向标签（步骤3显示） ========== -->
+            <text id="scene1-label-current" x="300" y="130" text-anchor="middle" font-size="14" fill="#333" opacity="0">电流方向</text>
+            <!-- 电流方向箭头 -->
+            <path id="scene1-arrow-current" d="M 250 140 L 350 140" stroke="#333" stroke-width="2" marker-end="url(#scene1-arrowhead)" opacity="0"/>
+
+            <!-- ========== 控件栏（SVG 内部底部） ========== -->
+            <g id="scene1-controls-group">
+                <!-- 步骤指示器 -->
+                <text id="scene1-step-indicator" x="400" y="465" text-anchor="middle" font-size="14" fill="#666">步骤 1/4</text>
+            </g>
+        </svg>
+
+        <!-- HTML 按钮控件（叠在 SVG 底部） -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 溶液导电性微观原理
+        // 布局坐标表参考：
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 电池组 | (60,40)-(220,85) | 两节电池串联 |
+        // | 灯泡 | (110,205) r=22 | 可变化亮度 |
+        // | 烧杯 | (530,170)-(710,370) | 梯形轮廓 |
+        // | 电极A(阳极) | (550,180)-(575,360) | 灰色 |
+        // | 电极B(阴极) | (665,180)-(690,360) | 灰色 |
+        // | 阳离子 | 红色圆形 d=12 | 带+号 |
+        // | 阴离子 | 蓝色圆形 d=12 | 带-号 |
+        // | 控件栏 | 底部居中 | 上一步/下一步按钮 |
+
+        const STATE = {
+            currentStep: 0,
+            totalSteps: 4
+        };
+
+        // 每步需要显示的元素 ID 列表
+        const STEP_ELEMENTS = {
+            0: {
+                show: [],
+                hide: ['scene1-battery-plus', 'scene1-battery-minus', 'scene1-label-anode', 'scene1-label-cathode',
+                       'scene1-cation-1', 'scene1-cation-2', 'scene1-cation-3', 'scene1-cation-4',
+                       'scene1-anion-1', 'scene1-anion-2', 'scene1-anion-3', 'scene1-anion-4',
+                       'scene1-arrow-cation', 'scene1-arrow-anion', 'scene1-label-cation', 'scene1-label-anion',
+                       'scene1-label-current', 'scene1-arrow-current', 'scene1-wire1-flow', 'scene1-wire2-flow', 'scene1-wire3-flow']
+            },
+            1: {
+                show: ['scene1-battery-plus', 'scene1-battery-minus', 'scene1-label-anode', 'scene1-label-cathode'],
+                hide: ['scene1-cation-1', 'scene1-cation-2', 'scene1-cation-3', 'scene1-cation-4',
+                       'scene1-anion-1', 'scene1-anion-2', 'scene1-anion-3', 'scene1-anion-4',
+                       'scene1-arrow-cation', 'scene1-arrow-anion', 'scene1-label-cation', 'scene1-label-anion',
+                       'scene1-label-current', 'scene1-arrow-current', 'scene1-wire1-flow', 'scene1-wire2-flow', 'scene1-wire3-flow']
+            },
+            2: {
+                show: ['scene1-cation-1', 'scene1-cation-2', 'scene1-cation-3', 'scene1-cation-4',
+                       'scene1-anion-1', 'scene1-anion-2', 'scene1-anion-3', 'scene1-anion-4',
+                       'scene1-arrow-cation', 'scene1-arrow-anion', 'scene1-label-cation', 'scene1-label-anion'],
+                hide: ['scene1-label-current', 'scene1-arrow-current', 'scene1-wire1-flow', 'scene1-wire2-flow', 'scene1-wire3-flow']
+            },
+            3: {
+                show: ['scene1-label-current', 'scene1-arrow-current', 'scene1-wire1-flow', 'scene1-wire2-flow', 'scene1-wire3-flow'],
+                hide: []
+            }
+        };
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                if (el.tagName === 'path' && id.includes('-flow')) {
+                    el.style.display = 'block';
+                }
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                if (el.tagName === 'path' && id.includes('-flow')) {
+                    el.style.display = 'none';
+                }
+            }
+        }
+
+        // 更新灯泡状态
+        function updateBulb(step) {
+            const bulb = document.getElementById('scene1-bulb');
+            if (step >= 3) {
+                // 发光状态
+                bulb.setAttribute('fill', '#ffd54f');
+                bulb.classList.add('scene1-bulb-glow');
+            } else {
+                // 灰色状态
+                bulb.setAttribute('fill', '#cccccc');
+                bulb.classList.remove('scene1-bulb-glow');
+            }
+        }
+
+        // 更新箭头样式（步骤3变实线）
+        function updateArrows(step) {
+            const arrowCation = document.getElementById('scene1-arrow-cation');
+            const arrowAnion = document.getElementById('scene1-arrow-anion');
+            if (step >= 3) {
+                arrowCation.setAttribute('stroke', '#333333');
+                arrowCation.setAttribute('stroke-dasharray', 'none');
+                arrowCation.setAttribute('marker-end', 'url(#scene1-arrowhead-dark)');
+                arrowAnion.setAttribute('stroke', '#333333');
+                arrowAnion.setAttribute('stroke-dasharray', 'none');
+                arrowAnion.setAttribute('marker-end', 'url(#scene1-arrowhead-dark)');
+            } else if (step >= 2) {
+                arrowCation.setAttribute('stroke', '#888888');
+                arrowCation.setAttribute('stroke-dasharray', '5,3');
+                arrowCation.setAttribute('marker-end', 'url(#scene1-arrowhead)');
+                arrowAnion.setAttribute('stroke', '#888888');
+                arrowAnion.setAttribute('stroke-dasharray', '5,3');
+                arrowAnion.setAttribute('marker-end', 'url(#scene1-arrowhead)');
+            }
+        }
+
+        // 更新步骤显示
+        function updateStepDisplay() {
+            const step = STATE.currentStep;
+
+            // 隐藏所有需要隐藏的元素
+            STEP_ELEMENTS[step].hide.forEach(id => hideElement(id));
+
+            // 显示所有需要显示的元素
+            STEP_ELEMENTS[step].show.forEach(id => showElement(id));
+
+            // 更新灯泡状态
+            updateBulb(step);
+
+            // 更新箭头样式
+            updateArrows(step);
+
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene1-step-indicator');
+            indicator.textContent = `步骤 ${step + 1}/${STATE.totalSteps}`;
+
+            // 更新按钮状态
+            const btnPrev = document.getElementById('scene1-btn-prev');
+            const btnNext = document.getElementById('scene1-btn-next');
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === STATE.totalSteps - 1);
+            btnNext.textContent = (step === STATE.totalSteps - 1) ? '完成' : '下一步 ▶';
+        }
+
+        // 初始化
+        function init() {
+            const btnPrev = document.getElementById('scene1-btn-prev');
+            const btnNext = document.getElementById('scene1-btn-next');
+
+            btnPrev.addEventListener('click', function() {
+                if (STATE.currentStep > 0) {
+                    STATE.currentStep--;
+                    updateStepDisplay();
+                }
+            });
+
+            btnNext.addEventListener('click', function() {
+                if (STATE.currentStep < STATE.totalSteps - 1) {
+                    STATE.currentStep++;
+                    updateStepDisplay();
+                }
+            });
+
+            // 初始状态
+            updateStepDisplay();
+        }
+
+        // 启动
+        init();
+    })();
+    </script>
+</body>
+</html>

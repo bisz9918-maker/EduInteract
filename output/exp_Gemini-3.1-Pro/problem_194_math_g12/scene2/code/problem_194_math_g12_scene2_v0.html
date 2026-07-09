@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene2-label { font-size: 14px; user-select: none; }
+        .scene2-title { font-size: 18px; font-weight: bold; user-select: none; text-anchor: middle; }
+        .scene2-hint { font-size: 16px; font-weight: bold; fill: #c62828; user-select: none; text-anchor: middle; opacity: 0; transition: opacity 0.3s; }
+        input[type="range"] { width: 300px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 分隔线 -->
+            <line x1="400" y1="20" x2="400" y2="420" stroke="#cccccc" stroke-width="2" stroke-dasharray="5,5" />
+            
+            <!-- 标题 -->
+            <text x="200" y="30" class="scene2-title">3D 视图 (截面平移)</text>
+            <text x="600" y="30" class="scene2-title">2D 俯视图 (截面圆)</text>
+            
+            <!-- 极值提示 -->
+            <text id="scene2-hint" x="600" y="80" class="scene2-hint">z=0 时，半径 R 与弦心距 d 达到最大</text>
+
+            <!-- 3D 视图区 -->
+            <g id="scene2-3d-group">
+                <!-- 椭球轮廓 -->
+                <ellipse cx="200" cy="220" rx="98" ry="140" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" fill="rgba(46,125,50,0.05)" />
+                
+                <!-- 轴线 AD -->
+                <line x1="200" y1="120" x2="200" y2="320" stroke="#000000" stroke-width="2" />
+                <text x="215" y="330" class="scene2-label">A</text>
+                <text x="215" y="120" class="scene2-label">D</text>
+
+                <!-- 3D 截面圆 -->
+                <path id="scene2-3d-circle" stroke="#1565c0" stroke-width="2" fill="rgba(21,101,192,0.1)" />
+                
+                <!-- 3D 弦心距 EF -->
+                <line id="scene2-3d-ef" stroke="#c62828" stroke-width="2" />
+                
+                <!-- 3D 弦 BC -->
+                <line id="scene2-3d-bc" stroke="#000000" stroke-width="2" />
+                
+                <!-- 3D 标签 -->
+                <text id="scene2-label-e-3d" class="scene2-label">E</text>
+                <text id="scene2-label-f-3d" class="scene2-label">F</text>
+                <text id="scene2-label-b-3d" class="scene2-label">B</text>
+                <text id="scene2-label-c-3d" class="scene2-label">C</text>
+            </g>
+
+            <!-- 2D 视图区 -->
+            <g id="scene2-2d-group">
+                <!-- 2D 截面圆 -->
+                <circle id="scene2-2d-circle" cx="600" cy="220" stroke="#1565c0" stroke-width="2" fill="rgba(21,101,192,0.1)" />
+                
+                <!-- 2D 弦心距 EF -->
+                <line id="scene2-2d-ef" x1="600" y1="220" x2="600" stroke="#c62828" stroke-width="2" />
+                
+                <!-- 2D 半径 EC -->
+                <line id="scene2-2d-ec" x1="600" y1="220" stroke="#2e7d32" stroke-width="2" />
+                
+                <!-- 2D 弦 BC -->
+                <line id="scene2-2d-bc" stroke="#000000" stroke-width="2" />
+                
+                <!-- 直角符号 -->
+                <polyline id="scene2-2d-right-angle" stroke="#888888" stroke-width="1.5" fill="none" />
+                
+                <!-- 2D 标签 -->
+                <text id="scene2-label-e-2d" x="600" y="210" class="scene2-label" text-anchor="middle">E</text>
+                <text id="scene2-label-f-2d" class="scene2-label">F</text>
+                <text id="scene2-label-b-2d" class="scene2-label" text-anchor="end">B</text>
+                <text id="scene2-label-c-2d" class="scene2-label">C</text>
+                <text id="scene2-label-r-2d" class="scene2-label" fill="#2e7d32">R</text>
+                <text id="scene2-label-d-2d" class="scene2-label" fill="#c62828" text-anchor="end">d</text>
+                <text id="scene2-label-1-2d" class="scene2-label" text-anchor="middle">1</text>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <span style="font-size: 14px; font-family: sans-serif;">截面高度 z</span>
+            <input type="range" id="scene2-slider-z" min="-100" max="100" value="50">
+            <span id="scene2-z-value" style="font-size: 14px; font-family: sans-serif; width: 50px;">z = 50</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const slider = document.getElementById('scene2-slider-z');
+        const zValueText = document.getElementById('scene2-z-value');
+        const hint = document.getElementById('scene2-hint');
+        
+        // 3D elements
+        const path3dCircle = document.getElementById('scene2-3d-circle');
+        const line3dEF = document.getElementById('scene2-3d-ef');
+        const line3dBC = document.getElementById('scene2-3d-bc');
+        const labelE3d = document.getElementById('scene2-label-e-3d');
+        const labelF3d = document.getElementById('scene2-label-f-3d');
+        const labelB3d = document.getElementById('scene2-label-b-3d');
+        const labelC3d = document.getElementById('scene2-label-c-3d');
+        
+        // 2D elements
+        const circle2d = document.getElementById('scene2-2d-circle');
+        const line2dEF = document.getElementById('scene2-2d-ef');
+        const line2dEC = document.getElementById('scene2-2d-ec');
+        const line2dBC = document.getElementById('scene2-2d-bc');
+        const rightAngle2d = document.getElementById('scene2-2d-right-angle');
+        const labelF2d = document.getElementById('scene2-label-f-2d');
+        const labelB2d = document.getElementById('scene2-label-b-2d');
+        const labelC2d = document.getElementById('scene2-label-c-2d');
+        const labelR2d = document.getElementById('scene2-label-r-2d');
+        const labelD2d = document.getElementById('scene2-label-d-2d');
+        const label12d = document.getElementById('scene2-label-1-2d');
+
+        function updateScene() {
+            const z = parseFloat(slider.value);
+            zValueText.textContent = `z = ${z}`;
+            
+            // Calculate R and d
+            // R = 98 * sqrt(1 - (z/140)^2)
+            const R = 98 * Math.sqrt(1 - Math.pow(z / 140, 2));
+            // d = sqrt(R^2 - 40^2)
+            // Ensure R >= 40 to avoid NaN, though max z=100 gives R=68.6, min z=-100 gives R=68.6, so R is always > 40.
+            const d = Math.sqrt(Math.max(0, R * R - 40 * 40));
+            
+            // Update 3D View
+            // Projection: projX = 200 + x - 0.5y, projY = 220 - z + 0.3y
+            
+            // 3D Circle Path
+            let pathData = "";
+            const numPoints = 50;
+            for (let i = 0; i <= numPoints; i++) {
+                const theta = (i / numPoints) * 2 * Math.PI;
+                const x = R * Math.cos(theta);
+                const y = R * Math.sin(theta);
+                const projX = 200 + x - 0.5 * y;
+                const projY = 220 - z + 0.3 * y;
+                if (i === 0) {
+                    pathData += `M ${projX} ${projY} `;
+                } else {
+                    pathData += `L ${projX} ${projY} `;
+                }
+            }
+            path3dCircle.setAttribute('d', pathData);
+            
+            // 3D Coordinates
+            const E_projX = 200;
+            const E_projY = 220 - z;
+            
+            const F_projX = 200 - 0.5 * d;
+            const F_projY = 220 - z + 0.3 * d;
+            
+            const B_projX = 160 - 0.5 * d;
+            const B_projY = 220 - z + 0.3 * d;
+            
+            const C_projX = 240 - 0.5 * d;
+            const C_projY = 220 - z + 0.3 * d;
+            
+            line3dEF.setAttribute('x1', E_projX);
+            line3dEF.setAttribute('y1', E_projY);
+            line3dEF.setAttribute('x2', F_projX);
+            line3dEF.setAttribute('y2', F_projY);
+            
+            line3dBC.setAttribute('x1', B_projX);
+            line3dBC.setAttribute('y1', B_projY);
+            line3dBC.setAttribute('x2', C_projX);
+            line3dBC.setAttribute('y2', C_projY);
+            
+            labelE3d.setAttribute('x', E_projX + 5);
+            labelE3d.setAttribute('y', E_projY - 5);
+            
+            labelF3d.setAttribute('x', F_projX - 5);
+            labelF3d.setAttribute('y', F_projY + 15);
+            
+            labelB3d.setAttribute('x', B_projX - 15);
+            labelB3d.setAttribute('y', B_projY + 5);
+            
+            labelC3d.setAttribute('x', C_projX + 5);
+            labelC3d.setAttribute('y', C_projY + 5);
+            
+            // Update 2D View
+            circle2d.setAttribute('r', R);
+            
+            const F2d_y = 220 + d;
+            line2dEF.setAttribute('y2', F2d_y);
+            
+            line2dBC.setAttribute('x1', 560);
+            line2dBC.setAttribute('y1', F2d_y);
+            line2dBC.setAttribute('x2', 640);
+            line2dBC.setAttribute('y2', F2d_y);
+            
+            line2dEC.setAttribute('x2', 640);
+            line2dEC.setAttribute('y2', F2d_y);
+            
+            rightAngle2d.setAttribute('points', `600,${F2d_y - 10} 610,${F2d_y - 10} 610,${F2d_y}`);
+            
+            labelF2d.setAttribute('x', 590);
+            labelF2d.setAttribute('y', F2d_y + 15);
+            
+            labelB2d.setAttribute('x', 555);
+            labelB2d.setAttribute('y', F2d_y + 5);
+            
+            labelC2d.setAttribute('x', 645);
+            labelC2d.setAttribute('y', F2d_y + 5);
+            
+            labelD2d.setAttribute('x', 595);
+            labelD2d.setAttribute('y', 220 + d / 2);
+            
+            labelR2d.setAttribute('x', 625);
+            labelR2d.setAttribute('y', 220 + d / 2 - 5);
+            
+            label12d.setAttribute('x', 620);
+            label12d.setAttribute('y', F2d_y + 15);
+            
+            // Extremum hint
+            if (Math.abs(z) < 2) {
+                hint.style.opacity = 1;
+            } else {
+                hint.style.opacity = 0;
+            }
+        }
+
+        slider.addEventListener('input', updateScene);
+        updateScene(); // Initial call
+    })();
+    </script>
+</body>
+</html>

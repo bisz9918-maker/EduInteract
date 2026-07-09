@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>速度 - 位移图像与最大速度位置</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene4-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene4-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene4-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        .scene4-btn:hover { background: #e0e0e0; }
+        .scene4-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene4-btn.active { background: #1565c0; color: white; border-color: #1565c0; }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <svg width="800" height="500" id="scene4-svg">
+            <!-- 坐标轴 -->
+            <!-- 左纵轴 (v 轴): (80,60)-(80,380) -->
+            <line id="scene4-axis-v" x1="80" y1="60" x2="80" y2="380" stroke="#000000" stroke-width="4" marker-end="url(#scene4-arrow-v)"/>
+            <!-- 右纵轴 (F 轴): (720,60)-(720,380) -->
+            <line id="scene4-axis-f" x1="720" y1="60" x2="720" y2="380" stroke="#000000" stroke-width="4" marker-end="url(#scene4-arrow-f)"/>
+            <!-- 横轴 (s 轴): (80,380)-(720,380) -->
+            <line id="scene4-axis-s" x1="80" y1="380" x2="720" y2="380" stroke="#000000" stroke-width="4" marker-end="url(#scene4-arrow-s)"/>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene4-arrow-v" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <polygon points="0,0 10,5 0,10" fill="#000000"/>
+                </marker>
+                <marker id="scene4-arrow-f" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <polygon points="0,0 10,5 0,10" fill="#000000"/>
+                </marker>
+                <marker id="scene4-arrow-s" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <polygon points="0,0 10,5 0,10" fill="#000000"/>
+                </marker>
+            </defs>
+            
+            <!-- 刻度线 -->
+            <line x1="80" y1="380" x2="80" y2="388" stroke="#000000" stroke-width="2"/>
+            <line x1="240" y1="380" x2="240" y2="388" stroke="#000000" stroke-width="2"/>
+            <line x1="400" y1="380" x2="400" y2="388" stroke="#000000" stroke-width="2"/>
+            <line x1="560" y1="380" x2="560" y2="388" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 坐标轴标签 -->
+            <text id="scene4-label-v" x="65" y="50" font-size="16" fill="#000000" text-anchor="middle">v</text>
+            <text id="scene4-label-f" x="735" y="50" font-size="16" fill="#000000" text-anchor="middle">F</text>
+            <text id="scene4-label-s" x="735" y="395" font-size="16" fill="#000000" text-anchor="middle">s</text>
+            <text id="scene4-label-0" x="70" y="395" font-size="14" fill="#000000" text-anchor="middle">0</text>
+            <text id="scene4-label-L" x="240" y="410" font-size="14" fill="#000000" text-anchor="middle">L</text>
+            <text id="scene4-label-2L" x="400" y="410" font-size="16" fill="#000000" text-anchor="middle">2L</text>
+            <text id="scene4-label-3L" x="560" y="410" font-size="16" fill="#000000" text-anchor="middle">3L</text>
+            
+            <!-- v-s 曲线 (蓝色): (80,380)→(400,120)→(720,380) -->
+            <path id="scene4-curve-v" d="M 80,380 Q 240,200 400,120 T 720,380" stroke="#1565c0" stroke-width="3" fill="none" opacity="0.3"/>
+            
+            <!-- F-s 曲线 (红色): 分段线性 -->
+            <path id="scene4-curve-f" d="M 80,220 L 400,380 L 720,540" stroke="#c62828" stroke-width="3" fill="none" opacity="0.3" clip-path="url(#scene4-clip)"/>
+            
+            <!-- 裁剪区域，限制 F-s 曲线在可视范围内 -->
+            <defs>
+                <clipPath id="scene4-clip">
+                    <rect x="80" y="60" width="640" height="320"/>
+                </clipPath>
+            </defs>
+            
+            <!-- 最大速度点 (绿色) -->
+            <circle id="scene4-point-max" cx="400" cy="120" r="6" fill="#2e7d32" opacity="0.3"/>
+            <text id="scene4-label-vmax" x="415" y="105" font-size="14" fill="#2e7d32" opacity="0.3">v_max</text>
+            <text id="scene4-label-f0" x="415" y="355" font-size="14" fill="#c62828" opacity="0.3">F=0</text>
+            
+            <!-- 指示线 (灰色虚线，随滑块移动) -->
+            <line id="scene4-indicator-line" x1="400" y1="60" x2="400" y2="380" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 指示点 (随滑块移动) -->
+            <circle id="scene4-indicator-v" cx="400" cy="120" r="5" fill="#1565c0" opacity="0"/>
+            <circle id="scene4-indicator-f" cx="400" cy="380" r="5" fill="#c62828" opacity="0"/>
+            
+            <!-- 滑块轨道 -->
+            <rect id="scene4-slider-track" x="150" y="450" width="500" height="20" rx="10" fill="#e0e0e0"/>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene4-slider-handle" cx="400" cy="460" r="12" fill="#1565c0" style="cursor: pointer"/>
+            
+            <!-- 数值显示区 -->
+            <text id="scene4-display-s" x="580" y="445" font-size="12" fill="#000000" text-anchor="start">s = 2.00L</text>
+            <text id="scene4-display-v" x="580" y="460" font-size="12" fill="#1565c0" text-anchor="start">v = v_max</text>
+            <text id="scene4-display-f" x="580" y="475" font-size="12" fill="#c62828" text-anchor="start">F = 0</text>
+        </svg>
+        
+        <div id="scene4-controls">
+            <button id="scene4-btn-reset" class="scene4-btn">重置</button>
+            <button id="scene4-btn-play" class="scene4-btn">播放</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4: 速度 - 位移图像与最大速度位置
+        
+        // 布局坐标表参考：
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 左纵轴 (v 轴) | (80,60)-(80,380) | 速度轴 |
+        // | 右纵轴 (F 轴) | (720,60)-(720,380) | 合力轴 |
+        // | 横轴 (s 轴) | (80,380)-(720,380) | 位移轴 |
+        // | v 轴标签"v" | (65,50) | 左上方 |
+        // | F 轴标签"F" | (735,50) | 右上方 |
+        // | s 轴标签"s" | (735,395) | 右下方 |
+        // | 原点"0" | (70,395) | 左下方 |
+        // | 刻度"L" | (240,395) | s=L 位置 |
+        // | 刻度"2L" | (400,395) | s=2L 位置 |
+        // | 刻度"3L" | (560,395) | s=3L 位置 |
+        // | v-s 曲线 | (80,380)→(400,120)→(720,380) | 蓝色 |
+        // | F-s 曲线 | (80,220)→(400,380)→(720,540) | 红色 |
+        // | 最大速度点 | (400,120) | 绿色 |
+        // | v_max 标签 | (415,105) | 右上方 |
+        // | F=0 标签 | (415,355) | 右下方 |
+        // | 滑块轨道 | (150,450)-(650,470) | 灰色 |
+        // | 滑块手柄 | (400,460) | 蓝色 |
+        
+        const SVG_NS = "http://www.w3.org/2000/svg";
+        
+        // 物理常量（归一化）
+        const L = 1; // 单位长度
+        const sMin = 0;
+        const sMax = 3 * L;
+        
+        // 坐标映射
+        const sToX = (s) => 80 + (s / sMax) * 640;
+        const xToS = (x) => ((x - 80) / 640) * sMax;
+        
+        // v-s 曲线：抛物线，s=2L 时 v=v_max
+        // v(s) = k * s * (3L - s) / (2L)^2 归一化
+        const vMax = 1;
+        const vFunc = (s) => {
+            if (s <= 2 * L) {
+                // 加速段：v 从 0 增加到 v_max
+                return vMax * (s / (2 * L)) * (2 - s / (2 * L));
+            } else {
+                // 减速段：v 从 v_max 减少到 0
+                return vMax * ((3 * L - s) / L) * (s / (2 * L) - 1);
+            }
+        };
+        
+        // F-s 曲线：分段线性
+        // s=0: F=3mg (正)
+        // s=2L: F=0
+        // s=3L: F=-mg (负)
+        const FFunc = (s) => {
+            if (s <= 2 * L) {
+                // 从 3mg 线性减少到 0
+                return 3 * (1 - s / (2 * L));
+            } else {
+                // 从 0 线性减少到 -1
+                return -(s - 2 * L) / L;
+            }
+        };
+        
+        // v 轴映射：v=0 → y=380, v=vMax → y=120
+        const vToY = (v) => 380 - v * 260;
+        
+        // F 轴映射：F=3 → y=220, F=0 → y=380, F=-1 → y=540
+        const FToY = (F) => 380 - F * 160;
+        
+        // 状态变量
+        let currentS = 2 * L; // 初始在 s=2L 处
+        let isDragging = false;
+        let isPlaying = false;
+        let playDirection = 1;
+        let animationId = null;
+        
+        // DOM 元素
+        const sliderHandle = document.getElementById('scene4-slider-handle');
+        const indicatorLine = document.getElementById('scene4-indicator-line');
+        const indicatorV = document.getElementById('scene4-indicator-v');
+        const indicatorF = document.getElementById('scene4-indicator-f');
+        const displayS = document.getElementById('scene4-display-s');
+        const displayV = document.getElementById('scene4-display-v');
+        const displayF = document.getElementById('scene4-display-f');
+        const btnReset = document.getElementById('scene4-btn-reset');
+        const btnPlay = document.getElementById('scene4-btn-play');
+        
+        // 曲线元素
+        const curveV = document.getElementById('scene4-curve-v');
+        const curveF = document.getElementById('scene4-curve-f');
+        const pointMax = document.getElementById('scene4-point-max');
+        const labelVmax = document.getElementById('scene4-label-vmax');
+        const labelF0 = document.getElementById('scene4-label-f0');
+        
+        // 更新显示
+        function updateDisplay(s) {
+            const x = sToX(s);
+            const v = vFunc(s);
+            const F = FFunc(s);
+            const yV = vToY(v);
+            const yF = FToY(F);
+            
+            // 更新滑块位置
+            sliderHandle.setAttribute('cx', x);
+            
+            // 更新指示线
+            indicatorLine.setAttribute('x1', x);
+            indicatorLine.setAttribute('x2', x);
+            
+            // 更新指示点
+            indicatorV.setAttribute('cx', x);
+            indicatorV.setAttribute('cy', yV);
+            indicatorF.setAttribute('cx', x);
+            indicatorF.setAttribute('cy', yF);
+            
+            // 更新数值显示
+            displayS.textContent = `s = ${s.toFixed(2)}L`;
+            if (Math.abs(s - 2 * L) < 0.05) {
+                displayV.textContent = 'v = v_max';
+                displayF.textContent = 'F = 0';
+            } else {
+                displayV.textContent = `v = ${v.toFixed(2)}v_max`;
+                displayF.textContent = `F = ${F.toFixed(2)}mg`;
+            }
+        }
+        
+        // 显示/隐藏元素
+        function showElement(el) {
+            el.style.opacity = '1';
+            el.style.display = '';
+        }
+        
+        function hideElement(el) {
+            el.style.opacity = '0';
+            el.style.display = '';
+        }
+        
+        // 更新曲线和标记的可见性
+        function updateVisibility(s) {
+            if (s > 0.1) {
+                showElement(indicatorLine);
+                showElement(indicatorV);
+                showElement(indicatorF);
+                showElement(curveV);
+                showElement(curveF);
+            }
+            
+            // 在 s=2L 附近显示最大速度标记
+            if (Math.abs(s - 2 * L) < 0.1) {
+                showElement(pointMax);
+                showElement(labelVmax);
+                showElement(labelF0);
+            } else {
+                hideElement(pointMax);
+                hideElement(labelVmax);
+                hideElement(labelF0);
+            }
+        }
+        
+        // 鼠标/触摸事件处理
+        function startDrag(e) {
+            isDragging = true;
+            if (isPlaying) {
+                isPlaying = false;
+                btnPlay.textContent = '播放';
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+            }
+            handleMove(e);
+        }
+        
+        function handleMove(e) {
+            if (!isDragging) return;
+            
+            const rect = document.getElementById('scene4-slider-track').getBoundingClientRect();
+            let clientX = e.clientX;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+            }
+            
+            let x = clientX - rect.left;
+            x = Math.max(0, Math.min(500, x)); // 限制在轨道范围内
+            
+            const s = xToS(80 + x);
+            currentS = Math.max(sMin, Math.min(sMax, s));
+            
+            updateDisplay(currentS);
+            updateVisibility(currentS);
+        }
+        
+        function endDrag() {
+            isDragging = false;
+        }
+        
+        // 播放动画
+        function playAnimation() {
+            if (!isPlaying) return;
+            
+            currentS += playDirection * 0.02;
+            if (currentS >= sMax || currentS <= sMin) {
+                playDirection *= -1;
+                currentS = Math.max(sMin, Math.min(sMax, currentS));
+            }
+            
+            updateDisplay(currentS);
+            updateVisibility(currentS);
+            
+            animationId = requestAnimationFrame(playAnimation);
+        }
+        
+        // 事件监听
+        sliderHandle.addEventListener('mousedown', startDrag);
+        sliderHandle.addEventListener('touchstart', startDrag);
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove);
+        
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+        
+        btnReset.addEventListener('click', () => {
+            isPlaying = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            btnPlay.textContent = '播放';
+            currentS = 0;
+            hideElement(indicatorLine);
+            hideElement(indicatorV);
+            hideElement(indicatorF);
+            hideElement(curveV);
+            hideElement(curveF);
+            hideElement(pointMax);
+            hideElement(labelVmax);
+            hideElement(labelF0);
+            updateDisplay(currentS);
+        });
+        
+        btnPlay.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                btnPlay.textContent = '暂停';
+                if (currentS >= sMax) currentS = sMin;
+                playAnimation();
+            } else {
+                btnPlay.textContent = '播放';
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+            }
+        });
+        
+        // 初始化
+        updateDisplay(currentS);
+        hideElement(indicatorLine);
+        hideElement(indicatorV);
+        hideElement(indicatorF);
+        hideElement(curveV);
+        hideElement(curveF);
+        hideElement(pointMax);
+        hideElement(labelVmax);
+        hideElement(labelF0);
+        
+    })();
+    </script>
+</body>
+</html>

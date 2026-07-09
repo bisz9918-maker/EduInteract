@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 木板与物块运动分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-step-text { position: absolute; bottom: 52px; left: 0; right: 0; text-align: center; font-size: 14px; color: #333333; pointer-events: none; }
+        
+        .scene2-btn { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .scene2-animate-transform { transition: transform 0.5s ease-out; }
+        .scene2-animate-line { transition: stroke-dashoffset 0.5s ease-out; }
+        .scene2-animate-opacity { transition: opacity 0.4s ease-out; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#aaaaaa" stroke-width="1"/>
+                </pattern>
+                <marker id="scene2-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#000"/>
+                </marker>
+            </defs>
+            
+            <!-- 俯视图区 -->
+            <rect id="scene2-ground-shadow" x="50" y="150" width="700" height="15" fill="url(#scene2-hatch)" stroke="none"/>
+            <line id="scene2-ground-line" x1="50" y1="150" x2="750" y2="150" stroke="#000" stroke-width="2"/>
+            
+            <g id="scene2-plank-group" class="scene2-animate-transform">
+                <rect id="scene2-plank" x="150" y="110" width="128" height="40" fill="#1565c0" fill-opacity="0.1" stroke="#1565c0" stroke-width="2"/>
+                <text id="scene2-label-M" x="214" y="105" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">M</text>
+                <line id="scene2-L-line" x1="150" y1="165" x2="278" y2="165" stroke="#000" stroke-width="1" marker-start="url(#scene2-arrow)" marker-end="url(#scene2-arrow)"/>
+                <text id="scene2-L-text" x="214" y="178" text-anchor="middle" font-size="13" fill="#000">L = 1.6 m</text>
+                <line id="scene2-F-arrow" x1="278" y1="130" x2="315" y2="130" stroke="#000" stroke-width="1.5" marker-end="url(#scene2-arrow)"/>
+                <text id="scene2-F-label" x="320" y="125" font-size="14" fill="#000">F</text>
+            </g>
+            
+            <g id="scene2-block-group" class="scene2-animate-transform">
+                <circle id="scene2-block" cx="278" cy="97" r="6" fill="#c62828" stroke="#c62828" stroke-width="2"/>
+                <text id="scene2-label-m" x="278" y="70" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">m</text>
+            </g>
+            
+            <line id="scene2-mark-line" x1="304" y1="150" x2="304" y2="168" stroke="#888" stroke-width="1" stroke-dasharray="5,5" class="scene2-animate-opacity" style="opacity:0"/>
+            <text id="scene2-final-note" x="680" y="100" font-size="14" fill="#2e7d32" class="scene2-animate-opacity" style="opacity:0">物块恰好到达木板左端</text>
+            
+            <!-- v-t图区 -->
+            <g id="scene2-grid" stroke="#888" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5">
+                <line x1="180" y1="360" x2="680" y2="360"/>
+                <line x1="180" y1="310" x2="680" y2="310"/>
+                <line x1="180" y1="260" x2="680" y2="260"/>
+                <line x1="180" y1="210" x2="680" y2="210"/>
+                <line x1="280" y1="210" x2="280" y2="410"/>
+                <line x1="380" y1="210" x2="380" y2="410"/>
+                <line x1="480" y1="210" x2="480" y2="410"/>
+                <line x1="580" y1="210" x2="580" y2="410"/>
+            </g>
+            
+            <line id="scene2-x-axis" x1="180" y1="410" x2="680" y2="410" stroke="#000" stroke-width="2"/>
+            <line id="scene2-y-axis" x1="180" y1="410" x2="180" y2="210" stroke="#000" stroke-width="2"/>
+            <circle id="scene2-origin" cx="180" cy="410" r="4" fill="#888"/>
+            
+            <text id="scene2-x-label" x="700" y="415" font-size="14" fill="#000">t/s</text>
+            <text id="scene2-y-label" x="130" y="220" font-size="14" fill="#000">v/(m·s⁻¹)</text>
+            
+            <!-- v-t曲线分段 -->
+            <polyline id="scene2-red-line1" points="180,410 380,370" fill="none" stroke="#c62828" stroke-width="2.5" class="scene2-animate-line" style="opacity:0"/>
+            <polyline id="scene2-red-line2" points="380,370 680,310" fill="none" stroke="#c62828" stroke-width="2.5" class="scene2-animate-line" style="opacity:0"/>
+            <polyline id="scene2-blue-line1" points="180,410 380,290" fill="none" stroke="#1565c0" stroke-width="2.5" class="scene2-animate-line" style="opacity:0"/>
+            <polyline id="scene2-blue-line2" points="380,290 680,310" fill="none" stroke="#1565c0" stroke-width="2.5" class="scene2-animate-line" style="opacity:0"/>
+            
+            <text id="scene2-label-am" x="390" y="390" font-size="13" fill="#c62828" class="scene2-animate-opacity" style="opacity:0">a_m = 1</text>
+            <text id="scene2-label-aM1" x="390" y="280" font-size="13" fill="#1565c0" class="scene2-animate-opacity" style="opacity:0">a_M = 3</text>
+            <text id="scene2-label-aM2" x="620" y="285" font-size="13" fill="#1565c0" class="scene2-animate-opacity" style="opacity:0">a_M = -1/3</text>
+            
+            <text id="scene2-label-t" x="380" y="430" text-anchor="middle" font-size="13" fill="#000" class="scene2-animate-opacity" style="opacity:0">t</text>
+            <text id="scene2-label-2_5t" x="620" y="430" text-anchor="middle" font-size="13" fill="#000" class="scene2-animate-opacity" style="opacity:0">t_共 = 2.5t</text>
+            
+            <text id="scene2-label-F-active" x="280" y="430" text-anchor="middle" font-size="13" fill="#2e7d32" class="scene2-animate-opacity" style="opacity:0">F作用</text>
+            <text id="scene2-label-F-remove" x="280" y="430" text-anchor="middle" font-size="13" fill="#2e7d32" class="scene2-animate-opacity" style="opacity:0">撤去F</text>
+            
+            <line id="scene2-aux-line" x1="380" y1="410" x2="380" y2="290" stroke="#888" stroke-width="1" stroke-dasharray="5,5" class="scene2-animate-opacity" style="opacity:0"/>
+            
+            <text id="scene2-label-vm" x="390" y="385" font-size="13" fill="#c62828" class="scene2-animate-opacity" style="opacity:0">v_m = t</text>
+            <text id="scene2-label-vM" x="390" y="275" font-size="13" fill="#1565c0" class="scene2-animate-opacity" style="opacity:0">v_M = 3t</text>
+            
+            <polygon id="scene2-area-dx1" points="180,410 380,290 380,370" fill="#2e7d32" fill-opacity="0.2" class="scene2-animate-opacity" style="opacity:0"/>
+            <polygon id="scene2-area-dx2" points="380,370 380,290 680,310" fill="#2e7d32" fill-opacity="0.2" class="scene2-animate-opacity" style="opacity:0"/>
+            
+            <text id="scene2-label-dx1" x="200" y="340" text-anchor="middle" font-size="13" fill="#2e7d32" class="scene2-animate-opacity" style="opacity:0">Δx₁</text>
+            <text id="scene2-label-dx2" x="620" y="320" text-anchor="middle" font-size="13" fill="#2e7d32" class="scene2-animate-opacity" style="opacity:0">Δx₂</text>
+            
+            <text id="scene2-formula1" x="520" y="220" font-size="13" fill="#000" class="scene2-animate-opacity" style="opacity:0">Δx = Δx₁ + Δx₂ = L = 1.6 m</text>
+            <text id="scene2-formula2" x="520" y="245" font-size="13" fill="#000" class="scene2-animate-opacity" style="opacity:0">2.5t² = 1.6</text>
+            <text id="scene2-formula3" x="520" y="270" font-size="14" fill="#2e7d32" font-weight="bold" class="scene2-animate-opacity" style="opacity:0">t_min = 0.8 s</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+        <div id="scene2-step-text">初始状态：木板与物块静止于光滑水平面</div>
+    </div>
+    
+    <script>
+    (function() {
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        const stepTexts = [
+            "初始状态：木板与物块静止于光滑水平面",
+            "F作用阶段：a_m = 1 m/s²，a_M = 3 m/s²，两者产生相对滑动",
+            "撤去F瞬间：标记t时刻两物体速度，准备进入下一阶段",
+            "撤F后阶段：木板减速、物块加速，直至共速 v = 2.5t",
+            "临界条件：相对位移总面积等于板长，解得最小作用时间 0.8 s"
+        ];
+        
+        const plankGroup = document.getElementById('scene2-plank-group');
+        const blockGroup = document.getElementById('scene2-block-group');
+        const redLine1 = document.getElementById('scene2-red-line1');
+        const redLine2 = document.getElementById('scene2-red-line2');
+        const blueLine1 = document.getElementById('scene2-blue-line1');
+        const blueLine2 = document.getElementById('scene2-blue-line2');
+        const markLine = document.getElementById('scene2-mark-line');
+        const finalNote = document.getElementById('scene2-final-note');
+        const labelAm = document.getElementById('scene2-label-am');
+        const labelAM1 = document.getElementById('scene2-label-aM1');
+        const labelAM2 = document.getElementById('scene2-label-aM2');
+        const labelT = document.getElementById('scene2-label-t');
+        const label2_5t = document.getElementById('scene2-label-2_5t');
+        const labelFActive = document.getElementById('scene2-label-F-active');
+        const labelFRemove = document.getElementById('scene2-label-F-remove');
+        const auxLine = document.getElementById('scene2-aux-line');
+        const labelVm = document.getElementById('scene2-label-vm');
+        const labelVM = document.getElementById('scene2-label-vM');
+        const areaDx1 = document.getElementById('scene2-area-dx1');
+        const areaDx2 = document.getElementById('scene2-area-dx2');
+        const labelDx1 = document.getElementById('scene2-label-dx1');
+        const labelDx2 = document.getElementById('scene2-label-dx2');
+        const formula1 = document.getElementById('scene2-formula1');
+        const formula2 = document.getElementById('scene2-formula2');
+        const formula3 = document.getElementById('scene2-formula3');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepText = document.getElementById('scene2-step-text');
+        
+        function initLineAnimation(line) {
+            const length = line.getTotalLength();
+            line.style.strokeDasharray = length;
+            line.style.strokeDashoffset = length;
+        }
+        
+        initLineAnimation(redLine1);
+        initLineAnimation(redLine2);
+        initLineAnimation(blueLine1);
+        initLineAnimation(blueLine2);
+        
+        function setLineProgress(line, progress) {
+            if (!line) return;
+            const length = line.getTotalLength();
+            line.style.strokeDashoffset = length * (1 - progress);
+        }
+        
+        function renderStep() {
+            btnPrev.disabled = currentStep <= 0;
+            btnNext.disabled = currentStep >= totalSteps;
+            stepText.textContent = stepTexts[currentStep];
+            
+            const plankX = [0, 77, 77, 288, 288][currentStep];
+            const blockX = [0, 26, 26, 160, 160][currentStep];
+            plankGroup.style.transform = 'translate(' + plankX + 'px, 0)';
+            blockGroup.style.transform = 'translate(' + blockX + 'px, 0)';
+            
+            redLine1.style.opacity = currentStep >= 1 ? 1 : 0;
+            blueLine1.style.opacity = currentStep >= 1 ? 1 : 0;
+            redLine2.style.opacity = currentStep >= 3 ? 1 : 0;
+            blueLine2.style.opacity = currentStep >= 3 ? 1 : 0;
+            
+            setLineProgress(redLine1, currentStep >= 1 ? 1 : 0);
+            setLineProgress(blueLine1, currentStep >= 1 ? 1 : 0);
+            setLineProgress(redLine2, currentStep >= 3 ? 1 : 0);
+            setLineProgress(blueLine2, currentStep >= 3 ? 1 : 0);
+            
+            markLine.style.opacity = currentStep >= 2 ? 1 : 0;
+            finalNote.style.opacity = currentStep >= 4 ? 1 : 0;
+            labelAm.style.opacity = currentStep >= 1 ? 1 : 0;
+            labelAM1.style.opacity = currentStep >= 1 ? 1 : 0;
+            labelAM2.style.opacity = currentStep >= 3 ? 1 : 0;
+            labelT.style.opacity = currentStep >= 2 ? 1 : 0;
+            label2_5t.style.opacity = currentStep >= 3 ? 1 : 0;
+            labelFActive.style.opacity = (currentStep >= 1 && currentStep <= 2) ? 1 : 0;
+            labelFRemove.style.opacity = currentStep >= 3 ? 1 : 0;
+            auxLine.style.opacity = currentStep >= 2 ? 1 : 0;
+            labelVm.style.opacity = currentStep >= 2 ? 1 : 0;
+            labelVM.style.opacity = currentStep >= 2 ? 1 : 0;
+            areaDx1.style.opacity = currentStep >= 4 ? 1 : 0;
+            areaDx2.style.opacity = currentStep >= 4 ? 1 : 0;
+            labelDx1.style.opacity = currentStep >= 4 ? 1 : 0;
+            labelDx2.style.opacity = currentStep >= 4 ? 1 : 0;
+            formula1.style.opacity = currentStep >= 4 ? 1 : 0;
+            formula2.style.opacity = currentStep >= 4 ? 1 : 0;
+            formula3.style.opacity = currentStep >= 4 ? 1 : 0;
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

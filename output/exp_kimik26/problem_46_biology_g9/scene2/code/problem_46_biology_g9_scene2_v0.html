@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNA 半保留复制与突变传递</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+
+        /* 统计面板（HTML div，避免SVG重叠检测误报） */
+        #scene2-stat-panel {
+            position: absolute; top: 45px; right: 15px; width: 300px;
+            background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 4px;
+            padding: 14px 18px; box-sizing: border-box; z-index: 5;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        }
+        #scene2-stat-title { font-size: 15px; font-weight: bold; color: #333; text-align: center; margin-bottom: 14px; }
+        .scene2-stat-line { font-size: 13px; color: #444; line-height: 2.1; margin: 0; }
+        .scene2-conclusion-red { font-size: 14px; font-weight: bold; color: #c62828; line-height: 1.7; margin-top: 10px; }
+        .scene2-hint { font-size: 12px; color: #666; line-height: 1.5; margin-top: 10px; padding: 8px; border: 1px dashed #888; border-radius: 2px; }
+        .scene2-legend { font-size: 12px; color: #555; margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+        .scene2-legend-box { width: 30px; height: 8px; border-radius: 1px; display: inline-block; }
+
+        /* 控件栏 */
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 24px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            background: #e3f2fd; border: 1px solid #1565c0; color: #1565c0; border-radius: 4px;
+            transition: all 0.2s; font-family: inherit;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #bbdefb; }
+        #scene2-controls button:disabled {
+            background: #f5f5f5; border-color: #bdbdbd; color: #9e9e9e; cursor: not-allowed;
+        }
+        #scene2-scene-info { text-align: center; font-size: 13px; color: #555; line-height: 1.5; }
+        #scene2-step-indicator { font-size: 12px; color: #888; margin-top: 2px; }
+
+        svg { display: block; }
+        .scene2-element { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <style>
+                    .scene2-title-text { font-size: 16px; font-weight: bold; fill: #333; text-anchor: middle; }
+                    .scene2-label { font-size: 13px; fill: #555; text-anchor: middle; }
+                </style>
+            </defs>
+
+            <!-- ========== 标题 ========== -->
+            <text id="scene2-title-iso" class="scene2-element scene2-title-text" data-steps="0,1,2,3" x="400" y="42" style="display:none">DNA 半保留复制（同位素标记）</text>
+            <text id="scene2-title-mut" class="scene2-element scene2-title-text" data-steps="4,5,6,7" x="400" y="42" style="display:none">单碱基突变的复制传递</text>
+
+            <!-- ========== 同位素场景 ========== -->
+            <!-- 第0代 DNA -->
+            <rect id="scene2-iso-gen0-top" class="scene2-element" data-steps="0,1,2,3" x="185" y="83" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen0-bottom" class="scene2-element" data-steps="0,1,2,3" x="185" y="95" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <text id="scene2-iso-gen0-label-n15" class="scene2-element scene2-label" data-steps="0,1,2,3" x="230" y="76" style="display:none">¹⁵N</text>
+            <text id="scene2-iso-gen0-label-orig" class="scene2-element scene2-label" data-steps="0,1,2,3" x="230" y="118" style="display:none">原始</text>
+
+            <!-- 复制叉 -->
+            <line id="scene2-iso-fork-stem" class="scene2-element" data-steps="1,2,3" x1="230" y1="103" x2="230" y2="115" stroke="#000" stroke-width="2" style="display:none"/>
+            <line id="scene2-iso-fork-left" class="scene2-element" data-steps="1,2,3" x1="230" y1="115" x2="145" y2="140" stroke="#000" stroke-width="2" style="display:none"/>
+            <line id="scene2-iso-fork-right" class="scene2-element" data-steps="1,2,3" x1="230" y1="115" x2="315" y2="140" stroke="#000" stroke-width="2" style="display:none"/>
+
+            <!-- 第1代 DNA -->
+            <rect id="scene2-iso-gen1-1-top" class="scene2-element" data-steps="1,2,3" x="100" y="153" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen1-1-bottom" class="scene2-element" data-steps="1,2,3" x="100" y="165" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen1-2-top" class="scene2-element" data-steps="1,2,3" x="270" y="153" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen1-2-bottom" class="scene2-element" data-steps="1,2,3" x="270" y="165" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+
+            <!-- 第1代连接线 -->
+            <line id="scene2-iso-link-fork-g1-1" class="scene2-element" data-steps="1,2,3" x1="145" y1="140" x2="145" y2="153" stroke="#888" stroke-width="1" stroke-dasharray="4,3" style="display:none"/>
+            <line id="scene2-iso-link-fork-g1-2" class="scene2-element" data-steps="1,2,3" x1="315" y1="140" x2="315" y2="153" stroke="#888" stroke-width="1" stroke-dasharray="4,3" style="display:none"/>
+
+            <!-- 第2代 DNA -->
+            <rect id="scene2-iso-gen2-1-top" class="scene2-element" data-steps="2,3" x="30" y="223" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen2-1-bottom" class="scene2-element" data-steps="2,3" x="30" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen2-2-top" class="scene2-element" data-steps="2,3" x="140" y="223" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen2-2-bottom" class="scene2-element" data-steps="2,3" x="140" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen2-3-top" class="scene2-element" data-steps="2,3" x="250" y="223" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen2-3-bottom" class="scene2-element" data-steps="2,3" x="250" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen2-4-top" class="scene2-element" data-steps="2,3" x="360" y="223" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen2-4-bottom" class="scene2-element" data-steps="2,3" x="360" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+
+            <!-- 第2代连接线 -->
+            <path id="scene2-iso-link-g1-1-g2-1" class="scene2-element" data-steps="2,3" d="M145,173 L145,198 L75,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g1-1-g2-2" class="scene2-element" data-steps="2,3" d="M145,198 L185,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g1-2-g2-3" class="scene2-element" data-steps="2,3" d="M315,173 L315,198 L295,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g1-2-g2-4" class="scene2-element" data-steps="2,3" d="M315,198 L405,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+
+            <!-- 第3代上行 DNA -->
+            <rect id="scene2-iso-gen3-up-1-top" class="scene2-element" data-steps="3" x="30" y="303" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-1-bottom" class="scene2-element" data-steps="3" x="30" y="315" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-2-top" class="scene2-element" data-steps="3" x="140" y="303" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-2-bottom" class="scene2-element" data-steps="3" x="140" y="315" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-3-top" class="scene2-element" data-steps="3" x="250" y="303" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-3-bottom" class="scene2-element" data-steps="3" x="250" y="315" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-4-top" class="scene2-element" data-steps="3" x="360" y="303" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-up-4-bottom" class="scene2-element" data-steps="3" x="360" y="315" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+
+            <!-- 第3代下行 DNA -->
+            <rect id="scene2-iso-gen3-down-1-top" class="scene2-element" data-steps="3" x="30" y="333" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-1-bottom" class="scene2-element" data-steps="3" x="30" y="345" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-2-top" class="scene2-element" data-steps="3" x="140" y="333" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-2-bottom" class="scene2-element" data-steps="3" x="140" y="345" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-3-top" class="scene2-element" data-steps="3" x="250" y="333" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-3-bottom" class="scene2-element" data-steps="3" x="250" y="345" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-4-top" class="scene2-element" data-steps="3" x="360" y="333" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-iso-gen3-down-4-bottom" class="scene2-element" data-steps="3" x="360" y="345" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+
+            <!-- 第3代连接线 -->
+            <path id="scene2-iso-link-g2-1-g3-up-1" class="scene2-element" data-steps="3" d="M75,243 L75,273 L75,303" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-1-g3-down-1" class="scene2-element" data-steps="3" d="M75,273 L75,333" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-2-g3-up-2" class="scene2-element" data-steps="3" d="M185,243 L185,273 L185,303" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-2-g3-down-2" class="scene2-element" data-steps="3" d="M185,273 L185,333" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-3-g3-up-3" class="scene2-element" data-steps="3" d="M295,243 L295,273 L295,303" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-3-g3-down-3" class="scene2-element" data-steps="3" d="M295,273 L295,333" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-4-g3-up-4" class="scene2-element" data-steps="3" d="M405,243 L405,273 L405,303" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-iso-link-g2-4-g3-down-4" class="scene2-element" data-steps="3" d="M405,273 L405,333" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+
+            <!-- ========== 突变场景 ========== -->
+            <!-- 第0代 DNA -->
+            <rect id="scene2-mut-gen0-top" class="scene2-element" data-steps="4,5,6,7" x="185" y="83" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <rect id="scene2-mut-gen0-bottom" class="scene2-element" data-steps="4,5,6,7" x="185" y="95" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <circle id="scene2-mut-gen0-mutation" class="scene2-element" data-steps="4,5,6,7" cx="215" cy="87" r="8" fill="#7b1fa2" opacity="0.3" style="display:none"/>
+            <text id="scene2-mut-gen0-label-site" class="scene2-element scene2-label" data-steps="4,5,6,7" x="215" y="40" style="display:none">突变位点</text>
+            <text id="scene2-mut-gen0-label-ta" class="scene2-element scene2-label" data-steps="4,5,6,7" x="215" y="72" style="display:none">T→A</text>
+            <text id="scene2-mut-gen0-label-orig" class="scene2-element scene2-label" data-steps="4,5,6,7" x="230" y="118" style="display:none">原始（突变）</text>
+
+            <!-- 突变场景复制叉 -->
+            <line id="scene2-mut-fork-stem" class="scene2-element" data-steps="5,6,7" x1="230" y1="103" x2="230" y2="115" stroke="#000" stroke-width="2" style="display:none"/>
+            <line id="scene2-mut-fork-left" class="scene2-element" data-steps="5,6,7" x1="230" y1="115" x2="145" y2="140" stroke="#000" stroke-width="2" style="display:none"/>
+            <line id="scene2-mut-fork-right" class="scene2-element" data-steps="5,6,7" x1="230" y1="115" x2="315" y2="140" stroke="#000" stroke-width="2" style="display:none"/>
+
+            <!-- 第1代 DNA -->
+            <rect id="scene2-mut-gen1-1-top" class="scene2-element" data-steps="5,6,7" x="100" y="153" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <circle id="scene2-mut-gen1-1-mutation" class="scene2-element" data-steps="5,6,7" cx="145" cy="157" r="8" fill="#7b1fa2" opacity="0.3" style="display:none"/>
+            <rect id="scene2-mut-gen1-1-bottom" class="scene2-element" data-steps="5,6,7" x="100" y="165" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen1-2-top" class="scene2-element" data-steps="5,6,7" x="270" y="153" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen1-2-bottom" class="scene2-element" data-steps="5,6,7" x="270" y="165" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+
+            <!-- 突变场景第1代连接线 -->
+            <line id="scene2-mut-link-fork-g1-1" class="scene2-element" data-steps="5,6,7" x1="145" y1="140" x2="145" y2="153" stroke="#888" stroke-width="1" stroke-dasharray="4,3" style="display:none"/>
+            <line id="scene2-mut-link-fork-g1-2" class="scene2-element" data-steps="5,6,7" x1="315" y1="140" x2="315" y2="153" stroke="#888" stroke-width="1" stroke-dasharray="4,3" style="display:none"/>
+
+            <!-- 第2代 DNA -->
+            <rect id="scene2-mut-gen2-1-top" class="scene2-element" data-steps="6,7" x="30" y="223" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <circle id="scene2-mut-gen2-1-mutation" class="scene2-element" data-steps="6,7" cx="75" cy="227" r="8" fill="#7b1fa2" opacity="0.3" style="display:none"/>
+            <rect id="scene2-mut-gen2-1-bottom" class="scene2-element" data-steps="6,7" x="30" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen2-2-top" class="scene2-element" data-steps="6,7" x="140" y="223" width="90" height="8" rx="2" fill="#c62828" style="display:none"/>
+            <circle id="scene2-mut-gen2-2-mutation" class="scene2-element" data-steps="6,7" cx="185" cy="227" r="8" fill="#7b1fa2" opacity="0.3" style="display:none"/>
+            <rect id="scene2-mut-gen2-2-bottom" class="scene2-element" data-steps="6,7" x="140" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen2-3-top" class="scene2-element" data-steps="6,7" x="250" y="223" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen2-3-bottom" class="scene2-element" data-steps="6,7" x="250" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen2-4-top" class="scene2-element" data-steps="6,7" x="360" y="223" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+            <rect id="scene2-mut-gen2-4-bottom" class="scene2-element" data-steps="6,7" x="360" y="235" width="90" height="8" rx="2" fill="#1565c0" style="display:none"/>
+
+            <!-- 突变场景第2代连接线 -->
+            <path id="scene2-mut-link-g1-1-g2-1" class="scene2-element" data-steps="6,7" d="M145,173 L145,198 L75,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-mut-link-g1-1-g2-2" class="scene2-element" data-steps="6,7" d="M145,198 L185,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-mut-link-g1-2-g2-3" class="scene2-element" data-steps="6,7" d="M315,173 L315,198 L295,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+            <path id="scene2-mut-link-g1-2-g2-4" class="scene2-element" data-steps="6,7" d="M315,198 L405,223" stroke="#888" stroke-width="1" stroke-dasharray="4,3" fill="none" style="display:none"/>
+        </svg>
+
+        <!-- 统计面板（HTML div） -->
+        <div id="scene2-stat-panel">
+            <div id="scene2-stat-title"></div>
+            <div id="scene2-stat-lines">
+                <p id="scene2-stat-line1" class="scene2-stat-line"></p>
+                <p id="scene2-stat-line2" class="scene2-stat-line"></p>
+                <p id="scene2-stat-line3" class="scene2-stat-line"></p>
+                <p id="scene2-stat-line4" class="scene2-stat-line"></p>
+                <p id="scene2-stat-line5" class="scene2-stat-line"></p>
+                <p id="scene2-stat-line6" class="scene2-stat-line"></p>
+            </div>
+            <div id="scene2-stat-conclusions">
+                <p id="scene2-stat-conclusion1" class="scene2-conclusion-red" style="display:none"></p>
+                <p id="scene2-stat-conclusion2" class="scene2-conclusion-red" style="display:none"></p>
+                <p id="scene2-stat-conclusion3" class="scene2-conclusion-red" style="display:none"></p>
+            </div>
+            <div id="scene2-stat-hint" class="scene2-hint" style="display:none">
+                <span id="scene2-stat-hint-text1"></span><br>
+                <span id="scene2-stat-hint-text2"></span>
+            </div>
+            <div id="scene2-stat-legend" style="display:none;">
+                <div class="scene2-legend"><span class="scene2-legend-box" style="background:#c62828;"></span>¹⁵N 链（母链）</div>
+                <div class="scene2-legend"><span class="scene2-legend-box" style="background:#1565c0;"></span>¹⁴N 链（子链）</div>
+            </div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <div id="scene2-scene-info">
+                <div id="scene2-scene-label">场景：同位素标记</div>
+                <div id="scene2-step-indicator">步骤 0 / 7</div>
+            </div>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 7;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const sceneLabel = document.getElementById('scene2-scene-label');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        const statTitle = document.getElementById('scene2-stat-title');
+        const statLines = [
+            document.getElementById('scene2-stat-line1'),
+            document.getElementById('scene2-stat-line2'),
+            document.getElementById('scene2-stat-line3'),
+            document.getElementById('scene2-stat-line4'),
+            document.getElementById('scene2-stat-line5'),
+            document.getElementById('scene2-stat-line6')
+        ];
+        const conclusion1 = document.getElementById('scene2-stat-conclusion1');
+        const conclusion2 = document.getElementById('scene2-stat-conclusion2');
+        const conclusion3 = document.getElementById('scene2-stat-conclusion3');
+        const hintBox = document.getElementById('scene2-stat-hint');
+        const hintText1 = document.getElementById('scene2-stat-hint-text1');
+        const hintText2 = document.getElementById('scene2-stat-hint-text2');
+        const legendBox = document.getElementById('scene2-stat-legend');
+
+        // 步骤配置
+        const stepConfigs = [
+            { // 步骤0：同位素初始
+                scene: '同位素标记',
+                statTitle: '原始 DNA',
+                statLines: ['类型：¹⁵N-¹⁵N（全重）', '状态：准备复制', '', '', '', ''],
+                conclusions: ['', '', ''],
+                hints: ['', ''],
+                showLegend: false
+            },
+            { // 步骤1：复制1次
+                scene: '同位素标记',
+                statTitle: '复制 1 次后',
+                statLines: ['总 DNA：2', '杂合 DNA（¹⁵N-¹⁴N）：2', '全轻 DNA（¹⁴N-¹⁴N）：0', '含 ¹⁴N 的 DNA：2', '比例：2/2 = 100%', ''],
+                conclusions: ['', '', ''],
+                hints: ['', ''],
+                showLegend: false
+            },
+            { // 步骤2：复制2次
+                scene: '同位素标记',
+                statTitle: '复制 2 次后',
+                statLines: ['总 DNA：4', '杂合 DNA（¹⁵N-¹⁴N）：2', '全轻 DNA（¹⁴N-¹⁴N）：2', '含 ¹⁴N 的 DNA：4', '比例：4/4 = 100%', ''],
+                conclusions: ['', '', ''],
+                hints: ['', ''],
+                showLegend: false
+            },
+            { // 步骤3：复制3次
+                scene: '同位素标记',
+                statTitle: '复制 3 次后',
+                statLines: ['总 DNA：8', '杂合 DNA（¹⁵N-¹⁴N）：2', '全轻 DNA（¹⁴N-¹⁴N）：6', '含 ¹⁴N 的 DNA：8', '比例：8/8 = 100%', ''],
+                conclusions: ['含 ¹⁴N 占 100%', '→ 选项 D 错误', ''],
+                hints: ['注：若问"只含 ¹⁴N"，', '则为 6/8 = 3/4'],
+                showLegend: true
+            },
+            { // 步骤4：突变场景初始
+                scene: '突变传递',
+                statTitle: '突变初始状态',
+                statLines: ['突变类型：T→A', '位置：①处后', '状态：单链突变', '', '', ''],
+                conclusions: ['', '', ''],
+                hints: ['', ''],
+                showLegend: false
+            },
+            { // 步骤5：突变复制1次
+                scene: '突变传递',
+                statTitle: '突变 DNA 复制 1 次',
+                statLines: ['总 DNA：2', '突变 DNA：1', '正常 DNA：1', '突变比例：1/2', '', ''],
+                conclusions: ['', '', ''],
+                hints: ['', ''],
+                showLegend: false
+            },
+            { // 步骤6：突变复制2次
+                scene: '突变传递',
+                statTitle: '突变 DNA 复制 2 次',
+                statLines: ['总 DNA：4', '突变 DNA：2', '正常 DNA：2', '突变比例：2/4 = 1/2', '', ''],
+                conclusions: ['', '', ''],
+                hints: ['', ''],
+                showLegend: false
+            },
+            { // 步骤7：推导n次
+                scene: '突变传递',
+                statTitle: '复制 n 次推导',
+                statLines: ['总 DNA：2ⁿ', '突变 DNA：2ⁿ⁻¹', '正常 DNA：2ⁿ⁻¹', '突变比例：2ⁿ⁻¹/2ⁿ = 1/2', '', ''],
+                conclusions: ['发生改变的基因占 1/2，', '而非 1/4', '→ 选项 C 错误'],
+                hints: ['', ''],
+                showLegend: false
+            }
+        ];
+
+        function renderStep() {
+            const config = stepConfigs[currentStep];
+
+            // 更新场景标签和步骤指示
+            sceneLabel.textContent = '场景：' + config.scene;
+            stepIndicator.textContent = '步骤 ' + currentStep + ' / ' + totalSteps;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+
+            // 显示/隐藏带有 data-steps 属性的 SVG 元素
+            document.querySelectorAll('[data-steps]').forEach(function(el) {
+                const stepsAttr = el.getAttribute('data-steps');
+                if (stepsAttr) {
+                    const steps = stepsAttr.split(',').map(function(s) { return parseInt(s.trim(), 10); });
+                    if (steps.indexOf(currentStep) !== -1) {
+                        el.style.display = 'block';
+                        el.style.opacity = '1';
+                    } else {
+                        el.style.display = 'none';
+                        el.style.opacity = '0';
+                    }
+                }
+            });
+
+            // 更新统计面板
+            statTitle.textContent = config.statTitle;
+            for (let i = 0; i < statLines.length; i++) {
+                statLines[i].textContent = config.statLines[i] || '';
+                statLines[i].style.display = config.statLines[i] ? 'block' : 'none';
+            }
+
+            // 更新结论
+            conclusion1.textContent = config.conclusions[0] || '';
+            conclusion1.style.display = config.conclusions[0] ? 'block' : 'none';
+            conclusion2.textContent = config.conclusions[1] || '';
+            conclusion2.style.display = config.conclusions[1] ? 'block' : 'none';
+            conclusion3.textContent = config.conclusions[2] || '';
+            conclusion3.style.display = config.conclusions[2] ? 'block' : 'none';
+
+            // 更新提示
+            if (config.hints[0]) {
+                hintText1.textContent = config.hints[0];
+                hintText2.textContent = config.hints[1] || '';
+                hintBox.style.display = 'block';
+            } else {
+                hintBox.style.display = 'none';
+            }
+
+            // 更新图例
+            legendBox.style.display = config.showLegend ? 'block' : 'none';
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

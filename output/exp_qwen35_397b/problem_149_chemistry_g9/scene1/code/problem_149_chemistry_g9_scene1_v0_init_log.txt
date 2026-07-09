@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化学反应微观模拟图</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            min-width: 60px;
+            text-align: center;
+        }
+        .highlight {
+            stroke: #1565c0;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+            fill: none;
+        }
+        .label-text {
+            font-size: 14px;
+            fill: #000;
+        }
+        .label-highlight {
+            font-size: 16px;
+            fill: #c62828;
+            font-weight: bold;
+        }
+        .conclusion-text {
+            font-size: 16px;
+            fill: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 图例区背景 -->
+            <rect id="scene1-legend-bg" x="50" y="50" width="100" height="150" fill="#f5f5f5" stroke="#333" stroke-width="1"/>
+            
+            <!-- 图例：原子 a -->
+            <circle id="scene1-legend-a" cx="100" cy="80" r="6" fill="#1565c0"/>
+            <text id="scene1-label-a" x="115" y="85" class="label-text">a</text>
+            
+            <!-- 图例：原子 b -->
+            <circle id="scene1-legend-b" cx="100" cy="125" r="10" fill="#2e7d32"/>
+            <text id="scene1-label-b" x="115" y="130" class="label-text">b</text>
+            
+            <!-- 图例：原子 c -->
+            <circle id="scene1-legend-c" cx="100" cy="170" r="14" fill="#c62828"/>
+            <text id="scene1-label-c" x="115" y="175" class="label-text">c</text>
+            
+            <!-- 甲框（反应前） -->
+            <rect id="scene1-jia-box" x="180" y="80" width="240" height="140" fill="none" stroke="#333" stroke-width="1"/>
+            <text id="scene1-label-jia" x="300" y="245" class="label-text" text-anchor="middle">甲</text>
+            
+            <!-- 甲框内 a₂分子 (4个) - 两个小蓝圆相连 -->
+            <!-- a₂分子1 -->
+            <g id="scene1-jia-a2-1">
+                <circle cx="220" cy="110" r="6" fill="#1565c0"/>
+                <circle cx="232" cy="110" r="6" fill="#1565c0"/>
+                <line x1="226" y1="110" x2="226" y2="110" stroke="#000" stroke-width="1"/>
+            </g>
+            <!-- a₂分子2 -->
+            <g id="scene1-jia-a2-2">
+                <circle cx="220" cy="150" r="6" fill="#1565c0"/>
+                <circle cx="232" cy="150" r="6" fill="#1565c0"/>
+            </g>
+            <!-- a₂分子3 -->
+            <g id="scene1-jia-a2-3">
+                <circle cx="380" cy="110" r="6" fill="#1565c0"/>
+                <circle cx="392" cy="110" r="6" fill="#1565c0"/>
+            </g>
+            <!-- a₂分子4 -->
+            <g id="scene1-jia-a2-4">
+                <circle cx="380" cy="150" r="6" fill="#1565c0"/>
+                <circle cx="392" cy="150" r="6" fill="#1565c0"/>
+            </g>
+            
+            <!-- 甲框内 cb₂c 分子 (2个) - 红 - 绿 - 绿 - 红水平排列 -->
+            <!-- cb₂c 分子1 -->
+            <g id="scene1-jia-cb2c-1">
+                <circle cx="280" cy="110" r="14" fill="#c62828"/>
+                <circle cx="305" cy="110" r="10" fill="#2e7d32"/>
+                <circle cx="325" cy="110" r="10" fill="#2e7d32"/>
+                <circle cx="350" cy="110" r="14" fill="#c62828"/>
+            </g>
+            <!-- cb₂c 分子2 -->
+            <g id="scene1-jia-cb2c-2">
+                <circle cx="280" cy="160" r="14" fill="#c62828"/>
+                <circle cx="305" cy="160" r="10" fill="#2e7d32"/>
+                <circle cx="325" cy="160" r="10" fill="#2e7d32"/>
+                <circle cx="350" cy="160" r="14" fill="#c62828"/>
+            </g>
+            
+            <!-- 反应箭头 -->
+            <path id="scene1-arrow" d="M 430 140 L 460 140 L 460 130 L 470 140 L 460 150 L 460 140 L 430 140" fill="none" stroke="#333" stroke-width="2"/>
+            
+            <!-- 乙框（反应后） -->
+            <rect id="scene1-yi-box" x="480" y="80" width="240" height="140" fill="none" stroke="#333" stroke-width="1"/>
+            <text id="scene1-label-yi" x="600" y="245" class="label-text" text-anchor="middle">乙</text>
+            
+            <!-- 乙框内 c 原子 (2个) - 单独大红圆 -->
+            <circle id="scene1-yi-c-1" cx="520" cy="110" r="14" fill="#c62828"/>
+            <circle id="scene1-yi-c-2" cx="680" cy="140" r="14" fill="#c62828"/>
+            
+            <!-- 乙框内 b₂分子 (2个) - 两个中绿圆相连 -->
+            <!-- b₂分子1 -->
+            <g id="scene1-yi-b2-1">
+                <circle cx="580" cy="110" r="10" fill="#2e7d32"/>
+                <circle cx="595" cy="110" r="10" fill="#2e7d32"/>
+            </g>
+            <!-- b₂分子2 -->
+            <g id="scene1-yi-b2-2">
+                <circle cx="580" cy="160" r="10" fill="#2e7d32"/>
+                <circle cx="595" cy="160" r="10" fill="#2e7d32"/>
+            </g>
+            
+            <!-- 乙框内 a₂b 分子 (4个) - 两个小蓝圆 + 一个中绿圆 -->
+            <!-- a₂b 分子1 -->
+            <g id="scene1-yi-a2b-1">
+                <circle cx="530" cy="160" r="6" fill="#1565c0"/>
+                <circle cx="542" cy="160" r="6" fill="#1565c0"/>
+                <circle cx="536" cy="172" r="10" fill="#2e7d32"/>
+            </g>
+            <!-- a₂b 分子2 -->
+            <g id="scene1-yi-a2b-2">
+                <circle cx="630" cy="180" r="6" fill="#1565c0"/>
+                <circle cx="642" cy="180" r="6" fill="#1565c0"/>
+                <circle cx="636" cy="192" r="10" fill="#2e7d32"/>
+            </g>
+            <!-- a₂b 分子3 -->
+            <g id="scene1-yi-a2b-3">
+                <circle cx="650" cy="90" r="6" fill="#1565c0"/>
+                <circle cx="662" cy="90" r="6" fill="#1565c0"/>
+                <circle cx="656" cy="102" r="10" fill="#2e7d32"/>
+            </g>
+            <!-- a₂b 分子4 -->
+            <g id="scene1-yi-a2b-4">
+                <circle cx="550" cy="190" r="6" fill="#1565c0"/>
+                <circle cx="562" cy="190" r="6" fill="#1565c0"/>
+                <circle cx="556" cy="202" r="10" fill="#2e7d32"/>
+            </g>
+            
+            <!-- 高亮框（动态显示） -->
+            <rect id="scene1-highlight-box" class="highlight" x="0" y="0" width="0" height="0" style="opacity: 0;"/>
+            
+            <!-- 动态标签 -->
+            <text id="scene1-label-a2-count" x="300" y="60" class="label-text" text-anchor="middle" style="opacity: 0;">4 个 a₂</text>
+            <text id="scene1-label-cb2c-count" x="300" y="225" class="label-text" text-anchor="middle" style="opacity: 0;">2 个 cb₂c</text>
+            <text id="scene1-label-c-atom" x="730" y="140" class="label-text" style="opacity: 0;">c 原子</text>
+            <text id="scene1-label-b2-mol" x="730" y="120" class="label-text" style="opacity: 0;">b₂分子</text>
+            <text id="scene1-label-product" x="600" y="60" class="label-highlight" text-anchor="middle" style="opacity: 0;">生成物</text>
+            <text id="scene1-conclusion" x="400" y="280" class="conclusion-text" text-anchor="middle" style="opacity: 0;">乙框中属于生成物的粒子有 1 种：a₂b</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 状态配置
+        const steps = [
+            { // 步骤 0: 初始状态
+                highlightBox: null,
+                labels: []
+            },
+            { // 步骤 1: 高亮甲框中的 4 个 a₂分子
+                highlightBox: { x: 210, y: 95, width: 190, height: 70 },
+                labels: ['scene1-label-a2-count']
+            },
+            { // 步骤 2: 保持步骤 1，新增高亮 cb₂c 分子
+                highlightBox: { x: 210, y: 95, width: 190, height: 110 },
+                labels: ['scene1-label-a2-count', 'scene1-label-cb2c-count']
+            },
+            { // 步骤 3: 高亮乙框中的 c 原子
+                highlightBox: null,
+                labels: ['scene1-label-c-atom'],
+                highlightElements: ['scene1-yi-c-1', 'scene1-yi-c-2']
+            },
+            { // 步骤 4: 保持步骤 3，新增高亮 b₂分子
+                highlightBox: null,
+                labels: ['scene1-label-c-atom', 'scene1-label-b2-mol'],
+                highlightElements: ['scene1-yi-c-1', 'scene1-yi-c-2', 'scene1-yi-b2-1', 'scene1-yi-b2-2']
+            },
+            { // 步骤 5: 高亮乙框中的 a₂b 分子（生成物）
+                highlightBox: { x: 515, y: 75, width: 160, height: 140 },
+                labels: ['scene1-label-product'],
+                highlightElements: ['scene1-yi-a2b-1', 'scene1-yi-a2b-2', 'scene1-yi-a2b-3', 'scene1-yi-a2b-4']
+            },
+            { // 步骤 6: 显示结论
+                highlightBox: { x: 515, y: 75, width: 160, height: 140 },
+                labels: ['scene1-label-product', 'scene1-conclusion'],
+                highlightElements: ['scene1-yi-a2b-1', 'scene1-yi-a2b-2', 'scene1-yi-a2b-3', 'scene1-yi-a2b-4']
+            }
+        ];
+        
+        let currentState = 0;
+        
+        const highlightBox = document.getElementById('scene1-highlight-box');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // 所有动态标签
+        const allLabels = [
+            'scene1-label-a2-count',
+            'scene1-label-cb2c-count',
+            'scene1-label-c-atom',
+            'scene1-label-b2-mol',
+            'scene1-label-product',
+            'scene1-conclusion'
+        ];
+        
+        // 需要高亮的元素
+        const allHighlightElements = [
+            'scene1-yi-c-1', 'scene1-yi-c-2',
+            'scene1-yi-b2-1', 'scene1-yi-b2-2',
+            'scene1-yi-a2b-1', 'scene1-yi-a2b-2',
+            'scene1-yi-a2b-3', 'scene1-yi-a2b-4'
+        ];
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = '';
+            }
+        }
+        
+        function updateState() {
+            const step = steps[currentState];
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentState + '/6';
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === 6);
+            
+            // 隐藏所有标签
+            allLabels.forEach(id => hideElement(id));
+            
+            // 隐藏所有高亮元素样式
+            allHighlightElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.opacity = '1';
+                    el.style.filter = '';
+                }
+            });
+            
+            // 隐藏高亮框
+            highlightBox.style.opacity = '0';
+            highlightBox.setAttribute('width', '0');
+            highlightBox.setAttribute('height', '0');
+            
+            // 显示当前步骤的标签
+            step.labels.forEach(id => showElement(id));
+            
+            // 显示高亮框
+            if (step.highlightBox) {
+                highlightBox.setAttribute('x', step.highlightBox.x);
+                highlightBox.setAttribute('y', step.highlightBox.y);
+                highlightBox.setAttribute('width', step.highlightBox.width);
+                highlightBox.setAttribute('height', step.highlightBox.height);
+                highlightBox.style.opacity = '1';
+            }
+            
+            // 高亮特定元素
+            if (step.highlightElements) {
+                step.highlightElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.filter = 'brightness(1.3)';
+                    }
+                });
+            }
+        }
+        
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < 6) {
+                currentState++;
+                updateState();
+            }
+        });
+        
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

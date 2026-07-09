@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化学平衡容器初始状态对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-step-indicator { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        .scene1-btn { padding: 8px 20px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene1-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-highlight-blue { stroke: #1565c0; stroke-width: 3px; }
+        .scene1-highlight-red { fill: #c62828; }
+        .scene1-highlight-green { stroke: #2e7d32; stroke-width: 3px; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene1-title" x="400" y="55" text-anchor="middle" font-size="20" font-weight="bold" fill="#000">三个容器的初始状态对比</text>
+            
+            <!-- 甲容器 -->
+            <g id="scene1-group-a" style="display: none;">
+                <rect id="scene1-container-a" x="80" y="110" width="200" height="150" fill="none" stroke="#000" stroke-width="2"/>
+                <text id="scene1-text-a" x="180" y="160" text-anchor="middle" font-size="14" fill="#000">0.2 mol</text>
+                <text id="scene1-text-a2" x="180" y="185" text-anchor="middle" font-size="14" fill="#000">NO₂</text>
+                <text id="scene1-label-a" x="180" y="280" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">甲</text>
+                <text id="scene1-type-a" x="180" y="300" text-anchor="middle" font-size="14" fill="#000">恒容</text>
+            </g>
+            
+            <!-- 乙容器 -->
+            <g id="scene1-group-b" style="display: none;">
+                <rect id="scene1-container-b" x="300" y="110" width="200" height="150" fill="none" stroke="#000" stroke-width="2"/>
+                <rect id="scene1-piston" x="320" y="90" width="160" height="20" fill="#cccccc" stroke="#000" stroke-width="2"/>
+                <text id="scene1-text-b" x="400" y="160" text-anchor="middle" font-size="14" fill="#000">0.2 mol</text>
+                <text id="scene1-text-b2" x="400" y="185" text-anchor="middle" font-size="14" fill="#000">NO₂</text>
+                <text id="scene1-label-b" x="400" y="280" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">乙</text>
+                <text id="scene1-type-b" x="400" y="300" text-anchor="middle" font-size="14" fill="#000">恒压</text>
+            </g>
+            
+            <!-- 丙容器 -->
+            <g id="scene1-group-c" style="display: none;">
+                <rect id="scene1-container-c" x="520" y="110" width="200" height="150" fill="none" stroke="#000" stroke-width="2"/>
+                <text id="scene1-text-c" x="620" y="160" text-anchor="middle" font-size="14" fill="#000">0.1 mol</text>
+                <text id="scene1-text-c2" x="620" y="185" text-anchor="middle" font-size="14" fill="#000">N₂O₄</text>
+                <text id="scene1-label-c" x="620" y="280" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">丙</text>
+                <text id="scene1-type-c" x="620" y="300" text-anchor="middle" font-size="14" fill="#000">恒容</text>
+            </g>
+            
+            <!-- 底部信息栏 -->
+            <g id="scene1-info-bar" style="display: none;">
+                <rect id="scene1-info-rect" x="100" y="360" width="600" height="40" fill="#f5f5f5" stroke="#000" stroke-width="1"/>
+                <text id="scene1-info-text" x="400" y="385" text-anchor="middle" font-size="14" fill="#000">初始容积相等、温度相同</text>
+            </g>
+        </svg>
+        
+        <div id="scene1-step-indicator">步骤 1/5</div>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // 甲容器：(80,110)-(280,260) | 内容文字 (180,160/185) | 标签 (180,280) | 类型标签 (180,300)
+        // 乙容器：(300,110)-(500,260) | 活塞 (320,90)-(480,110) | 内容文字 (400,160/185) | 标签 (400,280) | 类型标签 (400,300)
+        // 丙容器：(520,110)-(720,260) | 内容文字 (620,160/185) | 标签 (620,280) | 类型标签 (620,300)
+        // 信息栏：(100,360)-(700,400) | 文字 (400,385)
+        // 标题：(400,55)
+        
+        const MAX_STEP = 4;
+        let currentStep = 0;
+        
+        // 元素引用
+        const groupA = document.getElementById('scene1-group-a');
+        const groupB = document.getElementById('scene1-group-b');
+        const groupC = document.getElementById('scene1-group-c');
+        const infoBar = document.getElementById('scene1-info-bar');
+        const containerA = document.getElementById('scene1-container-a');
+        const piston = document.getElementById('scene1-piston');
+        const containerC = document.getElementById('scene1-container-c');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 工具函数：显示/隐藏元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 移除所有高亮
+        function clearHighlights() {
+            containerA.classList.remove('scene1-highlight-blue');
+            piston.classList.remove('scene1-highlight-red');
+            containerC.classList.remove('scene1-highlight-green');
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有容器组
+            hide(groupA);
+            hide(groupB);
+            hide(groupC);
+            hide(infoBar);
+            
+            // 清除所有高亮
+            clearHighlights();
+            
+            // 根据步骤显示对应元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示标题
+                    stepIndicator.textContent = '步骤 1/5';
+                    btnPrev.disabled = true;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 1:
+                    // 显示甲容器
+                    show(groupA);
+                    containerA.classList.add('scene1-highlight-blue');
+                    stepIndicator.textContent = '步骤 2/5';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 2:
+                    // 显示甲、乙容器
+                    show(groupA);
+                    show(groupB);
+                    piston.classList.add('scene1-highlight-red');
+                    stepIndicator.textContent = '步骤 3/5';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 3:
+                    // 显示甲、乙、丙容器
+                    show(groupA);
+                    show(groupB);
+                    show(groupC);
+                    containerC.classList.add('scene1-highlight-green');
+                    stepIndicator.textContent = '步骤 4/5';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 4:
+                    // 完整显示：三个容器 + 信息栏，移除高亮
+                    show(groupA);
+                    show(groupB);
+                    show(groupC);
+                    show(infoBar);
+                    stepIndicator.textContent = '步骤 5/5';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = true;
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < MAX_STEP) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

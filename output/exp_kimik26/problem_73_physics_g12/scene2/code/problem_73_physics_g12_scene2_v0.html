@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - v-t图像与电功率计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #1565c0; border-radius: 4px; background: #1565c0; color: #fff;
+            transition: background 200ms, opacity 200ms;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #0d47a1; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; background: #90a4ae; border-color: #90a4ae; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+
+        /* Step elements: hidden by default using display:none to remove from layout */
+        .scene2-step-el {
+            display: none;
+            opacity: 0;
+            transition: opacity 300ms ease;
+        }
+        .scene2-step-el.active {
+            display: block;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ===== v-t 坐标系 ===== -->
+            <!-- 横轴 t -->
+            <line x1="60" y1="380" x2="400" y2="380" stroke="#000000" stroke-width="1.5" />
+            <polygon points="400,380 392,376 392,384" fill="#000000" />
+            <!-- 纵轴 v -->
+            <line x1="60" y1="380" x2="60" y2="80" stroke="#000000" stroke-width="1.5" />
+            <polygon points="60,80 56,88 64,88" fill="#000000" />
+            <!-- 轴名 -->
+            <text x="435" y="385" font-size="14" fill="#000000">t/s</text>
+            <text x="22" y="72" font-size="14" fill="#000000">v/(m·s⁻¹)</text>
+            <!-- 原点 -->
+            <text x="55" y="395" font-size="14" fill="#000000" text-anchor="end">0</text>
+            <!-- 纵轴刻度线与值 (0~5, 去掉6避免与轴名重叠) -->
+            <line x1="55" y1="330" x2="60" y2="330" stroke="#000000" stroke-width="1" />
+            <text x="45" y="335" font-size="13" fill="#000000" text-anchor="end">1</text>
+            <line x1="55" y1="280" x2="60" y2="280" stroke="#000000" stroke-width="1" />
+            <text x="45" y="285" font-size="13" fill="#000000" text-anchor="end">2</text>
+            <line x1="55" y1="230" x2="60" y2="230" stroke="#000000" stroke-width="1" />
+            <text x="45" y="235" font-size="13" fill="#000000" text-anchor="end">3</text>
+            <line x1="55" y1="180" x2="60" y2="180" stroke="#000000" stroke-width="1" />
+            <text x="45" y="185" font-size="13" fill="#000000" text-anchor="end">4</text>
+            <line x1="55" y1="130" x2="60" y2="130" stroke="#000000" stroke-width="1" />
+            <text x="35" y="135" font-size="14" fill="#1565c0" font-weight="bold" text-anchor="end">5</text>
+            <!-- 横轴刻度线与值 -->
+            <line x1="109" y1="380" x2="109" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="109" y="400" font-size="13" fill="#000000" text-anchor="middle">0.5</text>
+            <line x1="157" y1="380" x2="157" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="157" y="400" font-size="13" fill="#000000" text-anchor="middle">1</text>
+            <line x1="206" y1="380" x2="206" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="206" y="400" font-size="13" fill="#000000" text-anchor="middle">1.5</text>
+            <line x1="254" y1="380" x2="254" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="254" y="400" font-size="13" fill="#000000" text-anchor="middle">2</text>
+            <line x1="303" y1="380" x2="303" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="303" y="400" font-size="13" fill="#000000" text-anchor="middle">2.5</text>
+            <line x1="351" y1="380" x2="351" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="351" y="400" font-size="13" fill="#000000" text-anchor="middle">3</text>
+            <line x1="400" y1="380" x2="400" y2="385" stroke="#000000" stroke-width="1" />
+            <text x="400" y="400" font-size="13" fill="#000000" text-anchor="middle">3.5</text>
+
+            <!-- ===== v-t 曲线 ===== -->
+            <path id="scene2-vt-curve"
+                  d="M 60 380 L 89 315 L 118 267 L 147 232 L 177 205 L 206 186 L 235 171 L 264 161 L 293 153 L 322 147 L 351 142 L 400 137"
+                  fill="none" stroke="#1565c0" stroke-width="2.5" stroke-linejoin="round" />
+
+            <!-- ===== 渐近线 v = v_m ===== -->
+            <line id="scene2-asymptote" x1="60" y1="130" x2="400" y2="130"
+                  stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" />
+            <text id="scene2-asymptote-label" x="405" y="125" font-size="13" fill="#888888">v_m = 5 m/s</text>
+
+            <!-- ===== 小插图：斜面导体棒示意 ===== -->
+            <g id="scene2-inset">
+                <!-- 斜面框（平行四边形） -->
+                <polygon points="140,65 220,65 235,45 155,45" fill="none" stroke="#000000" stroke-width="1" />
+                <!-- 导体棒 MN -->
+                <line x1="150" y1="55" x2="230" y2="55" stroke="#000000" stroke-width="3" />
+                <!-- M 标签 -->
+                <text x="145" y="52" font-size="13" fill="#000000" text-anchor="end">M</text>
+                <!-- N 标签 -->
+                <text x="242" y="55" font-size="13" fill="#000000">N</text>
+                <!-- B 箭头（垂直斜面向上） -->
+                <line x1="190" y1="55" x2="190" y2="35" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead)" />
+                <text x="192" y="35" font-size="13" fill="#000000">B</text>
+                <!-- θ=30° 标注 -->
+                <text x="215" y="90" font-size="12" fill="#000000">θ=30°</text>
+            </g>
+
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#000000" />
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- ===== 步骤1 标注（放在曲线左侧，避免与path bbox重叠） ===== -->
+            <g id="scene2-step1-group" class="scene2-step-el">
+                <circle cx="60" cy="380" r="4" fill="#c62828" />
+                <text x="20" y="350" font-size="14" fill="#c62828" font-weight="bold">a = 5 m/s²</text>
+            </g>
+
+            <!-- ===== 步骤3 标注（放在曲线右侧空白区） ===== -->
+            <g id="scene2-step3-group" class="scene2-step-el">
+                <text x="420" y="200" font-size="14" fill="#c62828" font-weight="bold">a ↓</text>
+            </g>
+
+            <!-- ===== 步骤4 标注 ===== -->
+            <g id="scene2-step4-group" class="scene2-step-el">
+                <text x="340" y="110" font-size="14" fill="#1565c0" font-weight="bold">v = v_m</text>
+                <text x="420" y="150" font-size="14" fill="#c62828" font-weight="bold">a = 0</text>
+            </g>
+
+            <!-- ===== 因果链（步骤2）——使用线框代替填充矩形，避免文字与矩形重叠检测 ===== -->
+            <g id="scene2-causal-chain" class="scene2-step-el">
+                <!-- 标题 -->
+                <text x="540" y="93" font-size="14" fill="#000000" font-weight="bold" text-anchor="middle">动态因果链</text>
+
+                <!-- 框1: v ↑ -->
+                <line x1="480" y1="110" x2="600" y2="110" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="138" x2="600" y2="138" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="110" x2="480" y2="138" stroke="#1565c0" stroke-width="1" />
+                <line x1="600" y1="110" x2="600" y2="138" stroke="#1565c0" stroke-width="1" />
+                <text x="540" y="126" font-size="13" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">v ↑</text>
+
+                <!-- 箭头1 -->
+                <line x1="540" y1="138" x2="540" y2="153" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrowhead-blue)" />
+
+                <!-- 框2: E = BLv ↑ -->
+                <line x1="480" y1="153" x2="600" y2="153" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="181" x2="600" y2="181" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="153" x2="480" y2="181" stroke="#1565c0" stroke-width="1" />
+                <line x1="600" y1="153" x2="600" y2="181" stroke="#1565c0" stroke-width="1" />
+                <text x="540" y="169" font-size="13" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">E = BLv ↑</text>
+
+                <!-- 箭头2 -->
+                <line x1="540" y1="181" x2="540" y2="196" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrowhead-blue)" />
+
+                <!-- 框3: I = E/R ↑ -->
+                <line x1="480" y1="196" x2="600" y2="196" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="224" x2="600" y2="224" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="196" x2="480" y2="224" stroke="#1565c0" stroke-width="1" />
+                <line x1="600" y1="196" x2="600" y2="224" stroke="#1565c0" stroke-width="1" />
+                <text x="540" y="212" font-size="13" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">I = E/R ↑</text>
+
+                <!-- 箭头3 -->
+                <line x1="540" y1="224" x2="540" y2="239" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrowhead-blue)" />
+
+                <!-- 框4: F_安 = BIL ↑ -->
+                <line x1="480" y1="239" x2="600" y2="239" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="267" x2="600" y2="267" stroke="#1565c0" stroke-width="1" />
+                <line x1="480" y1="239" x2="480" y2="267" stroke="#1565c0" stroke-width="1" />
+                <line x1="600" y1="239" x2="600" y2="267" stroke="#1565c0" stroke-width="1" />
+                <text x="540" y="255" font-size="13" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">F_安 = BIL ↑</text>
+            </g>
+
+            <!-- ===== 公式推导区（动态内容，单组） ===== -->
+            <g id="scene2-formula-content" class="scene2-step-el">
+                <!-- 内容将由 JS 动态填充 -->
+            </g>
+
+            <!-- ===== 步骤5 渐近线高亮 ===== -->
+            <g id="scene2-step5-highlight" class="scene2-step-el">
+                <line x1="60" y1="130" x2="400" y2="130" stroke="#1565c0" stroke-width="2.5" stroke-dasharray="6,4" />
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0 / 5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const indicator = document.getElementById('scene2-step-indicator');
+        const formulaContent = document.getElementById('scene2-formula-content');
+
+        // 各步骤对应的元素ID集合
+        const stepElementIds = {
+            0: [],
+            1: ['scene2-step1-group'],
+            2: ['scene2-causal-chain'],
+            3: ['scene2-step3-group'],
+            4: ['scene2-step4-group'],
+            5: ['scene2-step5-highlight']
+        };
+
+        // 公式内容模板（增大行间距至30px以上）
+        const formulaTemplates = {
+            1: `
+                <text x="470" y="280" font-size="14" fill="#000000" font-weight="bold">初始状态</text>
+                <text x="470" y="312" font-size="13" fill="#000000">t = 0,  v = 0</text>
+                <text x="470" y="344" font-size="13" fill="#000000">a = g·sinθ = 5 m/s²</text>
+            `,
+            3: `
+                <text x="470" y="280" font-size="14" fill="#000000" font-weight="bold">加速度变化</text>
+                <text x="470" y="312" font-size="13" fill="#000000">F_合 = mg·sinθ − F_安</text>
+                <text x="470" y="344" font-size="13" fill="#000000">a = F_合 / m</text>
+                <text x="470" y="376" font-size="13" fill="#000000">随 v 增大，a 减小</text>
+            `,
+            4: `
+                <text x="470" y="280" font-size="14" fill="#000000" font-weight="bold">匀速平衡</text>
+                <text x="470" y="312" font-size="13" fill="#000000">v = v_m = 5 m/s</text>
+                <text x="470" y="344" font-size="13" fill="#000000">a = 0</text>
+                <text x="470" y="376" font-size="13" fill="#000000">F_安 = mg·sinθ = 1 N</text>
+            `,
+            5: `
+                <text x="470" y="280" font-size="14" fill="#000000" font-weight="bold">电功率计算</text>
+                <text x="470" y="315" font-size="13" fill="#000000">① P = E²/R = (BLv_m)²/R = 5 W</text>
+                <text x="470" y="350" font-size="13" fill="#000000">② P = F_安·v_m = mg·sinθ·v_m = 5 W</text>
+                <text x="615" y="390" font-size="20" fill="#2e7d32" font-weight="bold" text-anchor="middle" text-decoration="underline">P = 5 W</text>
+            `
+        };
+
+        // 所有步骤相关的元素ID（用于统一隐藏）
+        const allStepEls = [
+            'scene2-step1-group',
+            'scene2-causal-chain',
+            'scene2-step3-group',
+            'scene2-step4-group',
+            'scene2-step5-highlight'
+        ];
+
+        function hideAllStepElements() {
+            allStepEls.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('active');
+                    el.style.display = 'none';
+                }
+            });
+            // 隐藏公式区
+            formulaContent.classList.remove('active');
+            formulaContent.style.display = 'none';
+            formulaContent.innerHTML = '';
+        }
+
+        function showElement(el) {
+            if (!el) return;
+            el.style.display = 'block';
+            // 强制重排以确保 display 生效后再改 opacity
+            requestAnimationFrame(() => {
+                el.classList.add('active');
+            });
+        }
+
+        function showStepElements(step) {
+            const ids = stepElementIds[step] || [];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                showElement(el);
+            });
+
+            // 显示公式内容
+            if (formulaTemplates[step]) {
+                formulaContent.innerHTML = formulaTemplates[step];
+                showElement(formulaContent);
+            }
+        }
+
+        function updateUI() {
+            indicator.textContent = '步骤 ' + currentStep + ' / ' + TOTAL_STEPS;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === TOTAL_STEPS;
+        }
+
+        function goToStep(step) {
+            if (step < 0 || step > TOTAL_STEPS) return;
+            currentStep = step;
+            hideAllStepElements();
+            showStepElements(currentStep);
+            updateUI();
+        }
+
+        btnPrev.addEventListener('click', () => goToStep(currentStep - 1));
+        btnNext.addEventListener('click', () => goToStep(currentStep + 1));
+
+        // 初始化
+        updateUI();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最低点受力分析与向心力公式</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #333; padding: 8px 16px; }
+        .hidden { display: none !important; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrowhead-gray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#888888" />
+                </marker>
+                <marker id="scene2-arrowhead-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#ff9800" />
+                </marker>
+            </defs>
+
+            <!-- 步骤 0: 基础元素（始终显示） -->
+            <g id="scene2-base-group">
+                <!-- 悬挂点 O -->
+                <circle id="scene2-suspend-point" cx="400" cy="80" r="8" fill="#1565c0" />
+                <text id="scene2-label-O" x="415" y="70" font-size="16" fill="#333">O</text>
+                
+                <!-- 绳子 -->
+                <line id="scene2-rope" x1="400" y1="80" x2="400" y2="280" stroke="#000000" stroke-width="3" />
+                <text id="scene2-label-l" x="420" y="180" font-size="16" fill="#333">l=2m</text>
+                
+                <!-- 质点 m -->
+                <circle id="scene2-mass" cx="400" cy="280" r="12" fill="#c62828" />
+                <text id="scene2-label-m" x="420" y="275" font-size="16" fill="#333">m=60kg</text>
+                
+                <!-- 速度 v 箭头 -->
+                <line id="scene2-arrow-velocity" x1="400" y1="280" x2="460" y2="280" stroke="#ff9800" stroke-width="3" marker-end="url(#scene2-arrowhead-orange)" />
+                <text id="scene2-label-v" x="430" y="260" font-size="16" fill="#ff9800">v=4m/s</text>
+            </g>
+
+            <!-- 步骤 1: 重力 mg -->
+            <g id="scene2-gravity-group" class="hidden">
+                <line id="scene2-arrow-gravity" x1="400" y1="280" x2="400" y2="350" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene2-arrowhead-green)" />
+                <text id="scene2-label-mg" x="415" y="320" font-size="16" fill="#2e7d32">mg</text>
+            </g>
+
+            <!-- 步骤 2: 拉力 F -->
+            <g id="scene2-tension-group" class="hidden">
+                <line id="scene2-arrow-tension" x1="400" y1="280" x2="400" y2="180" stroke="#1565c0" stroke-width="3" marker-end="url(#scene2-arrowhead-blue)" />
+                <text id="scene2-label-F" x="415" y="220" font-size="16" fill="#1565c0">F</text>
+            </g>
+
+            <!-- 步骤 3: 向心力 Fn + 公式 -->
+            <g id="scene2-centripetal-group" class="hidden">
+                <line id="scene2-arrow-centripetal" x1="400" y1="280" x2="400" y2="200" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#scene2-arrowhead-gray)" />
+                <text id="scene2-label-Fn" x="370" y="240" font-size="16" fill="#888888">Fn</text>
+                
+                <!-- 公式区 -->
+                <g id="scene2-formula-group">
+                    <text x="550" y="200" font-size="16" fill="#333">向心力公式：</text>
+                    <text x="550" y="230" font-size="16" fill="#333">F - mg = mv²/l</text>
+                    <text x="550" y="270" font-size="16" fill="#333">F = mg + mv²/l</text>
+                </g>
+            </g>
+
+            <!-- 步骤 4: 完整计算过程 -->
+            <g id="scene2-calculation-group" class="hidden">
+                <text x="550" y="320" font-size="16" fill="#333">F = 60×10 + 60×4²/2</text>
+                <text x="550" y="350" font-size="16" fill="#333">F = 600 + 480</text>
+                <text x="550" y="380" font-size="18" fill="#c62828" font-weight="bold">F = 1080 N</text>
+            </g>
+
+            <!-- 控件栏（放在 SVG 内部底部） -->
+            <g id="scene2-controls">
+                <rect x="0" y="440" width="800" height="60" fill="#ffffff" opacity="0.9" />
+                <text id="scene2-step-indicator" x="400" y="465" font-size="16" fill="#333" text-anchor="middle">步骤 0/4</text>
+                <rect id="scene2-btn-prev-bg" x="280" y="475" width="80" height="35" fill="#f5f5f5" stroke="#333" rx="4" />
+                <text id="scene2-btn-prev-text" x="320" y="498" font-size="14" fill="#333" text-anchor="middle">◀ 上一步</text>
+                <rect id="scene2-btn-next-bg" x="440" y="475" width="80" height="35" fill="#f5f5f5" stroke="#333" rx="4" />
+                <text id="scene2-btn-next-text" x="480" y="498" font-size="14" fill="#333" text-anchor="middle">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 最低点受力分析与向心力公式
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 元素引用
+        const gravityGroup = document.getElementById('scene2-gravity-group');
+        const tensionGroup = document.getElementById('scene2-tension-group');
+        const centripetalGroup = document.getElementById('scene2-centripetal-group');
+        const calculationGroup = document.getElementById('scene2-calculation-group');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const btnPrevBg = document.getElementById('scene2-btn-prev-bg');
+        const btnPrevText = document.getElementById('scene2-btn-prev-text');
+        const btnNextBg = document.getElementById('scene2-btn-next-bg');
+        const btnNextText = document.getElementById('scene2-btn-next-text');
+        const tensionArrow = document.getElementById('scene2-arrow-tension');
+
+        // 工具函数：显示/隐藏元素
+        function show(el) {
+            el.classList.remove('hidden');
+            el.style.display = '';
+            el.style.opacity = '1';
+        }
+
+        function hide(el) {
+            el.classList.add('hidden');
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            // 根据当前步骤显示/隐藏对应组
+            if (currentStep >= 1) {
+                show(gravityGroup);
+            } else {
+                hide(gravityGroup);
+            }
+
+            if (currentStep >= 2) {
+                show(tensionGroup);
+            } else {
+                hide(tensionGroup);
+            }
+
+            if (currentStep >= 3) {
+                show(centripetalGroup);
+            } else {
+                hide(centripetalGroup);
+            }
+
+            if (currentStep >= 4) {
+                show(calculationGroup);
+                // 加粗拉力箭头
+                tensionArrow.setAttribute('stroke-width', '5');
+            } else {
+                hide(calculationGroup);
+                tensionArrow.setAttribute('stroke-width', '3');
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            // 更新按钮状态
+            if (currentStep === 0) {
+                btnPrevBg.setAttribute('fill', '#e0e0e0');
+                btnPrevText.setAttribute('fill', '#999');
+            } else {
+                btnPrevBg.setAttribute('fill', '#f5f5f5');
+                btnPrevText.setAttribute('fill', '#333');
+            }
+
+            if (currentStep === totalSteps) {
+                btnNextBg.setAttribute('fill', '#e0e0e0');
+                btnNextText.setAttribute('fill', '#999');
+            } else {
+                btnNextBg.setAttribute('fill', '#f5f5f5');
+                btnNextText.setAttribute('fill', '#333');
+            }
+        }
+
+        // 按钮点击事件
+        btnPrevBg.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNextBg.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 添加点击反馈效果
+        btnPrevBg.style.cursor = 'pointer';
+        btnNextBg.style.cursor = 'pointer';
+
+        btnPrevBg.addEventListener('mouseenter', function() {
+            if (currentStep > 0) {
+                this.setAttribute('fill', '#e0e0e0');
+            }
+        });
+        btnPrevBg.addEventListener('mouseleave', function() {
+            if (currentStep > 0) {
+                this.setAttribute('fill', '#f5f5f5');
+            }
+        });
+
+        btnNextBg.addEventListener('mouseenter', function() {
+            if (currentStep < totalSteps) {
+                this.setAttribute('fill', '#e0e0e0');
+            }
+        });
+        btnNextBg.addEventListener('mouseleave', function() {
+            if (currentStep < totalSteps) {
+                this.setAttribute('fill', '#f5f5f5');
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

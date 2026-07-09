@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆剪拼成长方形 - 步骤演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 8px 20px; font-size: 14px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-text { font-size: 14px; line-height: 34px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 步骤编号（y=45，距顶部 45px，满足边缘要求） -->
+            <text id="scene1-step-number" x="400" y="45" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">步骤 0/4</text>
+            
+            <!-- 左侧圆区域 -->
+            <g id="scene1-circle-group">
+                <!-- 圆轮廓 -->
+                <circle id="scene1-circle" cx="160" cy="205" r="80" fill="none" stroke="#000" stroke-width="2"/>
+                <!-- 圆心点 -->
+                <circle id="scene1-center-point" cx="160" cy="205" r="4" fill="#000"/>
+                <!-- 圆心标签 O - 移到圆外左下方 -->
+                <text id="scene1-center-label" x="135" y="225" font-size="14" fill="#000">O</text>
+                <!-- 半径线段 -->
+                <line id="scene1-radius-line" x1="160" y1="205" x2="240" y2="205" stroke="#000" stroke-width="1.5"/>
+                <!-- 半径标签 - 移到圆外上方 -->
+                <text id="scene1-radius-label" x="200" y="165" text-anchor="middle" font-size="12" fill="#000">r=10cm</text>
+                <!-- 扇形分割线（初始隐藏） -->
+                <g id="scene1-sector-lines"></g>
+                <!-- 扇形填充（初始隐藏） -->
+                <g id="scene1-sector-fills"></g>
+            </g>
+            
+            <!-- 变换箭头 -->
+            <g id="scene1-arrow-group" opacity="0">
+                <line id="scene1-arrow-line" x1="260" y1="205" x2="320" y2="205" stroke="#e74c3c" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <defs>
+                    <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c"/>
+                    </marker>
+                </defs>
+                <text id="scene1-arrow-label" x="290" y="190" text-anchor="middle" font-size="12" fill="#e74c3c">剪拼变换</text>
+            </g>
+            
+            <!-- 右侧长方形区域 -->
+            <g id="scene1-rect-group" opacity="0">
+                <!-- 长方形轮廓 -->
+                <rect id="scene1-rect-outline" x="380" y="135" width="360" height="140" fill="none" stroke="#27ae60" stroke-width="2"/>
+                <!-- 长方形内部扇形 -->
+                <g id="scene1-rect-sectors"></g>
+                <!-- 标注 -->
+                <text id="scene1-rect-title" x="560" y="115" text-anchor="middle" font-size="14" fill="#27ae60">近似长方形</text>
+                <text id="scene1-rect-length" x="560" y="295" text-anchor="middle" font-size="12" fill="#27ae60">长≈πr</text>
+                <text id="scene1-rect-width" x="360" y="205" text-anchor="middle" font-size="12" fill="#27ae60">宽=r</text>
+            </g>
+            
+            <!-- 最终周长公式（步骤 4 显示） -->
+            <g id="scene1-formula-group" opacity="0">
+                <text id="scene1-formula-text" x="560" y="340" text-anchor="middle" font-size="14" fill="#e74c3c">C = 2×(πr + r) = 2×(31.4 + 10) = 82.8cm</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-text">步骤 0/4</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // ===== 场景 1：圆剪拼成长方形 =====
+        // 布局坐标表（参考）：
+        // 圆：圆心 (160,205), 半径 80
+        // 长方形：(380,135)-(740,275), 360×140
+        // 变换箭头：(260,205)-(320,205)
+        
+        const svg = document.getElementById('scene1-svg');
+        const stepNumberEl = document.getElementById('scene1-step-number');
+        const stepTextEl = document.getElementById('scene1-step-text');
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const circleGroup = document.getElementById('scene1-circle-group');
+        const arrowGroup = document.getElementById('scene1-arrow-group');
+        const rectGroup = document.getElementById('scene1-rect-group');
+        const formulaGroup = document.getElementById('scene1-formula-group');
+        const sectorLinesGroup = document.getElementById('scene1-sector-lines');
+        const sectorFillsGroup = document.getElementById('scene1-sector-fills');
+        const rectSectorsGroup = document.getElementById('scene1-rect-sectors');
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        const numSectors = 16; // 初始 16 等分
+        
+        // 初始化
+        function init() {
+            updateScene();
+            prevBtn.addEventListener('click', prevStep);
+            nextBtn.addEventListener('click', nextStep);
+        }
+        
+        // 更新场景
+        function updateScene() {
+            // 更新步骤显示
+            stepNumberEl.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            stepTextEl.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps);
+            
+            // 根据步骤更新显示
+            switch(currentStep) {
+                case 0:
+                    showStep0();
+                    break;
+                case 1:
+                    showStep1();
+                    break;
+                case 2:
+                    showStep2();
+                    break;
+                case 3:
+                    showStep3();
+                    break;
+                case 4:
+                    showStep4();
+                    break;
+            }
+        }
+        
+        // 步骤 0：完整圆形
+        function showStep0() {
+            // 圆：显示
+            circleGroup.style.opacity = '1';
+            // 隐藏扇形
+            sectorLinesGroup.innerHTML = '';
+            sectorFillsGroup.innerHTML = '';
+            // 箭头：隐藏
+            arrowGroup.style.opacity = '0';
+            // 长方形：隐藏
+            rectGroup.style.opacity = '0';
+            formulaGroup.style.opacity = '0';
+        }
+        
+        // 步骤 1：圆被等分成 16 个扇形
+        function showStep1() {
+            circleGroup.style.opacity = '1';
+            arrowGroup.style.opacity = '1';
+            
+            // 生成 16 个扇形
+            generateSectors(numSectors);
+            
+            // 长方形：隐藏
+            rectGroup.style.opacity = '0';
+            formulaGroup.style.opacity = '0';
+        }
+        
+        // 步骤 2：扇形分离
+        function showStep2() {
+            circleGroup.style.opacity = '1';
+            arrowGroup.style.opacity = '1';
+            rectGroup.style.opacity = '1';
+            
+            // 左侧圆保持 16 分割
+            generateSectors(numSectors);
+            
+            // 右侧显示分离的扇形（开始排列）
+            generateRectSectors(numSectors, 0.3); // 30% 完成度
+            
+            formulaGroup.style.opacity = '0';
+        }
+        
+        // 步骤 3：形成近似长方形
+        function showStep3() {
+            circleGroup.style.opacity = '1';
+            arrowGroup.style.opacity = '1';
+            rectGroup.style.opacity = '1';
+            
+            // 左侧圆保持 16 分割
+            generateSectors(numSectors);
+            
+            // 右侧形成完整长方形
+            generateRectSectors(numSectors, 1);
+            
+            formulaGroup.style.opacity = '0';
+        }
+        
+        // 步骤 4：32 分割，显示周长公式
+        function showStep4() {
+            circleGroup.style.opacity = '1';
+            arrowGroup.style.opacity = '1';
+            rectGroup.style.opacity = '1';
+            formulaGroup.style.opacity = '1';
+            
+            // 左侧圆增加至 32 分割
+            generateSectors(32);
+            
+            // 右侧 32 个扇形排列
+            generateRectSectors(32, 1);
+        }
+        
+        // 生成圆的扇形
+        function generateSectors(n) {
+            sectorLinesGroup.innerHTML = '';
+            sectorFillsGroup.innerHTML = '';
+            
+            const cx = 160, cy = 205, r = 80;
+            const angleStep = (2 * Math.PI) / n;
+            
+            for (let i = 0; i < n; i++) {
+                const startAngle = i * angleStep - Math.PI / 2;
+                const endAngle = (i + 1) * angleStep - Math.PI / 2;
+                
+                // 扇形分割线
+                const x = cx + r * Math.cos(endAngle);
+                const y = cy + r * Math.sin(endAngle);
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', cx);
+                line.setAttribute('y1', cy);
+                line.setAttribute('x2', x);
+                line.setAttribute('y2', y);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '1');
+                line.setAttribute('stroke-dasharray', '2,2');
+                sectorLinesGroup.appendChild(line);
+                
+                // 扇形填充（交替颜色）
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const largeArc = angleStep > Math.PI ? 1 : 0;
+                const d = `M ${cx} ${cy} L ${cx + r * Math.cos(startAngle)} ${cy + r * Math.sin(startAngle)} A ${r} ${r} 0 ${largeArc} 1 ${cx + r * Math.cos(endAngle)} ${cy + r * Math.sin(endAngle)} Z`;
+                path.setAttribute('d', d);
+                path.setAttribute('fill', i % 2 === 0 ? 'rgba(52, 152, 219, 0.3)' : 'rgba(255, 255, 255, 0.3)');
+                path.setAttribute('stroke', '#3498db');
+                path.setAttribute('stroke-width', '0.5');
+                sectorFillsGroup.appendChild(path);
+            }
+        }
+        
+        // 生成长方形内的扇形排列
+        function generateRectSectors(n, progress) {
+            rectSectorsGroup.innerHTML = '';
+            
+            const rectX = 380, rectY = 135, rectW = 360, rectH = 140;
+            const sectorW = rectW / n;
+            const sectorH = rectH;
+            
+            for (let i = 0; i < n; i++) {
+                const isUp = i % 2 === 0; // 偶数尖朝上，奇数尖朝下
+                const x = rectX + i * sectorW;
+                const y = isUp ? rectY : rectY + rectH;
+                
+                // 计算扇形顶点
+                const tipY = isUp ? rectY + rectH : rectY;
+                
+                // 创建扇形三角形
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const midX = x + sectorW / 2;
+                
+                // 锯齿状边缘（模拟圆弧）
+                const waveOffset = Math.sin(i * Math.PI * 2 / n) * 5 * progress;
+                
+                const d = isUp 
+                    ? `M ${x} ${rectY + rectH} L ${midX + waveOffset} ${rectY} L ${x + sectorW} ${rectY + rectH} Z`
+                    : `M ${x} ${rectY} L ${midX - waveOffset} ${rectY + rectH} L ${x + sectorW} ${rectY} Z`;
+                
+                path.setAttribute('d', d);
+                path.setAttribute('fill', isUp ? 'rgba(52, 152, 219, 0.5)' : 'rgba(200, 200, 200, 0.5)');
+                path.setAttribute('stroke', '#2c3e50');
+                path.setAttribute('stroke-width', '0.5');
+                rectSectorsGroup.appendChild(path);
+            }
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        }
+        
+        // 启动
+        init();
+    })();
+    </script>
+</body>
+</html>

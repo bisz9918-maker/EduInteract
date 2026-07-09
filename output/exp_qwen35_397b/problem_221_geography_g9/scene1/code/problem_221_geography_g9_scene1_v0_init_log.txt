@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昼夜分布与晨昏线综合分析</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 按钮样式 */
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .scene1-btn-primary {
+            background: #1976d2;
+            color: #ffffff;
+        }
+        .scene1-btn-primary:hover:not(:disabled) {
+            background: #1565c0;
+        }
+        .scene1-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        /* 控件栏 */
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 动画类 */
+        .scene1-fade-in {
+            animation: scene1FadeIn 0.5s ease forwards;
+        }
+        @keyframes scene1FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .scene1-draw-line {
+            stroke-dasharray: 400;
+            stroke-dashoffset: 400;
+            animation: scene1DrawLine 1s ease forwards;
+        }
+        @keyframes scene1DrawLine {
+            to { stroke-dashoffset: 0; }
+        }
+        .scene1-pulse {
+            animation: scene1Pulse 0.8s ease infinite;
+        }
+        @keyframes scene1Pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .scene1-scale {
+            animation: scene1Scale 0.6s ease forwards;
+        }
+        @keyframes scene1Scale {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.5); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 定义斜线填充图案 -->
+            <defs>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#888888" stroke-width="1" opacity="0.5"/>
+                </pattern>
+            </defs>
+
+            <!-- 图框 - 左侧图示区 -->
+            <rect id="scene1-frame" x="30" y="60" width="340" height="240" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 纬线 -->
+            <line id="scene1-lat-235n" x1="30" y1="100" x2="370" y2="100" stroke="#000000" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-lat-0" x1="30" y1="180" x2="370" y2="180" stroke="#000000" stroke-width="1"/>
+            <line id="scene1-lat-235s" x1="30" y1="260" x2="370" y2="260" stroke="#000000" stroke-width="1" stroke-dasharray="5,5"/>
+
+            <!-- 经线 -->
+            <line id="scene1-lon-375w" x1="110" y1="60" x2="110" y2="300" stroke="#000000" stroke-width="1"/>
+            <line id="scene1-lon-225w" x1="190" y1="60" x2="190" y2="300" stroke="#000000" stroke-width="1"/>
+
+            <!-- 晨昏线 -->
+            <line id="scene1-terminator" x1="145" y1="60" x2="285" y2="300" stroke="#1565c0" stroke-width="4" fill="none"/>
+
+            <!-- 阴影区（黑夜） -->
+            <polygon id="scene1-shadow" points="30,60 145,60 285,300 30,300" fill="url(#scene1-hatch)" opacity="0.3"/>
+
+            <!-- 东西半球分界虚线（步骤 2 显示） -->
+            <line id="scene1-hemisphere-boundary" x1="70" y1="60" x2="70" y2="300" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" opacity="0"/>
+
+            <!-- 直射点经线（步骤 4 显示） -->
+            <line id="scene1-solar-meridian" x1="285" y1="60" x2="285" y2="300" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+
+            <!-- 甲点 -->
+            <g id="scene1-point-a-group">
+                <circle id="scene1-point-a" cx="190" cy="180" r="6" fill="#c62828"/>
+            </g>
+
+            <!-- 乙点 -->
+            <circle id="scene1-point-b" cx="255" cy="260" r="6" fill="#2e7d32"/>
+
+            <!-- 纬度标签 - 移到图框右侧 -->
+            <text id="scene1-label-235n" x="400" y="105" font-size="14" fill="#333333">23.5°N</text>
+            <text id="scene1-label-0" x="400" y="185" font-size="14" fill="#333333">0°</text>
+            <text id="scene1-label-235s" x="400" y="265" font-size="14" fill="#333333">23.5°S</text>
+
+            <!-- 经度标签 -->
+            <text id="scene1-label-375" x="110" y="45" font-size="14" fill="#333333" text-anchor="middle">37.5</text>
+            <text id="scene1-label-225" x="190" y="45" font-size="14" fill="#333333" text-anchor="middle">22.5</text>
+
+            <!-- 点名标签 - 移到更右侧 -->
+            <text id="scene1-label-a" x="500" y="175" font-size="14" fill="#333333">甲</text>
+            <text id="scene1-label-b" x="500" y="255" font-size="14" fill="#333333">乙</text>
+
+            <!-- 晨线标签（步骤 1 显示） -->
+            <text id="scene1-label-morning" x="500" y="140" font-size="14" fill="#1565c0" font-weight="bold" opacity="0">晨线</text>
+
+            <!-- 6 时标签（步骤 3 显示） -->
+            <text id="scene1-label-6oclock" x="500" y="210" font-size="13" fill="#c62828" font-weight="bold" opacity="0">6 时</text>
+
+            <!-- 西半球标签（步骤 2 显示）- 移到阴影区内部，但使用白色文字 -->
+            <text id="scene1-label-western" x="100" y="180" font-size="14" fill="#ffffff" font-weight="bold" opacity="0">西半球</text>
+
+            <!-- 直射点标签（步骤 4 显示） -->
+            <text id="scene1-label-solar" x="285" y="45" font-size="13" fill="#1565c0" font-weight="bold" opacity="0" text-anchor="middle">直射点经度</text>
+
+            <!-- 说明文本区 - 移到底部，避免与任何标签重叠 -->
+            <g id="scene1-description-group">
+                <rect x="420" y="320" width="350" height="150" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="1" rx="4"/>
+                <text id="scene1-description" x="430" y="345" font-size="13" fill="#333333">
+                    <tspan x="430" dy="0">原图展示某日部分</tspan>
+                    <tspan x="430" dy="22">地区昼夜分布。阴</tspan>
+                    <tspan x="430" dy="22">影表示黑夜，白色</tspan>
+                    <tspan x="430" dy="22">表示白昼。观察晨</tspan>
+                    <tspan x="430" dy="22">昏线走向及甲、乙</tspan>
+                    <tspan x="430" dy="22">两地位置。</tspan>
+                </text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-primary">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn scene1-btn-primary">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：昼夜分布与晨昏线综合分析
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步配置
+        const steps = [
+            {
+                // 步骤 0：初始状态
+                show: ['scene1-frame', 'scene1-lat-235n', 'scene1-lat-0', 'scene1-lat-235s',
+                       'scene1-lon-375w', 'scene1-lon-225w', 'scene1-terminator', 'scene1-shadow',
+                       'scene1-point-a', 'scene1-point-b', 'scene1-point-a-group',
+                       'scene1-label-235n', 'scene1-label-0', 'scene1-label-235s',
+                       'scene1-label-375', 'scene1-label-225', 'scene1-label-a', 'scene1-label-b',
+                       'scene1-description-group'],
+                hide: ['scene1-label-morning', 'scene1-label-6oclock', 'scene1-label-western',
+                       'scene1-hemisphere-boundary', 'scene1-solar-meridian', 'scene1-label-solar'],
+                description: ['原图展示某日部分', '地区昼夜分布。阴', '影表示黑夜，白色', '表示白昼。观察晨', '昏线走向及甲、乙', '两地位置。']
+            },
+            {
+                // 步骤 1：高亮晨昏线，标注晨线
+                show: ['scene1-frame', 'scene1-lat-235n', 'scene1-lat-0', 'scene1-lat-235s',
+                       'scene1-lon-375w', 'scene1-lon-225w', 'scene1-terminator', 'scene1-shadow',
+                       'scene1-point-a', 'scene1-point-b', 'scene1-point-a-group',
+                       'scene1-label-235n', 'scene1-label-0', 'scene1-label-235s',
+                       'scene1-label-375', 'scene1-label-225', 'scene1-label-a', 'scene1-label-b',
+                       'scene1-description-group', 'scene1-label-morning'],
+                hide: ['scene1-label-6oclock', 'scene1-label-western',
+                       'scene1-hemisphere-boundary', 'scene1-solar-meridian', 'scene1-label-solar'],
+                description: ['晨昏线是昼夜分界', '线。顺着地球自转', '方向（自西向东），', '由夜入昼为晨线，', '由昼入夜为昏线。', '图中晨昏线东侧为', '白昼，故为晨线。']
+            },
+            {
+                // 步骤 2：叠加东西半球分界线
+                show: ['scene1-frame', 'scene1-lat-235n', 'scene1-lat-0', 'scene1-lat-235s',
+                       'scene1-lon-375w', 'scene1-lon-225w', 'scene1-terminator', 'scene1-shadow',
+                       'scene1-point-a', 'scene1-point-b', 'scene1-point-a-group',
+                       'scene1-label-235n', 'scene1-label-0', 'scene1-label-235s',
+                       'scene1-label-375', 'scene1-label-225', 'scene1-label-a', 'scene1-label-b',
+                       'scene1-description-group', 'scene1-label-morning', 'scene1-hemisphere-boundary', 'scene1-label-western'],
+                hide: ['scene1-label-6oclock', 'scene1-solar-meridian', 'scene1-label-solar'],
+                description: ['东西半球分界线为', '20°W 和 160°E。20°W', '以东、160°E 以西为', '东半球。图中阴影', '区（黑夜）主要位于', '20°W 以西，故主要', '位于西半球。']
+            },
+            {
+                // 步骤 3：高亮甲地，说明晨线与赤道交点地方时为 6 时
+                show: ['scene1-frame', 'scene1-lat-235n', 'scene1-lat-0', 'scene1-lat-235s',
+                       'scene1-lon-375w', 'scene1-lon-225w', 'scene1-terminator', 'scene1-shadow',
+                       'scene1-point-a', 'scene1-point-b', 'scene1-point-a-group',
+                       'scene1-label-235n', 'scene1-label-0', 'scene1-label-235s',
+                       'scene1-label-375', 'scene1-label-225', 'scene1-label-a', 'scene1-label-b',
+                       'scene1-description-group', 'scene1-label-morning', 'scene1-hemisphere-boundary', 'scene1-label-western',
+                       'scene1-label-6oclock'],
+                hide: ['scene1-solar-meridian', 'scene1-label-solar'],
+                description: ['甲地位于赤道与晨', '线的交点。晨线与', '赤道交点的地方时', '恒为 6 时（日出时', '刻）。因此甲地地', '方时为 6 点。']
+            },
+            {
+                // 步骤 4：展示直射点经线
+                show: ['scene1-frame', 'scene1-lat-235n', 'scene1-lat-0', 'scene1-lat-235s',
+                       'scene1-lon-375w', 'scene1-lon-225w', 'scene1-terminator', 'scene1-shadow',
+                       'scene1-point-a', 'scene1-point-b', 'scene1-point-a-group',
+                       'scene1-label-235n', 'scene1-label-0', 'scene1-label-235s',
+                       'scene1-label-375', 'scene1-label-225', 'scene1-label-a', 'scene1-label-b',
+                       'scene1-description-group', 'scene1-label-morning', 'scene1-hemisphere-boundary', 'scene1-label-western',
+                       'scene1-label-6oclock', 'scene1-solar-meridian', 'scene1-label-solar'],
+                hide: [],
+                description: ['北半球（23.5°N 以', '北）昼弧长于夜', '弧，说明北半球昼', '长夜短，太阳直射', '北半球。昼半球中', '央经线即为太阳直', '射点所在经线。']
+            }
+        ];
+
+        // 获取元素辅助函数
+        function getElement(id) {
+            return document.getElementById(id);
+        }
+
+        // 显示元素
+        function showElement(id) {
+            const el = getElement(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+
+        // 隐藏元素
+        function hideElement(id) {
+            const el = getElement(id);
+            if (el) {
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新说明文本
+        function updateDescription(lines) {
+            const descEl = getElement('scene1-description');
+            if (descEl) {
+                descEl.innerHTML = '';
+                lines.forEach((line, index) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', '430');
+                    tspan.setAttribute('dy', index === 0 ? '0' : '22');
+                    tspan.textContent = line;
+                    descEl.appendChild(tspan);
+                });
+            }
+        }
+
+        // 更新步骤
+        function updateStep() {
+            const step = steps[currentStep];
+
+            // 显示指定元素
+            step.show.forEach(id => showElement(id));
+
+            // 隐藏指定元素
+            step.hide.forEach(id => hideElement(id));
+
+            // 更新说明文本
+            updateDescription(step.description);
+
+            // 更新步骤指示器
+            const indicator = getElement('scene1-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            }
+
+            // 更新按钮状态
+            const prevBtn = getElement('scene1-btn-prev');
+            const nextBtn = getElement('scene1-btn-next');
+            if (prevBtn) {
+                prevBtn.disabled = currentStep === 0;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = currentStep === totalSteps - 1;
+            }
+
+            // 特殊动画处理
+            if (currentStep === 1) {
+                // 步骤 1：晨昏线闪烁
+                const terminator = getElement('scene1-terminator');
+                if (terminator) {
+                    terminator.classList.add('scene1-pulse');
+                    setTimeout(() => terminator.classList.remove('scene1-pulse'), 1600);
+                }
+                const morningLabel = getElement('scene1-label-morning');
+                if (morningLabel) {
+                    morningLabel.classList.add('scene1-fade-in');
+                }
+            }
+            if (currentStep === 2) {
+                // 步骤 2：东西半球分界线绘制动画
+                const boundary = getElement('scene1-hemisphere-boundary');
+                if (boundary) {
+                    boundary.classList.add('scene1-draw-line');
+                }
+                const westernLabel = getElement('scene1-label-western');
+                if (westernLabel) {
+                    westernLabel.classList.add('scene1-fade-in');
+                }
+            }
+            if (currentStep === 3) {
+                // 步骤 3：甲点放大动画
+                const pointAGroup = getElement('scene1-point-a-group');
+                if (pointAGroup) {
+                    pointAGroup.classList.add('scene1-scale');
+                    setTimeout(() => pointAGroup.classList.remove('scene1-scale'), 600);
+                }
+                const oclockLabel = getElement('scene1-label-6oclock');
+                if (oclockLabel) {
+                    oclockLabel.classList.add('scene1-fade-in');
+                }
+            }
+            if (currentStep === 4) {
+                // 步骤 4：直射点经线绘制动画
+                const solarMeridian = getElement('scene1-solar-meridian');
+                if (solarMeridian) {
+                    solarMeridian.classList.add('scene1-draw-line');
+                }
+                const solarLabel = getElement('scene1-label-solar');
+                if (solarLabel) {
+                    solarLabel.classList.add('scene1-fade-in');
+                }
+            }
+        }
+
+        // 初始化
+        function init() {
+            const prevBtn = getElement('scene1-btn-prev');
+            const nextBtn = getElement('scene1-btn-next');
+
+            if (prevBtn) {
+                prevBtn.addEventListener('click', () => {
+                    if (currentStep > 0) {
+                        currentStep--;
+                        updateStep();
+                    }
+                });
+            }
+
+            if (nextBtn) {
+                nextBtn.addEventListener('click', () => {
+                    if (currentStep < totalSteps - 1) {
+                        currentStep++;
+                        updateStep();
+                    }
+                });
+            }
+
+            // 初始状态
+            updateStep();
+        }
+
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

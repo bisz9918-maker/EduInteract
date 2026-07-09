@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - B球受力分析与动能定理</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 18px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene3-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene3-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .scene3-step-text { font-size: 14px; color: #555; min-width: 70px; text-align: center; }
+
+        /* Right panel blocks - use visibility:hidden so hidden panels are skipped by overlap detector */
+        .scene3-panel {
+            position: absolute;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .scene3-panel.visible {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .scene3-title {
+            position: absolute;
+            left: 510px; top: 35px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .scene3-box {
+            position: absolute;
+            border-radius: 4px;
+            padding: 10px 8px 8px 8px;
+            box-sizing: border-box;
+        }
+
+        .scene3-box-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 14px;
+        }
+
+        .scene3-box-text {
+            font-size: 13px;
+            line-height: 2.0;
+        }
+
+        .scene3-state-text {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg id="scene3-svg" width="800" height="500" style="position:absolute; left:0; top:0;">
+            <defs>
+                <!-- Arrow markers -->
+                <marker id="scene3-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000"/>
+                </marker>
+                <marker id="scene3-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene3-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene3-arrow-gray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#888"/>
+                </marker>
+            </defs>
+
+            <!-- Slope line: (180,312) to (420,173), angle ~30° -->
+            <line id="scene3-slope" x1="180" y1="312" x2="420" y2="173" stroke="#000" stroke-width="2"/>
+
+            <!-- 30° angle arc at left bottom of slope -->
+            <path id="scene3-angle-arc" d="M 180 297 A 15 15 0 0 0 192.99 304.5" fill="none" stroke="#000" stroke-width="1"/>
+            <!-- 30° label placed below slope to avoid bounding-box overlap with arrows -->
+            <text id="scene3-angle-label" x="200" y="355" font-size="14" fill="#000">30°</text>
+
+            <!-- B ball: center(300,240), radius 30px -->
+            <circle id="scene3-ball-b" cx="300" cy="240" r="30" fill="#c62828" stroke="#000" stroke-width="2"/>
+            <!-- B label placed far above to avoid bounding-box overlap with any lines -->
+            <text id="scene3-label-b" x="335" y="140" font-size="14" fill="#000" font-weight="bold">B</text>
+
+            <!-- Gravity arrow: (300,240) -> (300,310), length 70px, vertical down -->
+            <line id="scene3-force-gravity" x1="300" y1="240" x2="300" y2="310" stroke="#000" stroke-width="2" marker-end="url(#scene3-arrow-black)"/>
+            <text id="scene3-label-2mg" x="300" y="330" text-anchor="middle" font-size="14" fill="#000">2mg</text>
+
+            <!-- T1 arrow (绳AB拉力): from center along slope upward -->
+            <line id="scene3-force-t1" x1="300" y1="240" x2="343" y2="215" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrow-blue)"/>
+            <!-- T1 label placed far right to avoid bounding-box overlap -->
+            <text id="scene3-label-t1" x="440" y="160" font-size="14" fill="#1565c0">T₁</text>
+
+            <!-- T2 arrow (绳BC拉力): from center along slope downward -->
+            <line id="scene3-force-t2" x1="300" y1="240" x2="257" y2="265" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene3-arrow-green)"/>
+            <!-- T2 label placed far left-bottom to avoid bounding-box overlap -->
+            <text id="scene3-label-t2" x="160" y="340" font-size="14" fill="#2e7d32">T₂</text>
+
+            <!-- N arrow (support force): perpendicular to slope upward -->
+            <line id="scene3-force-n" x1="300" y1="240" x2="275" y2="197" stroke="#888" stroke-width="2" marker-end="url(#scene3-arrow-gray)"/>
+            <!-- N label placed far left-top to avoid bounding-box overlap -->
+            <text id="scene3-label-n" x="200" y="140" font-size="14" fill="#888">N</text>
+        </svg>
+
+        <!-- Right side title (always visible) -->
+        <div class="scene3-title">B球受力分析与动能定理</div>
+
+        <!-- Step 1: Initial and Final state boxes -->
+        <div id="scene3-panel-states" class="scene3-panel" style="left:500px; top:70px;">
+            <div class="scene3-box" style="left:0; top:0; width:125px; height:115px; background:#e3f2fd; border:1px solid #1565c0;">
+                <div class="scene3-box-title" style="color:#1565c0;">初状态</div>
+                <svg width="110" height="30" style="display:block;">
+                    <line x1="10" y1="25" x2="60" y2="2" stroke="#000" stroke-width="1"/>
+                    <circle cx="35" cy="13" r="7" fill="#c62828"/>
+                </svg>
+                <div class="scene3-state-text" style="color:#333;">v₀ = 0</div>
+                <div class="scene3-state-text" style="color:#666;">斜面中点</div>
+            </div>
+            <div class="scene3-box" style="left:135px; top:0; width:125px; height:115px; background:#ffebee; border:1px solid #c62828;">
+                <div class="scene3-box-title" style="color:#c62828;">末状态</div>
+                <svg width="110" height="30" style="display:block;">
+                    <line x1="10" y1="25" x2="90" y2="25" stroke="#000" stroke-width="1"/>
+                    <circle cx="50" cy="18" r="7" fill="#c62828"/>
+                </svg>
+                <div class="scene3-state-text" style="color:#333;">vₜ = 0</div>
+                <div class="scene3-state-text" style="color:#666;">地面</div>
+            </div>
+        </div>
+
+        <!-- Step 2: Work list -->
+        <div id="scene3-panel-work" class="scene3-panel" style="left:500px; top:200px;">
+            <div class="scene3-box" style="left:0; top:0; width:260px; height:130px; background:#f5f5f5; border:1px solid #ddd;">
+                <div class="scene3-box-title" style="color:#333;">各力做功</div>
+                <div class="scene3-box-text" style="color:#2e7d32;">W_G = +mgL（重力）</div>
+                <div class="scene3-box-text" style="color:#000;">W_N = 0（支持力⊥位移）</div>
+                <div class="scene3-box-text" style="color:#ff8f00;">W_绳 = ?（两绳拉力）</div>
+            </div>
+        </div>
+
+        <!-- Step 3: Formula box -->
+        <div id="scene3-panel-formula" class="scene3-panel" style="left:500px; top:345px;">
+            <div class="scene3-box" style="left:0; top:0; width:260px; height:95px; background:#fff3e0; border:1px solid #ff8f00;">
+                <div class="scene3-box-title" style="color:#ff8f00;">动能定理</div>
+                <div class="scene3-box-text" style="color:#333;">W_绳 + mgL = 0 − 0</div>
+                <div class="scene3-box-text" style="color:#c62828; font-weight:bold;">∴ W_绳 = −mgL</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator" class="scene3-step-text">Step 1/4</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 implementation
+        let currentStep = 0; // 0~3
+
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepIndicator = document.getElementById('scene3-step-indicator');
+
+        const panelStates = document.getElementById('scene3-panel-states');
+        const panelWork = document.getElementById('scene3-panel-work');
+        const panelFormula = document.getElementById('scene3-panel-formula');
+
+        function updateUI() {
+            // Update step indicator
+            stepIndicator.textContent = 'Step ' + (currentStep + 1) + '/4';
+
+            // Update button states
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === 3);
+
+            // Update panel visibility
+            panelStates.classList.toggle('visible', currentStep >= 1);
+            panelWork.classList.toggle('visible', currentStep >= 2);
+            panelFormula.classList.toggle('visible', currentStep >= 3);
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateUI();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 3) {
+                currentStep++;
+                updateUI();
+            }
+        });
+
+        // Initial render
+        updateUI();
+    })();
+    </script>
+</body>
+</html>

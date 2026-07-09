@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 射影关系与平面垂直验证</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 10; }
+        #scene2-slider { width: 200px; cursor: pointer; }
+        .control-label { font-size: 14px; color: #333; }
+        .angle-display { font-size: 14px; color: #c62828; font-weight: bold; min-width: 100px; text-align: center; }
+        .view-title { font-size: 16px; font-weight: bold; color: #333; }
+        .point-label { font-size: 13px; fill: #000; }
+        .value-display { font-size: 13px; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 俯视图边框（缩小，留出标签空间） -->
+            <rect x="70" y="80" width="260" height="280" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- 侧视图边框 -->
+            <rect x="470" y="80" width="260" height="280" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 俯视图标题 -->
+            <text x="200" y="60" text-anchor="middle" class="view-title">俯视图</text>
+            <!-- 侧视图标题 -->
+            <text x="600" y="60" text-anchor="middle" class="view-title">侧视图（沿 DE 方向）</text>
+            
+            <!-- ========== 俯视图元素 ========== -->
+            <!-- 三角形 ABC（在边框内部） -->
+            <polygon points="200,100 120,280 280,280" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 中线 AF -->
+            <line x1="200" y1="100" x2="200" y2="280" stroke="#000000" stroke-width="2"/>
+            <!-- 中位线 DE -->
+            <line x1="160" y1="190" x2="240" y2="190" stroke="#000000" stroke-width="2"/>
+            <!-- BC 边 -->
+            <line x1="120" y1="280" x2="280" y2="280" stroke="#000000" stroke-width="2"/>
+            <!-- AB 边 -->
+            <line x1="200" y1="100" x2="120" y2="280" stroke="#000000" stroke-width="2"/>
+            <!-- AC 边 -->
+            <line x1="200" y1="100" x2="280" y2="280" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 俯视图固定点 -->
+            <circle id="scene2-point-a" cx="200" cy="100" r="4" fill="#000000"/>
+            <circle id="scene2-point-b" cx="120" cy="280" r="4" fill="#000000"/>
+            <circle id="scene2-point-c" cx="280" cy="280" r="4" fill="#000000"/>
+            <circle id="scene2-point-f" cx="200" cy="280" r="4" fill="#000000"/>
+            <circle id="scene2-point-d" cx="160" cy="190" r="4" fill="#000000"/>
+            <circle id="scene2-point-e" cx="240" cy="190" r="4" fill="#000000"/>
+            <circle id="scene2-point-g" cx="200" cy="190" r="4" fill="#000000"/>
+            
+            <!-- 俯视图动态点 H（A'的射影） -->
+            <circle id="scene2-point-h" cx="200" cy="190" r="5" fill="#c62828"/>
+            
+            <!-- 俯视图射影路径 AH（虚线） -->
+            <line id="scene2-ah-line" x1="200" y1="100" x2="200" y2="190" stroke="#c62828" stroke-width="1.5" stroke-dasharray="5,5" opacity="0.7"/>
+            
+            <!-- 俯视图标签（放在边框外部） -->
+            <text x="200" y="85" text-anchor="middle" class="point-label">A</text>
+            <text x="120" y="300" text-anchor="middle" class="point-label">B</text>
+            <text x="280" y="300" text-anchor="middle" class="point-label">C</text>
+            <text x="160" y="175" text-anchor="middle" class="point-label">D</text>
+            <text x="240" y="175" text-anchor="middle" class="point-label">E</text>
+            <text x="200" y="310" text-anchor="middle" class="point-label">F</text>
+            <text x="200" y="208" text-anchor="middle" class="point-label">G</text>
+            <text id="scene2-label-h" x="235" y="195" class="point-label">H</text>
+            
+            <!-- ========== 侧视图元素 ========== -->
+            <!-- 旋转轨迹圆弧（虚线） -->
+            <path id="scene2-arc-path" d="M 600,100 A 90,90 0 0,1 600,280" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+            
+            <!-- 侧视图底面线（表示平面 BCED） -->
+            <line x1="570" y1="280" x2="630" y2="280" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 侧视图 DE 投影点（G 点） -->
+            <circle id="scene2-side-g" cx="600" cy="190" r="4" fill="#000000"/>
+            <!-- 侧视图 F 点 -->
+            <circle id="scene2-side-f" cx="600" cy="280" r="4" fill="#000000"/>
+            
+            <!-- 侧视图动态点 A' -->
+            <circle id="scene2-a-prime" cx="600" cy="100" r="6" fill="#c62828"/>
+            
+            <!-- 侧视图动态点 H（A'在底面的射影） -->
+            <circle id="scene2-side-h" cx="600" cy="190" r="5" fill="#c62828"/>
+            
+            <!-- 侧视图 A'H 垂线（虚线） -->
+            <line id="scene2-a-prime-h-line" x1="600" y1="100" x2="600" y2="190" stroke="#c62828" stroke-width="1.5" stroke-dasharray="5,5"/>
+            
+            <!-- 平面 A'GF 示意区域（半透明蓝色） -->
+            <polygon id="scene2-plane-a'gf" points="600,100 600,190 600,280" fill="#1565c0" opacity="0.2"/>
+            
+            <!-- 平面 BCED 示意区域（半透明绿色） -->
+            <rect id="scene2-plane-bced" x="570" y="275" width="60" height="10" fill="#2e7d32" opacity="0.2"/>
+            
+            <!-- 法向量 n2（平面 BCED 的法向量，垂直向上） -->
+            <line id="scene2-n2" x1="600" y1="280" x2="600" y2="240" stroke="#2e7d32" stroke-width="2"/>
+            <polygon id="scene2-n2-arrow" points="600,240 595,250 605,250" fill="#2e7d32"/>
+            
+            <!-- 法向量 n1（平面 A'GF 的法向量，灰色虚线） -->
+            <line id="scene2-n1" x1="600" y1="190" x2="640" y2="190" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <polygon id="scene2-n1-arrow" points="640,190 635,185 635,195" fill="#888888"/>
+            
+            <!-- 侧视图标签 -->
+            <text x="620" y="95" text-anchor="start" class="point-label" id="scene2-label-a-prime">A'</text>
+            <text x="580" y="195" text-anchor="end" class="point-label">G</text>
+            <text x="600" y="298" text-anchor="middle" class="point-label">F</text>
+            <text x="635" y="195" class="point-label" id="scene2-label-side-h">H</text>
+            <text x="608" y="235" class="point-label" id="scene2-label-n2">n₂</text>
+            <text x="648" y="195" class="point-label" id="scene2-label-n1">n₁</text>
+            
+            <!-- 角度显示（移到边框外部） -->
+            <text x="600" y="360" text-anchor="middle" class="value-display" id="scene2-angle-text">θ = 0°</text>
+            <text x="600" y="385" text-anchor="middle" class="value-display" id="scene2-plane-angle-text">平面夹角 = 90°</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <span class="control-label">旋转角度 θ：</span>
+            <input type="range" id="scene2-slider" min="0" max="180" value="0" step="1">
+            <span class="angle-display" id="scene2-slider-value">0°</span>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 射影关系与平面垂直验证
+        // 布局坐标表（参考）：
+        // 俯视图边框：(70,80)-(330,360) | 260×280
+        // 侧视图边框：(470,80)-(730,360) | 260×280
+        // 俯视图-A(200,100), B(120,280), C(280,280), F(200,280), D(160,190), E(240,190), G(200,190)
+        // 侧视图-G(600,190), F(600,280), A'沿圆弧 (600+90*sinθ, 190-90*cosθ)
+        
+        const svg = document.getElementById('scene2-svg');
+        const slider = document.getElementById('scene2-slider');
+        const sliderValue = document.getElementById('scene2-slider-value');
+        const angleText = document.getElementById('scene2-angle-text');
+        const planeAngleText = document.getElementById('scene2-plane-angle-text');
+        
+        // 动态元素引用
+        const pointH = document.getElementById('scene2-point-h');
+        const labelH = document.getElementById('scene2-label-h');
+        const ahLine = document.getElementById('scene2-ah-line');
+        const aPrime = document.getElementById('scene2-a-prime');
+        const sideH = document.getElementById('scene2-side-h');
+        const labelSideH = document.getElementById('scene2-label-side-h');
+        const aPrimeHLine = document.getElementById('scene2-a-prime-h-line');
+        const planeA'GF = document.getElementById('scene2-plane-a\'gf');
+        const n1 = document.getElementById('scene2-n1');
+        const n1Arrow = document.getElementById('scene2-n1-arrow');
+        const labelN1 = document.getElementById('scene2-label-n1');
+        
+        // 几何参数
+        const G_F_top = 190;  // G 点 y 坐标（俯视图）
+        const F_top = 280;    // F 点 y 坐标（俯视图）
+        const A_top = 100;    // A 点 y 坐标（俯视图）
+        const G_side_x = 600; // G 点 x 坐标（侧视图）
+        const G_side_y = 190; // G 点 y 坐标（侧视图）
+        const F_side_y = 280; // F 点 y 坐标（侧视图）
+        const arcRadius = 90; // 旋转圆弧半径
+        
+        // 计算 H 点在俯视图 AF 上的位置
+        function calculateHPosition(theta) {
+            const rad = theta * Math.PI / 180;
+            const moveDistance = arcRadius * (1 - Math.cos(rad));
+            const hY = G_F_top + moveDistance;
+            return { x: 200, y: Math.min(hY, F_top) };
+        }
+        
+        // 计算 A'点在侧视图的位置
+        function calculateAPrimePosition(theta) {
+            const rad = theta * Math.PI / 180;
+            const x = G_side_x + arcRadius * Math.sin(rad);
+            const y = G_side_y - arcRadius * Math.cos(rad);
+            return { x, y };
+        }
+        
+        // 计算侧视图中 H 点位置
+        function calculateSideHPosition(theta) {
+            const rad = theta * Math.PI / 180;
+            const moveDistance = arcRadius * (1 - Math.cos(rad));
+            const hY = G_side_y + moveDistance;
+            return { x: G_side_x, y: Math.min(hY, F_side_y) };
+        }
+        
+        // 更新所有动态元素
+        function updateScene(theta) {
+            const hPos = calculateHPosition(theta);
+            const aPrimePos = calculateAPrimePosition(theta);
+            const sideHPos = calculateSideHPosition(theta);
+            
+            // 更新俯视图 H 点
+            pointH.setAttribute('cx', hPos.x);
+            pointH.setAttribute('cy', hPos.y);
+            
+            // 更新俯视图 AH 连线
+            ahLine.setAttribute('x2', hPos.x);
+            ahLine.setAttribute('y2', hPos.y);
+            
+            // 更新 H 标签位置（避免与 G 标签重叠）
+            if (theta < 15) {
+                // 当 H 接近 G 时，将 H 标签移到右侧
+                labelH.setAttribute('x', hPos.x + 35);
+                labelH.setAttribute('y', hPos.y + 5);
+            } else {
+                labelH.setAttribute('x', hPos.x + 35);
+                labelH.setAttribute('y', hPos.y + 5);
+            }
+            
+            // 更新侧视图 A'点
+            aPrime.setAttribute('cx', aPrimePos.x);
+            aPrime.setAttribute('cy', aPrimePos.y);
+            
+            // 更新侧视图 H 点
+            sideH.setAttribute('cx', sideHPos.x);
+            sideH.setAttribute('cy', sideHPos.y);
+            
+            // 更新侧视图 A'H 垂线
+            aPrimeHLine.setAttribute('x1', aPrimePos.x);
+            aPrimeHLine.setAttribute('y1', aPrimePos.y);
+            aPrimeHLine.setAttribute('x2', sideHPos.x);
+            aPrimeHLine.setAttribute('y2', sideHPos.y);
+            
+            // 更新侧视图 H 标签位置
+            labelSideH.setAttribute('x', sideHPos.x + 35);
+            labelSideH.setAttribute('y', sideHPos.y + 5);
+            
+            // 更新平面 A'GF 示意区域
+            planeA'GF.setAttribute('points', `${aPrimePos.x},${aPrimePos.y} ${sideHPos.x},${sideHPos.y} ${G_side_x},${F_side_y}`);
+            
+            // 更新法向量 n1
+            const n1Length = 40;
+            n1.setAttribute('x2', G_side_x + n1Length);
+            n1.setAttribute('y2', G_side_y);
+            n1Arrow.setAttribute('points', `${G_side_x + n1Length},${G_side_y} ${G_side_x + n1Length - 5},${G_side_y - 5} ${G_side_x + n1Length - 5},${G_side_y + 5}`);
+            
+            // 更新标签位置
+            labelN1.setAttribute('x', G_side_x + n1Length + 8);
+            labelN1.setAttribute('y', G_side_y + 5);
+            
+            // 更新角度显示
+            angleText.textContent = `θ = ${theta}°`;
+            sliderValue.textContent = `${theta}°`;
+            
+            // 平面夹角始终为 90°
+            planeAngleText.textContent = `平面夹角 = 90°`;
+        }
+        
+        // 滑块事件处理
+        slider.addEventListener('input', function() {
+            const theta = parseInt(this.value);
+            updateScene(theta);
+        });
+        
+        // 初始化
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

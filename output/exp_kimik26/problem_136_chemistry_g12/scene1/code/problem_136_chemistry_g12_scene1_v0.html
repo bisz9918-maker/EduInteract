@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星际分子球棍模型 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container {
+            position: relative; width: 800px; height: 500px;
+            background: #ffffff; margin: 0 auto; overflow: hidden;
+        }
+        #scene1-controls {
+            position: absolute; bottom: 10px; left: 0; right: 0;
+            display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            width: 90px; height: 34px; border: none; border-radius: 4px;
+            background: #1565c0; color: #ffffff; font-size: 14px; cursor: pointer;
+            transition: opacity 0.3s, background 0.3s;
+        }
+        #scene1-btn-prev:hover:not(:disabled), #scene1-btn-next:hover:not(:disabled) { background: #0d47a1; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-text { font-size: 12px; color: #666666; min-width: 60px; text-align: center; }
+
+        /* HTML overlay boxes */
+        .scene1-legend {
+            position: absolute; left: 50px; top: 310px; width: 180px; height: 110px;
+            background: #fafafa; border: 1px solid #dddddd; border-radius: 5px;
+            padding: 10px 14px; box-sizing: border-box; z-index: 5;
+            display: flex; flex-direction: column;
+        }
+        .scene1-legend-title {
+            text-align: center; font-size: 14px; font-weight: bold; color: #000000;
+            margin-bottom: 10px;
+        }
+        .scene1-legend-row {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 7px;
+        }
+        .scene1-legend-ball {
+            width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+        }
+        .scene1-legend-ball.white { background: #ffffff; border: 1.5px solid #000000; }
+        .scene1-legend-ball.black { background: #000000; }
+        .scene1-legend-ball.hatch {
+            background: repeating-linear-gradient(45deg, #d7ccc8, #d7ccc8 3px, #8d6e63 3px, #8d6e63 5px);
+            border: 1.5px solid #000000;
+        }
+        .scene1-legend-label { font-size: 13px; color: #000000; }
+
+        .scene1-conclusion {
+            position: absolute; left: 260px; top: 325px; width: 320px;
+            background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px;
+            padding: 14px 18px; box-sizing: border-box; z-index: 5;
+            opacity: 0; transition: opacity 0.4s ease-out;
+        }
+        .scene1-conclusion.active { opacity: 1; }
+        .scene1-conclusion-line {
+            font-size: 13px; color: #2e7d32; line-height: 1.6; margin-bottom: 6px;
+        }
+        .scene1-conclusion-line:last-child { margin-bottom: 0; }
+
+        .scene1-opt {
+            position: absolute; width: 150px; height: 38px;
+            background: rgba(198, 40, 40, 0.15); border: 1px solid #c62828; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: #c62828; z-index: 5;
+            opacity: 0; transition: opacity 0.4s ease-out;
+        }
+        .scene1-opt.active { opacity: 1; }
+
+        /* SVG element transitions */
+        .scene1-highlight-ring {
+            fill: none; stroke: #1565c0; stroke-width: 3px;
+            filter: url(#scene1-glow);
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+        }
+        .scene1-highlight-ring.active { opacity: 1; }
+        .scene1-label-text { opacity: 0; transition: opacity 0.4s ease-out; }
+        .scene1-label-text.active { opacity: 1; }
+        .scene1-lead-line { opacity: 0; transition: opacity 0.4s ease-out; }
+        .scene1-lead-line.active { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- Glow filter for highlight rings -->
+                <filter id="scene1-glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="blur"/>
+                    <feMerge>
+                        <feMergeNode in="blur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+                <!-- Hatch pattern for X ball -->
+                <pattern id="scene1-hatch-pattern" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect width="8" height="8" fill="#d7ccc8"/>
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#8d6e63" stroke-width="2"/>
+                </pattern>
+            </defs>
+
+            <!-- ==================== Ball-and-stick model ==================== -->
+            <!-- Bonds (10 bonds connecting 11 balls) -->
+            <line id="scene1-bond-1" x1="190" y1="180" x2="232" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-2" x1="232" y1="180" x2="274" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-3" x1="274" y1="180" x2="316" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-4" x1="316" y1="180" x2="358" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-5" x1="358" y1="180" x2="400" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-6" x1="400" y1="180" x2="442" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-7" x1="442" y1="180" x2="484" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-8" x1="484" y1="180" x2="526" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-9" x1="526" y1="180" x2="568" y2="180" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-bond-10" x1="568" y1="180" x2="610" y2="180" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- Balls: H (white), C1-C9 (black), X (hatched) -->
+            <circle id="scene1-ball-h" cx="190" cy="180" r="14" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+            <circle id="scene1-ball-c1" cx="232" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c2" cx="274" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c3" cx="316" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c4" cx="358" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c5" cx="400" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c6" cx="442" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c7" cx="484" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c8" cx="526" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-c9" cx="568" cy="180" r="14" fill="#000000"/>
+            <circle id="scene1-ball-x" cx="610" cy="180" r="14" fill="url(#scene1-hatch-pattern)" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- Highlight rings (default hidden) -->
+            <circle id="scene1-hl-h" class="scene1-highlight-ring" cx="190" cy="180" r="20"/>
+            <circle id="scene1-hl-c1" class="scene1-highlight-ring" cx="232" cy="180" r="20"/>
+            <circle id="scene1-hl-c2" class="scene1-highlight-ring" cx="274" cy="180" r="20"/>
+            <circle id="scene1-hl-c3" class="scene1-highlight-ring" cx="316" cy="180" r="20"/>
+            <circle id="scene1-hl-c4" class="scene1-highlight-ring" cx="358" cy="180" r="20"/>
+            <circle id="scene1-hl-c5" class="scene1-highlight-ring" cx="400" cy="180" r="20"/>
+            <circle id="scene1-hl-c6" class="scene1-highlight-ring" cx="442" cy="180" r="20"/>
+            <circle id="scene1-hl-c7" class="scene1-highlight-ring" cx="484" cy="180" r="20"/>
+            <circle id="scene1-hl-c8" class="scene1-highlight-ring" cx="526" cy="180" r="20"/>
+            <circle id="scene1-hl-c9" class="scene1-highlight-ring" cx="568" cy="180" r="20"/>
+            <circle id="scene1-hl-x" class="scene1-highlight-ring" cx="610" cy="180" r="20"/>
+
+            <!-- Markers ①②③ -->
+            <text id="scene1-marker-1" x="379" y="218" text-anchor="middle" font-size="16" fill="#000000">①</text>
+            <text id="scene1-marker-2" x="505" y="218" text-anchor="middle" font-size="16" fill="#000000">②</text>
+            <text id="scene1-marker-3" x="640" y="180" text-anchor="start" font-size="16" fill="#000000" dominant-baseline="middle">③</text>
+
+            <!-- Lead lines (dashed, hidden by default) -->
+            <line id="scene1-lead-h" class="scene1-lead-line" x1="190" y1="166" x2="190" y2="148" stroke="#888888" stroke-width="1" stroke-dasharray="4,2"/>
+            <line id="scene1-lead-c" class="scene1-lead-line" x1="400" y1="166" x2="400" y2="148" stroke="#888888" stroke-width="1" stroke-dasharray="4,2"/>
+            <line id="scene1-lead-x" class="scene1-lead-line" x1="624" y1="166" x2="640" y2="155" stroke="#888888" stroke-width="1" stroke-dasharray="4,2"/>
+
+            <!-- Labels (hidden by default) -->
+            <text id="scene1-label-h" class="scene1-label-text" x="190" y="142" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">氢原子</text>
+            <text id="scene1-label-c" class="scene1-label-text" x="400" y="142" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">碳原子</text>
+            <text id="scene1-label-x" class="scene1-label-text" x="645" y="148" text-anchor="start" font-size="14" fill="#1565c0" font-weight="bold">第三种原子 X</text>
+        </svg>
+
+        <!-- Legend box (HTML overlay) -->
+        <div class="scene1-legend">
+            <div class="scene1-legend-title">图例</div>
+            <div class="scene1-legend-row">
+                <div class="scene1-legend-ball white"></div>
+                <div class="scene1-legend-label">氢原子</div>
+            </div>
+            <div class="scene1-legend-row">
+                <div class="scene1-legend-ball black"></div>
+                <div class="scene1-legend-label">碳原子</div>
+            </div>
+            <div class="scene1-legend-row">
+                <div class="scene1-legend-ball hatch"></div>
+                <div class="scene1-legend-label">未知原子 X</div>
+            </div>
+        </div>
+
+        <!-- Conclusion box (HTML overlay) -->
+        <div id="scene1-conclusion" class="scene1-conclusion">
+            <div id="scene1-conclusion-1" class="scene1-conclusion-line">该分子含有 C、H、X 三种元素</div>
+            <div id="scene1-conclusion-2" class="scene1-conclusion-line">而烃类仅由 C、H 两种元素组成</div>
+            <div id="scene1-conclusion-3" class="scene1-conclusion-line">X 与碳原子之间将形成三键，而 Cl、F 通常只能形成单键</div>
+        </div>
+
+        <!-- Option markers (HTML overlay) -->
+        <div id="scene1-opt-a" class="scene1-opt" style="left: 610px; top: 335px;">A · 烃类 → 错误</div>
+        <div id="scene1-opt-d" class="scene1-opt" style="left: 610px; top: 382px;">D · Cl/F → 错误</div>
+
+        <!-- Controls -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-text">步骤 0 / 5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 implementation
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+
+        // Highlight rings
+        const hlH = document.getElementById('scene1-hl-h');
+        const hlCs = [
+            document.getElementById('scene1-hl-c1'), document.getElementById('scene1-hl-c2'),
+            document.getElementById('scene1-hl-c3'), document.getElementById('scene1-hl-c4'),
+            document.getElementById('scene1-hl-c5'), document.getElementById('scene1-hl-c6'),
+            document.getElementById('scene1-hl-c7'), document.getElementById('scene1-hl-c8'),
+            document.getElementById('scene1-hl-c9')
+        ];
+        const hlX = document.getElementById('scene1-hl-x');
+
+        // Labels
+        const labelH = document.getElementById('scene1-label-h');
+        const labelC = document.getElementById('scene1-label-c');
+        const labelX = document.getElementById('scene1-label-x');
+
+        // Lead lines
+        const leadH = document.getElementById('scene1-lead-h');
+        const leadC = document.getElementById('scene1-lead-c');
+        const leadX = document.getElementById('scene1-lead-x');
+
+        // HTML overlays
+        const conclusionBox = document.getElementById('scene1-conclusion');
+        const conclusion1 = document.getElementById('scene1-conclusion-1');
+        const conclusion2 = document.getElementById('scene1-conclusion-2');
+        const conclusion3 = document.getElementById('scene1-conclusion-3');
+        const optA = document.getElementById('scene1-opt-a');
+        const optD = document.getElementById('scene1-opt-d');
+
+        function setActive(els, active) {
+            if (!Array.isArray(els)) els = [els];
+            els.forEach(function(el) {
+                if (el) {
+                    if (active) el.classList.add('active');
+                    else el.classList.remove('active');
+                }
+            });
+        }
+
+        function renderStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            btnNext.textContent = currentStep === totalSteps ? '完成' : '下一步 ▶';
+            stepText.textContent = '步骤 ' + currentStep + ' / ' + totalSteps;
+
+            // Reset all dynamic elements
+            setActive([hlH, hlX].concat(hlCs), false);
+            setActive([labelH, labelC, labelX], false);
+            setActive([leadH, leadC, leadX], false);
+            setActive(conclusionBox, false);
+            setActive([optA, optD], false);
+
+            // Conclusion lines visibility (controlled via display to avoid taking space when hidden)
+            conclusion1.style.display = 'none';
+            conclusion2.style.display = 'none';
+            conclusion3.style.display = 'none';
+
+            switch (currentStep) {
+                case 0:
+                    break;
+                case 1:
+                    setActive(hlH, true);
+                    setActive([labelH, leadH], true);
+                    break;
+                case 2:
+                    setActive(hlCs, true);
+                    setActive([labelC, leadC], true);
+                    break;
+                case 3:
+                    setActive(hlX, true);
+                    setActive([labelX, leadX], true);
+                    break;
+                case 4:
+                    conclusion1.style.display = 'block';
+                    conclusion2.style.display = 'block';
+                    setActive(conclusionBox, true);
+                    setActive(optA, true);
+                    break;
+                case 5:
+                    conclusion1.style.display = 'block';
+                    conclusion2.style.display = 'block';
+                    conclusion3.style.display = 'block';
+                    setActive(conclusionBox, true);
+                    setActive([optA, optD], true);
+                    break;
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; renderStep(); }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) { currentStep++; renderStep(); }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' && currentStep > 0) { currentStep--; renderStep(); }
+            else if (e.key === 'ArrowRight' && currentStep < totalSteps) { currentStep++; renderStep(); }
+        });
+
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

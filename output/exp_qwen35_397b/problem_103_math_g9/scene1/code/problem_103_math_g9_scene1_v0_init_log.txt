@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正方形与菱形重叠关系及阴影面积计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-step-indicator { font-size: 14px; padding: 8px 12px; }
+        /* 元素显隐控制 */
+        .scene1-hidden { display: none; opacity: 0; }
+        .scene1-visible { display: block; opacity: 1; }
+        .scene1-visible-inline { display: inline; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 正方形 ABCD -->
+            <rect id="scene1-square" x="200" y="200" width="150" height="150" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 菱形 PQCB -->
+            <polygon id="scene1-rhombus" points="290,230 440,230 350,350 200,350" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 阴影区域（五边形 ADEPB） -->
+            <polygon id="scene1-shadow" points="200,200 350,200 350,230 290,230 200,350" fill="#888888" fill-opacity="0.3" stroke="#1565c0" stroke-width="2" class="scene1-hidden"/>
+            
+            <!-- 辅助线 PH（P 到 BC 的垂线） -->
+            <line id="scene1-helper-ph" x1="290" y1="230" x2="290" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene1-hidden"/>
+            
+            <!-- 直角符号（H 点处） -->
+            <path id="scene1-right-angle" d="M285,345 L290,345 L290,350" fill="none" stroke="#000000" stroke-width="1" class="scene1-hidden"/>
+            
+            <!-- 点标签 -->
+            <text id="scene1-label-A" x="185" y="195" font-size="14" fill="#000000">A</text>
+            <text id="scene1-label-B" x="185" y="365" font-size="14" fill="#000000">B</text>
+            <text id="scene1-label-C" x="365" y="365" font-size="14" fill="#000000">C</text>
+            <text id="scene1-label-D" x="365" y="195" font-size="14" fill="#000000">D</text>
+            <text id="scene1-label-P" x="290" y="215" font-size="14" fill="#000000">P</text>
+            <text id="scene1-label-Q" x="455" y="230" font-size="14" fill="#000000">Q</text>
+            <text id="scene1-label-E" x="365" y="225" font-size="14" fill="#000000" class="scene1-hidden">E</text>
+            <text id="scene1-label-H" x="290" y="365" font-size="14" fill="#000000" class="scene1-hidden">H</text>
+            
+            <!-- 边长标注 5 -->
+            <text id="scene1-label-5-bottom" x="275" y="380" font-size="14" fill="#1565c0" class="scene1-hidden">5</text>
+            <text id="scene1-label-5-left" x="185" y="285" font-size="14" fill="#1565c0" class="scene1-hidden">5</text>
+            
+            <!-- 高标注 4 -->
+            <text id="scene1-label-4" x="305" y="290" font-size="14" fill="#1565c0" class="scene1-hidden">4</text>
+            
+            <!-- 阴影面积结果 -->
+            <text id="scene1-result" x="120" y="280" font-size="16" fill="#d32f2f" font-weight="bold" class="scene1-hidden">阴影面积=7.5</text>
+            
+            <!-- 控件栏（放在 SVG 内部底部） -->
+            <g id="scene1-controls-group">
+                <rect x="320" y="450" width="160" height="35" fill="#f5f5f5" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene1-step-text" x="400" y="472" font-size="14" fill="#333" text-anchor="middle">步骤 0/4</text>
+                <rect id="scene1-btn-prev-bg" x="330" y="455" width="50" height="25" fill="#e0e0e0" stroke="#333" stroke-width="1" rx="3"/>
+                <text id="scene1-btn-prev-text" x="355" y="472" font-size="12" fill="#333" text-anchor="middle">◀ 上一步</text>
+                <rect id="scene1-btn-next-bg" x="420" y="455" width="50" height="25" fill="#e0e0e0" stroke="#333" stroke-width="1" rx="3"/>
+                <text id="scene1-btn-next-text" x="445" y="472" font-size="12" fill="#333" text-anchor="middle">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：正方形与菱形重叠关系及阴影面积计算
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 正方形 ABCD | 矩形 | (200,200)-(350,350) | 150×150 | - | 黑色实线 2px |
+        // | 菱形 PQCB | 四边形 | P(290,230)-Q(440,230)-C(350,350)-B(200,350) | - | - | 黑色实线 2px |
+        // | 阴影区域 | 多边形 | A(200,200)-D(350,200)-E(350,230)-P(290,230)-B(200,350) | - | - | 灰色填充 #888888 30% 透明度 |
+        // | 辅助线 PH | 虚线 | P(290,230)-H(290,350) | 120×1 | - | 灰色虚线 #888888 1px |
+        // | 点 A 标签 | text | (185,195) | ~14×16 | 左上 | 正方形左上顶点 |
+        // | 点 B 标签 | text | (185,365) | ~14×16 | 左下 | 正方形左下顶点 |
+        // | 点 C 标签 | text | (365,365) | ~14×16 | 右下 | 正方形右下顶点 |
+        // | 点 D 标签 | text | (365,195) | ~14×16 | 右上 | 正方形右上顶点 |
+        // | 点 P 标签 | text | (290,215) | ~14×16 | 上方 | 菱形顶点，正方形内 |
+        // | 点 Q 标签 | text | (455,230) | ~14×16 | 右侧 | 菱形右顶点 |
+        // | 点 E 标签 | text | (365,225) | ~14×16 | 右侧 | PQ 与 CD 交点 |
+        // | 点 H 标签 | text | (290,365) | ~14×16 | 下方 | P 到 BC 垂足 |
+        // | 边长 5 标注 | text | (275,380) | ~14×16 | 下方 | BC 边中点下方，蓝色 |
+        // | 高 4 标注 | text | (305,290) | ~14×16 | 右侧 | PH 辅助线右侧，蓝色 |
+        // | 阴影面积=7.5 | text | (120,280) | ~70×16 | 左侧 | 画布左侧空白区，红色 |
+        // | 直角符号 | 小正方形 | (285,345) | 8×8 | - | H 点处表示垂直 |
+        
+        // 状态机：currentStep (0-4)
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const stepText = document.getElementById('scene1-step-text');
+        const btnPrevBg = document.getElementById('scene1-btn-prev-bg');
+        const btnPrevText = document.getElementById('scene1-btn-prev-text');
+        const btnNextBg = document.getElementById('scene1-btn-next-bg');
+        const btnNextText = document.getElementById('scene1-btn-next-text');
+        
+        // 各步骤需要显示的元素
+        const stepElements = {
+            0: [], // 初始状态：只显示基础图形和点标签
+            1: ['scene1-label-5-bottom', 'scene1-label-5-left'], // 显示边长 5
+            2: ['scene1-helper-ph', 'scene1-right-angle', 'scene1-label-4', 'scene1-label-E', 'scene1-label-H'], // 显示辅助线和高 4
+            3: ['scene1-shadow'], // 显示阴影区域
+            4: ['scene1-result'] // 显示结果
+        };
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                if (el.tagName === 'text' || el.tagName === 'tspan') {
+                    el.classList.add('scene1-visible-inline');
+                } else {
+                    el.classList.add('scene1-visible');
+                }
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('scene1-hidden');
+                el.classList.remove('scene1-visible');
+                el.classList.remove('scene1-visible-inline');
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 更新步骤指示器
+            stepText.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            if (currentStep === 0) {
+                btnPrevBg.setAttribute('fill', '#cccccc');
+                btnPrevText.setAttribute('fill', '#999999');
+            } else {
+                btnPrevBg.setAttribute('fill', '#e0e0e0');
+                btnPrevText.setAttribute('fill', '#333333');
+            }
+            
+            if (currentStep === totalSteps) {
+                btnNextBg.setAttribute('fill', '#cccccc');
+                btnNextText.setAttribute('fill', '#999999');
+            } else {
+                btnNextBg.setAttribute('fill', '#e0e0e0');
+                btnNextText.setAttribute('fill', '#333333');
+            }
+            
+            // 根据当前步骤显示/隐藏元素
+            for (let step = 1; step <= totalSteps; step++) {
+                const elements = stepElements[step] || [];
+                elements.forEach(id => {
+                    if (step <= currentStep) {
+                        showElement(id);
+                    } else {
+                        hideElement(id);
+                    }
+                });
+            }
+        }
+        
+        // 点击事件处理
+        function handleClick(evt) {
+            const rect = evt.target.getBoundingClientRect();
+            const x = evt.clientX - rect.left;
+            const y = evt.clientY - rect.top;
+            
+            // 检查是否点击了上一步按钮
+            if (x >= 330 && x <= 380 && y >= 455 && y <= 480) {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateDisplay();
+                }
+            }
+            // 检查是否点击了下一步按钮
+            else if (x >= 420 && x <= 470 && y >= 455 && y <= 480) {
+                if (currentStep < totalSteps) {
+                    currentStep++;
+                    updateDisplay();
+                }
+            }
+        }
+        
+        // 绑定点击事件到 SVG
+        const svg = document.getElementById('scene1-svg');
+        svg.addEventListener('click', handleClick);
+        
+        // 初始化显示
+        updateDisplay();
+        
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-text-panel { position: absolute; left: 480px; top: 120px; width: 300px; height: 260px; font-size: 20px; line-height: 1.5; pointer-events: none; }
+        button { padding: 8px 16px; font-size: 16px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .draggable { cursor: pointer; }
+        .label { position: absolute; font-size: 16px; color: black; pointer-events: none; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 坐标系 -->
+            <line x1="100" y1="400" x2="450" y2="400" stroke="black" stroke-width="2" />
+            <polygon points="450,395 460,400 450,405" fill="black" />
+            <line x1="100" y1="400" x2="100" y2="50" stroke="black" stroke-width="2" />
+            <polygon points="95,50 100,40 105,50" fill="black" />
+
+            <!-- 曲线 -->
+            <path id="scene1-curve" fill="none" stroke="black" stroke-width="2" />
+            
+            <!-- 多边形 -->
+            <polygon id="scene1-poly-abcd" fill="#1565c0" fill-opacity="0.3" stroke="none" />
+            <polygon id="scene1-poly-oab" fill="#2e7d32" fill-opacity="0.3" stroke="none" />
+            <polygon id="scene1-poly-oad" fill="#c62828" fill-opacity="0.3" stroke="none" />
+            <polygon id="scene1-poly-obc" fill="#c62828" fill-opacity="0.3" stroke="none" />
+            <polygon id="scene1-poly-odab" fill="none" stroke="black" stroke-width="3" />
+
+            <!-- 辅助线 -->
+            <g stroke="#888888" stroke-width="2" stroke-dasharray="5,5">
+                <line id="scene1-line-ad" />
+                <line id="scene1-line-bc" />
+                <line id="scene1-line-oa" />
+                <line id="scene1-line-ob" />
+                <line id="scene1-line-ab" />
+                <line id="scene1-line-od" />
+                <line id="scene1-line-oc" />
+                <line id="scene1-line-cd" />
+            </g>
+
+            <!-- 动点 -->
+            <circle id="scene1-pt-a" class="draggable" r="6" fill="white" stroke="black" stroke-width="2" />
+            <circle id="scene1-pt-b" class="draggable" r="6" fill="white" stroke="black" stroke-width="2" />
+            <circle id="scene1-pt-c" r="4" fill="black" />
+            <circle id="scene1-pt-d" r="4" fill="black" />
+        </svg>
+
+        <!-- HTML 标签 -->
+        <div class="label" style="left: 85px; top: 415px;">O</div>
+        <div class="label" style="left: 440px; top: 420px;">x</div>
+        <div class="label" style="left: 80px; top: 60px;">y</div>
+        
+        <div id="scene1-label-s1" class="label">S₁</div>
+        <div id="scene1-label-s2" class="label">S₂</div>
+        <div id="scene1-label-a" class="label">A</div>
+        <div id="scene1-label-b" class="label">B</div>
+        <div id="scene1-label-c" class="label">C</div>
+        <div id="scene1-label-d" class="label">D</div>
+
+        <div id="scene1-text-panel"></div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">第 0 / 4 步</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const svg = document.getElementById('scene1-svg');
+        const curve = document.getElementById('scene1-curve');
+        const ptA = document.getElementById('scene1-pt-a');
+        const ptB = document.getElementById('scene1-pt-b');
+        const ptC = document.getElementById('scene1-pt-c');
+        const ptD = document.getElementById('scene1-pt-d');
+        
+        const lineAD = document.getElementById('scene1-line-ad');
+        const lineBC = document.getElementById('scene1-line-bc');
+        const lineOA = document.getElementById('scene1-line-oa');
+        const lineOB = document.getElementById('scene1-line-ob');
+        const lineAB = document.getElementById('scene1-line-ab');
+        const lineOD = document.getElementById('scene1-line-od');
+        const lineOC = document.getElementById('scene1-line-oc');
+        const lineCD = document.getElementById('scene1-line-cd');
+
+        const polyABCD = document.getElementById('scene1-poly-abcd');
+        const polyOAB = document.getElementById('scene1-poly-oab');
+        const polyOAD = document.getElementById('scene1-poly-oad');
+        const polyOBC = document.getElementById('scene1-poly-obc');
+        const polyODAB = document.getElementById('scene1-poly-odab');
+
+        const labelA = document.getElementById('scene1-label-a');
+        const labelB = document.getElementById('scene1-label-b');
+        const labelC = document.getElementById('scene1-label-c');
+        const labelD = document.getElementById('scene1-label-d');
+        const labelS1 = document.getElementById('scene1-label-s1');
+        const labelS2 = document.getElementById('scene1-label-s2');
+
+        const textPanel = document.getElementById('scene1-text-panel');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        const k = 20000;
+        const originX = 100;
+        const originY = 400;
+
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        let posA = { x: 200, y: 200 };
+        let posB = { x: 350, y: 320 };
+
+        function initCurve() {
+            let pathData = "";
+            for (let x = 125; x <= 430; x += 5) {
+                let y = originY - k / (x - originX);
+                if (x === 125) {
+                    pathData += `M ${x} ${y} `;
+                } else {
+                    pathData += `L ${x} ${y} `;
+                }
+            }
+            curve.setAttribute('d', pathData);
+        }
+
+        function updatePositions() {
+            const posC = { x: originX, y: posB.y };
+            const posD = { x: originX, y: posA.y };
+            const posO = { x: originX, y: originY };
+
+            ptA.setAttribute('cx', posA.x); ptA.setAttribute('cy', posA.y);
+            ptB.setAttribute('cx', posB.x); ptB.setAttribute('cy', posB.y);
+            ptC.setAttribute('cx', posC.x); ptC.setAttribute('cy', posC.y);
+            ptD.setAttribute('cx', posD.x); ptD.setAttribute('cy', posD.y);
+
+            labelA.style.left = (posA.x + 15) + 'px'; labelA.style.top = (posA.y - 15) + 'px';
+            labelB.style.left = (posB.x + 15) + 'px'; labelB.style.top = (posB.y - 15) + 'px';
+            labelC.style.left = (posC.x - 20) + 'px'; labelC.style.top = (posC.y) + 'px';
+            labelD.style.left = (posD.x - 20) + 'px'; labelD.style.top = (posD.y) + 'px';
+
+            const setLine = (line, p1, p2) => {
+                line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+                line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+            };
+            setLine(lineAD, posA, posD);
+            setLine(lineBC, posB, posC);
+            setLine(lineOA, posO, posA);
+            setLine(lineOB, posO, posB);
+            setLine(lineAB, posA, posB);
+            setLine(lineOD, posO, posD);
+            setLine(lineOC, posO, posC);
+            setLine(lineCD, posC, posD);
+
+            polyABCD.setAttribute('points', `${posA.x},${posA.y} ${posB.x},${posB.y} ${posC.x},${posC.y} ${posD.x},${posD.y}`);
+            polyOAB.setAttribute('points', `${posO.x},${posO.y} ${posA.x},${posA.y} ${posB.x},${posB.y}`);
+            polyOAD.setAttribute('points', `${posO.x},${posO.y} ${posA.x},${posA.y} ${posD.x},${posD.y}`);
+            polyOBC.setAttribute('points', `${posO.x},${posO.y} ${posB.x},${posB.y} ${posC.x},${posC.y}`);
+            polyODAB.setAttribute('points', `${posO.x},${posO.y} ${posD.x},${posD.y} ${posA.x},${posA.y} ${posB.x},${posB.y}`);
+
+            // S1, S2 labels
+            const s1x = (posA.x + posB.x + posC.x + posD.x) / 4;
+            const s1y = (posA.y + posB.y + posC.y + posD.y) / 4;
+            labelS1.style.left = (s1x - 10) + 'px'; labelS1.style.top = s1y + 'px';
+
+            const s2x = (posO.x + posA.x + posB.x) / 3;
+            const s2y = (posO.y + posA.y + posB.y) / 3;
+            labelS2.style.left = (s2x + 10) + 'px'; labelS2.style.top = s2y + 'px';
+        }
+
+        function show(el) { el.style.display = ''; el.style.opacity = '1'; }
+        function hide(el) { el.style.display = 'none'; el.style.opacity = '0'; }
+
+        function updateStep() {
+            stepIndicator.textContent = `第 ${currentStep} / ${totalSteps} 步`;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+
+            // Default hide all polygons and labels
+            hide(polyABCD); hide(polyOAB); hide(polyOAD); hide(polyOBC); hide(polyODAB);
+            hide(labelS1); hide(labelS2);
+
+            if (currentStep === 0) {
+                show(polyABCD); show(polyOAB);
+                show(labelS1); show(labelS2);
+                textPanel.innerHTML = "观察梯形 ABCD (S₁) 与 △OAB (S₂) 的面积关系。<br><br>提示：可拖动点 A、B 改变图形形状。";
+            } else if (currentStep === 1) {
+                show(polyOAD); show(polyOBC);
+                textPanel.innerHTML = "根据反比例函数性质：<br><br>S<sub>△OAD</sub> = S<sub>△OBC</sub> = k/2";
+            } else if (currentStep === 2) {
+                show(polyODAB); show(polyOAD); show(polyOAB);
+                show(labelS2);
+                textPanel.innerHTML = "分割四边形 ODAB (方式一)：<br><br>S<sub>四边形ODAB</sub> = S<sub>△OAD</sub> + S<sub>2</sub>";
+            } else if (currentStep === 3) {
+                show(polyODAB); show(polyABCD); show(polyOBC);
+                show(labelS1);
+                textPanel.innerHTML = "分割四边形 ODAB (方式二)：<br><br>S<sub>四边形ODAB</sub> = S<sub>1</sub> + S<sub>△OBC</sub>";
+            } else if (currentStep === 4) {
+                show(polyABCD); show(polyOAB);
+                show(labelS1); show(labelS2);
+                textPanel.innerHTML = "因为 S<sub>△OAD</sub> = S<sub>△OBC</sub><br>且 S<sub>四边形ODAB</sub> 面积固定<br><br>所以 S<sub>1</sub> = S<sub>2</sub><br><br>即 S<sub>1</sub> : S<sub>2</sub> = 1 : 1";
+            }
+        }
+
+        btnPrev.addEventListener('click', () => { if (currentStep > 0) { currentStep--; updateStep(); } });
+        btnNext.addEventListener('click', () => { if (currentStep < totalSteps) { currentStep++; updateStep(); } });
+
+        // Drag logic
+        let draggingPt = null;
+
+        function getMousePos(evt) {
+            const CTM = svg.getScreenCTM();
+            return {
+                x: (evt.clientX - CTM.e) / CTM.a,
+                y: (evt.clientY - CTM.f) / CTM.d
+            };
+        }
+
+        svg.addEventListener('mousedown', (e) => {
+            if (e.target === ptA) draggingPt = 'A';
+            else if (e.target === ptB) draggingPt = 'B';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!draggingPt) return;
+            const pos = getMousePos(e);
+            let x = pos.x;
+            if (draggingPt === 'A') {
+                x = Math.max(140, Math.min(240, x));
+                posA.x = x;
+                posA.y = originY - k / (x - originX);
+            } else if (draggingPt === 'B') {
+                x = Math.max(280, Math.min(400, x));
+                posB.x = x;
+                posB.y = originY - k / (x - originX);
+            }
+            updatePositions();
+            updateStep(); // Refresh labels and polygons
+        });
+
+        window.addEventListener('mouseup', () => { draggingPt = null; });
+
+        initCurve();
+        updatePositions();
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

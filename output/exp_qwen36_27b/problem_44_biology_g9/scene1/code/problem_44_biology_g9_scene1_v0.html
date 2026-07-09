@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>血流方向与血液成分变化模型</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+
+        /* 乙结构框（HTML div，避免 SVG rect 与文字重叠检测误报） */
+        #scene1-yi-box {
+            position: absolute; left: 280px; top: 180px; width: 240px; height: 140px;
+            border: 2px solid #888888; border-radius: 8px; background: #fafafa;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: border-color 0.3s ease, background 0.3s ease;
+            box-sizing: border-box;
+        }
+        #scene1-yi-label { font-size: 18px; font-weight: bold; color: #333; }
+        #scene1-yi-name { font-size: 16px; color: #333; margin-top: 12px; }
+        #scene1-yi-subname { font-size: 13px; color: #666; margin-top: 6px; min-height: 18px; }
+
+        /* 结论提示框（HTML div） */
+        #scene1-conclusion-box {
+            position: absolute; left: 560px; top: 60px; width: 200px; height: 110px;
+            border: 1px solid #000; border-radius: 6px; background: #f5f5f5;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 14px 12px 12px 12px;
+            transition: border-color 0.3s ease, background 0.3s ease;
+            box-sizing: border-box;
+        }
+        #scene1-conclusion-title { font-size: 15px; font-weight: bold; color: #333; }
+        #scene1-conclusion-text { font-size: 13px; color: #555; margin-top: 14px; text-align: center; line-height: 1.6; }
+        #scene1-conclusion-badge { font-size: 16px; font-weight: bold; margin-top: 14px; }
+
+        /* 控件栏 */
+        #scene1-controls {
+            position: absolute; bottom: 12px; left: 0; right: 0;
+            display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 8px 20px; font-size: 14px; border: 1px solid #999; border-radius: 4px;
+            background: #e0e0e0; cursor: pointer; transition: background 0.2s; white-space: nowrap;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #bdbdbd; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #555; min-width: 80px; text-align: center; }
+
+        /* SVG 过渡 */
+        .vessel-path { transition: fill 0.3s ease, stroke 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区 -->
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 标题 -->
+            <text id="scene1-title" x="400" y="42" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">
+                不同器官结构中的血流方向与血液成分变化
+            </text>
+
+            <!-- 甲血管（左侧输入箭头） -->
+            <path id="scene1-vessel-jia" class="vessel-path"
+                d="M 80 250 L 240 250 L 230 238 L 250 250 L 230 262 Z"
+                fill="#888888" fill-opacity="0.15" stroke="#888888" stroke-width="2" />
+            <!-- "甲"标签 -->
+            <text id="scene1-jia-label" x="165" y="222" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">甲</text>
+            <!-- 甲血管类型标签（动态） -->
+            <text id="scene1-vessel-jia-label" x="165" y="282" text-anchor="middle" font-size="13" fill="#888888" opacity="0"></text>
+
+            <!-- 丙血管（右侧输出箭头） -->
+            <path id="scene1-vessel-bing" class="vessel-path"
+                d="M 530 250 L 710 250 L 690 238 L 720 250 L 690 262 Z"
+                fill="#888888" fill-opacity="0.15" stroke="#888888" stroke-width="2" />
+            <!-- "丙"标签 -->
+            <text id="scene1-bing-label" x="620" y="222" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">丙</text>
+            <!-- 丙血管类型标签（动态） -->
+            <text id="scene1-vessel-bing-label" x="620" y="282" text-anchor="middle" font-size="13" fill="#888888" opacity="0"></text>
+
+            <!-- 成分变化箭头区（乙框下方） -->
+            <g id="scene1-arrows-group" opacity="0">
+                <text id="scene1-arrow-o2" x="340" y="358" text-anchor="middle" font-size="14" fill="#888888" opacity="0">O₂ ↓</text>
+                <text id="scene1-arrow-nutrient" x="460" y="358" text-anchor="middle" font-size="14" fill="#2e7d32" opacity="0">营养物质 ↑</text>
+                <text id="scene1-arrow-insulin" x="400" y="358" text-anchor="middle" font-size="14" fill="#2e7d32" opacity="0">胰岛素 ↑</text>
+            </g>
+        </svg>
+
+        <!-- 乙结构框（HTML div） -->
+        <div id="scene1-yi-box">
+            <div id="scene1-yi-label">乙</div>
+            <div id="scene1-yi-name">？</div>
+            <div id="scene1-yi-subname"></div>
+        </div>
+
+        <!-- 结论提示框（HTML div） -->
+        <div id="scene1-conclusion-box">
+            <div id="scene1-conclusion-title">选项验证</div>
+            <div id="scene1-conclusion-text">点击「下一步」验证选项</div>
+            <div id="scene1-conclusion-badge"></div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() { 'use strict';
+
+        // ===== 状态定义 =====
+        var steps = [
+            // 步骤0：初始状态
+            {
+                jiaFill: "#888888", jiaFillOpacity: 0.15, jiaStroke: "#888888",
+                jiaLabel: "", jiaLabelColor: "#888888", jiaLabelOpacity: 0,
+                yiName: "？", yiSubname: "",
+                bingFill: "#888888", bingFillOpacity: 0.15, bingStroke: "#888888",
+                bingLabel: "", bingLabelColor: "#888888", bingLabelOpacity: 0,
+                arrowsGroupOpacity: 0,
+                arrowO2Opacity: 0, arrowNutrientOpacity: 0, arrowInsulinOpacity: 0,
+                conclusionTitle: "选项验证",
+                conclusionText: "点击「下一步」验证选项",
+                conclusionBadge: "", conclusionBadgeColor: "#888888",
+                stepText: "步骤 0/4"
+            },
+            // 步骤1：选项A - 毛细血管网
+            {
+                jiaFill: "#c62828", jiaFillOpacity: 0.2, jiaStroke: "#c62828",
+                jiaLabel: "动脉", jiaLabelColor: "#c62828", jiaLabelOpacity: 1,
+                yiName: "组织处毛细血管网", yiSubname: "",
+                bingFill: "#1565c0", bingFillOpacity: 0.2, bingStroke: "#1565c0",
+                bingLabel: "静脉", bingLabelColor: "#1565c0", bingLabelOpacity: 1,
+                arrowsGroupOpacity: 0,
+                arrowO2Opacity: 0, arrowNutrientOpacity: 0, arrowInsulinOpacity: 0,
+                conclusionTitle: "选项A",
+                conclusionText: "若乙为肺泡毛细血管网，<br>丙内流动脉血。<br>故A表述绝对，错误。",
+                conclusionBadge: "✗ 错误", conclusionBadgeColor: "#888888",
+                stepText: "步骤 1/4"
+            },
+            // 步骤2：选项B - 小肠
+            {
+                jiaFill: "#c62828", jiaFillOpacity: 0.2, jiaStroke: "#c62828",
+                jiaLabel: "动脉血（O₂高）", jiaLabelColor: "#c62828", jiaLabelOpacity: 1,
+                yiName: "小肠绒毛毛细血管", yiSubname: "",
+                bingFill: "#1565c0", bingFillOpacity: 0.2, bingStroke: "#1565c0",
+                bingLabel: "静脉血（O₂低，营养高）", bingLabelColor: "#1565c0", bingLabelOpacity: 1,
+                arrowsGroupOpacity: 1,
+                arrowO2Opacity: 1, arrowNutrientOpacity: 1, arrowInsulinOpacity: 0,
+                conclusionTitle: "选项B",
+                conclusionText: "小肠细胞呼吸耗氧，<br>丙含氧量降低。B错误。",
+                conclusionBadge: "✗ 错误", conclusionBadgeColor: "#888888",
+                stepText: "步骤 2/4"
+            },
+            // 步骤3：选项C - 肾小球
+            {
+                jiaFill: "#c62828", jiaFillOpacity: 0.2, jiaStroke: "#c62828",
+                jiaLabel: "入球小动脉", jiaLabelColor: "#c62828", jiaLabelOpacity: 1,
+                yiName: "肾小球", yiSubname: "",
+                bingFill: "#c62828", bingFillOpacity: 0.2, bingStroke: "#c62828",
+                bingLabel: "出球小动脉", bingLabelColor: "#c62828", bingLabelOpacity: 1,
+                arrowsGroupOpacity: 0,
+                arrowO2Opacity: 0, arrowNutrientOpacity: 0, arrowInsulinOpacity: 0,
+                conclusionTitle: "选项C",
+                conclusionText: "肾小球两端均为动脉血管，<br>均流动脉血。C错误。",
+                conclusionBadge: "✗ 错误", conclusionBadgeColor: "#888888",
+                stepText: "步骤 3/4"
+            },
+            // 步骤4：选项D - 胰岛
+            {
+                jiaFill: "#c62828", jiaFillOpacity: 0.2, jiaStroke: "#c62828",
+                jiaLabel: "动脉血（血糖↑）", jiaLabelColor: "#c62828", jiaLabelOpacity: 1,
+                yiName: "胰岛毛细血管", yiSubname: "",
+                bingFill: "#1565c0", bingFillOpacity: 0.2, bingStroke: "#1565c0",
+                bingLabel: "静脉血（胰岛素↑）", bingLabelColor: "#1565c0", bingLabelOpacity: 1,
+                arrowsGroupOpacity: 1,
+                arrowO2Opacity: 0, arrowNutrientOpacity: 0, arrowInsulinOpacity: 1,
+                conclusionTitle: "选项D",
+                conclusionText: "胰岛分泌胰岛素入血，<br>血糖升高时分泌增加。<br>D正确。",
+                conclusionBadge: "✓ 正确", conclusionBadgeColor: "#2e7d32",
+                stepText: "步骤 4/4"
+            }
+        ];
+
+        var currentStep = 0;
+
+        // ===== DOM 引用 =====
+        var vesselJia = document.getElementById("scene1-vessel-jia");
+        var vesselJiaLabel = document.getElementById("scene1-vessel-jia-label");
+        var yiName = document.getElementById("scene1-yi-name");
+        var yiSubname = document.getElementById("scene1-yi-subname");
+        var vesselBing = document.getElementById("scene1-vessel-bing");
+        var vesselBingLabel = document.getElementById("scene1-vessel-bing-label");
+        var arrowsGroup = document.getElementById("scene1-arrows-group");
+        var arrowO2 = document.getElementById("scene1-arrow-o2");
+        var arrowNutrient = document.getElementById("scene1-arrow-nutrient");
+        var arrowInsulin = document.getElementById("scene1-arrow-insulin");
+        var conclusionTitle = document.getElementById("scene1-conclusion-title");
+        var conclusionText = document.getElementById("scene1-conclusion-text");
+        var conclusionBadge = document.getElementById("scene1-conclusion-badge");
+        var stepIndicator = document.getElementById("scene1-step-indicator");
+        var btnPrev = document.getElementById("scene1-btn-prev");
+        var btnNext = document.getElementById("scene1-btn-next");
+
+        // ===== 渲染函数 =====
+        function renderStep(step) {
+            var s = steps[step];
+
+            // 甲血管
+            vesselJia.setAttribute("fill", s.jiaFill);
+            vesselJia.setAttribute("fill-opacity", s.jiaFillOpacity);
+            vesselJia.setAttribute("stroke", s.jiaStroke);
+
+            // 甲血管类型标签
+            vesselJiaLabel.textContent = s.jiaLabel;
+            vesselJiaLabel.setAttribute("fill", s.jiaLabelColor);
+            vesselJiaLabel.setAttribute("opacity", s.jiaLabelOpacity);
+
+            // 乙结构（HTML div）
+            yiName.textContent = s.yiName;
+            yiSubname.textContent = s.yiSubname;
+            yiSubname.style.display = s.yiSubname ? "block" : "none";
+
+            // 丙血管
+            vesselBing.setAttribute("fill", s.bingFill);
+            vesselBing.setAttribute("fill-opacity", s.bingFillOpacity);
+            vesselBing.setAttribute("stroke", s.bingStroke);
+
+            // 丙血管类型标签
+            vesselBingLabel.textContent = s.bingLabel;
+            vesselBingLabel.setAttribute("fill", s.bingLabelColor);
+            vesselBingLabel.setAttribute("opacity", s.bingLabelOpacity);
+
+            // 成分变化箭头
+            arrowsGroup.setAttribute("opacity", s.arrowsGroupOpacity);
+            arrowO2.setAttribute("opacity", s.arrowO2Opacity);
+            arrowNutrient.setAttribute("opacity", s.arrowNutrientOpacity);
+            arrowInsulin.setAttribute("opacity", s.arrowInsulinOpacity);
+
+            // 结论框（HTML div）
+            conclusionTitle.textContent = s.conclusionTitle;
+            conclusionText.innerHTML = s.conclusionText;
+            conclusionBadge.textContent = s.conclusionBadge;
+            conclusionBadge.style.color = s.conclusionBadgeColor;
+
+            // 步骤指示
+            stepIndicator.textContent = s.stepText;
+
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === 4);
+        }
+
+        // ===== 导航函数 =====
+        function goToStep(step) {
+            if (step < 0 || step > 4) return;
+            currentStep = step;
+            renderStep(step);
+        }
+
+        // ===== 事件绑定 =====
+        btnPrev.addEventListener("click", function() {
+            goToStep(currentStep - 1);
+        });
+        btnNext.addEventListener("click", function() {
+            goToStep(currentStep + 1);
+        });
+
+        // ===== 初始化 =====
+        renderStep(0);
+
+    })();
+    </script>
+</body>
+</html>

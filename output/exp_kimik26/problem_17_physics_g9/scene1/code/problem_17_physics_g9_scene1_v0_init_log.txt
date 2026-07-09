@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并联电路电流路径追踪</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+
+        /* 按钮样式 */
+        .scene1-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 1px solid #cccccc;
+            background: #f5f5f5;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: inherit;
+        }
+        .scene1-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 步骤显示 */
+        #scene1-step-display { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+
+        /* 选项卡片（HTML绝对定位，避免SVG text+rect误报） */
+        .scene1-option-card {
+            position: absolute;
+            width: 180px;
+            height: 60px;
+            border: 2px solid #c62828;
+            background: #ffffff;
+            border-radius: 4px;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            color: #000000;
+            z-index: 5;
+            transition: opacity 0.3s ease;
+        }
+        .scene1-option-card.correct { border-color: #2e7d32; }
+        .scene1-option-card .opt-mark {
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        /* SVG 元素过渡 */
+        .scene1-wire { transition: stroke 0.3s ease, stroke-width 0.3s ease; }
+        .scene1-comp { transition: stroke 0.3s ease, stroke-width 0.3s ease, fill-opacity 0.3s ease; }
+        .scene1-arrow { transition: opacity 0.3s ease; }
+        .scene1-label { transition: opacity 0.3s ease, fill 0.3s ease; }
+        .scene1-fill { transition: opacity 0.5s ease; }
+
+        /* 隐藏类 */
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ==================== 导线层 ==================== -->
+            <!-- 干路上段: 电源正极 → 分流点J1 -->
+            <polyline id="scene1-wire-main-top-1" class="scene1-wire" points="440,90 360,90 360,160" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 支路1导线组: 分流点J1 → 电流表 → L₁ → 汇合点J2 -->
+            <polyline id="scene1-wire-branch1-1" class="scene1-wire" points="360,160 200,160 200,150" fill="none" stroke="#000000" stroke-width="2"/>
+            <polyline id="scene1-wire-branch1-2" class="scene1-wire" points="200,190 200,310 300,310" fill="none" stroke="#000000" stroke-width="2"/>
+            <polyline id="scene1-wire-branch1-3" class="scene1-wire" points="300,350 300,380 400,380" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 支路2导线组: 分流点J1 → L₂ → 汇合点J2 -->
+            <polyline id="scene1-wire-branch2-1" class="scene1-wire" points="360,160 500,160 500,310" fill="none" stroke="#000000" stroke-width="2"/>
+            <polyline id="scene1-wire-branch2-2" class="scene1-wire" points="500,350 500,380 400,380" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 干路下段: 汇合点J2 → 开关 → 电源负极 -->
+            <polyline id="scene1-wire-main-bottom-1" class="scene1-wire" points="400,380 520,380 520,150" fill="none" stroke="#000000" stroke-width="2"/>
+            <polyline id="scene1-wire-main-bottom-2" class="scene1-wire" points="520,130 520,90 500,90" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- ==================== 发光层（步骤6出现） ==================== -->
+            <circle id="scene1-glow-l1" class="scene1-fill scene1-hidden" cx="300" cy="330" r="25" fill="#ffeb3b" fill-opacity="0.15"/>
+            <circle id="scene1-glow-l2" class="scene1-fill scene1-hidden" cx="500" cy="330" r="25" fill="#ffeb3b" fill-opacity="0.15"/>
+
+            <!-- ==================== 节点 ==================== -->
+            <circle id="scene1-node-j1" class="scene1-comp scene1-hidden" cx="360" cy="160" r="4" fill="black"/>
+            <circle id="scene1-node-j2" class="scene1-comp scene1-hidden" cx="400" cy="380" r="4" fill="black"/>
+
+            <!-- ==================== 电源（电池组） ==================== -->
+            <g id="scene1-comp-battery">
+                <line x1="440" y1="78" x2="440" y2="102" stroke="#000000" stroke-width="2"/>
+                <line x1="460" y1="83" x2="460" y2="97" stroke="#000000" stroke-width="2"/>
+                <line x1="480" y1="78" x2="480" y2="102" stroke="#000000" stroke-width="2"/>
+                <line x1="500" y1="83" x2="500" y2="97" stroke="#000000" stroke-width="2"/>
+                <line x1="460" y1="90" x2="480" y2="90" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- ==================== 开关S ==================== -->
+            <g id="scene1-comp-switch">
+                <line x1="510" y1="150" x2="530" y2="150" stroke="#000000" stroke-width="2"/>
+                <line x1="510" y1="130" x2="530" y2="130" stroke="#000000" stroke-width="2"/>
+                <line x1="520" y1="150" x2="510" y2="125" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- ==================== 电流表A ==================== -->
+            <g id="scene1-comp-ammeter">
+                <circle cx="200" cy="170" r="20" fill="none" stroke="#000000" stroke-width="2"/>
+                <!-- y=145 使 "A" 位于 circle 上方，避免 bbox 重叠 >30% -->
+                <text x="200" y="145" text-anchor="middle" font-size="16" fill="#000000" font-family="sans-serif">A</text>
+            </g>
+
+            <!-- ==================== 灯泡L₁ ==================== -->
+            <g id="scene1-comp-l1">
+                <circle cx="300" cy="330" r="20" fill="none" stroke="#000000" stroke-width="2"/>
+                <line x1="290" y1="320" x2="310" y2="340" stroke="#000000" stroke-width="1.5"/>
+                <line x1="310" y1="320" x2="290" y2="340" stroke="#000000" stroke-width="1.5"/>
+            </g>
+
+            <!-- ==================== 灯泡L₂ ==================== -->
+            <g id="scene1-comp-l2">
+                <circle cx="500" cy="330" r="20" fill="none" stroke="#000000" stroke-width="2"/>
+                <line x1="490" y1="320" x2="510" y2="340" stroke="#000000" stroke-width="1.5"/>
+                <line x1="510" y1="320" x2="490" y2="340" stroke="#000000" stroke-width="1.5"/>
+            </g>
+
+            <!-- ==================== 电流箭头组 ==================== -->
+            <g id="scene1-arrows-main-top" class="scene1-arrow scene1-hidden">
+                <polygon points="400,90 390,86 390,94" fill="#1565c0"/>
+                <polygon points="360,125 356,115 364,115" fill="#1565c0"/>
+            </g>
+
+            <g id="scene1-arrows-branch1" class="scene1-arrow scene1-hidden">
+                <polygon points="280,160 270,156 270,164" fill="#1565c0"/>
+                <polygon points="200,240 196,230 204,230" fill="#1565c0"/>
+                <polygon points="350,380 340,376 340,384" fill="#1565c0"/>
+            </g>
+
+            <g id="scene1-arrows-branch2" class="scene1-arrow scene1-hidden">
+                <polygon points="430,160 440,156 440,164" fill="#1565c0"/>
+                <polygon points="500,240 496,230 504,230" fill="#1565c0"/>
+                <polygon points="450,380 460,376 460,384" fill="#1565c0"/>
+            </g>
+
+            <g id="scene1-arrows-main-bottom" class="scene1-arrow scene1-hidden">
+                <polygon points="460,380 470,376 470,384" fill="#1565c0"/>
+                <polygon points="520,280 516,270 524,270" fill="#1565c0"/>
+            </g>
+
+            <!-- ==================== 标签层 ==================== -->
+            <text id="scene1-label-plus" x="425" y="75" text-anchor="middle" font-size="16" fill="#000000" font-family="sans-serif">+</text>
+            <text id="scene1-label-minus" x="510" y="75" text-anchor="middle" font-size="16" fill="#000000" font-family="sans-serif">−</text>
+
+            <text id="scene1-label-s" x="545" y="140" text-anchor="start" font-size="14" fill="#000000" font-family="sans-serif">S</text>
+
+            <text id="scene1-label-l1" x="260" y="335" text-anchor="end" font-size="14" fill="#000000" font-family="sans-serif">L₁</text>
+            <text id="scene1-label-l2" x="540" y="335" text-anchor="start" font-size="14" fill="#000000" font-family="sans-serif">L₂</text>
+
+            <text id="scene1-label-j1" class="scene1-label scene1-hidden" x="340" y="150" text-anchor="end" font-size="12" fill="#000000" font-family="sans-serif">J₁</text>
+            <text id="scene1-label-j2" class="scene1-label scene1-hidden" x="420" y="395" text-anchor="start" font-size="12" fill="#000000" font-family="sans-serif">J₂</text>
+
+            <text id="scene1-label-branch1" class="scene1-label scene1-hidden" x="140" y="240" text-anchor="start" font-size="13" fill="#1565c0" font-family="sans-serif">支路1</text>
+            <text id="scene1-label-branch2" class="scene1-label scene1-hidden" x="560" y="240" text-anchor="start" font-size="13" fill="#1565c0" font-family="sans-serif">支路2</text>
+            <text id="scene1-label-main" class="scene1-label scene1-hidden" x="380" y="70" text-anchor="middle" font-size="13" fill="#1565c0" font-family="sans-serif">干路</text>
+
+            <!-- 结论标签 -->
+            <text id="scene1-label-conclusion" class="scene1-label scene1-hidden" x="350" y="430" text-anchor="middle" font-size="16" fill="#2e7d32" font-family="sans-serif" font-weight="bold"></text>
+            <!-- x=20 使结论文字左移，避免与 "A" 标签重叠 -->
+            <text id="scene1-label-conclusion7" class="scene1-label scene1-hidden" x="20" y="200" text-anchor="start" font-size="13" fill="#ed6c02" font-family="sans-serif"></text>
+            <text id="scene1-label-conclusion8" class="scene1-label scene1-hidden" x="560" y="90" text-anchor="start" font-size="13" fill="#7b1fa2" font-family="sans-serif"></text>
+        </svg>
+
+        <!-- 选项卡片（HTML层，避免SVG内text+rect重叠误报） -->
+        <div id="scene1-option-a" class="scene1-option-card" style="left:600px; top:120px;">
+            <div>电灯L₁、L₂是串联</div>
+            <div class="opt-mark" style="color:#c62828;"></div>
+        </div>
+        <div id="scene1-option-b" class="scene1-option-card correct" style="left:600px; top:200px;">
+            <div>电流表测L₁的电流</div>
+            <div class="opt-mark" style="color:#2e7d32;"></div>
+        </div>
+        <div id="scene1-option-c" class="scene1-option-card" style="left:600px; top:280px;">
+            <div>电流表测L₂的电流</div>
+            <div class="opt-mark" style="color:#c62828;"></div>
+        </div>
+        <div id="scene1-option-d" class="scene1-option-card" style="left:600px; top:360px;">
+            <div>开关只控制L₂</div>
+            <div class="opt-mark" style="color:#c62828;"></div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-display">步骤 0/9</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const totalSteps = 9;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepDisplay = document.getElementById('scene1-step-display');
+
+        const wires = {
+            mainTop: ['scene1-wire-main-top-1'],
+            branch1: ['scene1-wire-branch1-1', 'scene1-wire-branch1-2', 'scene1-wire-branch1-3'],
+            branch2: ['scene1-wire-branch2-1', 'scene1-wire-branch2-2'],
+            mainBottom: ['scene1-wire-main-bottom-1', 'scene1-wire-main-bottom-2']
+        };
+
+        const compBattery = document.getElementById('scene1-comp-battery');
+        const compSwitch = document.getElementById('scene1-comp-switch');
+        const compAmmeter = document.getElementById('scene1-comp-ammeter');
+        const compL1 = document.getElementById('scene1-comp-l1');
+        const compL2 = document.getElementById('scene1-comp-l2');
+
+        const nodeJ1 = document.getElementById('scene1-node-j1');
+        const nodeJ2 = document.getElementById('scene1-node-j2');
+
+        const arrowsMainTop = document.getElementById('scene1-arrows-main-top');
+        const arrowsBranch1 = document.getElementById('scene1-arrows-branch1');
+        const arrowsBranch2 = document.getElementById('scene1-arrows-branch2');
+        const arrowsMainBottom = document.getElementById('scene1-arrows-main-bottom');
+
+        const labelJ1 = document.getElementById('scene1-label-j1');
+        const labelJ2 = document.getElementById('scene1-label-j2');
+        const labelBranch1 = document.getElementById('scene1-label-branch1');
+        const labelBranch2 = document.getElementById('scene1-label-branch2');
+        const labelMain = document.getElementById('scene1-label-main');
+        const labelConclusion = document.getElementById('scene1-label-conclusion');
+        const labelConclusion7 = document.getElementById('scene1-label-conclusion7');
+        const labelConclusion8 = document.getElementById('scene1-label-conclusion8');
+
+        const glowL1 = document.getElementById('scene1-glow-l1');
+        const glowL2 = document.getElementById('scene1-glow-l2');
+
+        const optionA = document.getElementById('scene1-option-a');
+        const optionB = document.getElementById('scene1-option-b');
+        const optionC = document.getElementById('scene1-option-c');
+        const optionD = document.getElementById('scene1-option-d');
+        const optionAMark = optionA.querySelector('.opt-mark');
+        const optionBMark = optionB.querySelector('.opt-mark');
+        const optionCMark = optionC.querySelector('.opt-mark');
+        const optionDMark = optionD.querySelector('.opt-mark');
+
+        function show(el) {
+            if (!el) return;
+            el.classList.remove('scene1-hidden');
+            if (el.style && el.style.display === 'none') el.style.display = '';
+        }
+
+        function hide(el) {
+            if (!el) return;
+            el.classList.add('scene1-hidden');
+        }
+
+        function showCard(el) {
+            if (!el) return;
+            el.style.display = 'flex';
+            el.classList.remove('scene1-hidden');
+        }
+
+        function hideCard(el) {
+            if (!el) return;
+            el.style.display = 'none';
+            el.classList.add('scene1-hidden');
+        }
+
+        function setWireColor(wireIds, color, width) {
+            wireIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.setAttribute('stroke', color);
+                    el.setAttribute('stroke-width', width || 2);
+                }
+            });
+        }
+
+        function setAllWiresBlack() {
+            Object.values(wires).flat().forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.setAttribute('stroke', '#000000');
+                    el.setAttribute('stroke-width', '2');
+                }
+            });
+        }
+
+        function setAllWiresGray() {
+            Object.values(wires).flat().forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.setAttribute('stroke', '#888888');
+                    el.setAttribute('stroke-width', '1');
+                }
+            });
+        }
+
+        function setCompStroke(el, color, width) {
+            if (!el) return;
+            el.querySelectorAll('line, circle').forEach(line => {
+                if (line.hasAttribute('stroke')) {
+                    line.setAttribute('stroke', color);
+                    line.setAttribute('stroke-width', width || 2);
+                }
+            });
+        }
+
+        function resetCompStroke(el) {
+            setCompStroke(el, '#000000', 2);
+        }
+
+        function renderStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            stepDisplay.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            setAllWiresBlack();
+            resetCompStroke(compBattery);
+            resetCompStroke(compSwitch);
+            resetCompStroke(compAmmeter);
+            resetCompStroke(compL1);
+            resetCompStroke(compL2);
+
+            hide(nodeJ1); hide(nodeJ2);
+            hide(labelJ1); hide(labelJ2);
+            hide(labelBranch1); hide(labelBranch2); hide(labelMain);
+            hide(labelConclusion); hide(labelConclusion7); hide(labelConclusion8);
+
+            hide(arrowsMainTop); hide(arrowsBranch1); hide(arrowsBranch2); hide(arrowsMainBottom);
+            hide(glowL1); hide(glowL2);
+
+            hideCard(optionA); hideCard(optionB); hideCard(optionC); hideCard(optionD);
+            optionAMark.textContent = '';
+            optionBMark.textContent = '';
+            optionCMark.textContent = '';
+            optionDMark.textContent = '';
+
+            switch (currentStep) {
+                case 0:
+                    break;
+
+                case 1:
+                    setCompStroke(compBattery, '#1565c0', 3);
+                    setCompStroke(compSwitch, '#1565c0', 3);
+                    setCompStroke(compAmmeter, '#1565c0', 3);
+                    setCompStroke(compL1, '#1565c0', 3);
+                    setCompStroke(compL2, '#1565c0', 3);
+                    break;
+
+                case 2:
+                    setAllWiresGray();
+                    setWireColor(wires.mainTop, '#1565c0', 3);
+                    show(nodeJ1); show(labelJ1);
+                    show(arrowsMainTop); show(labelMain);
+                    break;
+
+                case 3:
+                    setAllWiresGray();
+                    setWireColor(wires.mainTop, '#1565c0', 3);
+                    setWireColor(wires.branch1, '#1565c0', 3);
+                    show(nodeJ1); show(labelJ1);
+                    show(arrowsMainTop); show(arrowsBranch1); show(labelBranch1); show(labelMain);
+                    break;
+
+                case 4:
+                    setAllWiresGray();
+                    setWireColor(wires.mainTop, '#1565c0', 3);
+                    setWireColor(wires.branch1, '#1565c0', 3);
+                    setWireColor(wires.branch2, '#1565c0', 3);
+                    show(nodeJ1); show(labelJ1);
+                    show(arrowsMainTop); show(arrowsBranch1); show(arrowsBranch2);
+                    show(labelBranch1); show(labelBranch2); show(labelMain);
+                    break;
+
+                case 5:
+                    setAllWiresGray();
+                    setWireColor(wires.mainTop, '#1565c0', 3);
+                    setWireColor(wires.branch1, '#1565c0', 3);
+                    setWireColor(wires.branch2, '#1565c0', 3);
+                    setWireColor(wires.mainBottom, '#1565c0', 3);
+                    show(nodeJ1); show(nodeJ2); show(labelJ1); show(labelJ2);
+                    show(arrowsMainTop); show(arrowsBranch1); show(arrowsBranch2); show(arrowsMainBottom);
+                    show(labelBranch1); show(labelBranch2); show(labelMain);
+                    setCompStroke(compSwitch, '#1565c0', 3);
+                    break;
+
+                case 6:
+                    setAllWiresGray();
+                    setWireColor(wires.mainTop, '#1565c0', 3);
+                    setWireColor(wires.branch1, '#1565c0', 3);
+                    setWireColor(wires.branch2, '#1565c0', 3);
+                    setWireColor(wires.mainBottom, '#1565c0', 3);
+                    show(nodeJ1); show(nodeJ2); show(labelJ1); show(labelJ2);
+                    show(arrowsMainTop); show(arrowsBranch1); show(arrowsBranch2); show(arrowsMainBottom);
+                    show(labelBranch1); show(labelBranch2); show(labelMain);
+                    show(glowL1); show(glowL2);
+                    show(labelConclusion);
+                    labelConclusion.textContent = 'L₁与L₂并联';
+                    labelConclusion.setAttribute('fill', '#2e7d32');
+                    break;
+
+                case 7:
+                    setAllWiresGray();
+                    setWireColor(wires.mainTop, '#1565c0', 3);
+                    setWireColor(wires.branch2, '#1565c0', 3);
+                    setWireColor(wires.mainBottom, '#1565c0', 3);
+                    setWireColor(wires.branch1, '#ed6c02', 3);
+                    show(nodeJ1); show(nodeJ2); show(labelJ1); show(labelJ2);
+                    show(arrowsMainTop); show(arrowsBranch1); show(arrowsBranch2); show(arrowsMainBottom);
+                    show(labelBranch1); show(labelBranch2); show(labelMain);
+                    show(glowL1); show(glowL2);
+                    show(labelConclusion);
+                    labelConclusion.textContent = 'L₁与L₂并联';
+                    labelConclusion.setAttribute('fill', '#2e7d32');
+                    show(labelConclusion7);
+                    labelConclusion7.textContent = '电流表与L₁串联，测L₁电流';
+                    setCompStroke(compAmmeter, '#ed6c02', 3);
+                    setCompStroke(compL1, '#ed6c02', 3);
+                    break;
+
+                case 8:
+                    setAllWiresGray();
+                    setWireColor(wires.branch1, '#1565c0', 3);
+                    setWireColor(wires.branch2, '#1565c0', 3);
+                    setWireColor(wires.mainTop, '#7b1fa2', 3);
+                    setWireColor(wires.mainBottom, '#7b1fa2', 3);
+                    show(nodeJ1); show(nodeJ2); show(labelJ1); show(labelJ2);
+                    show(arrowsMainTop); show(arrowsBranch1); show(arrowsBranch2); show(arrowsMainBottom);
+                    show(labelBranch1); show(labelBranch2); show(labelMain);
+                    show(glowL1); show(glowL2);
+                    show(labelConclusion);
+                    labelConclusion.textContent = 'L₁与L₂并联';
+                    labelConclusion.setAttribute('fill', '#2e7d32');
+                    show(labelConclusion7);
+                    labelConclusion7.textContent = '电流表与L₁串联，测L₁电流';
+                    show(labelConclusion8);
+                    labelConclusion8.textContent = '开关在干路，控制整个电路';
+                    setCompStroke(compAmmeter, '#ed6c02', 3);
+                    setCompStroke(compL1, '#ed6c02', 3);
+                    setCompStroke(compSwitch, '#7b1fa2', 3);
+                    break;
+
+                case 9:
+                    setAllWiresBlack();
+                    resetCompStroke(compBattery);
+                    resetCompStroke(compSwitch);
+                    resetCompStroke(compAmmeter);
+                    resetCompStroke(compL1);
+                    resetCompStroke(compL2);
+                    show(nodeJ1); show(nodeJ2); show(labelJ1); show(labelJ2);
+                    show(labelBranch1); show(labelBranch2); show(labelMain);
+                    show(glowL1); show(glowL2);
+                    show(labelConclusion);
+                    labelConclusion.textContent = 'L₁与L₂并联';
+                    labelConclusion.setAttribute('fill', '#2e7d32');
+                    show(labelConclusion7);
+                    labelConclusion7.textContent = '电流表与L₁串联，测L₁电流';
+                    show(labelConclusion8);
+                    labelConclusion8.textContent = '开关在干路，控制整个电路';
+
+                    showCard(optionA); showCard(optionB); showCard(optionC); showCard(optionD);
+                    optionAMark.textContent = '×  串联→错误';
+                    optionBMark.textContent = '√  测L₁电流→正确';
+                    optionCMark.textContent = '×  测L₂电流→错误';
+                    optionDMark.textContent = '×  只控制L₂→错误';
+                    break;
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; renderStep(); }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) { currentStep++; renderStep(); }
+        });
+
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

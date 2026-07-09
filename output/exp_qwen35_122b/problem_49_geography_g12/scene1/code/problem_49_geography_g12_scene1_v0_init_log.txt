@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>南极俯视图中的晨昏线与日期分界线</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene1-btn { padding: 10px 20px; font-size: 14px; border: 2px solid #333; border-radius: 6px; background: #f5f5f5; cursor: pointer; transition: all 0.2s; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-step-indicator { font-size: 16px; font-weight: bold; color: #333; min-width: 100px; text-align: center; }
+        #scene1-summary-text { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #333; background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 4px; display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 阴影扇形 (步骤 3) -->
+            <path id="scene1-sector-shadow" d="M 400,350 L 227,250 A 200,200 0 0,1 200,350 Z" fill="#888888" fill-opacity="0.3" style="display: none;"/>
+            
+            <!-- 外圈纬线 (步骤 0) -->
+            <path id="scene1-arc-outer" d="M 200,350 A 200,200 0 0,1 600,350" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 70° 纬线 (步骤 0) -->
+            <path id="scene1-arc-70" d="M 280,350 A 120,120 0 0,1 520,350" fill="none" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 水平直径 (步骤 0) -->
+            <line id="scene1-line-horiz" x1="200" y1="350" x2="600" y2="350" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 经线 B (步骤 1) -->
+            <line id="scene1-line-B" x1="400" y1="350" x2="227" y2="250" stroke="#1565c0" stroke-width="2" style="display: none;"/>
+            
+            <!-- 晨昏线 MA (步骤 2) -->
+            <path id="scene1-curve-MA" d="M 296,310 Q 480,200 650,220" fill="none" stroke="#c62828" stroke-width="3" style="display: none;"/>
+            
+            <!-- 中心点 O (步骤 0) -->
+            <circle id="scene1-center-O" cx="400" cy="350" r="6" fill="#000000"/>
+            
+            <!-- 切点 M (步骤 1) -->
+            <circle id="scene1-point-M" cx="296" cy="310" r="7" fill="#c62828" style="display: none;"/>
+            
+            <!-- 端点 A (步骤 2) -->
+            <circle id="scene1-point-A" cx="650" cy="220" r="5" fill="#000000" style="display: none;"/>
+            
+            <!-- 标签 O (步骤 0) -->
+            <text id="scene1-label-O" x="395" y="375" font-size="18" fill="#000000" font-weight="bold">O</text>
+            
+            <!-- 标签 70° (步骤 0) -->
+            <text id="scene1-label-70" x="525" y="365" font-size="16" fill="#000000">70°</text>
+            
+            <!-- 标签 B (步骤 1) - 调整位置避免重叠，移到经线 B 上方更远位置 -->
+            <text id="scene1-label-B" x="185" y="205" font-size="16" fill="#1565c0" font-weight="bold">B</text>
+            
+            <!-- 标签 M (步骤 1) - 调整位置避免重叠，移到切点 M 左上方，完全避开所有图形 -->
+            <text id="scene1-label-M" x="215" y="200" font-size="16" fill="#c62828" font-weight="bold">M</text>
+            
+            <!-- 标签 A (步骤 2) -->
+            <text id="scene1-label-A" x="660" y="215" font-size="16" fill="#000000">A</text>
+            
+            <!-- 阴影标注 (步骤 3) -->
+            <text id="scene1-label-shadow" x="230" y="310" font-size="14" fill="#666666" style="display: none;">日期不同区</text>
+        </svg>
+        
+        <div id="scene1-summary-text"></div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 南极俯视图中的晨昏线与日期分界线
+        // 布局坐标表（实现对照依据）：
+        // 画布尺寸：800×500px，中心点 O 位于 (400,350)
+        // 中心点 O: (400,350), r=6
+        // 70° 纬线：圆心 (400,350), r=120, 上半圆
+        // 外圈纬线：圆心 (400,350), r=200, 上半圆
+        // 经线 B: (400,350)-(227,250), 角度 150°
+        // 切点 M: (296,310), 在 70° 纬线上，角度 150°
+        // 端点 A: (650,220)
+        // 晨昏线 MA: 贝塞尔曲线，M(296,310) 到 A(650,220), 控制点 (480,200)
+        // 阴影扇形：从经线 B(150°) 到水平向左 (180°), r=200
+        
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            // 元素引用
+            elements: {
+                sectorShadow: document.getElementById('scene1-sector-shadow'),
+                arcOuter: document.getElementById('scene1-arc-outer'),
+                arc70: document.getElementById('scene1-arc-70'),
+                lineHoriz: document.getElementById('scene1-line-horiz'),
+                lineB: document.getElementById('scene1-line-B'),
+                curveMA: document.getElementById('scene1-curve-MA'),
+                centerO: document.getElementById('scene1-center-O'),
+                pointM: document.getElementById('scene1-point-M'),
+                pointA: document.getElementById('scene1-point-A'),
+                labelO: document.getElementById('scene1-label-O'),
+                label70: document.getElementById('scene1-label-70'),
+                labelB: document.getElementById('scene1-label-B'),
+                labelM: document.getElementById('scene1-label-M'),
+                labelA: document.getElementById('scene1-label-A'),
+                labelShadow: document.getElementById('scene1-label-shadow'),
+                btnPrev: document.getElementById('scene1-btn-prev'),
+                btnNext: document.getElementById('scene1-btn-next'),
+                stepIndicator: document.getElementById('scene1-step-indicator'),
+                summaryText: document.getElementById('scene1-summary-text')
+            },
+            
+            // 显示/隐藏工具函数
+            show: function(el) {
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            },
+            
+            hide: function(el) {
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            },
+            
+            // 更新步骤显示
+            updateStep: function() {
+                const el = this.elements;
+                
+                // 步骤 0: 基础框架
+                if (this.currentStep >= 0) {
+                    this.show(el.arcOuter);
+                    this.show(el.arc70);
+                    this.show(el.lineHoriz);
+                    this.show(el.centerO);
+                    this.show(el.labelO);
+                    this.show(el.label70);
+                }
+                
+                // 步骤 1: 添加经线与切点
+                if (this.currentStep >= 1) {
+                    this.show(el.lineB);
+                    this.show(el.pointM);
+                    this.show(el.labelB);
+                    this.show(el.labelM);
+                }
+                
+                // 步骤 2: 添加晨昏线
+                if (this.currentStep >= 2) {
+                    this.show(el.curveMA);
+                    this.show(el.pointA);
+                    this.show(el.labelA);
+                }
+                
+                // 步骤 3: 添加阴影日期区域
+                if (this.currentStep >= 3) {
+                    this.show(el.sectorShadow);
+                    this.show(el.labelShadow);
+                }
+                
+                // 步骤 4: 总结标注
+                if (this.currentStep >= 4) {
+                    el.summaryText.innerHTML = '<strong>M 为切点：</strong>70°S 纬线出现极昼/极夜 | <strong>阴影区：</strong>日期分界线（180°经线或 0 时经线）';
+                    el.summaryText.style.display = 'block';
+                }
+                
+                // 更新按钮状态
+                el.btnPrev.disabled = (this.currentStep === 0);
+                el.btnNext.disabled = (this.currentStep === this.totalSteps - 1);
+                
+                // 更新步骤指示器
+                el.stepIndicator.textContent = '步骤 ' + (this.currentStep + 1) + '/' + this.totalSteps;
+            },
+            
+            // 初始化
+            init: function() {
+                const self = this;
+                
+                // 绑定按钮事件
+                el.btnPrev.addEventListener('click', function() {
+                    if (self.currentStep > 0) {
+                        self.currentStep--;
+                        self.updateStep();
+                    }
+                });
+                
+                el.btnNext.addEventListener('click', function() {
+                    if (self.currentStep < self.totalSteps - 1) {
+                        self.currentStep++;
+                        self.updateStep();
+                    }
+                });
+                
+                // 初始显示
+                this.updateStep();
+            }
+        };
+        
+        // 启动场景
+        scene1.init();
+    })();
+    </script>
+</body>
+</html>

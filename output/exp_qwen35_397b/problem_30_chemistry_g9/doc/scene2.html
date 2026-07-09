@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>反应类型分析与选项验证</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 节点样式 */
+        .scene2-node {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 2px;
+        }
+        /* 连线样式 */
+        .scene2-line {
+            stroke: #9e9e9e;
+            stroke-width: 3px;
+            fill: none;
+            transition: stroke 0.3s ease;
+        }
+        .scene2-line.highlight-blue {
+            stroke: #1565c0;
+        }
+        .scene2-line.highlight-green {
+            stroke: #2e7d32;
+        }
+        .scene2-line.highlight-red {
+            stroke: #c62828;
+        }
+        /* 箭头样式 */
+        .scene2-arrow {
+            stroke: #9e9e9e;
+            stroke-width: 3px;
+            fill: none;
+            transition: stroke 0.3s ease;
+        }
+        .scene2-arrow.highlight-red {
+            stroke: #c62828;
+        }
+        .scene2-arrow-head {
+            fill: #9e9e9e;
+            transition: fill 0.3s ease;
+        }
+        .scene2-arrow-head.highlight-red {
+            fill: #c62828;
+        }
+        /* 标签样式 */
+        .scene2-node-label {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #000000;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        .scene2-reaction-label {
+            font-size: 13px;
+            fill: #1565c0;
+            text-anchor: middle;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .scene2-reaction-label.green {
+            fill: #2e7d32;
+        }
+        .scene2-reaction-label.red {
+            fill: #c62828;
+        }
+        .scene2-reaction-label.visible {
+            opacity: 1;
+        }
+        /* 选项框样式 */
+        .scene2-option-box {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 1.5px;
+            rx: 8;
+            opacity: 0;
+            transition: opacity 0.3s ease, fill 0.3s ease;
+        }
+        .scene2-option-box.visible {
+            opacity: 1;
+        }
+        .scene2-option-box.incorrect {
+            fill: #ffcdd2;
+        }
+        .scene2-option-box.correct {
+            fill: #c8e6c9;
+        }
+        .scene2-option-text {
+            font-size: 12px;
+            fill: #000000;
+            text-anchor: middle;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .scene2-option-text.visible {
+            opacity: 1;
+        }
+        /* 控件按钮 */
+        #scene2-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 50px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        .scene2-btn {
+            pointer-events: auto;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid #1565c0;
+            background: #ffffff;
+            color: #1565c0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .scene2-btn:hover:not(:disabled) {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        .scene2-btn:disabled {
+            border-color: #bdbdbd;
+            color: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            font-weight: bold;
+            color: #424242;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 连线层（在节点下方） -->
+            <!-- X-Y 连线 -->
+            <line id="scene2-line-xy" class="scene2-line" x1="175" y1="120" x2="375" y2="120" />
+            <!-- X-M 连线 -->
+            <line id="scene2-line-xm" class="scene2-line" x1="175" y1="145" x2="250" y2="195" />
+            <!-- Y-M 连线 -->
+            <line id="scene2-line-ym" class="scene2-line" x1="375" y1="145" x2="300" y2="195" />
+            <!-- Y-铁 连线 -->
+            <line id="scene2-line-yfe" class="scene2-line" x1="425" y1="120" x2="625" y2="120" />
+            <!-- Y-N 连线 -->
+            <line id="scene2-line-yn" class="scene2-line" x1="425" y1="145" x2="500" y2="195" />
+            
+            <!-- N→铁 箭头 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" class="scene2-arrow-head" />
+                </marker>
+            </defs>
+            <line id="scene2-arrow-nfe" class="scene2-arrow" x1="550" y1="205" x2="625" y2="145" marker-end="url(#scene2-arrowhead)" />
+            
+            <!-- 节点层 -->
+            <circle id="scene2-node-x" class="scene2-node" cx="150" cy="120" r="25" />
+            <circle id="scene2-node-y" class="scene2-node" cx="400" cy="120" r="25" />
+            <circle id="scene2-node-m" class="scene2-node" cx="275" cy="220" r="25" />
+            <circle id="scene2-node-n" class="scene2-node" cx="525" cy="220" r="25" />
+            <circle id="scene2-node-fe" class="scene2-node" cx="650" cy="120" r="25" />
+            
+            <!-- 节点标签 -->
+            <text id="scene2-label-x" class="scene2-node-label" x="150" y="120">X</text>
+            <text id="scene2-label-y" class="scene2-node-label" x="400" y="120">Y</text>
+            <text id="scene2-label-m" class="scene2-node-label" x="275" y="220">M</text>
+            <text id="scene2-label-n" class="scene2-node-label" x="525" y="220">N</text>
+            <text id="scene2-label-fe" class="scene2-node-label" x="650" y="120">铁</text>
+            
+            <!-- 反应类型标签 -->
+            <text id="scene2-label-xy" class="scene2-reaction-label" x="275" y="100">复分解</text>
+            <text id="scene2-label-xm" class="scene2-reaction-label" x="200" y="180">复分解</text>
+            <text id="scene2-label-ym" class="scene2-reaction-label" x="320" y="180">复分解</text>
+            <text id="scene2-label-yfe" class="scene2-reaction-label green" x="525" y="100">置换</text>
+            <text id="scene2-label-yn" class="scene2-reaction-label" x="480" y="180">复分解</text>
+            <text id="scene2-label-nfe" class="scene2-reaction-label red" x="590" y="180">氧化还原</text>
+            
+            <!-- 选项框 -->
+            <rect id="scene2-opt-a" class="scene2-option-box" x="80" y="320" width="150" height="40" />
+            <rect id="scene2-opt-b" class="scene2-option-box" x="240" y="320" width="150" height="40" />
+            <rect id="scene2-opt-c" class="scene2-option-box" x="400" y="320" width="150" height="40" />
+            <rect id="scene2-opt-d" class="scene2-option-box" x="560" y="320" width="150" height="40" />
+            
+            <!-- 选项文本 -->
+            <text id="scene2-opt-text-a" class="scene2-option-text" x="155" y="345">A.X 一定是… ✗</text>
+            <text id="scene2-opt-text-b" class="scene2-option-text" x="315" y="345">B.Y 一定是… ✗</text>
+            <text id="scene2-opt-text-c" class="scene2-option-text" x="475" y="345">C.N 转化为… ✗</text>
+            <text id="scene2-opt-text-d" class="scene2-option-text" x="635" y="345">D.X、Y、M… ✓</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：反应类型分析与选项验证
+        
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 6;
+        
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 连线元素
+        const lineXY = document.getElementById('scene2-line-xy');
+        const lineXM = document.getElementById('scene2-line-xm');
+        const lineYM = document.getElementById('scene2-line-ym');
+        const lineYFe = document.getElementById('scene2-line-yfe');
+        const lineYN = document.getElementById('scene2-line-yn');
+        const arrowNFe = document.getElementById('scene2-arrow-nfe');
+        const arrowHead = document.querySelector('#scene2-arrowhead path');
+        
+        // 反应类型标签
+        const labelXY = document.getElementById('scene2-label-xy');
+        const labelXM = document.getElementById('scene2-label-xm');
+        const labelYM = document.getElementById('scene2-label-ym');
+        const labelYFe = document.getElementById('scene2-label-yfe');
+        const labelYN = document.getElementById('scene2-label-yn');
+        const labelNFe = document.getElementById('scene2-label-nfe');
+        
+        // 选项框和文本
+        const optA = document.getElementById('scene2-opt-a');
+        const optB = document.getElementById('scene2-opt-b');
+        const optC = document.getElementById('scene2-opt-c');
+        const optD = document.getElementById('scene2-opt-d');
+        const optTextA = document.getElementById('scene2-opt-text-a');
+        const optTextB = document.getElementById('scene2-opt-text-b');
+        const optTextC = document.getElementById('scene2-opt-text-c');
+        const optTextD = document.getElementById('scene2-opt-text-d');
+        
+        // 更新 UI 状态
+        function updateUI() {
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+            
+            // 重置所有元素状态
+            resetAll();
+            
+            // 根据当前步骤应用状态
+            applyStepState(currentStep);
+        }
+        
+        // 重置所有元素到初始状态
+        function resetAll() {
+            // 重置连线颜色
+            lineXY.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+            lineXM.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+            lineYM.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+            lineYFe.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+            lineYN.classList.remove('highlight-blue', 'highlight-green', 'highlight-red');
+            
+            // 重置箭头颜色
+            arrowNFe.classList.remove('highlight-red');
+            arrowHead.classList.remove('highlight-red');
+            
+            // 隐藏所有反应类型标签
+            labelXY.classList.remove('visible');
+            labelXM.classList.remove('visible');
+            labelYM.classList.remove('visible');
+            labelYFe.classList.remove('visible');
+            labelYN.classList.remove('visible');
+            labelNFe.classList.remove('visible');
+            
+            // 重置选项框
+            optA.classList.remove('visible', 'incorrect', 'correct');
+            optB.classList.remove('visible', 'incorrect', 'correct');
+            optC.classList.remove('visible', 'incorrect', 'correct');
+            optD.classList.remove('visible', 'incorrect', 'correct');
+            
+            // 隐藏选项文本
+            optTextA.classList.remove('visible');
+            optTextB.classList.remove('visible');
+            optTextC.classList.remove('visible');
+            optTextD.classList.remove('visible');
+        }
+        
+        // 应用指定步骤的状态
+        function applyStepState(step) {
+            switch(step) {
+                case 0:
+                    // 初始状态：只显示基础网络图，无高亮无标签
+                    break;
+                    
+                case 1:
+                    // X-Y 连线高亮，显示复分解标签
+                    lineXY.classList.add('highlight-blue');
+                    labelXY.classList.add('visible');
+                    break;
+                    
+                case 2:
+                    // X-M 和 Y-M 连线高亮，显示复分解标签
+                    lineXY.classList.add('highlight-blue');
+                    labelXY.classList.add('visible');
+                    lineXM.classList.add('highlight-blue');
+                    labelXM.classList.add('visible');
+                    lineYM.classList.add('highlight-blue');
+                    labelYM.classList.add('visible');
+                    break;
+                    
+                case 3:
+                    // Y-铁 连线高亮，显示置换标签
+                    lineXY.classList.add('highlight-blue');
+                    labelXY.classList.add('visible');
+                    lineXM.classList.add('highlight-blue');
+                    labelXM.classList.add('visible');
+                    lineYM.classList.add('highlight-blue');
+                    labelYM.classList.add('visible');
+                    lineYFe.classList.add('highlight-green');
+                    labelYFe.classList.add('visible');
+                    break;
+                    
+                case 4:
+                    // Y-N 连线和 N→铁 箭头高亮
+                    lineXY.classList.add('highlight-blue');
+                    labelXY.classList.add('visible');
+                    lineXM.classList.add('highlight-blue');
+                    labelXM.classList.add('visible');
+                    lineYM.classList.add('highlight-blue');
+                    labelYM.classList.add('visible');
+                    lineYFe.classList.add('highlight-green');
+                    labelYFe.classList.add('visible');
+                    lineYN.classList.add('highlight-blue');
+                    labelYN.classList.add('visible');
+                    arrowNFe.classList.add('highlight-red');
+                    arrowHead.classList.add('highlight-red');
+                    labelNFe.classList.add('visible');
+                    break;
+                    
+                case 5:
+                    // 显示所有反应类型
+                    lineXY.classList.add('highlight-blue');
+                    labelXY.classList.add('visible');
+                    lineXM.classList.add('highlight-blue');
+                    labelXM.classList.add('visible');
+                    lineYM.classList.add('highlight-blue');
+                    labelYM.classList.add('visible');
+                    lineYFe.classList.add('highlight-green');
+                    labelYFe.classList.add('visible');
+                    lineYN.classList.add('highlight-blue');
+                    labelYN.classList.add('visible');
+                    arrowNFe.classList.add('highlight-red');
+                    arrowHead.classList.add('highlight-red');
+                    labelNFe.classList.add('visible');
+                    
+                    // 显示选项框和判断结果
+                    optA.classList.add('visible', 'incorrect');
+                    optB.classList.add('visible', 'incorrect');
+                    optC.classList.add('visible', 'incorrect');
+                    optD.classList.add('visible', 'correct');
+                    optTextA.classList.add('visible');
+                    optTextB.classList.add('visible');
+                    optTextC.classList.add('visible');
+                    optTextD.classList.add('visible');
+                    break;
+            }
+        }
+        
+        // 事件监听
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateUI();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateUI();
+            }
+        });
+        
+        // 初始化
+        updateUI();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 电流比值与滑动范围的关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; border: 2px solid #333; border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .scene2-btn:hover { background: #f0f0f0; }
+        .scene2-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
+        #scene2-range-slider-container { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 500px; }
+        #scene2-range-slider { width: 100%; cursor: pointer; }
+        #scene2-range-label { text-align: center; font-size: 14px; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 电源符号 -->
+            <line x1="400" y1="55" x2="430" y2="55" stroke="#000" stroke-width="3"/>
+            <line x1="400" y1="70" x2="430" y2="70" stroke="#000" stroke-width="2"/>
+            <line x1="415" y1="55" x2="415" y2="70" stroke="#000" stroke-width="1"/>
+            
+            <!-- 开关符号 -->
+            <line x1="415" y1="75" x2="415" y2="85" stroke="#000" stroke-width="2"/>
+            <line x1="415" y1="85" x2="425" y2="95" stroke="#000" stroke-width="2"/>
+            
+            <!-- 导线从开关到滑片 -->
+            <line x1="415" y1="95" x2="415" y2="150" stroke="#000" stroke-width="2"/>
+            <line x1="415" y1="150" x2="400" y2="150" stroke="#000" stroke-width="2"/>
+            
+            <!-- 电流表 A₁ -->
+            <circle cx="80" cy="120" r="25" fill="#fff" stroke="#1565c0" stroke-width="3"/>
+            <text x="80" y="125" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">A₁</text>
+            <text x="72" y="105" font-size="14" fill="#1565c0" font-weight="bold">A₁</text>
+            
+            <!-- 电流表 A₂ -->
+            <circle cx="720" cy="120" r="25" fill="#fff" stroke="#c62828" stroke-width="3"/>
+            <text x="720" y="125" text-anchor="middle" font-size="16" fill="#c62828" font-weight="bold">A₂</text>
+            <text x="712" y="105" font-size="14" fill="#c62828" font-weight="bold">A₂</text>
+            
+            <!-- 导线从 A₁ 到 A -->
+            <line x1="80" y1="120" x2="150" y2="120" stroke="#000" stroke-width="2"/>
+            <line x1="150" y1="120" x2="150" y2="200" stroke="#000" stroke-width="2"/>
+            
+            <!-- 导线从 A₂ 到 B -->
+            <line x1="720" y1="120" x2="650" y2="120" stroke="#000" stroke-width="2"/>
+            <line x1="650" y1="120" x2="650" y2="200" stroke="#000" stroke-width="2"/>
+            
+            <!-- 导线从滑片到电路 -->
+            <line x1="400" y1="120" x2="80" y2="120" stroke="#000" stroke-width="2"/>
+            <line x1="400" y1="120" x2="720" y2="120" stroke="#000" stroke-width="2"/>
+            
+            <!-- 铅笔芯 AB -->
+            <line x1="150" y1="200" x2="650" y2="200" stroke="#000" stroke-width="8"/>
+            
+            <!-- A 点标签 -->
+            <text x="135" y="225" font-size="16" fill="#000" font-weight="bold">A</text>
+            
+            <!-- B 点标签 -->
+            <text x="665" y="225" font-size="16" fill="#000" font-weight="bold">B</text>
+            
+            <!-- 禁止区域左（灰色） -->
+            <rect id="scene2-forbid-left" x="150" y="197" width="100" height="6" fill="#cccccc" opacity="0.5"/>
+            
+            <!-- 允许区域（绿色） -->
+            <rect id="scene2-allow-zone" x="250" y="197" width="200" height="6" fill="#2e7d32" opacity="0.6"/>
+            
+            <!-- 禁止区域右（灰色） -->
+            <rect id="scene2-forbid-right" x="450" y="197" width="200" height="6" fill="#cccccc" opacity="0.5"/>
+            
+            <!-- c 标记 -->
+            <line id="scene2-c-mark" x1="250" y1="175" x2="250" y2="200" stroke="#2e7d32" stroke-width="3"/>
+            <text id="scene2-c-label" x="242" y="170" font-size="14" fill="#2e7d32" font-weight="bold">c</text>
+            
+            <!-- d 标记 -->
+            <line id="scene2-d-mark" x1="450" y1="175" x2="450" y2="200" stroke="#2e7d32" stroke-width="3"/>
+            <text id="scene2-d-label" x="442" y="170" font-size="14" fill="#2e7d32" font-weight="bold">d</text>
+            
+            <!-- 滑片 P 箭头 -->
+            <g id="scene2-p-slider" style="cursor: pointer;">
+                <line x1="400" y1="150" x2="400" y2="195" stroke="#2e7d32" stroke-width="4"/>
+                <polygon points="392,195 400,210 408,195" fill="#2e7d32"/>
+            </g>
+            <text id="scene2-p-label" x="385" y="145" font-size="14" fill="#2e7d32" font-weight="bold">P</text>
+            
+            <!-- x 标注（AP 段） -->
+            <line id="scene2-x-line" x1="150" y1="230" x2="400" y2="230" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5"/>
+            <line x1="150" y1="225" x2="150" y2="235" stroke="#1565c0" stroke-width="2"/>
+            <line x1="400" y1="225" x2="400" y2="235" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-x-label" x="275" y="250" font-size="16" fill="#1565c0" font-weight="bold">x</text>
+            
+            <!-- L-x 标注（PB 段） -->
+            <line id="scene2-lx-line" x1="400" y1="230" x2="650" y2="230" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5"/>
+            <line x1="400" y1="225" x2="400" y2="235" stroke="#c62828" stroke-width="2"/>
+            <line x1="650" y1="225" x2="650" y2="235" stroke="#c62828" stroke-width="2"/>
+            <text id="scene2-lx-label" x="525" y="250" font-size="16" fill="#c62828" font-weight="bold">L-x</text>
+            
+            <!-- 数据显示框 -->
+            <rect id="scene2-display-box" x="670" y="270" width="120" height="100" fill="#fff" stroke="#333" stroke-width="2" rx="5"/>
+            <text id="scene2-display-i1-label" x="680" y="295" font-size="14" fill="#1565c0">I₁ =</text>
+            <text id="scene2-display-i1-value" x="730" y="295" font-size="14" fill="#1565c0" font-weight="bold">0.40A</text>
+            <text id="scene2-display-i2-label" x="680" y="325" font-size="14" fill="#c62828">I₂ =</text>
+            <text id="scene2-display-i2-value" x="730" y="325" font-size="14" fill="#c62828" font-weight="bold">0.40A</text>
+            <text id="scene2-display-ratio-label" x="680" y="355" font-size="14" fill="#2e7d32">I₁/I₂ =</text>
+            <text id="scene2-display-ratio-value" x="735" y="355" font-size="14" fill="#2e7d32" font-weight="bold">1.0</text>
+            
+            <!-- 量程按钮 -->
+            <button id="scene2-btn-0.6" class="scene2-btn active">0-0.6A</button>
+            <button id="scene2-btn-3" class="scene2-btn">0-3A</button>
+            
+            <!-- 底部滑块轨道 -->
+            <line x1="150" y1="420" x2="650" y2="420" stroke="#666" stroke-width="4"/>
+            
+            <!-- 底部滑块手柄 -->
+            <circle id="scene2-range-slider-handle" cx="400" cy="420" r="12" fill="#1976d2" style="cursor: pointer;"/>
+            
+            <!-- 滑块标签 -->
+            <text x="150" y="450" font-size="14" fill="#666">滑片 P 位置</text>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 电流比值与滑动范围的关系
+        
+        // ===== 状态变量 =====
+        const state = {
+            pPosition: 400,        // 滑片 P 的 x 坐标 (150-650)
+            rangeMode: '0.6',      // 量程模式：'0.6' 或 '3'
+            isDragging: false,     // 是否正在拖拽
+            dragTarget: null       // 拖拽目标：'p-slider' 或 'range-slider'
+        };
+        
+        // ===== 常量定义 =====
+        const CONSTANTS = {
+            AB_LEFT: 150,          // A 点 x 坐标
+            AB_RIGHT: 650,         // B 点 x 坐标
+            AB_LENGTH: 500,        // AB 线段长度 (px)
+            I_MAX_06: 0.6,         // 0.6A 量程最大电流
+            I_MAX_3: 3.0,          // 3A 量程最大电流
+            // 0.6A 量程时 c、d 位置
+            C_POS_06: 250,
+            D_POS_06: 450,
+            // 3A 量程时 c、d 位置（根据题目计算：量程增大 5 倍，允许范围扩大）
+            C_POS_3: 175.6,
+            D_POS_3: 574.4
+        };
+        
+        // ===== DOM 元素引用 =====
+        const elements = {
+            pSlider: document.getElementById('scene2-p-slider'),
+            pLabel: document.getElementById('scene2-p-label'),
+            rangeSliderHandle: document.getElementById('scene2-range-slider-handle'),
+            forbidLeft: document.getElementById('scene2-forbid-left'),
+            allowZone: document.getElementById('scene2-allow-zone'),
+            forbidRight: document.getElementById('scene2-forbid-right'),
+            cMark: document.getElementById('scene2-c-mark'),
+            cLabel: document.getElementById('scene2-c-label'),
+            dMark: document.getElementById('scene2-d-mark'),
+            dLabel: document.getElementById('scene2-d-label'),
+            xLine: document.getElementById('scene2-x-line'),
+            xLabel: document.getElementById('scene2-x-label'),
+            lxLine: document.getElementById('scene2-lx-line'),
+            lxLabel: document.getElementById('scene2-lx-label'),
+            displayI1Value: document.getElementById('scene2-display-i1-value'),
+            displayI2Value: document.getElementById('scene2-display-i2-value'),
+            displayRatioValue: document.getElementById('scene2-display-ratio-value'),
+            btn06: document.getElementById('scene2-btn-0.6'),
+            btn3: document.getElementById('scene2-btn-3'),
+            a1Circle: document.querySelector('circle[cy="120"][cx="80"]'),
+            a2Circle: document.querySelector('circle[cy="120"][cx="720"]')
+        };
+        
+        // ===== 工具函数 =====
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+        
+        function formatNumber(num, decimals = 2) {
+            return num.toFixed(decimals);
+        }
+        
+        // ===== 核心计算函数 =====
+        function calculateCurrents(pX) {
+            // x = AP 段长度 (px)
+            const x = pX - CONSTANTS.AB_LEFT;
+            const L_x = CONSTANTS.AB_LENGTH - x;
+            
+            // 电流与电阻成反比，电阻与长度成正比
+            // I₁ ∝ 1/x, I₂ ∝ 1/(L-x)
+            // 归一化：I₁ + I₂ = 总电流（由电源电压和总电阻决定）
+            // 简化模型：I₁ = k/x, I₂ = k/(L-x)
+            // 比值：I₁/I₂ = (L-x)/x
+            
+            const ratio = L_x / x;
+            
+            // 根据量程计算实际电流值
+            const I_max = state.rangeMode === '0.6' ? CONSTANTS.I_MAX_06 : CONSTANTS.I_MAX_3;
+            
+            // 假设总电流为 I_max 时，I₁ 和 I₂ 的分配
+            // I₁ = I_max * (L-x) / L, I₂ = I_max * x / L
+            const I1 = I_max * L_x / CONSTANTS.AB_LENGTH;
+            const I2 = I_max * x / CONSTANTS.AB_LENGTH;
+            
+            return { I1, I2, ratio };
+        }
+        
+        function getCDD positions() {
+            if (state.rangeMode === '0.6') {
+                return { c: CONSTANTS.C_POS_06, d: CONSTANTS.D_POS_06 };
+            } else {
+                return { c: CONSTANTS.C_POS_3, d: CONSTANTS.D_POS_3 };
+            }
+        }
+        
+        function isInAllowedRange(pX) {
+            const { c, d } = getCDD positions();
+            return pX >= c && pX <= d;
+        }
+        
+        // ===== 更新显示 =====
+        function updateDisplay() {
+            const { I1, I2, ratio } = calculateCurrents(state.pPosition);
+            const { c, d } = getCDD positions();
+            const inRange = isInAllowedRange(state.pPosition);
+            
+            // 更新电流显示
+            elements.displayI1Value.textContent = formatNumber(I1) + 'A';
+            elements.displayI2Value.textContent = formatNumber(I2) + 'A';
+            elements.displayRatioValue.textContent = formatNumber(ratio, 1);
+            
+            // 更新 x 和 L-x 标注位置
+            elements.xLine.setAttribute('x2', state.pPosition);
+            elements.xLabel.setAttribute('x', (150 + state.pPosition) / 2);
+            elements.lxLine.setAttribute('x1', state.pPosition);
+            elements.lxLabel.setAttribute('x', (state.pPosition + 650) / 2);
+            
+            // 更新滑片 P 位置
+            elements.pSlider.querySelector('line').setAttribute('x1', state.pPosition);
+            elements.pSlider.querySelector('line').setAttribute('x2', state.pPosition);
+            elements.pSlider.querySelector('polygon').setAttribute('points', 
+                `${state.pPosition-8},${state.pPosition+5} ${state.pPosition},${state.pPosition+20} ${state.pPosition+8},${state.pPosition+5}`.replace(/state.pPosition/g, state.pPosition));
+            elements.pLabel.setAttribute('x', state.pPosition - 15);
+            
+            // 更新底部滑块手柄
+            elements.rangeSliderHandle.setAttribute('cx', state.pPosition);
+            
+            // 更新 c、d 标记位置
+            elements.cMark.setAttribute('x1', c);
+            elements.cMark.setAttribute('x2', c);
+            elements.cLabel.setAttribute('x', c - 8);
+            elements.dMark.setAttribute('x1', d);
+            elements.dMark.setAttribute('x2', d);
+            elements.dLabel.setAttribute('x', d - 8);
+            
+            // 更新区域填充
+            elements.forbidLeft.setAttribute('width', c - 150);
+            elements.allowZone.setAttribute('x', c);
+            elements.allowZone.setAttribute('width', d - c);
+            elements.forbidRight.setAttribute('x', d);
+            elements.forbidRight.setAttribute('width', 650 - d);
+            
+            // 警告提示：当超出范围时
+            if (!inRange) {
+                // 超出左边界（P 太靠近 A，I₁ 过大）
+                if (state.pPosition < c) {
+                    elements.displayI1Value.setAttribute('fill', '#d32f2f');
+                    elements.a1Circle.setAttribute('stroke', '#d32f2f');
+                    elements.a1Circle.setAttribute('stroke-width', '4');
+                } else {
+                    elements.displayI1Value.setAttribute('fill', '#1565c0');
+                    elements.a1Circle.setAttribute('stroke', '#1565c0');
+                    elements.a1Circle.setAttribute('stroke-width', '3');
+                }
+                
+                // 超出右边界（P 太靠近 B，I₂ 过大）
+                if (state.pPosition > d) {
+                    elements.displayI2Value.setAttribute('fill', '#d32f2f');
+                    elements.a2Circle.setAttribute('stroke', '#d32f2f');
+                    elements.a2Circle.setAttribute('stroke-width', '4');
+                } else {
+                    elements.displayI2Value.setAttribute('fill', '#c62828');
+                    elements.a2Circle.setAttribute('stroke', '#c62828');
+                    elements.a2Circle.setAttribute('stroke-width', '3');
+                }
+            } else {
+                elements.displayI1Value.setAttribute('fill', '#1565c0');
+                elements.displayI2Value.setAttribute('fill', '#c62828');
+                elements.a1Circle.setAttribute('stroke', '#1565c0');
+                elements.a1Circle.setAttribute('stroke-width', '3');
+                elements.a2Circle.setAttribute('stroke', '#c62828');
+                elements.a2Circle.setAttribute('stroke-width', '3');
+            }
+        }
+        
+        // ===== 拖拽处理 =====
+        function handleDragStart(e, target) {
+            e.preventDefault();
+            state.isDragging = true;
+            state.dragTarget = target;
+            
+            const svg = document.getElementById('scene2-svg');
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX || e.touches[0].clientX;
+            pt.y = e.clientY || e.touches[0].clientY;
+            const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+            
+            state.pPosition = clamp(svgP.x, CONSTANTS.AB_LEFT, CONSTANTS.AB_RIGHT);
+            updateDisplay();
+        }
+        
+        function handleDragMove(e) {
+            if (!state.isDragging) return;
+            e.preventDefault();
+            
+            const svg = document.getElementById('scene2-svg');
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX || e.touches[0].clientX;
+            pt.y = e.clientY || e.touches[0].clientY;
+            const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+            
+            state.pPosition = clamp(svgP.x, CONSTANTS.AB_LEFT, CONSTANTS.AB_RIGHT);
+            updateDisplay();
+        }
+        
+        function handleDragEnd() {
+            state.isDragging = false;
+            state.dragTarget = null;
+        }
+        
+        // ===== 事件绑定 =====
+        function bindEvents() {
+            // 滑片 P 拖拽
+            elements.pSlider.addEventListener('mousedown', (e) => handleDragStart(e, 'p-slider'));
+            elements.pSlider.addEventListener('touchstart', (e) => handleDragStart(e, 'p-slider'), { passive: false });
+            
+            // 底部滑块手柄拖拽
+            elements.rangeSliderHandle.addEventListener('mousedown', (e) => handleDragStart(e, 'range-slider'));
+            elements.rangeSliderHandle.addEventListener('touchstart', (e) => handleDragStart(e, 'range-slider'), { passive: false });
+            
+            // 全局拖拽事件
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('touchmove', handleDragMove, { passive: false });
+            document.addEventListener('mouseup', handleDragEnd);
+            document.addEventListener('touchend', handleDragEnd);
+            
+            // 量程按钮
+            elements.btn06.addEventListener('click', () => {
+                if (state.rangeMode === '0.6') return;
+                state.rangeMode = '0.6';
+                elements.btn06.classList.add('active');
+                elements.btn3.classList.remove('active');
+                updateDisplay();
+            });
+            
+            elements.btn3.addEventListener('click', () => {
+                if (state.rangeMode === '3') return;
+                state.rangeMode = '3';
+                elements.btn3.classList.add('active');
+                elements.btn06.classList.remove('active');
+                updateDisplay();
+            });
+        }
+        
+        // ===== 初始化 =====
+        function init() {
+            bindEvents();
+            updateDisplay();
+        }
+        
+        // 启动
+        init();
+    })();
+    </script>
+</body>
+</html>

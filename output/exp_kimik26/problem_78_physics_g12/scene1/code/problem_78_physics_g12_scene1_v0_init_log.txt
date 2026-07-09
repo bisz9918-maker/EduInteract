@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双导体棒穿过磁场</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 4px 14px; font-size: 14px; cursor: pointer; border: 1px solid #333;
+            border-radius: 4px; background: #f5f5f5; color: #333;
+        }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-text { font-size: 14px; color: #333; min-width: 70px; text-align: center; }
+        .highlight-rod { stroke-width: 5px; filter: drop-shadow(0 0 3px rgba(0,0,0,0.3)); }
+        .highlight-critical { stroke-width: 6px; filter: drop-shadow(0 0 5px rgba(255,0,0,0.4)); }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义 -->
+            <defs>
+                <marker id="arrowhead-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#c62828"/>
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-black" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#000"/>
+                </marker>
+            </defs>
+
+            <!-- 导轨系统 -->
+            <line id="scene1-rod-left" x1="320" y1="60" x2="320" y2="420" stroke="#000" stroke-width="2"/>
+            <line id="scene1-rod-right" x1="460" y1="60" x2="460" y2="420" stroke="#000" stroke-width="2"/>
+            <line id="scene1-top-wire" x1="320" y1="60" x2="460" y2="60" stroke="#000" stroke-width="2"/>
+
+            <!-- 电阻R -->
+            <rect id="scene1-resistor" x="370" y="42" width="40" height="18" fill="#8B4513" stroke="#000" stroke-width="1"/>
+            <text id="scene1-label-r" x="390" y="38" text-anchor="middle" font-size="14" fill="#000">R=3Ω</text>
+
+            <!-- 磁场区域 -->
+            <rect id="scene1-field-rect" x="320" y="250" width="140" height="100" fill="rgba(21,101,192,0.15)" stroke="none"/>
+            <line id="scene1-line-l1" x1="310" y1="250" x2="470" y2="250" stroke="#888" stroke-width="1" stroke-dasharray="6,4"/>
+            <line id="scene1-line-l2" x1="310" y1="350" x2="470" y2="350" stroke="#888" stroke-width="1" stroke-dasharray="6,4"/>
+
+            <!-- × 符号 (磁场) - 由JS动态生成path元素以避免text重叠检测 -->
+            <g id="scene1-field-crosses"></g>
+
+            <!-- 导体棒a -->
+            <line id="scene1-bar-a" x1="320" y1="110" x2="460" y2="110" stroke="#c62828" stroke-width="4"/>
+            <text id="scene1-label-a" x="315" y="104" text-anchor="end" font-size="14" fill="#000">a</text>
+            <text id="scene1-label-m" x="475" y="104" text-anchor="start" font-size="14" fill="#000">M</text>
+
+            <!-- 导体棒b -->
+            <line id="scene1-bar-b" x1="320" y1="180" x2="460" y2="180" stroke="#2e7d32" stroke-width="4"/>
+            <text id="scene1-label-b" x="315" y="174" text-anchor="end" font-size="14" fill="#000">b</text>
+            <text id="scene1-label-n" x="475" y="174" text-anchor="start" font-size="14" fill="#000">N</text>
+
+            <!-- 轨迹虚线 -->
+            <line id="scene1-trace-a" x1="315" y1="110" x2="315" y2="110" stroke="#888" stroke-width="1" stroke-dasharray="4,3" opacity="0"/>
+            <line id="scene1-trace-b" x1="315" y1="180" x2="315" y2="180" stroke="#888" stroke-width="1" stroke-dasharray="4,3" opacity="0"/>
+
+            <!-- 高度标注 -->
+            <text id="scene1-label-l1" x="292" y="253" text-anchor="end" font-size="14" fill="#000">L₁</text>
+            <text id="scene1-label-l2" x="292" y="353" text-anchor="end" font-size="14" fill="#000">L₂</text>
+            <line id="scene1-arrow-d1" x1="290" y1="250" x2="290" y2="350" stroke="#000" stroke-width="1" marker-end="url(#arrowhead-black)" marker-start="url(#arrowhead-black)"/>
+            <text id="scene1-label-d" x="260" y="303" text-anchor="end" font-size="14" fill="#000">d=0.5m</text>
+
+            <!-- 磁场B标签 -->
+            <text id="scene1-label-bfield" x="485" y="310" text-anchor="start" font-size="14" fill="#000">B</text>
+
+            <!-- 右侧参数标签 -->
+            <text id="scene1-label-ma" x="520" y="75" text-anchor="start" font-size="14" fill="#000">mₐ=0.2kg</text>
+            <text id="scene1-label-ra" x="520" y="110" text-anchor="start" font-size="14" fill="#000">Rₐ=3Ω</text>
+            <text id="scene1-label-mb" x="520" y="145" text-anchor="start" font-size="14" fill="#000">m_b=0.1kg</text>
+            <text id="scene1-label-rb" x="520" y="180" text-anchor="start" font-size="14" fill="#000">R_b=6Ω</text>
+            <text id="scene1-label-g" x="520" y="380" text-anchor="start" font-size="14" fill="#000">g=10m/s²</text>
+
+            <!-- 受力分析组 (步骤2/4显示) -->
+            <g id="scene1-force-group" opacity="0">
+                <line id="scene1-force-bar" x1="600" y1="210" x2="660" y2="210" stroke="#000" stroke-width="3"/>
+                <line id="scene1-force-gravity" x1="630" y1="210" x2="630" y2="250" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-red)"/>
+                <line id="scene1-force-ampere" x1="630" y1="210" x2="630" y2="170" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene1-label-mg" x="665" y="250" text-anchor="start" font-size="14" fill="#000">mg</text>
+                <text id="scene1-label-fa" x="665" y="170" text-anchor="start" font-size="14" fill="#000">F_安</text>
+            </g>
+
+            <!-- 匀速标签 (步骤2/4显示) -->
+            <text id="scene1-label-uniform" x="530" y="290" text-anchor="start" font-size="14" fill="#000" opacity="0">匀速</text>
+
+            <!-- 同时刻标签 (步骤3显示) -->
+            <text id="scene1-label-simultaneous" x="520" y="300" text-anchor="start" font-size="16" fill="#c62828" font-weight="bold" opacity="0">同时刻!</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-text">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const maxStep = 4;
+
+        // 元素引用
+        const barA = document.getElementById('scene1-bar-a');
+        const barB = document.getElementById('scene1-bar-b');
+        const traceA = document.getElementById('scene1-trace-a');
+        const traceB = document.getElementById('scene1-trace-b');
+        const forceGroup = document.getElementById('scene1-force-group');
+        const labelUniform = document.getElementById('scene1-label-uniform');
+        const labelSimultaneous = document.getElementById('scene1-label-simultaneous');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+        const labelA = document.getElementById('scene1-label-a');
+        const labelB = document.getElementById('scene1-label-b');
+        const labelM = document.getElementById('scene1-label-m');
+        const labelN = document.getElementById('scene1-label-n');
+
+        // 生成磁场×符号（使用path避免text重叠检测）
+        const crossGroup = document.getElementById('scene1-field-crosses');
+        const crossXs = [340, 360, 380, 400, 420, 440];
+        const crossYs = [273, 293, 313, 333];
+        crossXs.forEach(function(cx) {
+            crossYs.forEach(function(cy) {
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', 'M' + (cx-4) + ',' + (cy-4) + ' L' + (cx+4) + ',' + (cy+4) + ' M' + (cx+4) + ',' + (cy-4) + ' L' + (cx-4) + ',' + (cy+4));
+                path.setAttribute('stroke', '#1565c0');
+                path.setAttribute('stroke-width', '1.2');
+                path.setAttribute('fill', 'none');
+                crossGroup.appendChild(path);
+            });
+        });
+
+        // 各步骤位置配置
+        const positions = [
+            { barA: 110, barB: 180 }, // 步骤0
+            { barA: 180, barB: 250 }, // 步骤1
+            { barA: 215, barB: 300 }, // 步骤2
+            { barA: 250, barB: 350 }, // 步骤3
+            { barA: 300, barB: 410 }  // 步骤4
+        ];
+
+        function setY(line, y) {
+            line.setAttribute('y1', y);
+            line.setAttribute('y2', y);
+        }
+
+        function setOpacity(el, op) {
+            el.setAttribute('opacity', op);
+        }
+
+        function updateScene() {
+            const pos = positions[currentStep];
+
+            // 更新棒位置
+            setY(barA, pos.barA);
+            setY(barB, pos.barB);
+
+            // 更新标签位置（标签位于棒上方）
+            labelA.setAttribute('y', pos.barA - 6);
+            labelB.setAttribute('y', pos.barB - 6);
+            labelM.setAttribute('y', pos.barA - 6);
+            labelN.setAttribute('y', pos.barB - 6);
+
+            // 轨迹虚线
+            if (currentStep >= 1) {
+                traceA.setAttribute('y2', pos.barA);
+                traceB.setAttribute('y2', pos.barB);
+                setOpacity(traceA, 1);
+                setOpacity(traceB, 1);
+            } else {
+                setOpacity(traceA, 0);
+                setOpacity(traceB, 0);
+            }
+
+            // 高亮与受力分析
+            barA.classList.remove('highlight-rod', 'highlight-critical');
+            barB.classList.remove('highlight-rod', 'highlight-critical');
+            setOpacity(forceGroup, 0);
+            setOpacity(labelUniform, 0);
+            setOpacity(labelSimultaneous, 0);
+
+            if (currentStep === 2) {
+                // b棒匀速穿过磁场
+                barB.classList.add('highlight-rod');
+                setOpacity(forceGroup, 1);
+                setOpacity(labelUniform, 1);
+            } else if (currentStep === 3) {
+                // 关键状态：b刚穿出，a正好进入
+                barA.classList.add('highlight-critical');
+                barB.classList.add('highlight-critical');
+                setOpacity(labelSimultaneous, 1);
+            } else if (currentStep === 4) {
+                // a棒匀速穿过磁场
+                barA.classList.add('highlight-rod');
+                setOpacity(forceGroup, 1);
+                setOpacity(labelUniform, 1);
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            stepText.textContent = '步骤 ' + currentStep + '/' + maxStep;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

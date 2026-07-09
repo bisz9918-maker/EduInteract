@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 二次函数图像分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #1976d2;
+            background: #ffffff;
+            color: #1976d2;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) {
+            background: #1976d2;
+            color: #ffffff;
+        }
+        #scene1-controls button:disabled {
+            border-color: #bdbdbd;
+            color: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #616161;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- x 轴 -->
+            <line id="scene1-axis-x" x1="150" y1="280" x2="650" y2="280" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-axis-x-arrow" points="650,280 640,275 640,285" fill="#000000"/>
+            
+            <!-- y 轴 -->
+            <line id="scene1-axis-y" x1="400" y1="80" x2="400" y2="380" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-axis-y-arrow" points="400,80 395,90 405,90" fill="#000000"/>
+            
+            <!-- 抛物线填充区域 -->
+            <path id="scene1-parabola-fill" d="M 160,280 Q 280,120 400,280 Q 520,350 580,380 L 580,380 L 160,380 Z" 
+                  fill="#1565c0" opacity="0.15" style="opacity: 0;"/>
+            
+            <!-- 抛物线 -->
+            <path id="scene1-parabola" d="M 160,280 Q 280,120 400,280 Q 520,350 580,380" 
+                  fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- y 轴截距点 -->
+            <circle id="scene1-y-intercept-point" cx="400" cy="280" r="4" fill="#2e7d32" style="opacity: 0;"/>
+            
+            <!-- 对称轴（虚线） -->
+            <line id="scene1-symmetry-axis" x1="280" y1="80" x2="280" y2="380" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" style="opacity: 0;"/>
+            
+            <!-- 开口箭头（红色，向下） -->
+            <path id="scene1-opening-arrow" d="M 320,100 L 320,120 M 315,115 L 320,120 L 325,115" 
+                  stroke="#c62828" stroke-width="2" fill="none" style="opacity: 0;"/>
+            
+            <!-- 轴标签 -->
+            <text id="scene1-label-x" x="655" y="275" font-size="16" fill="#000000">x</text>
+            <text id="scene1-label-y" x="395" y="75" font-size="16" fill="#000000">y</text>
+            <!-- 原点 O 标签：调整位置到 x 轴下方，远离抛物线 -->
+            <text id="scene1-label-o" x="385" y="305" font-size="16" fill="#000000">O</text>
+            
+            <!-- y 轴截距标签 "1"：调整位置到 y 轴右侧，远离抛物线 -->
+            <text id="scene1-label-1" x="415" y="265" font-size="16" fill="#2e7d32" font-weight="bold" style="opacity: 0;">1</text>
+            
+            <!-- 对称轴标签 -->
+            <text id="scene1-label-symmetry" x="260" y="90" font-size="14" fill="#888888">对称轴</text>
+            
+            <!-- a<0 标注 -->
+            <text id="scene1-label-a" x="310" y="85" font-size="16" fill="#c62828" font-weight="bold" style="opacity: 0;">a &lt; 0</text>
+            
+            <!-- b<0 标注 -->
+            <text id="scene1-label-b" x="250" y="200" font-size="16" fill="#1565c0" font-weight="bold" style="opacity: 0;">b &lt; 0</text>
+            
+            <!-- 总结框 -->
+            <rect id="scene1-conclusion-box" x="550" y="130" width="140" height="50" fill="#ffffff" stroke="#2e7d32" stroke-width="2" rx="5" style="opacity: 0;"/>
+            <!-- 总结框文字：调整 y 坐标到矩形框内居中 -->
+            <text id="scene1-conclusion-text" x="555" y="158" font-size="14" fill="#2e7d32" font-weight="bold" style="opacity: 0;">结论：a &lt; 0，b &lt; 0</text>
+        </svg>
+        
+        <div id="scene1-step-indicator">步骤 1/4</div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // | 元素 | 位置/范围 | 备注 |
+        // | x 轴 | (150,280)-(650,280) | 水平居中偏下 |
+        // | y 轴 | (400,80)-(400,380) | 垂直居中偏右 |
+        // | 原点 O | (385,305) | 原点左下方，调整到 x 轴下方 |
+        // | x 标签 | (655,275) | x 轴箭头右侧 |
+        // | y 标签 | (395,75) | y 轴箭头上侧 |
+        // | 抛物线 | 顶点 (280,120)，过 (400,280)、(160,280) | 开口向下 |
+        // | y 轴截距点 | (400,280)，半径 4 | 抛物线与 y 轴交点 |
+        // | 截距 1 标签 | (415,265) | 绿高亮，调整位置远离抛物线 |
+        // | 对称轴 | (280,80)-(280,380) | 灰色虚线 |
+        // | 对称轴标签 | (260,90) | 灰色小字 |
+        // | 开口箭头 | (320,100) 向下 | 红色，指示开口方向 |
+        // | a<0 标注 | (310,85) | 红高亮，开口上方 |
+        // | b<0 标注 | (250,200) | 蓝高亮，对称轴旁 |
+        // | 总结框 | (550,130)，140×50 | 绿高亮 |
+        
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素（同时设置 display 和 opacity）
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                // 延迟设置 display 以允许动画完成
+                setTimeout(() => {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 300);
+            }
+        }
+        
+        // 更新场景显示状态
+        function updateScene() {
+            // 步骤 0（初始状态）：显示基础元素
+            // 步骤 1：新增对称轴、开口箭头、a<0 标注
+            // 步骤 2：新增 b<0 标注
+            // 步骤 3：新增总结框
+            
+            const stepIndicator = document.getElementById('scene1-step-indicator');
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+            if (currentStep === TOTAL_STEPS - 1) {
+                nextBtn.textContent = '完成';
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+            }
+            
+            // 根据步骤控制元素显示
+            if (currentStep >= 1) {
+                // 步骤 1：显示对称轴、开口箭头、a<0 标注
+                show(document.getElementById('scene1-symmetry-axis'));
+                show(document.getElementById('scene1-opening-arrow'));
+                show(document.getElementById('scene1-label-a'));
+                // 加深抛物线填充
+                document.getElementById('scene1-parabola-fill').style.opacity = '0.25';
+            } else {
+                hide(document.getElementById('scene1-symmetry-axis'));
+                hide(document.getElementById('scene1-opening-arrow'));
+                hide(document.getElementById('scene1-label-a'));
+                document.getElementById('scene1-parabola-fill').style.opacity = '0.15';
+            }
+            
+            if (currentStep >= 2) {
+                // 步骤 2：显示 b<0 标注
+                show(document.getElementById('scene1-label-b'));
+                // 加粗对称轴
+                document.getElementById('scene1-symmetry-axis').style.strokeWidth = '3';
+            } else {
+                hide(document.getElementById('scene1-label-b'));
+                document.getElementById('scene1-symmetry-axis').style.strokeWidth = '2';
+            }
+            
+            if (currentStep >= 3) {
+                // 步骤 3：显示总结框
+                show(document.getElementById('scene1-conclusion-box'));
+                show(document.getElementById('scene1-conclusion-text'));
+            } else {
+                hide(document.getElementById('scene1-conclusion-box'));
+                hide(document.getElementById('scene1-conclusion-text'));
+            }
+            
+            // 始终显示的基础元素（步骤 0 开始就显示）
+            if (currentStep >= 0) {
+                show(document.getElementById('scene1-axis-x'));
+                show(document.getElementById('scene1-axis-x-arrow'));
+                show(document.getElementById('scene1-axis-y'));
+                show(document.getElementById('scene1-axis-y-arrow'));
+                show(document.getElementById('scene1-parabola'));
+                show(document.getElementById('scene1-label-x'));
+                show(document.getElementById('scene1-label-y'));
+                show(document.getElementById('scene1-label-o'));
+                show(document.getElementById('scene1-y-intercept-point'));
+                show(document.getElementById('scene1-label-1'));
+            }
+        }
+        
+        // 初始化
+        function init() {
+            // 初始隐藏所有动画元素
+            const animatedElements = [
+                'scene1-parabola-fill',
+                'scene1-y-intercept-point',
+                'scene1-symmetry-axis',
+                'scene1-opening-arrow',
+                'scene1-label-1',
+                'scene1-label-symmetry',
+                'scene1-label-a',
+                'scene1-label-b',
+                'scene1-conclusion-box',
+                'scene1-conclusion-text'
+            ];
+            
+            animatedElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            });
+            
+            // 绑定按钮事件
+            document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateScene();
+                }
+            });
+            
+            document.getElementById('scene1-btn-next').addEventListener('click', function() {
+                if (currentStep < TOTAL_STEPS - 1) {
+                    currentStep++;
+                    updateScene();
+                }
+            });
+            
+            // 初始渲染
+            updateScene();
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

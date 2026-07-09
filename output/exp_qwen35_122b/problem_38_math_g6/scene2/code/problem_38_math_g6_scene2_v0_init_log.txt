@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>从三个方向观察立体图形 - 视图对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn {
+            width: 120px; height: 40px;
+            border: 2px solid #000000; border-radius: 6px;
+            background: #888888; color: #ffffff;
+            font-size: 14px; font-weight: bold; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene2-btn:hover { background: #666666; }
+        .scene2-btn.active { background: #1565c0; border-color: #1565c0; }
+        .scene2-view-area {
+            position: absolute; width: 250px; height: 250px;
+            background: rgba(227, 242, 253, 0.2);
+            border: 2px solid #000000; border-radius: 4px;
+        }
+        #scene2-left-view { left: 100px; top: 100px; }
+        #scene2-right-view { left: 450px; top: 100px; }
+        .scene2-square {
+            position: absolute; width: 40px; height: 40px;
+            background: rgba(227, 242, 253, 0.5);
+            border: 2px solid #000000;
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- 视角标签 -->
+        <div id="scene2-view-label" style="position: absolute; left: 320px; top: 20px; font-size: 18px; font-weight: bold; color: #000000;">从上面看</div>
+        
+        <!-- 左图标签 -->
+        <div id="scene2-left-label" style="position: absolute; left: 150px; top: 85px; font-size: 14px; font-weight: bold; color: #1565c0;">左图</div>
+        
+        <!-- 右图标签 -->
+        <div id="scene2-right-label" style="position: absolute; left: 500px; top: 85px; font-size: 14px; font-weight: bold; color: #c62828;">右图</div>
+        
+        <!-- 左图视图区 -->
+        <div id="scene2-left-view" class="scene2-view-area">
+            <div id="scene2-left-squares"></div>
+        </div>
+        
+        <!-- 右图视图区 -->
+        <div id="scene2-right-view" class="scene2-view-area">
+            <div id="scene2-right-squares"></div>
+        </div>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-top" class="scene2-btn active">从上面看</button>
+            <button id="scene2-btn-front" class="scene2-btn">从前面看</button>
+            <button id="scene2-btn-left" class="scene2-btn">从左面看</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // |------|------|-----------|------|------|
+        // | 视角标签 | text | (320,20) | 160×30 | 顶部居中 |
+        // | 左图标签 | text | (150,85) | 40×16 | 左视图区上方 |
+        // | 右图标签 | text | (500,85) | 40×16 | 右视图区上方 |
+        // | 左图视图区 | rect | (100,100)-(350,350) | 250×250 | |
+        // | 右图视图区 | rect | (450,100)-(700,350) | 250×250 | |
+        // | 按钮 1 | button | (150,430) | 120×40 | 从上面看 |
+        // | 按钮 2 | button | (340,430) | 120×40 | 从前面看 |
+        // | 按钮 3 | button | (530,430) | 120×40 | 从左面看 |
+        
+        // 状态机：currentView = 0(上面), 1(前面), 2(左面)
+        let currentView = 0;
+        
+        // 视图区左上角坐标
+        const LEFT_VIEW_X = 100;
+        const LEFT_VIEW_Y = 100;
+        const RIGHT_VIEW_X = 450;
+        const RIGHT_VIEW_Y = 100;
+        
+        // 正方形边长
+        const SQUARE_SIZE = 40;
+        
+        // 视图区中心点（用于居中排列）
+        const LEFT_CENTER_X = LEFT_VIEW_X + 125; // 225
+        const LEFT_CENTER_Y = LEFT_VIEW_Y + 125; // 225
+        const RIGHT_CENTER_X = RIGHT_VIEW_X + 125; // 575
+        const RIGHT_CENTER_Y = RIGHT_VIEW_Y + 125; // 225
+        
+        // 获取 DOM 元素
+        const viewLabel = document.getElementById('scene2-view-label');
+        const leftSquaresContainer = document.getElementById('scene2-left-squares');
+        const rightSquaresContainer = document.getElementById('scene2-right-squares');
+        const btnTop = document.getElementById('scene2-btn-top');
+        const btnFront = document.getElementById('scene2-btn-front');
+        const btnLeft = document.getElementById('scene2-btn-left');
+        
+        // 清空视图区
+        function clearSquares(container) {
+            container.innerHTML = '';
+        }
+        
+        // 创建正方形
+        function createSquare(container, x, y) {
+            const square = document.createElement('div');
+            square.className = 'scene2-square';
+            square.style.left = x + 'px';
+            square.style.top = y + 'px';
+            container.appendChild(square);
+        }
+        
+        // 绘制"从上面看"视图
+        function drawTopView() {
+            clearSquares(leftSquaresContainer);
+            clearSquares(rightSquaresContainer);
+            
+            // 左图：3 个正方形水平排列，中心在 (225, 225)
+            // 正方形中心：185, 225, 265
+            const leftTopX = [185, 225, 265];
+            leftTopX.forEach(x => {
+                createSquare(leftSquaresContainer, x - 20, 205); // 205 = 225 - 20
+            });
+            
+            // 右图：3 个正方形水平排列，中心在 (575, 225)
+            // 正方形中心：535, 575, 615
+            const rightTopX = [535, 575, 615];
+            rightTopX.forEach(x => {
+                createSquare(rightSquaresContainer, x - 20, 205);
+            });
+        }
+        
+        // 绘制"从前面看"视图
+        function drawFrontView() {
+            clearSquares(leftSquaresContainer);
+            clearSquares(rightSquaresContainer);
+            
+            // 左图：3 列，高度分别为 3, 2, 1
+            // 第 1 列（x=185）：3 个正方形，y=165, 205, 245
+            createSquare(leftSquaresContainer, 165, 165);
+            createSquare(leftSquaresContainer, 165, 205);
+            createSquare(leftSquaresContainer, 165, 245);
+            // 第 2 列（x=225）：2 个正方形，y=205, 245
+            createSquare(leftSquaresContainer, 205, 205);
+            createSquare(leftSquaresContainer, 205, 245);
+            // 第 3 列（x=265）：1 个正方形，y=245
+            createSquare(leftSquaresContainer, 245, 245);
+            
+            // 右图：3 列，高度分别为 2, 1, 2
+            // 第 1 列（x=535）：2 个正方形，y=205, 245
+            createSquare(rightSquaresContainer, 515, 205);
+            createSquare(rightSquaresContainer, 515, 245);
+            // 第 2 列（x=575）：1 个正方形，y=245
+            createSquare(rightSquaresContainer, 555, 245);
+            // 第 3 列（x=615）：2 个正方形，y=205, 245
+            createSquare(rightSquaresContainer, 595, 205);
+            createSquare(rightSquaresContainer, 595, 245);
+        }
+        
+        // 绘制"从左面看"视图
+        function drawLeftView() {
+            clearSquares(leftSquaresContainer);
+            clearSquares(rightSquaresContainer);
+            
+            // 左图：1 列 3 个正方形垂直堆叠，x=185
+            createSquare(leftSquaresContainer, 165, 165);
+            createSquare(leftSquaresContainer, 165, 205);
+            createSquare(leftSquaresContainer, 165, 245);
+            
+            // 右图：1 列 2 个正方形垂直堆叠，x=535
+            createSquare(rightSquaresContainer, 515, 205);
+            createSquare(rightSquaresContainer, 515, 245);
+        }
+        
+        // 更新视图
+        function updateView(viewIndex) {
+            currentView = viewIndex;
+            
+            // 更新按钮状态
+            btnTop.classList.remove('active');
+            btnFront.classList.remove('active');
+            btnLeft.classList.remove('active');
+            
+            if (viewIndex === 0) {
+                viewLabel.textContent = '从上面看';
+                btnTop.classList.add('active');
+                drawTopView();
+            } else if (viewIndex === 1) {
+                viewLabel.textContent = '从前面看';
+                btnFront.classList.add('active');
+                drawFrontView();
+            } else if (viewIndex === 2) {
+                viewLabel.textContent = '从左面看';
+                btnLeft.classList.add('active');
+                drawLeftView();
+            }
+        }
+        
+        // 绑定按钮事件
+        btnTop.addEventListener('click', function() {
+            updateView(0);
+        });
+        
+        btnFront.addEventListener('click', function() {
+            updateView(1);
+        });
+        
+        btnLeft.addEventListener('click', function() {
+            updateView(2);
+        });
+        
+        // 初始化：显示"从上面看"
+        updateView(0);
+    })();
+    </script>
+</body>
+</html>

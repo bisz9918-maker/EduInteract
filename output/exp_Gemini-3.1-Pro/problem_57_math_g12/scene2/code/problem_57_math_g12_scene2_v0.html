@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 10; }
+        .controls-row { display: flex; justify-content: center; align-items: center; gap: 12px; }
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-desc { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 4px; }
+        
+        /* SVG Elements */
+        .line-solid { stroke: #000000; stroke-width: 2; fill: none; }
+        .line-dashed { stroke: #888888; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+        .line-blue { stroke: #1565c0; stroke-width: 2; fill: none; }
+        .line-blue-dashed { stroke: #1565c0; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+        .arc-alpha { stroke: #c62828; stroke-width: 2; fill: none; }
+        .arc-beta { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .point-black { fill: #000000; }
+        .point-blue { fill: #1565c0; }
+        .text-black { fill: #000000; font-size: 16px; text-anchor: middle; }
+        .text-alpha { fill: #c62828; font-size: 16px; text-anchor: middle; }
+        .text-beta { fill: #2e7d32; font-size: 16px; text-anchor: middle; }
+        .text-blue { fill: #1565c0; font-size: 16px; text-anchor: middle; }
+        
+        /* Transitions */
+        path, circle, text, polyline { transition: all 0.5s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- Static Elements -->
+            <line x1="20" y1="350" x2="780" y2="350" class="line-solid" />
+            <text x="760" y="335" class="text-black">M</text>
+            
+            <line x1="450" y1="150" x2="450" y2="350" class="line-dashed" />
+            <line x1="450" y1="150" x2="618" y2="350" class="line-solid" />
+            
+            <polyline points="450,340 460,340 460,350" class="line-solid" />
+            
+            <circle cx="450" cy="150" r="4" class="point-black" />
+            <text x="450" y="135" class="text-black">P</text>
+            
+            <circle cx="450" cy="350" r="4" class="point-black" />
+            <text x="450" y="375" class="text-black">O</text>
+            
+            <circle cx="618" cy="350" r="4" class="point-black" />
+            <text x="618" y="375" class="text-black">A</text>
+            
+            <!-- Alpha Arc -->
+            <path id="scene2-alpha-arc" class="arc-alpha" />
+            <text x="485" y="220" class="text-alpha">α</text>
+            
+            <!-- Dynamic Elements -->
+            <path id="scene2-l1" class="line-blue" />
+            <path id="scene2-l2" class="line-blue" />
+            <path id="scene2-rev-l2" class="line-blue-dashed" />
+            
+            <circle id="scene2-b1" r="4" class="point-blue" />
+            <text id="scene2-b1-label" class="text-blue">B₁</text>
+            
+            <circle id="scene2-b2" r="4" class="point-blue" />
+            <text id="scene2-b2-label" class="text-blue">B₂</text>
+            
+            <path id="scene2-beta1-arc" class="arc-beta" />
+            <path id="scene2-beta2-arc" class="arc-beta" />
+            <text id="scene2-beta1-label" class="text-beta">β</text>
+            <text id="scene2-beta2-label" class="text-beta">β</text>
+            
+            <polyline id="scene2-right-angle-beta" class="arc-beta" />
+        </svg>
+        
+        <div id="scene2-controls">
+            <div id="scene2-desc">初始状态：建立主截面</div>
+            <div class="controls-row">
+                <button id="scene2-btn-prev">◀ 上一步</button>
+                <span id="scene2-step-indicator">步骤 1 / 6</span>
+                <button id="scene2-btn-next">下一步 ▶</button>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const steps = [
+            { beta: null, desc: "初始状态：建立主截面" },
+            { beta: 15, desc: "步骤 2：β = 15° (母线与平面相交)" },
+            { beta: 50, desc: "步骤 3：β = 50°，α+β = 90° (抛物线)" },
+            { beta: 85, desc: "步骤 4：β = 85°，α+β > 90° (双曲线)" },
+            { beta: 15, desc: "步骤 5：β = 15°，α+β < 90° (椭圆)" },
+            { beta: 90, desc: "步骤 6：β = 90° (直线)" }
+        ];
+        
+        let currentStep = 0;
+        
+        function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+            var angleInRadians = (angleInDegrees * Math.PI) / 180.0;
+            return {
+                x: centerX + (radius * Math.cos(angleInRadians)),
+                y: centerY + (radius * Math.sin(angleInRadians))
+            };
+        }
+
+        function describeArc(x, y, radius, startAngle, endAngle){
+            if (startAngle > endAngle) {
+                let temp = startAngle;
+                startAngle = endAngle;
+                endAngle = temp;
+            }
+            var start = polarToCartesian(x, y, radius, startAngle);
+            var end = polarToCartesian(x, y, radius, endAngle);
+            var largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+            var d = [
+                "M", start.x, start.y, 
+                "A", radius, radius, 0, largeArcFlag, 1, end.x, end.y
+            ].join(" ");
+            return d;       
+        }
+        
+        function getRayEnd(angle) {
+            let rad = angle * Math.PI / 180;
+            if (Math.abs(Math.sin(rad)) < 0.001) {
+                return { x: 780, y: 150 };
+            }
+            if (Math.sin(rad) > 0) {
+                let dy = 420 - 150;
+                let dx = dy / Math.tan(rad);
+                return { x: 450 + dx, y: 420 };
+            } else {
+                let dy = 50 - 150;
+                let dx = dy / Math.tan(rad);
+                return { x: 450 + dx, y: 50 };
+            }
+        }
+        
+        function getIntersectionM(angle) {
+            let rad = angle * Math.PI / 180;
+            if (Math.abs(Math.sin(rad)) < 0.001) return null;
+            if (Math.sin(rad) < 0) return null;
+            let dy = 350 - 150;
+            let dx = dy / Math.tan(rad);
+            return { x: 450 + dx, y: 350 };
+        }
+        
+        // Init alpha arc
+        document.getElementById('scene2-alpha-arc').setAttribute('d', describeArc(450, 150, 40, 50, 90));
+        
+        function updateStep(stepIndex) {
+            const step = steps[stepIndex];
+            const beta = step.beta;
+            
+            const l1 = document.getElementById('scene2-l1');
+            const l2 = document.getElementById('scene2-l2');
+            const revL2 = document.getElementById('scene2-rev-l2');
+            const b1 = document.getElementById('scene2-b1');
+            const b2 = document.getElementById('scene2-b2');
+            const b1Label = document.getElementById('scene2-b1-label');
+            const b2Label = document.getElementById('scene2-b2-label');
+            const beta1Arc = document.getElementById('scene2-beta1-arc');
+            const beta2Arc = document.getElementById('scene2-beta2-arc');
+            const beta1Label = document.getElementById('scene2-beta1-label');
+            const beta2Label = document.getElementById('scene2-beta2-label');
+            const rightAngleBeta = document.getElementById('scene2-right-angle-beta');
+            
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${stepIndex + 1} / ${steps.length}`;
+            document.getElementById('scene2-desc').textContent = step.desc;
+            
+            if (beta === null) {
+                [l1, l2, revL2, b1, b2, b1Label, b2Label, beta1Arc, beta2Arc, beta1Label, beta2Label, rightAngleBeta].forEach(el => {
+                    el.style.opacity = 0;
+                });
+            } else {
+                let l1_angle = 50 + beta;
+                let l2_angle = 50 - beta;
+                
+                let end1 = getRayEnd(l1_angle);
+                l1.setAttribute('d', `M 450 150 L ${end1.x} ${end1.y}`);
+                l1.style.opacity = 1;
+                
+                let end2 = getRayEnd(l2_angle);
+                l2.setAttribute('d', `M 450 150 L ${end2.x} ${end2.y}`);
+                l2.style.opacity = 1;
+                
+                if (l2_angle < 0) {
+                    let revEnd2 = getRayEnd(l2_angle + 180);
+                    revL2.setAttribute('d', `M 450 150 L ${revEnd2.x} ${revEnd2.y}`);
+                    revL2.style.opacity = 1;
+                } else {
+                    revL2.style.opacity = 0;
+                }
+                
+                let b1_pos = getIntersectionM(l1_angle);
+                if (b1_pos) {
+                    b1.setAttribute('cx', b1_pos.x);
+                    b1.setAttribute('cy', b1_pos.y);
+                    b1Label.setAttribute('x', b1_pos.x - 15);
+                    b1Label.setAttribute('y', b1_pos.y + 25);
+                    b1.style.opacity = 1;
+                    b1Label.style.opacity = 1;
+                } else {
+                    b1.style.opacity = 0;
+                    b1Label.style.opacity = 0;
+                }
+                
+                let b2_pos = getIntersectionM(l2_angle) || getIntersectionM(l2_angle + 180);
+                if (b2_pos) {
+                    b2.setAttribute('cx', b2_pos.x);
+                    b2.setAttribute('cy', b2_pos.y);
+                    b2Label.setAttribute('x', b2_pos.x + 15);
+                    b2Label.setAttribute('y', b2_pos.y + 25);
+                    b2.style.opacity = 1;
+                    b2Label.style.opacity = 1;
+                } else {
+                    b2.style.opacity = 0;
+                    b2Label.style.opacity = 0;
+                }
+                
+                if (b2_pos && b1_pos && Math.abs(b2_pos.x - b1_pos.x) < 5) {
+                    b2.style.opacity = 0;
+                    b2Label.style.opacity = 0;
+                }
+                
+                if (beta === 90) {
+                    beta1Arc.style.opacity = 0;
+                    beta2Arc.style.opacity = 0;
+                    beta1Label.style.opacity = 0;
+                    beta2Label.style.opacity = 0;
+                    
+                    let p1 = polarToCartesian(450, 150, 15, 50);
+                    let p2 = polarToCartesian(p1.x, p1.y, 15, 140);
+                    let p3 = polarToCartesian(450, 150, 15, 140);
+                    rightAngleBeta.setAttribute('points', `${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`);
+                    rightAngleBeta.style.opacity = 1;
+                } else {
+                    rightAngleBeta.style.opacity = 0;
+                    
+                    beta1Arc.setAttribute('d', describeArc(450, 150, 70, 50, 50 + beta));
+                    beta2Arc.setAttribute('d', describeArc(450, 150, 70, 50 - beta, 50));
+                    beta1Arc.style.opacity = 1;
+                    beta2Arc.style.opacity = 1;
+                    
+                    let label1Pos = polarToCartesian(450, 150, 125, 50 + beta/2);
+                    beta1Label.setAttribute('x', label1Pos.x);
+                    beta1Label.setAttribute('y', label1Pos.y + 5);
+                    beta1Label.style.opacity = 1;
+                    
+                    let label2Pos = polarToCartesian(450, 150, 125, 50 - beta/2);
+                    beta2Label.setAttribute('x', label2Pos.x);
+                    beta2Label.setAttribute('y', label2Pos.y + 5);
+                    beta2Label.style.opacity = 1;
+                }
+            }
+            
+            document.getElementById('scene2-btn-prev').disabled = stepIndex === 0;
+            document.getElementById('scene2-btn-next').disabled = stepIndex === steps.length - 1;
+        }
+        
+        document.getElementById('scene2-btn-prev').addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep(currentStep);
+            }
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', () => {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateStep(currentStep);
+            }
+        });
+        
+        // Initialize
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

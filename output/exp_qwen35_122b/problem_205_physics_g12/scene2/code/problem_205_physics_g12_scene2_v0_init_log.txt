@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 最高点 L 的临界条件分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { padding: 8px 16px; font-size: 14px; display: flex; align-items: center; }
+        .scene2-hidden { opacity: 0; display: none; }
+        .scene2-visible { opacity: 1; display: block; }
+        .scene2-arrow { transition: opacity 0.3s ease-in-out; }
+        .scene2-formula { font-size: 16px; font-weight: bold; fill: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 半圆轨道：圆心 (400,300)，半径 120，从角度 180°到 360°（左侧半圆） -->
+            <path id="scene2-arc" d="M 280,300 A 120,120 0 0,1 520,300" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 圆心 O -->
+            <circle id="scene2-center" cx="400" cy="300" r="3" fill="#000000"/>
+            <text id="scene2-label-O" x="415" y="315" font-size="14" fill="#000000">O</text>
+            
+            <!-- N 点标注（轨道底部起点） -->
+            <text id="scene2-label-N-point" x="400" y="435" font-size="14" fill="#000000" text-anchor="middle">N</text>
+            
+            <!-- 半径 R 虚线：从圆心 (400,300) 到 L 点 (400,180) -->
+            <line id="scene2-radius" x1="400" y1="300" x2="400" y2="180" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <!-- 修正：将 R 标签移到轨道内部 (415, 240)，在虚线右侧 -->
+            <text id="scene2-label-R" x="415" y="240" font-size="14" fill="#888888">R</text>
+            
+            <!-- L 点物块：在轨道顶部 (380,160)-(410,190) -->
+            <rect id="scene2-block" x="380" y="160" width="30" height="30" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-L" x="395" y="145" font-size="14" fill="#000000" text-anchor="middle">L</text>
+            
+            <!-- 重力 G 箭头：从物块中心 (395,175) 向下到 (395,225)，红色 -->
+            <g id="scene2-gravity-group" class="scene2-hidden">
+                <line id="scene2-gravity-line" x1="395" y1="175" x2="395" y2="225" stroke="#c62828" stroke-width="2" class="scene2-arrow"/>
+                <polygon id="scene2-gravity-arrow" points="395,225 390,215 400,215" fill="#c62828" class="scene2-arrow"/>
+                <text id="scene2-label-G" x="410" y="220" font-size="14" fill="#c62828" class="scene2-arrow">G=mg</text>
+            </g>
+            
+            <!-- 支持力 N 箭头：从物块中心 (395,175) 向下到 (395,205)，绿色 -->
+            <g id="scene2-normal-group" class="scene2-hidden">
+                <line id="scene2-normal-line" x1="395" y1="175" x2="395" y2="205" stroke="#2e7d32" stroke-width="2" class="scene2-arrow"/>
+                <polygon id="scene2-normal-arrow" points="395,205 390,195 400,195" fill="#2e7d32" class="scene2-arrow"/>
+                <text id="scene2-label-N" x="410" y="185" font-size="14" fill="#2e7d32" class="scene2-arrow">N</text>
+            </g>
+            
+            <!-- 向心力 Fn 箭头：从物块中心 (395,175) 向下到 (395,245)，蓝色虚线 -->
+            <g id="scene2-centripetal-group" class="scene2-hidden">
+                <line id="scene2-centripetal-line" x1="395" y1="175" x2="395" y2="245" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" class="scene2-arrow"/>
+                <polygon id="scene2-centripetal-arrow" points="395,245 390,235 400,235" fill="#1565c0" class="scene2-arrow"/>
+                <text id="scene2-label-Fn" x="410" y="265" font-size="14" fill="#1565c0" class="scene2-arrow">F_n</text>
+            </g>
+            
+            <!-- 速度 vL 箭头：从物块左侧 (365,175) 向左到 (315,175)，蓝色 -->
+            <g id="scene2-velocity-group" class="scene2-hidden">
+                <line id="scene2-velocity-line" x1="365" y1="175" x2="315" y2="175" stroke="#1565c0" stroke-width="2" class="scene2-arrow"/>
+                <polygon id="scene2-velocity-arrow" points="315,175 325,170 325,180" fill="#1565c0" class="scene2-arrow"/>
+                <text id="scene2-label-vL" x="340" y="160" font-size="14" fill="#1565c0" text-anchor="middle" class="scene2-arrow">v_L</text>
+            </g>
+            
+            <!-- 公式文本区域（步骤 2 和 3 显示） -->
+            <g id="scene2-formula-group" class="scene2-hidden">
+                <text id="scene2-formula-1" x="500" y="200" font-size="16" font-weight="bold" fill="#333" class="scene2-formula"></text>
+                <text id="scene2-formula-2" x="500" y="250" font-size="16" font-weight="bold" fill="#333" class="scene2-formula"></text>
+            </g>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <div id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/3</div>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        var currentStep = 0;
+        var totalSteps = 4;
+        
+        var gravityGroup = document.getElementById('scene2-gravity-group');
+        var normalGroup = document.getElementById('scene2-normal-group');
+        var centripetalGroup = document.getElementById('scene2-centripetal-group');
+        var velocityGroup = document.getElementById('scene2-velocity-group');
+        var formulaGroup = document.getElementById('scene2-formula-group');
+        var formula1 = document.getElementById('scene2-formula-1');
+        var formula2 = document.getElementById('scene2-formula-2');
+        var btnPrev = document.getElementById('scene2-btn-prev');
+        var btnNext = document.getElementById('scene2-btn-next');
+        var stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        function show(el) {
+            if (el) {
+                el.style.display = 'inline';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(function() {
+                    if (el) {
+                        el.style.display = 'none';
+                    }
+                }, 300);
+            }
+        }
+        
+        function updateScene() {
+            hide(gravityGroup);
+            hide(normalGroup);
+            hide(centripetalGroup);
+            hide(velocityGroup);
+            hide(formulaGroup);
+            
+            if (currentStep >= 1) {
+                show(gravityGroup);
+                show(normalGroup);
+            }
+            
+            if (currentStep >= 2) {
+                show(centripetalGroup);
+                show(formulaGroup);
+                formula1.textContent = 'mg + N = F_n';
+                formula2.textContent = '';
+            }
+            
+            if (currentStep >= 3) {
+                hide(normalGroup);
+                var centripetalLine = document.getElementById('scene2-centripetal-line');
+                var centripetalArrow = document.getElementById('scene2-centripetal-arrow');
+                if (centripetalLine) {
+                    centripetalLine.style.strokeDasharray = 'none';
+                    centripetalLine.style.strokeWidth = '3';
+                }
+                if (centripetalArrow) {
+                    centripetalArrow.style.fill = '#c62828';
+                }
+                show(velocityGroup);
+                formula1.textContent = 'mg = m·v_L²/R';
+                formula2.textContent = 'v_L ≥ √(gR)';
+            }
+            
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+            
+            var displayStep = Math.min(currentStep, 3);
+            stepIndicator.textContent = '步骤 ' + displayStep + '/3';
+        }
+        
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        }
+        
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateScene();
+            }
+        }
+        
+        btnPrev.addEventListener('click', prevStep);
+        btnNext.addEventListener('click', nextStep);
+        
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

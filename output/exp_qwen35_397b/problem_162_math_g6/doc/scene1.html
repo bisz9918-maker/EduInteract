@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>周长比较问题 - 场景 1</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        .scene1-label {
+            font-size: 18px;
+            font-weight: bold;
+            fill: #1565c0;
+        }
+        .scene1-dim {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene1-shape {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        .scene1-shape.highlight {
+            stroke-width: 3;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 图形 A 分组 -->
+            <g id="scene1-group-a">
+                <!-- 长方形轮廓: (80,160)-(280,280), 宽200高120 -->
+                <rect id="scene1-rect-a" class="scene1-shape" x="80" y="160" width="200" height="120"/>
+                <!-- 标签 A. (左侧) -->
+                <text id="scene1-label-a" class="scene1-label" x="50" y="225">A.</text>
+                <!-- 尺寸标注 10（底边） -->
+                <text id="scene1-dim-a-10" class="scene1-dim" x="180" y="320" text-anchor="middle">10</text>
+                <!-- 尺寸标注 6（右边） -->
+                <text id="scene1-dim-a-6" class="scene1-dim" x="295" y="225" text-anchor="start">6</text>
+            </g>
+
+            <!-- 图形 B 分组 -->
+            <g id="scene1-group-b" style="display: none;">
+                <!-- 阶梯多边形轮廓: (320,160)-(520,280), 宽200高120 -->
+                <!-- 5级台阶，每级宽40高24 -->
+                <path id="scene1-path-b" class="scene1-shape" d="M 320,160 L 320,184 L 360,184 L 360,208 L 400,208 L 400,232 L 440,232 L 440,256 L 480,256 L 480,280 L 520,280 L 520,160 Z"/>
+                <!-- 标签 B. (下方，增加间距) -->
+                <text id="scene1-label-b" class="scene1-label" x="420" y="360" text-anchor="middle">B.</text>
+                <!-- 尺寸标注 10（底边） -->
+                <text id="scene1-dim-b-10" class="scene1-dim" x="420" y="385" text-anchor="middle">10</text>
+                <!-- 尺寸标注 6（左边） -->
+                <text id="scene1-dim-b-6" class="scene1-dim" x="295" y="225" text-anchor="end">6</text>
+            </g>
+
+            <!-- 图形 C 分组 -->
+            <g id="scene1-group-c" style="display: none;">
+                <!-- 带凹槽多边形轮廓: (560,160)-(760,280), 宽200高120 -->
+                <!-- 凹槽：顶部中间凹陷，宽80深40 -->
+                <path id="scene1-path-c" class="scene1-shape" d="M 560,160 L 560,280 L 760,280 L 760,160 L 720,160 L 720,200 L 600,200 L 600,160 Z"/>
+                <!-- 标签 C. (左侧) -->
+                <text id="scene1-label-c" class="scene1-label" x="530" y="225">C.</text>
+                <!-- 尺寸标注 10（底边） -->
+                <text id="scene1-dim-c-10" class="scene1-dim" x="660" y="320" text-anchor="middle">10</text>
+                <!-- 尺寸标注 6（右边，调整位置避免超出边界） -->
+                <text id="scene1-dim-c-6" class="scene1-dim" x="770" y="225" text-anchor="start">6</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 周长比较问题分步展示
+        // 布局坐标表（修正后）：
+        // A.: (50,225), A-10: (180,320), A-6: (295,225)
+        // B.: (420,360), B-10: (420,385), B-6: (295,225)
+        // C.: (530,225), C-10: (660,320), C-6: (770,225)
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 4; // 步骤 0-3
+
+        // 获取 DOM 元素
+        const groupA = document.getElementById('scene1-group-a');
+        const groupB = document.getElementById('scene1-group-b');
+        const groupC = document.getElementById('scene1-group-c');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const rectA = document.getElementById('scene1-rect-a');
+        const pathB = document.getElementById('scene1-path-b');
+        const pathC = document.getElementById('scene1-path-c');
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 根据当前步骤显示/隐藏图形
+            if (currentStep >= 0) {
+                groupA.style.display = 'block';
+                groupA.style.opacity = '1';
+            }
+            if (currentStep >= 1) {
+                groupB.style.display = 'block';
+                groupB.style.opacity = '1';
+            }
+            if (currentStep >= 2) {
+                groupC.style.display = 'block';
+                groupC.style.opacity = '1';
+            }
+
+            // 步骤 0：只显示 A
+            if (currentStep === 0) {
+                groupB.style.display = 'none';
+                groupC.style.display = 'none';
+            }
+            // 步骤 1：显示 A 和 B
+            else if (currentStep === 1) {
+                groupC.style.display = 'none';
+            }
+            // 步骤 2 和 3：显示全部
+            else if (currentStep >= 2) {
+                groupA.style.display = 'block';
+                groupB.style.display = 'block';
+                groupC.style.display = 'block';
+            }
+
+            // 步骤 3：高亮所有图形
+            if (currentStep === 3) {
+                rectA.classList.add('highlight');
+                pathB.classList.add('highlight');
+                pathC.classList.add('highlight');
+            } else {
+                rectA.classList.remove('highlight');
+                pathB.classList.remove('highlight');
+                pathC.classList.remove('highlight');
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === 3);
+        }
+
+        // 上一步按钮点击
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        // 下一步按钮点击
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

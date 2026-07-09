@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态电路分析——滑片移动对电表示数的影响</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 电表指针样式 */
+        .meter-needle {
+            transition: transform 0.5s ease-out;
+            transform-origin: center bottom;
+        }
+        /* 高亮样式 */
+        .highlight-blue {
+            stroke: #1565c0 !important;
+            stroke-width: 3px !important;
+        }
+        .highlight-green {
+            stroke: #2e7d32 !important;
+            stroke-width: 3px !important;
+        }
+        .highlight-red {
+            stroke: #c62828 !important;
+            stroke-width: 3px !important;
+        }
+        /* 按钮样式 */
+        .scene1-btn {
+            position: absolute;
+            bottom: 15px;
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene1-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-btn-prev {
+            left: 320px;
+        }
+        #scene1-btn-next {
+            left: 440px;
+        }
+        #scene1-step-indicator {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #666;
+        }
+        /* 结论框 */
+        #scene1-conclusion {
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        /* 磁感线 */
+        .magnetic-line {
+            stroke: #2e7d32;
+            stroke-width: 1.5;
+            fill: none;
+            stroke-dasharray: 5,5;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        /* 电流流动箭头 */
+        .current-arrow {
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        /* 排斥力箭头 */
+        .repel-arrow {
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- ========== 电路部分 ========== -->
+            
+            <!-- 电源 (左负右正) -->
+            <g id="scene1-power">
+                <!-- 负极短线 -->
+                <line x1="140" y1="275" x2="140" y2="285" stroke="#000" stroke-width="2" />
+                <!-- 正极长线 -->
+                <line x1="170" y1="270" x2="170" y2="290" stroke="#000" stroke-width="2" />
+                <text x="135" y="270" font-size="16" text-anchor="end">-</text>
+                <text x="175" y="270" font-size="16" text-anchor="start">+</text>
+            </g>
+
+            <!-- 开关 S -->
+            <g id="scene1-switch">
+                <line x1="100" y1="280" x2="130" y2="280" stroke="#000" stroke-width="2" />
+                <line x1="100" y1="280" x2="100" y2="250" stroke="#000" stroke-width="2" />
+                <line x1="100" y1="250" x2="130" y2="250" stroke="#000" stroke-width="2" id="scene1-switch-blade" />
+                <circle cx="100" cy="250" r="3" fill="#000" />
+                <circle cx="130" cy="250" r="3" fill="#000" />
+                <text x="115" y="240" font-size="16" text-anchor="middle">S</text>
+            </g>
+
+            <!-- 定值电阻 R₀ -->
+            <g id="scene1-r0">
+                <rect x="100" y="368" width="60" height="24" fill="none" stroke="#000" stroke-width="2" />
+                <text x="130" y="405" font-size="16" text-anchor="middle">R₀</text>
+            </g>
+
+            <!-- 滑动变阻器 R -->
+            <g id="scene1-r">
+                <rect x="200" y="188" width="120" height="24" fill="none" stroke="#000" stroke-width="2" />
+                <!-- 滑片 -->
+                <line x1="260" y1="188" x2="260" y2="170" stroke="#000" stroke-width="2" />
+                <polygon points="260,170 255,180 265,180" fill="#000" />
+                <text x="260" y="160" font-size="16" text-anchor="middle">R</text>
+            </g>
+
+            <!-- 电压表 V -->
+            <g id="scene1-v">
+                <circle cx="260" cy="230" r="18" fill="none" stroke="#000" stroke-width="2" />
+                <text x="260" y="236" font-size="18" text-anchor="middle" font-weight="bold">V</text>
+                <!-- 指针 -->
+                <line id="scene1-v-needle" x1="260" y1="230" x2="260" y2="215" stroke="#c62828" stroke-width="2" class="meter-needle" />
+            </g>
+
+            <!-- 电流表 A -->
+            <g id="scene1-a">
+                <circle cx="200" cy="380" r="18" fill="none" stroke="#000" stroke-width="2" />
+                <text x="200" y="386" font-size="18" text-anchor="middle" font-weight="bold">A</text>
+                <!-- 指针 -->
+                <line id="scene1-a-needle" x1="200" y1="380" x2="200" y2="365" stroke="#2e7d32" stroke-width="2" class="meter-needle" />
+            </g>
+
+            <!-- 螺线管 B -->
+            <g id="scene1-coil">
+                <!-- 线圈绕组 -->
+                <path d="M520,280 Q540,280 560,280" stroke="#000" stroke-width="2" fill="none" />
+                <path d="M520,300 Q540,300 560,300" stroke="#000" stroke-width="2" fill="none" />
+                <path d="M520,320 Q540,320 560,320" stroke="#000" stroke-width="2" fill="none" />
+                <path d="M520,340 Q540,340 560,340" stroke="#000" stroke-width="2" fill="none" />
+                <path d="M520,360 Q540,360 560,360" stroke="#000" stroke-width="2" fill="none" />
+                <path d="M520,380 Q540,380 560,380" stroke="#000" stroke-width="2" fill="none" />
+                <!-- 铁芯 -->
+                <rect x="530" y="270" width="20" height="120" fill="#ddd" stroke="#000" stroke-width="1" />
+                <text x="575" y="335" font-size="16" text-anchor="start">B</text>
+                <!-- 极性标签（步骤 5 显示） -->
+                <text id="scene1-coil-n" x="540" y="260" font-size="14" text-anchor="middle" fill="#2e7d32" opacity="0">N</text>
+            </g>
+
+            <!-- 条形磁铁 A -->
+            <g id="scene1-magnet">
+                <rect x="525" y="140" width="30" height="70" fill="none" stroke="#000" stroke-width="2" />
+                <text x="515" y="180" font-size="16" text-anchor="end">A</text>
+                <text x="565" y="165" font-size="14" text-anchor="start">S</text>
+                <text x="565" y="200" font-size="14" text-anchor="start">N</text>
+            </g>
+
+            <!-- 弹簧测力计 -->
+            <g id="scene1-spring">
+                <!-- 固定端 -->
+                <line x1="530" y1="50" x2="570" y1="50" stroke="#000" stroke-width="2" />
+                <line x1="535" y1="45" x2="540" y2="50" stroke="#000" stroke-width="2" />
+                <line x1="545" y1="45" x2="550" y2="50" stroke="#000" stroke-width="2" />
+                <line x1="555" y1="45" x2="560" y2="50" stroke="#000" stroke-width="2" />
+                <line x1="565" y1="45" x2="570" y2="50" stroke="#000" stroke-width="2" />
+                <!-- 弹簧 -->
+                <path id="scene1-spring-coil" d="M550,50 L545,60 L555,70 L545,80 L555,90 L545,100 L555,110 L550,120" stroke="#000" stroke-width="1.5" fill="none" />
+                <!-- 挂钩 -->
+                <line x1="550" y1="120" x2="550" y2="140" stroke="#000" stroke-width="2" />
+            </g>
+
+            <!-- ========== 电路连接线 ========== -->
+            <g id="scene1-wires" stroke="#000" stroke-width="2" fill="none">
+                <!-- 开关到电源负极 -->
+                <line x1="130" y1="280" x2="140" y2="280" />
+                <!-- 电源正极到滑动变阻器左端 -->
+                <line x1="170" y1="280" x2="170" y2="200" />
+                <line x1="170" y1="200" x2="200" y2="200" />
+                <!-- 滑动变阻器右端到电流表 -->
+                <line x1="320" y1="200" x2="320" y2="380" />
+                <line x1="320" y1="380" x2="220" y2="380" />
+                <!-- 电流表到 R0 -->
+                <line x1="180" y1="380" x2="160" y2="380" />
+                <line x1="160" y1="380" x2="160" y2="380" />
+                <!-- R0 到开关 -->
+                <line x1="100" y1="380" x2="100" y2="280" />
+                <!-- 电压表连接线 -->
+                <line x1="260" y1="200" x2="260" y2="212" />
+                <line x1="260" y1="248" x2="260" y2="280" />
+                <line x1="260" y1="280" x2="320" y2="280" />
+                <line x1="320" y1="280" x2="320" y2="200" />
+            </g>
+
+            <!-- ========== 动态元素 ========== -->
+            
+            <!-- 滑片移动箭头（步骤 1 显示） -->
+            <g id="scene1-slide-arrow" opacity="0">
+                <line x1="220" y1="150" x2="300" y2="150" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)" />
+                <text x="260" y="140" font-size="14" text-anchor="middle" fill="#1565c0">滑片右移</text>
+            </g>
+
+            <!-- 电阻减小标签（步骤 2 显示） -->
+            <text id="scene1-r-decrease" x="260" y="260" font-size="18" text-anchor="middle" fill="#1565c0" opacity="0">R↓</text>
+
+            <!-- 电流变化标签（步骤 3 显示） -->
+            <text id="scene1-i-increase" x="200" y="410" font-size="18" text-anchor="middle" fill="#2e7d32" opacity="0">I↑</text>
+
+            <!-- 电压变化标签（步骤 4 显示） -->
+            <text id="scene1-u-decrease" x="260" y="260" font-size="18" text-anchor="middle" fill="#c62828" opacity="0">U↓</text>
+
+            <!-- 磁感线（步骤 5 显示） -->
+            <g id="scene1-magnetic-lines">
+                <ellipse id="scene1-mag-line1" class="magnetic-line" cx="540" cy="300" rx="35" ry="20" />
+                <ellipse id="scene1-mag-line2" class="magnetic-line" cx="540" cy="330" rx="40" ry="25" />
+                <ellipse id="scene1-mag-line3" class="magnetic-line" cx="540" cy="360" rx="35" ry="20" />
+            </g>
+
+            <!-- 排斥力箭头（步骤 5 显示） -->
+            <g id="scene1-repel-arrow">
+                <line x1="540" y1="230" x2="540" y2="210" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arrow-red)" class="repel-arrow" />
+                <text x="570" y="220" font-size="14" text-anchor="start" fill="#c62828" class="repel-arrow">F 斥↑</text>
+            </g>
+
+            <!-- 结论框（步骤 5 显示） -->
+            <g id="scene1-conclusion">
+                <rect x="280" y="420" width="240" height="50" fill="#fff9e6" stroke="#f57f17" stroke-width="2" rx="5" />
+                <text x="400" y="440" font-size="13" text-anchor="middle" fill="#333">电流表示数变大</text>
+                <text x="400" y="460" font-size="13" text-anchor="middle" fill="#333">电压表示数变小</text>
+            </g>
+
+            <!-- 电流流动箭头（步骤 3 显示） -->
+            <g id="scene1-current-arrows">
+                <polygon id="scene1-curr-arrow1" class="current-arrow" points="150,275 145,280 150,285" fill="#2e7d32" />
+                <polygon id="scene1-curr-arrow2" class="current-arrow" points="175,220 170,225 180,225" fill="#2e7d32" />
+                <polygon id="scene1-curr-arrow3" class="current-arrow" points="315,300 310,305 320,305" fill="#2e7d32" />
+                <polygon id="scene1-curr-arrow4" class="current-arrow" points="240,375 235,370 245,370" fill="#2e7d32" />
+                <polygon id="scene1-curr-arrow5" class="current-arrow" points="120,350 115,355 125,355" fill="#2e7d32" />
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-step-indicator">步骤 1/6</div>
+        <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+        <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        const currentStep = { value: 0 };
+        const totalSteps = 6;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 动态元素
+        const slideArrow = document.getElementById('scene1-slide-arrow');
+        const rDecrease = document.getElementById('scene1-r-decrease');
+        const iIncrease = document.getElementById('scene1-i-increase');
+        const uDecrease = document.getElementById('scene1-u-decrease');
+        const magneticLines = document.getElementById('scene1-magnetic-lines');
+        const repelArrow = document.getElementById('scene1-repel-arrow');
+        const conclusion = document.getElementById('scene1-conclusion');
+        const currentArrows = document.getElementById('scene1-current-arrows');
+        const coilN = document.getElementById('scene1-coil-n');
+        const springCoil = document.getElementById('scene1-spring-coil');
+        const vNeedle = document.getElementById('scene1-v-needle');
+        const aNeedle = document.getElementById('scene1-a-needle');
+        const rElement = document.getElementById('scene1-r');
+        const vElement = document.getElementById('scene1-v');
+        const aElement = document.getElementById('scene1-a');
+
+        // 显示/隐藏工具函数
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = currentStep.value === 0;
+            btnNext.disabled = currentStep.value === totalSteps - 1;
+            btnPrev.style.opacity = btnPrev.disabled ? '0.5' : '1';
+            btnNext.style.opacity = btnNext.disabled ? '0.5' : '1';
+        }
+
+        // 更新步骤指示器
+        function updateIndicator() {
+            stepIndicator.textContent = `步骤 ${currentStep.value + 1}/${totalSteps}`;
+        }
+
+        // 重置所有动态元素
+        function resetAll() {
+            hide(slideArrow);
+            hide(rDecrease);
+            hide(iIncrease);
+            hide(uDecrease);
+            hide(magneticLines);
+            hide(repelArrow);
+            hide(conclusion);
+            hide(currentArrows);
+            hide(coilN);
+            
+            // 重置电表指针
+            vNeedle.style.transform = 'rotate(0deg)';
+            aNeedle.style.transform = 'rotate(0deg)';
+            
+            // 重置高亮
+            rElement.querySelector('rect').classList.remove('highlight-blue');
+            vElement.querySelector('circle').classList.remove('highlight-red');
+            aElement.querySelector('circle').classList.remove('highlight-green');
+            
+            // 重置弹簧
+            springCoil.setAttribute('d', 'M550,50 L545,60 L555,70 L545,80 L555,90 L545,100 L555,110 L550,120');
+        }
+
+        // 渲染当前步骤
+        function renderStep(step) {
+            resetAll();
+
+            switch(step) {
+                case 0:
+                    // 初始状态：只显示基础电路
+                    break;
+
+                case 1:
+                    // 步骤 1：高亮滑动变阻器，显示滑片移动箭头
+                    show(slideArrow);
+                    rElement.querySelector('rect').classList.add('highlight-blue');
+                    break;
+
+                case 2:
+                    // 步骤 2：显示电阻减小
+                    show(slideArrow);
+                    show(rDecrease);
+                    rElement.querySelector('rect').classList.add('highlight-blue');
+                    break;
+
+                case 3:
+                    // 步骤 3：显示电流增大
+                    show(slideArrow);
+                    show(rDecrease);
+                    show(iIncrease);
+                    show(currentArrows);
+                    rElement.querySelector('rect').classList.add('highlight-blue');
+                    aElement.querySelector('circle').classList.add('highlight-green');
+                    aNeedle.style.transform = 'rotate(15deg)';
+                    break;
+
+                case 4:
+                    // 步骤 4：显示电压减小
+                    show(slideArrow);
+                    show(rDecrease);
+                    show(iIncrease);
+                    show(uDecrease);
+                    show(currentArrows);
+                    rElement.querySelector('rect').classList.add('highlight-blue');
+                    aElement.querySelector('circle').classList.add('highlight-green');
+                    vElement.querySelector('circle').classList.add('highlight-red');
+                    aNeedle.style.transform = 'rotate(15deg)';
+                    vNeedle.style.transform = 'rotate(-10deg)';
+                    break;
+
+                case 5:
+                    // 步骤 5：显示电磁效应和结论
+                    show(slideArrow);
+                    show(rDecrease);
+                    show(iIncrease);
+                    show(uDecrease);
+                    show(currentArrows);
+                    show(magneticLines);
+                    show(repelArrow);
+                    show(conclusion);
+                    show(coilN);
+                    rElement.querySelector('rect').classList.add('highlight-blue');
+                    aElement.querySelector('circle').classList.add('highlight-green');
+                    vElement.querySelector('circle').classList.add('highlight-red');
+                    aNeedle.style.transform = 'rotate(15deg)';
+                    vNeedle.style.transform = 'rotate(-10deg)';
+                    // 弹簧缩短（向上移动）
+                    springCoil.setAttribute('d', 'M550,50 L545,58 L555,66 L545,74 L555,82 L545,90 L555,98 L550,106');
+                    break;
+            }
+
+            updateButtons();
+            updateIndicator();
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep.value > 0) {
+                currentStep.value--;
+                renderStep(currentStep.value);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep.value < totalSteps - 1) {
+                currentStep.value++;
+                renderStep(currentStep.value);
+            }
+        });
+
+        // 初始化
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

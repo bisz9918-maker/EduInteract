@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网判读 - 场景1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 13px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; background: #f5f5f5; transition: background 0.2s;
+        }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 13px; color: #333; min-width: 70px; text-align: center; }
+
+        /* SVG 元素过渡动画 */
+        .scene1-fade { transition: opacity 0.3s ease-in-out; }
+        .scene1-point { transition: r 0.2s ease-in-out, fill 0.2s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 灰色箭头 -->
+                <marker id="scene1-arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 1 L 9 5 L 0 9 z" fill="#888888"/>
+                </marker>
+                <!-- 红色箭头 -->
+                <marker id="scene1-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 1 L 9 5 L 0 9 z" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- ===== 经纬网底图（步骤0始终显示） ===== -->
+            <!-- 经线：从汇聚点(400,40)发散到底部 -->
+            <line id="scene1-meridian-140e" x1="400" y1="40" x2="140" y2="360" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-meridian-160e" x1="400" y1="40" x2="270" y2="360" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-meridian-180" x1="400" y1="40" x2="400" y2="360" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-meridian-160w" x1="400" y1="40" x2="530" y2="360" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-meridian-140w" x1="400" y1="40" x2="660" y2="360" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- 纬线 -->
+            <line id="scene1-parallel-60n" x1="351" y1="100" x2="449" y2="100" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-parallel-50n" x1="246" y1="230" x2="554" y2="230" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene1-parallel-40n" x1="140" y1="360" x2="660" y2="360" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- ===== 点位标记 ===== -->
+            <circle id="scene1-point-d" class="scene1-point" cx="351" cy="100" r="4" fill="#000000"/>
+            <circle id="scene1-point-a" class="scene1-point" cx="400" cy="230" r="4" fill="#000000"/>
+            <circle id="scene1-point-e" class="scene1-point" cx="246" cy="230" r="4" fill="#000000"/>
+            <circle id="scene1-point-f" class="scene1-point" cx="477" cy="230" r="4" fill="#000000"/>
+
+            <!-- 高亮外圈（初始隐藏） -->
+            <circle id="scene1-highlight-d" class="scene1-fade" cx="351" cy="100" r="8" fill="none" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <circle id="scene1-highlight-e" class="scene1-fade" cx="246" cy="230" r="8" fill="none" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <circle id="scene1-highlight-f" class="scene1-fade" cx="477" cy="230" r="8" fill="none" stroke="#1565c0" stroke-width="2" opacity="0"/>
+
+            <!-- ===== 点字母标签（步骤0显示） ===== -->
+            <!-- 放置在图形区域外，避免与经线bounding box重叠 -->
+            <text id="scene1-label-d" x="120" y="100" font-size="14" font-weight="bold" fill="#000000" text-anchor="middle">D</text>
+            <text id="scene1-label-a" x="400" y="420" font-size="14" font-weight="bold" fill="#000000" text-anchor="middle">A</text>
+            <text id="scene1-label-e" x="120" y="230" font-size="14" font-weight="bold" fill="#000000" text-anchor="middle">E</text>
+            <text id="scene1-label-f" x="730" y="230" font-size="14" font-weight="bold" fill="#000000" text-anchor="middle">F</text>
+
+            <!-- ===== 经度标注（放在汇聚点上方 y=35，避免与经线bounding box重叠和顶部裁切） ===== -->
+            <!-- 步骤0显示：140°E(蓝), 180°(黑), 140°W(红) -->
+            <text id="scene1-lon-140e" x="305" y="35" font-size="12" fill="#1565c0" text-anchor="middle">140°E</text>
+            <text id="scene1-lon-180" x="400" y="35" font-size="12" fill="#000000" text-anchor="middle">180°</text>
+            <text id="scene1-lon-140w" x="495" y="35" font-size="12" fill="#c62828" text-anchor="middle">140°W</text>
+            <!-- 步骤1显示：160°E(蓝), 160°W(红) -->
+            <text id="scene1-lon-160e" class="scene1-fade" x="355" y="35" font-size="12" fill="#1565c0" text-anchor="middle" opacity="0">160°E</text>
+            <text id="scene1-lon-160w" class="scene1-fade" x="445" y="35" font-size="12" fill="#c62828" text-anchor="middle" opacity="0">160°W</text>
+
+            <!-- ===== 纬度标注 ===== -->
+            <!-- 步骤0显示：60°N, 40°N -->
+            <text id="scene1-lat-60n" x="680" y="105" font-size="12" fill="#1565c0" text-anchor="start">60°N</text>
+            <text id="scene1-lat-40n" x="680" y="365" font-size="12" fill="#1565c0" text-anchor="start">40°N</text>
+            <!-- 步骤1显示：50°N -->
+            <text id="scene1-lat-50n" class="scene1-fade" x="680" y="235" font-size="12" fill="#1565c0" text-anchor="start" opacity="0">50°N</text>
+
+            <!-- ===== 规则提示（仅步骤1显示） ===== -->
+            <text id="scene1-rule1" class="scene1-fade" x="150" y="390" font-size="13" fill="#000000" opacity="0">纬度向北增大→北纬</text>
+            <text id="scene1-rule2" class="scene1-fade" x="450" y="390" font-size="13" fill="#000000" opacity="0">180°以西为东经，以东为西经</text>
+
+            <!-- ===== 坐标标签（步骤2-6显示，放在底部左侧避免压线） ===== -->
+            <text id="scene1-coord-d" class="scene1-fade" x="25" y="418" font-size="13" font-weight="bold" fill="#2e7d32" text-anchor="start" opacity="0">D (60°N, 140°E)</text>
+            <text id="scene1-coord-e" class="scene1-fade" x="25" y="445" font-size="13" font-weight="bold" fill="#2e7d32" text-anchor="start" opacity="0">E (50°N, 140°E)</text>
+            <text id="scene1-coord-f" class="scene1-fade" x="25" y="472" font-size="13" font-weight="bold" fill="#2e7d32" text-anchor="start" opacity="0">F (50°N, 160°W)</text>
+
+            <!-- ===== A点方向十字（步骤5显示） ===== -->
+            <line id="scene1-cross-a-n" class="scene1-fade" x1="400" y1="180" x2="400" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-cross-a-s" class="scene1-fade" x1="400" y1="230" x2="400" y2="280" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-cross-a-w" class="scene1-fade" x1="350" y1="230" x2="400" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-cross-a-e" class="scene1-fade" x1="400" y1="230" x2="450" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+
+            <!-- ===== D→A示意线（步骤5显示） ===== -->
+            <line id="scene1-line-da" class="scene1-fade" x1="351" y1="100" x2="400" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#scene1-arrow-gray)" opacity="0"/>
+
+            <!-- ===== 结论"西北"（步骤5显示） ===== -->
+            <text id="scene1-conclusion-nw" class="scene1-fade" x="400" y="390" font-size="14" font-weight="bold" fill="#2e7d32" text-anchor="middle" opacity="0">D在A的西北方向</text>
+
+            <!-- ===== F点方向十字（步骤6显示） ===== -->
+            <line id="scene1-cross-f-n" class="scene1-fade" x1="477" y1="180" x2="477" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-cross-f-s" class="scene1-fade" x1="477" y1="230" x2="477" y2="280" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-cross-f-w" class="scene1-fade" x1="427" y1="230" x2="477" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-cross-f-e" class="scene1-fade" x1="477" y1="230" x2="527" y2="230" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+
+            <!-- ===== E→F劣弧高亮（步骤6显示） ===== -->
+            <line id="scene1-arc-ef" class="scene1-fade" x1="246" y1="230" x2="477" y2="230" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arrow-red)" opacity="0"/>
+
+            <!-- ===== 结论"正东"（步骤6显示） ===== -->
+            <text id="scene1-conclusion-e" class="scene1-fade" x="400" y="390" font-size="14" font-weight="bold" fill="#2e7d32" text-anchor="middle" opacity="0">E在F的正东方向</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/7</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var totalSteps = 7; // 步骤 0~6
+
+        // 元素引用
+        var elLon160e = document.getElementById('scene1-lon-160e');
+        var elLon160w = document.getElementById('scene1-lon-160w');
+        var elLat50n = document.getElementById('scene1-lat-50n');
+        var elRule1 = document.getElementById('scene1-rule1');
+        var elRule2 = document.getElementById('scene1-rule2');
+        var elPointD = document.getElementById('scene1-point-d');
+        var elPointE = document.getElementById('scene1-point-e');
+        var elPointF = document.getElementById('scene1-point-f');
+        var elHighlightD = document.getElementById('scene1-highlight-d');
+        var elHighlightE = document.getElementById('scene1-highlight-e');
+        var elHighlightF = document.getElementById('scene1-highlight-f');
+        var elCoordD = document.getElementById('scene1-coord-d');
+        var elCoordE = document.getElementById('scene1-coord-e');
+        var elCoordF = document.getElementById('scene1-coord-f');
+        var elCrossAN = document.getElementById('scene1-cross-a-n');
+        var elCrossAS = document.getElementById('scene1-cross-a-s');
+        var elCrossAW = document.getElementById('scene1-cross-a-w');
+        var elCrossAE = document.getElementById('scene1-cross-a-e');
+        var elLineDA = document.getElementById('scene1-line-da');
+        var elConclusionNW = document.getElementById('scene1-conclusion-nw');
+        var elCrossFN = document.getElementById('scene1-cross-f-n');
+        var elCrossFS = document.getElementById('scene1-cross-f-s');
+        var elCrossFW = document.getElementById('scene1-cross-f-w');
+        var elCrossFE = document.getElementById('scene1-cross-f-e');
+        var elArcEF = document.getElementById('scene1-arc-ef');
+        var elConclusionE = document.getElementById('scene1-conclusion-e');
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var indicator = document.getElementById('scene1-step-indicator');
+
+        function setOpacity(el, value) {
+            if (el) el.style.opacity = value;
+        }
+
+        function highlightPoint(pointEl, highlightEl, active) {
+            if (active) {
+                pointEl.setAttribute('r', '6');
+                pointEl.setAttribute('fill', '#1565c0');
+                setOpacity(highlightEl, '1');
+            } else {
+                pointEl.setAttribute('r', '4');
+                pointEl.setAttribute('fill', '#000000');
+                setOpacity(highlightEl, '0');
+            }
+        }
+
+        function renderStep(step) {
+            currentStep = step;
+            indicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+
+            // 步骤1：补全标注 + 规则提示（仅步骤1显示）
+            var showStep1 = (step >= 1);
+            setOpacity(elLon160e, showStep1 ? '1' : '0');
+            setOpacity(elLon160w, showStep1 ? '1' : '0');
+            setOpacity(elLat50n, showStep1 ? '1' : '0');
+            // 规则提示仅在步骤1显示
+            setOpacity(elRule1, step === 1 ? '1' : '0');
+            setOpacity(elRule2, step === 1 ? '1' : '0');
+
+            // 步骤2：D点高亮 + 坐标
+            var showCoordD = (step >= 2);
+            setOpacity(elCoordD, showCoordD ? '1' : '0');
+            highlightPoint(elPointD, elHighlightD, step === 2);
+
+            // 步骤3：E点高亮 + 坐标
+            var showCoordE = (step >= 3);
+            setOpacity(elCoordE, showCoordE ? '1' : '0');
+            highlightPoint(elPointE, elHighlightE, step === 3);
+
+            // 步骤4：F点高亮 + 坐标
+            var showCoordF = (step >= 4);
+            setOpacity(elCoordF, showCoordF ? '1' : '0');
+            highlightPoint(elPointF, elHighlightF, step === 4);
+
+            // 步骤5：A方向十字 + D→A线 + 西北结论
+            var showStep5 = (step >= 5);
+            setOpacity(elCrossAN, showStep5 ? '1' : '0');
+            setOpacity(elCrossAS, showStep5 ? '1' : '0');
+            setOpacity(elCrossAW, showStep5 ? '1' : '0');
+            setOpacity(elCrossAE, showStep5 ? '1' : '0');
+            setOpacity(elLineDA, showStep5 ? '1' : '0');
+            setOpacity(elConclusionNW, showStep5 ? '1' : '0');
+
+            // 步骤6：F方向十字 + E→F劣弧 + 正东结论
+            var showStep6 = (step >= 6);
+            setOpacity(elCrossFN, showStep6 ? '1' : '0');
+            setOpacity(elCrossFS, showStep6 ? '1' : '0');
+            setOpacity(elCrossFW, showStep6 ? '1' : '0');
+            setOpacity(elCrossFE, showStep6 ? '1' : '0');
+            setOpacity(elArcEF, showStep6 ? '1' : '0');
+            setOpacity(elConclusionE, showStep6 ? '1' : '0');
+
+            // 步骤6时隐藏步骤5的结论和A十字
+            if (step === 6) {
+                setOpacity(elConclusionNW, '0');
+                setOpacity(elCrossAN, '0');
+                setOpacity(elCrossAS, '0');
+                setOpacity(elCrossAW, '0');
+                setOpacity(elCrossAE, '0');
+                setOpacity(elLineDA, '0');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) renderStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) renderStep(currentStep + 1);
+        });
+
+        // 初始渲染
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

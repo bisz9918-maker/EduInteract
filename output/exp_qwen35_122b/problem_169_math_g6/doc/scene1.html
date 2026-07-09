@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 方位角的读取——北偏东 40°</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-prev-btn { background: #9e9e9e; color: white; }
+        #scene1-next-btn { background: #1565c0; color: white; }
+        #scene1-step-indicator { padding: 8px 16px; font-size: 14px; color: #333; display: flex; align-items: center; }
+        svg { display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 正南轴 -->
+            <line id="scene1-south-axis" x1="400" y1="250" x2="400" y2="400" stroke="#000000" stroke-width="4" />
+            <polygon id="scene1-south-arrow" points="400,400 395,385 405,385" fill="#000000" />
+            
+            <!-- 正西轴 -->
+            <line id="scene1-west-axis" x1="400" y1="250" x2="250" y2="250" stroke="#000000" stroke-width="4" />
+            <polygon id="scene1-west-arrow" points="250,250 265,245 265,255" fill="#000000" />
+            
+            <!-- 正东轴 -->
+            <line id="scene1-east-axis" x1="400" y1="250" x2="550" y2="250" stroke="#000000" stroke-width="4" />
+            <polygon id="scene1-east-arrow" points="550,250 535,245 535,255" fill="#000000" />
+            
+            <!-- 正北轴（初始黑色，步骤 1 高亮蓝色） -->
+            <line id="scene1-north-axis" x1="400" y1="250" x2="400" y2="100" stroke="#000000" stroke-width="4" />
+            <polygon id="scene1-north-arrow" points="400,100 395,115 405,115" fill="#000000" />
+            
+            <!-- 巡洋舰射线 -->
+            <line id="scene1-ship-ray" x1="400" y1="250" x2="500" y2="150" stroke="#000000" stroke-width="4" />
+            
+            <!-- 比例尺线段 -->
+            <line id="scene1-scale-line" x1="650" y1="380" x2="700" y2="380" stroke="#000000" stroke-width="4" />
+            
+            <!-- 中心点（雷达站） -->
+            <circle id="scene1-radar-point" cx="400" cy="250" r="6" fill="#000000" />
+            
+            <!-- 巡洋舰点 -->
+            <circle id="scene1-ship-point" cx="500" cy="150" r="6" fill="#000000" />
+            
+            <!-- 角度弧线（初始隐藏，步骤 2 显示并红色高亮） -->
+            <path id="scene1-angle-arc" d="M 400,190 A 60,60 0 0 1 446,206" stroke="#c62828" stroke-width="3" fill="none" style="display: none;" />
+            
+            <!-- 标签 -->
+            <text id="scene1-label-north" x="385" y="90" font-size="16" fill="#000000">北</text>
+            <text id="scene1-label-south" x="385" y="425" font-size="16" fill="#000000">南</text>
+            <text id="scene1-label-west" x="220" y="255" font-size="16" fill="#000000">西</text>
+            <text id="scene1-label-east" x="560" y="255" font-size="16" fill="#000000">东</text>
+            <text id="scene1-label-radar" x="410" y="270" font-size="16" fill="#000000">雷达站</text>
+            <text id="scene1-label-ship" x="510" y="135" font-size="16" fill="#000000">巡洋舰</text>
+            <text id="scene1-label-scale" x="665" y="405" font-size="16" fill="#000000">50 km</text>
+            
+            <!-- 40°标注（初始隐藏，步骤 2 显示）- 调整位置避免与巡洋舰射线重叠 -->
+            <text id="scene1-angle-text" x="455" y="195" font-size="16" fill="#c62828" style="display: none;">40°</text>
+            
+            <!-- 结论文本（初始隐藏，步骤 3 显示） -->
+            <text id="scene1-conclusion-text" x="350" y="320" font-size="18" fill="#2e7d32" font-weight="bold" style="display: none;">北偏东 40°</text>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-next-btn" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // | 正北轴 | 线段 | (400,250)-(400,100) | 4×150 | - | 向上箭头 |
+        // | 正南轴 | 线段 | (400,250)-(400,400) | 4×150 | - | 向下箭头 |
+        // | 正东轴 | 线段 | (400,250)-(550,250) | 150×4 | - | 向右箭头 |
+        // | 正西轴 | 线段 | (400,250)-(250,250) | 100×4 | - | 向左箭头 |
+        // | 巡洋舰射线 | 线段 | (400,250)-(500,150) | ~141×4 | - | 40°方向 |
+        // | 角度弧线 | 圆弧 | 圆心 (400,250)，半径 60，起始角 -90°，终止角 -50° | 60px 半径 | - | 红色高亮 |
+        // | 比例尺线段 | 线段 | (650,380)-(700,380) | 50×4 | - | 代表 50km |
+        // | 中心点 | 圆点 | (400,250) | 6×6 | - | 雷达站位置 |
+        // | 巡洋舰点 | 圆点 | (500,150) | 6×6 | - | 目标位置 |
+        // | "北"标签 | text | (385,90) | ~24×16 | 上方 | 正北轴上方 |
+        // | "南"标签 | text | (385,425) | ~24×16 | 下方 | 正南轴下方 |
+        // | "东"标签 | text | (560,250) | ~24×16 | 右侧 | 正东轴右侧 |
+        // | "西"标签 | text | (220,250) | ~24×16 | 左侧 | 正西轴左侧 |
+        // | "雷达站"标签 | text | (410,270) | ~48×16 | 右下方 | 中心点右下方 |
+        // | "巡洋舰"标签 | text | (510,135) | ~48×16 | 右上方 | 巡洋舰点右上方 |
+        // | "40°"标签 | text | (455,195) | ~32×16 | 弧线内侧 | 角度弧线内侧 - 调整位置避免重叠 |
+        // | "50 km"标签 | text | (665,405) | ~40×16 | 下方 | 比例尺下方 |
+        
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // DOM 元素引用
+        const elements = {
+            northAxis: document.getElementById('scene1-north-axis'),
+            northArrow: document.getElementById('scene1-north-arrow'),
+            southAxis: document.getElementById('scene1-south-axis'),
+            southArrow: document.getElementById('scene1-south-arrow'),
+            eastAxis: document.getElementById('scene1-east-axis'),
+            eastArrow: document.getElementById('scene1-east-arrow'),
+            westAxis: document.getElementById('scene1-west-axis'),
+            westArrow: document.getElementById('scene1-west-arrow'),
+            shipRay: document.getElementById('scene1-ship-ray'),
+            scaleLine: document.getElementById('scene1-scale-line'),
+            radarPoint: document.getElementById('scene1-radar-point'),
+            shipPoint: document.getElementById('scene1-ship-point'),
+            angleArc: document.getElementById('scene1-angle-arc'),
+            angleText: document.getElementById('scene1-angle-text'),
+            conclusionText: document.getElementById('scene1-conclusion-text'),
+            prevBtn: document.getElementById('scene1-prev-btn'),
+            nextBtn: document.getElementById('scene1-next-btn'),
+            stepIndicator: document.getElementById('scene1-step-indicator')
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新步骤状态
+        function updateStep() {
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            elements.prevBtn.disabled = (currentStep === 0);
+            elements.nextBtn.disabled = (currentStep === totalSteps - 1);
+            
+            // 根据步骤更新视觉元素
+            switch(currentStep) {
+                case 0:
+                    // 步骤 0：初始状态，所有线条黑色
+                    elements.northAxis.setAttribute('stroke', '#000000');
+                    elements.northAxis.setAttribute('stroke-width', '4');
+                    elements.northArrow.setAttribute('fill', '#000000');
+                    hide(elements.angleArc);
+                    hide(elements.angleText);
+                    hide(elements.conclusionText);
+                    elements.shipPoint.setAttribute('fill', '#000000');
+                    break;
+                    
+                case 1:
+                    // 步骤 1：正北轴蓝色高亮
+                    elements.northAxis.setAttribute('stroke', '#1565c0');
+                    elements.northAxis.setAttribute('stroke-width', '5');
+                    elements.northArrow.setAttribute('fill', '#1565c0');
+                    hide(elements.angleArc);
+                    hide(elements.angleText);
+                    hide(elements.conclusionText);
+                    elements.shipPoint.setAttribute('fill', '#000000');
+                    break;
+                    
+                case 2:
+                    // 步骤 2：正北轴保持蓝色，角度弧线红色高亮
+                    elements.northAxis.setAttribute('stroke', '#1565c0');
+                    elements.northAxis.setAttribute('stroke-width', '5');
+                    elements.northArrow.setAttribute('fill', '#1565c0');
+                    show(elements.angleArc);
+                    show(elements.angleText);
+                    hide(elements.conclusionText);
+                    elements.shipPoint.setAttribute('fill', '#000000');
+                    break;
+                    
+                case 3:
+                    // 步骤 3：巡洋舰点绿色高亮，显示结论
+                    elements.northAxis.setAttribute('stroke', '#1565c0');
+                    elements.northAxis.setAttribute('stroke-width', '5');
+                    elements.northArrow.setAttribute('fill', '#1565c0');
+                    show(elements.angleArc);
+                    show(elements.angleText);
+                    show(elements.conclusionText);
+                    elements.shipPoint.setAttribute('fill', '#2e7d32');
+                    break;
+            }
+        }
+        
+        // 事件监听
+        elements.prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        elements.nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

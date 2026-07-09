@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统多阶段运动过程</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* Transitions for SVG elements */
+        .anim-element { transition: all 0.6s ease-in-out; }
+        
+        /* Text styles */
+        .label-text { font-size: 14px; fill: #333; font-family: sans-serif; }
+        .mass-text { font-size: 12px; fill: #fff; font-family: sans-serif; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+        .math-text { font-size: 14px; fill: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Static Background -->
+            <line x1="100" y1="350" x2="700" y2="350" stroke="#000" stroke-width="2" />
+            <line x1="180" y1="350" x2="550" y2="136" stroke="#000" stroke-width="2" />
+            <line x1="550" y1="136" x2="550" y2="350" stroke="#888" stroke-width="2" stroke-dasharray="5,5" />
+            
+            <!-- Baffle -->
+            <path d="M 535 108 Q 565 108 565 143" fill="none" stroke="#000" stroke-width="4" />
+            
+            <!-- Annotations -->
+            <!-- 2L -->
+            <line x1="142" y1="276" x2="488" y2="76" stroke="#888" stroke-width="1" />
+            <line x1="180" y1="350" x2="142" y2="276" stroke="#888" stroke-width="1" stroke-dasharray="3,3" />
+            <line x1="550" y1="136" x2="488" y2="76" stroke="#888" stroke-width="1" stroke-dasharray="3,3" />
+            <text x="280" y="140" class="math-text" transform="rotate(-30, 280, 140)">2L</text>
+            
+            <!-- L -->
+            <line x1="630" y1="136" x2="630" y2="350" stroke="#888" stroke-width="1" />
+            <line x1="550" y1="136" x2="630" y2="136" stroke="#888" stroke-width="1" stroke-dasharray="3,3" />
+            <line x1="550" y1="350" x2="630" y2="350" stroke="#888" stroke-width="1" stroke-dasharray="3,3" />
+            <text x="640" y="248" class="math-text">L</text>
+            
+            <!-- 30 degree -->
+            <path d="M 230 350 A 50 50 0 0 0 223 325" fill="none" stroke="#888" stroke-width="1" />
+            <text x="245" y="335" class="math-text">30°</text>
+            
+            <!-- Dynamic Elements -->
+            <!-- Strings -->
+            <path id="scene1-string-bc" class="anim-element" d="M 377 236 L 204 336" fill="none" stroke="#000" stroke-width="2" />
+            <path id="scene1-string-ab" class="anim-element" d="M 550 136 L 377 236" fill="none" stroke="#000" stroke-width="2" />
+            
+            <!-- Velocity Vector -->
+            <g id="scene1-velocity" class="anim-element" style="opacity: 0;">
+                <line x1="525" y1="280" x2="525" y2="320" stroke="#c62828" stroke-width="2" />
+                <polygon points="525,325 520,315 530,315" fill="#c62828" />
+                <text id="scene1-velocity-label" x="490" y="305" class="math-text" fill="#c62828">v_A</text>
+            </g>
+            
+            <!-- Balls -->
+            <g id="scene1-group-c" class="anim-element" transform="translate(204, 336)">
+                <circle r="14" fill="#2e7d32" />
+                <text class="mass-text">m</text>
+                <text id="scene1-label-c" x="-25" y="-20" class="label-text">C</text>
+            </g>
+            
+            <g id="scene1-group-b" class="anim-element" transform="translate(377, 236)">
+                <circle r="14" fill="#1565c0" />
+                <text class="mass-text">2m</text>
+                <text id="scene1-label-b" x="-25" y="-20" class="label-text">B</text>
+            </g>
+            
+            <g id="scene1-group-a" class="anim-element" transform="translate(550, 136)">
+                <circle r="14" fill="#c62828" />
+                <text class="mass-text">3m</text>
+                <text id="scene1-label-a" x="25" y="-20" class="label-text">A</text>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let step = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const groupA = document.getElementById('scene1-group-a');
+        const groupB = document.getElementById('scene1-group-b');
+        const groupC = document.getElementById('scene1-group-c');
+        
+        const labelA = document.getElementById('scene1-label-a');
+        const labelB = document.getElementById('scene1-label-b');
+        const labelC = document.getElementById('scene1-label-c');
+        
+        const stringAB = document.getElementById('scene1-string-ab');
+        const stringBC = document.getElementById('scene1-string-bc');
+        
+        const velocity = document.getElementById('scene1-velocity');
+        const velocityLabel = document.getElementById('scene1-velocity-label');
+        
+        const states = [
+            {
+                // Step 0: Initial
+                a: { x: 550, y: 136, lx: 25, ly: -20, op: 1 },
+                b: { x: 377, y: 236, lx: -25, ly: -20, op: 1 },
+                c: { x: 204, y: 336, lx: -25, ly: -20, op: 1 },
+                sab: { d: "M 550 136 Q 463.5 186 377 236", op: 1 },
+                sbc: { d: "M 377 236 Q 290.5 286 204 336", op: 1 },
+                v: { op: 0, label: "" }
+            },
+            {
+                // Step 1: A lands
+                a: { x: 550, y: 336, lx: 25, ly: 25, op: 1 },
+                b: { x: 550, y: 136, lx: -25, ly: -20, op: 1 },
+                c: { x: 377, y: 236, lx: -25, ly: -20, op: 1 },
+                sab: { d: "M 550 336 Q 550 236 550 136", op: 1 },
+                sbc: { d: "M 550 136 Q 463.5 186 377 236", op: 1 },
+                v: { op: 1, label: "v_A" }
+            },
+            {
+                // Step 2: B lands
+                a: { x: 590, y: 336, lx: 0, ly: 30, op: 0.3 },
+                b: { x: 550, y: 336, lx: 0, ly: 30, op: 1 },
+                c: { x: 550, y: 136, lx: -25, ly: -20, op: 1 },
+                sab: { d: "M 590 336 Q 570 350 550 336", op: 0.3 },
+                sbc: { d: "M 550 336 Q 550 236 550 136", op: 1 },
+                v: { op: 1, label: "v_B" }
+            },
+            {
+                // Step 3: C lands
+                a: { x: 630, y: 336, lx: 0, ly: 30, op: 0.3 },
+                b: { x: 590, y: 336, lx: 0, ly: 30, op: 0.3 },
+                c: { x: 550, y: 336, lx: 0, ly: 30, op: 1 },
+                sab: { d: "M 630 336 Q 610 350 590 336", op: 0.3 },
+                sbc: { d: "M 590 336 Q 570 350 550 336", op: 0.3 },
+                v: { op: 1, label: "v_C" }
+            }
+        ];
+        
+        function updateScene() {
+            const s = states[step];
+            
+            groupA.style.transform = `translate(${s.a.x}px, ${s.a.y}px)`;
+            groupA.style.opacity = s.a.op;
+            labelA.setAttribute('x', s.a.lx);
+            labelA.setAttribute('y', s.a.ly);
+            
+            groupB.style.transform = `translate(${s.b.x}px, ${s.b.y}px)`;
+            groupB.style.opacity = s.b.op;
+            labelB.setAttribute('x', s.b.lx);
+            labelB.setAttribute('y', s.b.ly);
+            
+            groupC.style.transform = `translate(${s.c.x}px, ${s.c.y}px)`;
+            groupC.style.opacity = s.c.op;
+            labelC.setAttribute('x', s.c.lx);
+            labelC.setAttribute('y', s.c.ly);
+            
+            stringAB.setAttribute('d', s.sab.d);
+            stringAB.style.opacity = s.sab.op;
+            
+            stringBC.setAttribute('d', s.sbc.d);
+            stringBC.style.opacity = s.sbc.op;
+            
+            velocity.style.opacity = s.v.op;
+            if (s.v.label) {
+                velocityLabel.textContent = s.v.label;
+            }
+            
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === maxStep;
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (step > 0) {
+                step--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (step < maxStep) {
+                step++;
+                updateScene();
+            }
+        });
+        
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

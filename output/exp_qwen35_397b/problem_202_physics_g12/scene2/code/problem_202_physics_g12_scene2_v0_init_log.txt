@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电粒子在磁场中的圆周运动及返回轨迹</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; padding: 8px 12px; }
+        .hidden { display: none; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000" />
+                </marker>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 坐标轴 -->
+            <!-- x 轴：(220,250)-(750,250) -->
+            <line id="scene2-x-axis" x1="220" y1="250" x2="750" y2="250" stroke="#000" stroke-width="3" marker-end="url(#scene2-arrowhead)" />
+            <!-- y 轴：(520,70)-(520,430) -->
+            <line id="scene2-y-axis" x1="520" y1="430" x2="520" y2="70" stroke="#000" stroke-width="3" marker-end="url(#scene2-arrowhead)" />
+
+            <!-- x=-2L 虚线：(360,70)-(360,430) -->
+            <line id="scene2-x-minus-2L" x1="360" y1="70" x2="360" y2="430" stroke="#000" stroke-width="2" stroke-dasharray="5,5" />
+            <text id="scene2-label-x-minus-2L" x="345" y="60" font-size="14" fill="#000">x=-2L</text>
+
+            <!-- 原点 O - 标签移到右下方更远处 -->
+            <circle id="scene2-point-O" cx="520" cy="250" r="4" fill="#000" />
+            <text id="scene2-label-O" x="555" y="285" font-size="14" fill="#000">O</text>
+
+            <!-- 坐标轴标签 - x 标签向左移 -->
+            <text id="scene2-label-x" x="720" y="240" font-size="14" fill="#000">x</text>
+            <text id="scene2-label-y" x="530" y="60" font-size="14" fill="#000">y</text>
+
+            <!-- 磁场区域 × 符号填充 (680,100)-(770,430)，向右上移避开轨迹区域 -->
+            <g id="scene2-magnetic-field-crosses">
+                <!-- 由 JS 生成×符号 -->
+            </g>
+
+            <!-- 电场线（上）第Ⅱ象限，向下箭头 -->
+            <g id="scene2-electric-field-upper">
+                <line x1="380" y1="100" x2="380" y2="230" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <line x1="420" y1="100" x2="420" y2="230" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <line x1="460" y1="100" x2="460" y2="230" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <line x1="500" y1="100" x2="500" y2="230" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <text id="scene2-label-E-upper" x="395" y="150" font-size="14" fill="#000">E</text>
+            </g>
+
+            <!-- 电场线（下）第Ⅲ象限，向上箭头 - 缩短电场线，给轨迹留出空间 -->
+            <g id="scene2-electric-field-lower">
+                <line x1="380" y1="400" x2="380" y2="300" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <line x1="420" y1="400" x2="420" y2="300" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <line x1="460" y1="400" x2="460" y2="300" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <line x1="500" y1="400" x2="500" y2="300" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+                <text id="scene2-label-E-lower" x="395" y="360" font-size="14" fill="#000">E</text>
+            </g>
+
+            <!-- A'点 (520,330) - 标签移到左侧更远处 -->
+            <circle id="scene2-point-A-prime" cx="520" cy="330" r="5" fill="#2e7d32" />
+            <text id="scene2-label-A-prime" x="475" y="355" font-size="14" fill="#000">A'</text>
+
+            <!-- 速度 v₀ 箭头：从 A'点水平向右，标签移到箭头上方更远处 -->
+            <line id="scene2-velocity-arrow" x1="520" y1="330" x2="550" y2="330" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrowhead)" />
+            <text id="scene2-label-v0" x="525" y="275" font-size="14" fill="#000">v₀</text>
+
+            <!-- 圆心 C (600,330) - 步骤 1 显示，标签移到圆心正下方更远处 -->
+            <circle id="scene2-circle-center" cx="600" cy="330" r="5" fill="#000" class="hidden" />
+            <text id="scene2-label-center" x="590" y="450" font-size="14" fill="#000" class="hidden">圆心</text>
+
+            <!-- 半径 R 虚线 - 步骤 1 显示，标签移到更下方 -->
+            <line id="scene2-radius-R" x1="520" y1="330" x2="600" y2="330" stroke="#888" stroke-width="2" stroke-dasharray="5,5" class="hidden" />
+            <text id="scene2-label-R" x="560" y="475" font-size="14" fill="#000" class="hidden">R</text>
+
+            <!-- 圆周轨迹弧 - 步骤 2 显示，调整圆弧路径从 A'点右侧开始，避开 v₀ 标签 -->
+            <!-- 从 A'点右侧 (535,330) 逆时针到 P(648,266)，圆心 (600,330)，半径 65 -->
+            <path id="scene2-arc-trajectory" d="M 535 330 A 65 65 0 0 1 648 266" stroke="#1565c0" stroke-width="2" fill="none" class="hidden" />
+
+            <!-- 圆心角θ标注 - 步骤 2 显示，放在圆弧内侧，标签与圆心标签合并 -->
+            <path id="scene2-angle-arc" d="M 585 330 A 15 15 0 0 1 580 320" stroke="#1565c0" stroke-width="1.5" fill="none" class="hidden" />
+            <!-- θ标签合并到圆心标签中，不单独显示 -->
+
+            <!-- 穿出点 P (648,266) - 步骤 3 显示，标签移到右上方 -->
+            <circle id="scene2-point-P" cx="648" cy="266" r="5" fill="#2e7d32" class="hidden" />
+            <text id="scene2-label-P" x="655" y="245" font-size="14" fill="#000" class="hidden">P</text>
+
+            <!-- P 点速度方向（切线箭头）- 步骤 3 显示 -->
+            <line id="scene2-velocity-P" x1="648" y1="266" x2="670" y2="245" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead-blue)" class="hidden" />
+
+            <!-- 返回轨迹（抛物线）- 步骤 4 显示，调整路径从 P 点先向下再向左，从电场线下方穿过 -->
+            <!-- 从 P(648,266) 到 F(360,420)，控制点设在 (500,480) 让路径更靠下 -->
+            <path id="scene2-return-path" d="M 648 266 Q 520 485 360 420" stroke="#c62828" stroke-width="2" fill="none" class="hidden" />
+
+            <!-- 返回点 F (360,420) - 步骤 4 显示，坐标标签移到左下方 -->
+            <circle id="scene2-point-F" cx="360" cy="420" r="5" fill="#2e7d32" class="hidden" />
+            <text id="scene2-label-F-coord" x="250" y="445" font-size="14" fill="#000" class="hidden">(−2L, −1.6L)</text>
+        </svg>
+
+        <!-- 控件栏放在 SVG 外部底部 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 带电粒子在磁场中的圆周运动及返回轨迹
+
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | x 轴 | (220,250)-(750,250) | 水平轴 |
+        // | y 轴 | (520,70)-(520,430) | 垂直轴 |
+        // | 原点 O | (520,250) | 坐标原点，标签 (555,285) |
+        // | x=-2L 线 | (360,70)-(360,430) | 电场左边界 |
+        // | 磁场区域 | (680,100)-(770,430) | ×填充，向右上移 |
+        // | A'点 | (520,330) | (0,-L) 位置，标签 (475,355) |
+        // | 圆心 C | (600,330) | 圆周运动圆心，标签 (590,450) |
+        // | 半径 R | 65px | R=mv/qB，标签 (560,475) |
+        // | 穿出点 P | (648,266) | 轨迹与 x 轴交点附近，标签 (655,245) |
+        // | 返回点 F | (360,420) | 在 x=-2L 上，标签 (250,445) |
+        // | v₀标签 | (525,275) | 移到箭头上方更远处 |
+        // | 电场线（下）| y 从 300-400 | 缩短给轨迹留空间 |
+
+        let currentState = 0;
+        const totalSteps = 5;
+
+        // 每步需要显示的元素 ID 列表
+        const steps = {
+            0: [], // 初始状态：只显示基础元素
+            1: ['scene2-circle-center', 'scene2-label-center', 'scene2-radius-R', 'scene2-label-R'],
+            2: ['scene2-arc-trajectory', 'scene2-angle-arc'],
+            3: ['scene2-point-P', 'scene2-label-P', 'scene2-velocity-P'],
+            4: ['scene2-return-path', 'scene2-point-F', 'scene2-label-F-coord']
+        };
+
+        // 显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有步骤元素
+            for (let step = 1; step < totalSteps; step++) {
+                if (steps[step]) {
+                    steps[step].forEach(id => hideElement(id));
+                }
+            }
+
+            // 显示当前步骤及之前步骤的元素
+            for (let step = 1; step <= currentState; step++) {
+                if (steps[step]) {
+                    steps[step].forEach(id => showElement(id));
+                }
+            }
+
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene2-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤 ${currentState + 1}/${totalSteps}`;
+            }
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            if (prevBtn) {
+                prevBtn.disabled = (currentState === 0);
+            }
+            if (nextBtn) {
+                nextBtn.disabled = (currentState === totalSteps - 1);
+            }
+        }
+
+        // 生成磁场区域×符号，避开轨迹区域和所有标签
+        function generateCrosses() {
+            const group = document.getElementById('scene2-magnetic-field-crosses');
+            if (!group) return;
+
+            const startX = 680;
+            const endX = 770;
+            const startY = 100;
+            const endY = 430;
+            const cols = 3;
+            const rows = 5;
+            const gapX = (endX - startX) / (cols - 1);
+            const gapY = (endY - startY) / (rows - 1);
+
+            // 需要避开的区域（轨迹和标签）
+            const avoidZones = [
+                { x: 555, y: 285, r: 40 },   // 原点 O 标签
+                { x: 720, y: 240, r: 35 },   // x 轴标签
+                { x: 530, y: 60, r: 30 },    // y 轴标签
+                { x: 525, y: 275, r: 40 },   // v₀ 标签
+                { x: 475, y: 355, r: 40 },   // A' 标签
+                { x: 600, y: 330, r: 80 },   // 圆心及轨迹区域
+                { x: 655, y: 245, r: 40 },   // P 点及标签
+                { x: 590, y: 450, r: 45 },   // 圆心标签
+                { x: 560, y: 475, r: 40 },   // R 标签
+                { x: 250, y: 445, r: 80 }    // 返回点坐标标签
+            ];
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const x = startX + j * gapX;
+                    const y = startY + i * gapY;
+                    
+                    // 检查是否在避开区域内
+                    let shouldSkip = false;
+                    for (const zone of avoidZones) {
+                        const dist = Math.sqrt((x - zone.x) ** 2 + (y - zone.y) ** 2);
+                        if (dist < zone.r) {
+                            shouldSkip = true;
+                            break;
+                        }
+                    }
+                    
+                    if (shouldSkip) {
+                        continue;
+                    }
+                    
+                    const cross = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    cross.setAttribute('x', x);
+                    cross.setAttribute('y', y);
+                    cross.setAttribute('font-size', '16');
+                    cross.setAttribute('fill', '#000');
+                    cross.setAttribute('text-anchor', 'middle');
+                    cross.setAttribute('dominant-baseline', 'middle');
+                    cross.textContent = '×';
+                    group.appendChild(cross);
+                }
+            }
+        }
+
+        // 事件处理
+        function setupEventListeners() {
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    if (currentState > 0) {
+                        currentState--;
+                        updateDisplay();
+                    }
+                });
+            }
+
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    if (currentState < totalSteps - 1) {
+                        currentState++;
+                        updateDisplay();
+                    }
+                });
+            }
+        }
+
+        // 初始化
+        function init() {
+            generateCrosses();
+            setupEventListeners();
+            updateDisplay();
+        }
+
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

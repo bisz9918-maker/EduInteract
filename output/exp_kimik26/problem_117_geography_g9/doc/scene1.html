@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网坐标判读与方位判断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #333; border-radius: 4px; background: #fff;
+            min-width: 100px; text-align: center;
+        }
+        #scene1-controls button:disabled { opacity: 0.3; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 80px; text-align: center; }
+
+        /* 步骤元素的显示控制：用 display:none 确保隐藏时无布局占位 */
+        .step-el { display: none; }
+        .step-el.visible { display: block; }
+
+        /* 选项样式 */
+        .option-box { fill: #ffffff; stroke: #000000; stroke-width: 1; }
+        .option-text { font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+        .option-gray { fill: #888888; opacity: 0.5; }
+        .option-highlight { fill: #2e7d32; font-weight: bold; }
+        .option-bg-highlight { fill: #2e7d32; opacity: 0.15; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="arrowhead-black" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== 甲图经纬网 ==================== -->
+            <rect id="scene1-map-a-bg" x="70" y="80" width="270" height="180" fill="none" stroke="#000000" stroke-width="1"/>
+            <line x1="70" y1="80" x2="70" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="160" y1="80" x2="160" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="250" y1="80" x2="250" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="340" y1="80" x2="340" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="70" y1="80" x2="340" y2="80" stroke="#000000" stroke-width="1"/>
+            <line x1="70" y1="170" x2="340" y2="170" stroke="#000000" stroke-width="1"/>
+            <line x1="70" y1="260" x2="340" y2="260" stroke="#000000" stroke-width="1"/>
+
+            <!-- ==================== 乙图经纬网 ==================== -->
+            <rect id="scene1-map-b-bg" x="430" y="80" width="270" height="180" fill="none" stroke="#000000" stroke-width="1"/>
+            <line x1="430" y1="80" x2="430" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="520" y1="80" x2="520" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="610" y1="80" x2="610" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="700" y1="80" x2="700" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="430" y1="80" x2="700" y2="80" stroke="#000000" stroke-width="1"/>
+            <line x1="430" y1="170" x2="700" y2="170" stroke="#000000" stroke-width="1"/>
+            <line x1="430" y1="260" x2="700" y2="260" stroke="#000000" stroke-width="1"/>
+
+            <!-- ==================== 固定标注 ==================== -->
+            <text x="70" y="65" text-anchor="middle" font-size="14" fill="#000000">60°</text>
+            <text x="160" y="65" text-anchor="middle" font-size="14" fill="#000000">50°</text>
+            <text x="250" y="65" text-anchor="middle" font-size="14" fill="#000000">30°</text>
+            <text x="48" y="85" text-anchor="end" font-size="14" fill="#000000">30°</text>
+            <text x="48" y="175" text-anchor="end" font-size="14" fill="#000000">40°</text>
+            <text x="430" y="65" text-anchor="middle" font-size="14" fill="#000000">30°</text>
+            <text x="520" y="65" text-anchor="middle" font-size="14" fill="#000000">40°</text>
+            <text x="610" y="65" text-anchor="middle" font-size="14" fill="#000000">50°</text>
+            <text x="408" y="85" text-anchor="end" font-size="14" fill="#000000">30°</text>
+            <text x="408" y="175" text-anchor="end" font-size="14" fill="#000000">20°</text>
+
+            <!-- 甲点 -->
+            <circle id="scene1-point-a" cx="160" cy="170" r="5" fill="#000000"/>
+            <text x="170" y="165" font-size="14" fill="#000000">甲</text>
+            <!-- 乙点 -->
+            <circle id="scene1-point-b" cx="520" cy="170" r="5" fill="#000000"/>
+            <text x="530" y="165" font-size="14" fill="#000000">乙</text>
+
+            <!-- ==================== 步骤1：判读甲地 ==================== -->
+            <g id="scene1-step1-group" class="step-el">
+                <rect x="70" y="80" width="270" height="180" fill="#1565c0" opacity="0.15"/>
+                <!-- 经度方向箭头（蓝色，自西向东） -->
+                <line x1="90" y1="55" x2="230" y2="55" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+                <text x="160" y="45" text-anchor="middle" font-size="14" fill="#1565c0">西经(W)</text>
+                <text x="235" y="45" text-anchor="start" font-size="12" fill="#1565c0">递减</text>
+                <!-- 纬度方向箭头（红色，自北向南） -->
+                <line x1="65" y1="100" x2="65" y2="220" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-red)"/>
+                <text x="80" y="110" text-anchor="start" font-size="14" fill="#c62828">南纬(S)</text>
+                <text x="80" y="130" text-anchor="start" font-size="12" fill="#c62828">递增</text>
+                <!-- 甲坐标框 -->
+                <rect x="190" y="270" width="120" height="25" fill="#ffffff" stroke="#000000" stroke-width="1" rx="4"/>
+                <text x="250" y="287" text-anchor="middle" dominant-baseline="middle" font-size="14" font-weight="bold" fill="#000000">(50°W, 30°S)</text>
+            </g>
+
+            <!-- ==================== 步骤2：判读乙地 ==================== -->
+            <g id="scene1-step2-group" class="step-el">
+                <rect x="430" y="80" width="270" height="180" fill="#c62828" opacity="0.15"/>
+                <!-- 经度方向箭头（蓝色，自西向东） -->
+                <line x1="450" y1="55" x2="630" y2="55" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+                <text x="540" y="45" text-anchor="middle" font-size="14" fill="#1565c0">东经(E)</text>
+                <text x="635" y="45" text-anchor="start" font-size="12" fill="#1565c0">递增</text>
+                <!-- 纬度方向箭头（红色，自北向南） -->
+                <line x1="715" y1="100" x2="715" y2="220" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-red)"/>
+                <text x="690" y="110" text-anchor="end" dominant-baseline="middle" font-size="14" fill="#c62828">北纬(N)</text>
+                <text x="690" y="130" text-anchor="end" dominant-baseline="middle" font-size="12" fill="#c62828">递减</text>
+                <!-- 乙坐标框 -->
+                <rect x="500" y="270" width="120" height="25" fill="#ffffff" stroke="#000000" stroke-width="1" rx="4"/>
+                <text x="560" y="287" text-anchor="middle" dominant-baseline="middle" font-size="14" font-weight="bold" fill="#000000">(40°E, 30°N)</text>
+            </g>
+
+            <!-- ==================== 步骤3：排除A/B ==================== -->
+            <g id="scene1-step3-group" class="step-el">
+                <!-- 纬度对比 -->
+                <text x="350" y="300" text-anchor="middle" font-size="14" fill="#1565c0">30°S</text>
+                <text x="400" y="300" text-anchor="middle" font-size="14" fill="#000000">≠</text>
+                <text x="450" y="300" text-anchor="middle" font-size="14" fill="#c62828">30°N</text>
+                <text x="400" y="320" text-anchor="middle" font-size="14" fill="#000000">不在同一纬线</text>
+                <!-- 经度对比 -->
+                <text x="350" y="340" text-anchor="middle" font-size="14" fill="#1565c0">50°W</text>
+                <text x="400" y="340" text-anchor="middle" font-size="14" fill="#000000">≠</text>
+                <text x="450" y="340" text-anchor="middle" font-size="14" fill="#1565c0">40°E</text>
+                <text x="400" y="360" text-anchor="middle" font-size="14" fill="#000000">不在同一经线</text>
+            </g>
+
+            <!-- ==================== 步骤4：判断方位 ==================== -->
+            <g id="scene1-step4-group" class="step-el">
+                <!-- 经度对比条 -->
+                <line x1="350" y1="300" x2="450" y2="300" stroke="#000000" stroke-width="1" marker-start="url(#arrowhead-black)" marker-end="url(#arrowhead-black)"/>
+                <text x="300" y="300" text-anchor="end" dominant-baseline="middle" font-size="14" fill="#000000">西</text>
+                <text x="330" y="300" text-anchor="end" dominant-baseline="middle" font-size="14" fill="#000000">甲</text>
+                <text x="465" y="300" text-anchor="start" dominant-baseline="middle" font-size="14" fill="#000000">东</text>
+                <text x="495" y="300" text-anchor="start" dominant-baseline="middle" font-size="14" fill="#000000">乙</text>
+                <!-- 纬度对比条 -->
+                <line x1="350" y1="330" x2="450" y2="330" stroke="#000000" stroke-width="1" marker-start="url(#arrowhead-black)" marker-end="url(#arrowhead-black)"/>
+                <text x="300" y="330" text-anchor="end" dominant-baseline="middle" font-size="14" fill="#000000">南</text>
+                <text x="330" y="330" text-anchor="end" dominant-baseline="middle" font-size="14" fill="#000000">甲</text>
+                <text x="465" y="330" text-anchor="start" dominant-baseline="middle" font-size="14" fill="#000000">北</text>
+                <text x="495" y="330" text-anchor="start" dominant-baseline="middle" font-size="14" fill="#000000">乙</text>
+                <!-- 结论 -->
+                <text id="scene1-result-sw" x="400" y="360" text-anchor="middle" dominant-baseline="middle" font-size="18" font-weight="bold" fill="#2e7d32">西南</text>
+                <text x="480" y="360" text-anchor="middle" dominant-baseline="middle" font-size="14" fill="#888888">东北</text>
+                <!-- 选项C高亮背景 -->
+                <rect id="scene1-option-c-bg" x="420" y="400" width="160" height="30" fill="#2e7d32" opacity="0.15" rx="4"/>
+            </g>
+
+            <!-- ==================== 选项区域 ==================== -->
+            <g id="scene1-options-group">
+                <rect id="scene1-option-a-box" x="40" y="400" width="160" height="30" class="option-box" rx="4"/>
+                <text id="scene1-option-a-text" x="120" y="415" class="option-text">A. 同一条纬线</text>
+                <rect id="scene1-option-b-box" x="220" y="400" width="160" height="30" class="option-box" rx="4"/>
+                <text id="scene1-option-b-text" x="300" y="415" class="option-text">B. 同一条经线</text>
+                <rect id="scene1-option-c-box" x="420" y="400" width="160" height="30" class="option-box" rx="4"/>
+                <text id="scene1-option-c-text" x="500" y="415" class="option-text">C. 甲在乙的西南方</text>
+                <rect id="scene1-option-d-box" x="600" y="400" width="160" height="30" class="option-box" rx="4"/>
+                <text id="scene1-option-d-text" x="680" y="415" class="option-text">D. 乙在甲的正东方</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        const step1Group = document.getElementById('scene1-step1-group');
+        const step2Group = document.getElementById('scene1-step2-group');
+        const step3Group = document.getElementById('scene1-step3-group');
+        const step4Group = document.getElementById('scene1-step4-group');
+
+        const optionAText = document.getElementById('scene1-option-a-text');
+        const optionBText = document.getElementById('scene1-option-b-text');
+        const optionCText = document.getElementById('scene1-option-c-text');
+        const optionDText = document.getElementById('scene1-option-d-text');
+        const optionCBox = document.getElementById('scene1-option-c-box');
+        const optionCBg = document.getElementById('scene1-option-c-bg');
+
+        function updateStepIndicator() {
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+        }
+
+        function renderStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+            btnNext.textContent = currentStep === totalSteps - 1 ? '完成' : '下一步 ▶';
+            updateStepIndicator();
+
+            step1Group.classList.remove('visible');
+            step2Group.classList.remove('visible');
+            step3Group.classList.remove('visible');
+            step4Group.classList.remove('visible');
+
+            optionAText.classList.remove('option-gray');
+            optionBText.classList.remove('option-gray');
+            optionCText.classList.remove('option-highlight');
+            optionDText.classList.remove('option-gray');
+            optionCBox.classList.remove('option-bg-highlight');
+            if (optionCBg) optionCBg.style.display = 'none';
+
+            if (currentStep >= 1) {
+                step1Group.classList.add('visible');
+            }
+            if (currentStep >= 2) {
+                step2Group.classList.add('visible');
+            }
+            if (currentStep === 3) {
+                step3Group.classList.add('visible');
+                optionAText.classList.add('option-gray');
+                optionBText.classList.add('option-gray');
+            }
+            if (currentStep >= 4) {
+                step4Group.classList.add('visible');
+                optionAText.classList.add('option-gray');
+                optionBText.classList.add('option-gray');
+                optionCText.classList.add('option-highlight');
+                optionDText.classList.add('option-gray');
+                optionCBox.classList.add('option-bg-highlight');
+                if (optionCBg) optionCBg.style.display = 'block';
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

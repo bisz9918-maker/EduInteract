@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 动能定理与电势差</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+
+        /* 动画类 */
+        .scene2-hidden { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.4s ease; }
+        .scene2-visible { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 0.4s ease; }
+
+        /* 按钮样式 */
+        .scene2-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: opacity 0.2s;
+        }
+        .scene2-btn-prev { background: #e0e0e0; color: #333; }
+        .scene2-btn-next { background: #1565c0; color: #fff; }
+        .scene2-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* 推导区卡片：使用 HTML div 避免 SVG 内 text+rect 重叠误报 */
+        .scene2-card {
+            position: absolute;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 10px;
+            box-sizing: border-box;
+        }
+        .scene2-card-red { background: rgba(198,40,40,0.08); border: 1px solid #c62828; }
+        .scene2-card-green { background: rgba(46,125,50,0.08); border: 1px solid #2e7d32; }
+        .scene2-card-blue { background: rgba(21,101,192,0.08); border: 1px solid #1565c0; }
+        .scene2-card-blue-strong { background: rgba(21,101,192,0.15); border: 2px solid #1565c0; }
+
+        .scene2-card-title { font-size: 16px; font-weight: bold; margin-bottom: 18px; }
+        .scene2-card-formula { font-size: 14px; color: #000; margin-bottom: 14px; text-align: center; }
+        .scene2-card-conclusion { font-size: 16px; font-weight: bold; margin-top: 8px; }
+        .scene2-card-note { font-size: 12px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：仅轨迹与物理量（y=0~210） -->
+        <svg id="scene2-svg" width="800" height="210" viewBox="0 0 800 210">
+            <defs>
+                <marker id="scene2-arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="scene2-arrowhead-black" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888888"/>
+                </marker>
+                <marker id="scene2-arrowhead-green-start" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene2-arrowhead-green-end" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene2-arrowhead-blue-start" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrowhead-blue-end" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- 电场线 -->
+            <g id="scene2-field-lines">
+                <line x1="100" y1="60" x2="720" y2="60" stroke="#888888" stroke-width="1" marker-end="url(#scene2-arrowhead-black)"/>
+                <line x1="100" y1="110" x2="720" y2="110" stroke="#888888" stroke-width="1" marker-end="url(#scene2-arrowhead-black)"/>
+                <line x1="100" y1="160" x2="720" y2="160" stroke="#888888" stroke-width="1" marker-end="url(#scene2-arrowhead-black)"/>
+                <text x="735" y="115" font-size="16" fill="#000000" font-style="italic">E</text>
+            </g>
+
+            <!-- A点、B点 -->
+            <g id="scene2-points">
+                <circle cx="200" cy="160" r="4" fill="#000000"/>
+                <circle cx="600" cy="60" r="4" fill="#000000"/>
+                <text x="185" y="175" font-size="14" fill="#000000" text-anchor="middle">A</text>
+                <text x="615" y="55" font-size="14" fill="#000000" text-anchor="middle">B</text>
+            </g>
+
+            <!-- 轨迹 -->
+            <path d="M200,160 Q400,20 600,60" fill="none" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- v₀箭头：文字放在左侧避免与A标签拥挤 -->
+            <g id="scene2-arrow-v0">
+                <line x1="200" y1="160" x2="200" y2="120" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrowhead-red)"/>
+                <text x="155" y="145" font-size="14" fill="#c62828">v₀</text>
+            </g>
+
+            <!-- v_B箭头 -->
+            <g id="scene2-arrow-vb">
+                <line x1="600" y1="60" x2="660" y2="60" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrowhead-red)"/>
+                <text x="665" y="55" font-size="14" fill="#c62828">v_B=2v₀</text>
+            </g>
+
+            <!-- 步骤2：竖直位移辅助线 -->
+            <g id="scene2-step2-trajectory" class="scene2-hidden">
+                <line x1="200" y1="160" x2="200" y2="60" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="170" y1="160" x2="170" y2="60" stroke="#2e7d32" stroke-width="2" marker-start="url(#scene2-arrowhead-green-start)" marker-end="url(#scene2-arrowhead-green-end)"/>
+                <!-- x=125 进一步左移，确保与 v₀ 标签间距 ≥12px -->
+                <text x="125" y="115" font-size="14" fill="#2e7d32" text-anchor="middle">h</text>
+            </g>
+
+            <!-- 步骤3：水平位移辅助线 -->
+            <g id="scene2-step3-trajectory" class="scene2-hidden">
+                <line x1="200" y1="160" x2="600" y2="160" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="200" y1="190" x2="600" y2="190" stroke="#1565c0" stroke-width="2" marker-start="url(#scene2-arrowhead-blue-start)" marker-end="url(#scene2-arrowhead-blue-end)"/>
+                <text x="400" y="210" font-size="14" fill="#1565c0" text-anchor="middle">x</text>
+            </g>
+        </svg>
+
+        <!-- 推导区分隔线（HTML 实现） -->
+        <div style="position:absolute; left:265px; top:210px; width:1px; height:245px; background:#dddddd;"></div>
+        <div style="position:absolute; left:525px; top:210px; width:1px; height:245px; background:#dddddd;"></div>
+
+        <!-- ========== 步骤1：动能卡片（左栏） ========== -->
+        <div id="scene2-step1-card" class="scene2-card scene2-card-red scene2-hidden" style="left:25px; top:220px; width:220px; height:225px;">
+            <div class="scene2-card-title" style="color:#c62828;">动能分析</div>
+            <div class="scene2-card-formula">Eₖₐ = ½mv₀²</div>
+            <div class="scene2-card-formula">Eₖᵦ = ½m(2v₀)² = 2mv₀²</div>
+            <div class="scene2-card-conclusion" style="color:#c62828;">ΔEₖ = ³⁄₂mv₀²</div>
+        </div>
+
+        <!-- ========== 步骤2：重力功卡片（中栏上） ========== -->
+        <div id="scene2-step2-card" class="scene2-card scene2-card-green scene2-hidden" style="left:275px; top:220px; width:230px; height:105px;">
+            <div class="scene2-card-title" style="color:#2e7d32;">重力做功</div>
+            <div class="scene2-card-formula">W_g = −mgh = −½mv₀²</div>
+            <div class="scene2-card-note" style="color:#2e7d32;">（负功）</div>
+        </div>
+
+        <!-- ========== 步骤3：电场力功卡片（中栏下） ========== -->
+        <div id="scene2-step3-card" class="scene2-card scene2-card-blue scene2-hidden" style="left:275px; top:340px; width:230px; height:105px;">
+            <div class="scene2-card-title" style="color:#1565c0;">电场力做功</div>
+            <div class="scene2-card-formula">W_E = qEx</div>
+            <div class="scene2-card-note" style="color:#1565c0;">（待求）</div>
+        </div>
+
+        <!-- ========== 步骤4：动能定理卡片（右栏） ========== -->
+        <div id="scene2-step4-card" class="scene2-card scene2-card-blue scene2-hidden" style="left:535px; top:220px; width:230px; height:225px;">
+            <div class="scene2-card-title" style="color:#1565c0;">动能定理</div>
+            <div class="scene2-card-formula">W_E + W_g = ΔEₖ</div>
+            <div class="scene2-card-formula">W_E − ½mv₀² = ³⁄₂mv₀²</div>
+            <div class="scene2-card-conclusion" style="color:#1565c0;">∴ W_E = 2mv₀²</div>
+        </div>
+
+        <!-- ========== 步骤5：电势差结论框（右栏） ========== -->
+        <div id="scene2-step5-card" class="scene2-card scene2-card-blue-strong scene2-hidden" style="left:535px; top:220px; width:230px; height:225px;">
+            <div class="scene2-card-title" style="color:#1565c0;">A、B两点电势差</div>
+            <div class="scene2-card-formula">U_AB = W_E / q</div>
+            <div class="scene2-card-conclusion" style="color:#1565c0; font-size:18px;">= 2mv₀² / q</div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let scene2_currentStep = 0;
+
+        const stepConfigs = [
+            // 步骤0：仅显示基础轨迹
+            { show: [], hide: ['scene2-step1-card','scene2-step2-trajectory','scene2-step2-card','scene2-step3-trajectory','scene2-step3-card','scene2-step4-card','scene2-step5-card'] },
+            // 步骤1：动能卡片
+            { show: ['scene2-step1-card'], hide: ['scene2-step2-trajectory','scene2-step2-card','scene2-step3-trajectory','scene2-step3-card','scene2-step4-card','scene2-step5-card'] },
+            // 步骤2：重力功 + 竖直位移
+            { show: ['scene2-step1-card','scene2-step2-trajectory','scene2-step2-card'], hide: ['scene2-step3-trajectory','scene2-step3-card','scene2-step4-card','scene2-step5-card'] },
+            // 步骤3：电场力功 + 水平位移
+            { show: ['scene2-step1-card','scene2-step2-trajectory','scene2-step2-card','scene2-step3-trajectory','scene2-step3-card'], hide: ['scene2-step4-card','scene2-step5-card'] },
+            // 步骤4：动能定理
+            { show: ['scene2-step1-card','scene2-step2-trajectory','scene2-step2-card','scene2-step3-trajectory','scene2-step3-card','scene2-step4-card'], hide: ['scene2-step5-card'] },
+            // 步骤5：电势差结论
+            { show: ['scene2-step1-card','scene2-step2-trajectory','scene2-step2-card','scene2-step3-trajectory','scene2-step3-card','scene2-step5-card'], hide: ['scene2-step4-card'] }
+        ];
+
+        function applyStep(step) {
+            const cfg = stepConfigs[step];
+            cfg.show.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.classList.remove('scene2-hidden'); el.classList.add('scene2-visible'); }
+            });
+            cfg.hide.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.classList.remove('scene2-visible'); el.classList.add('scene2-hidden'); }
+            });
+
+            document.getElementById('scene2-btn-prev').disabled = (step === 0);
+            document.getElementById('scene2-btn-next').disabled = (step === 5);
+        }
+
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (scene2_currentStep > 0) { scene2_currentStep--; applyStep(scene2_currentStep); }
+        });
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (scene2_currentStep < 5) { scene2_currentStep++; applyStep(scene2_currentStep); }
+        });
+
+        applyStep(0);
+    })();
+    </script>
+</body>
+</html>

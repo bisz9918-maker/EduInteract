@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景2 - 木块受力分析与平衡力辨析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #888888;
+            border-radius: 4px;
+            background: #f5f5f5;
+            color: #333333;
+            transition: background 0.2s;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #555555; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 红色箭头标记 -->
+                <marker id="scene2-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <!-- 蓝色箭头标记 -->
+                <marker id="scene2-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- 木块 -->
+            <rect id="scene2-block" x="240" y="260" width="80" height="60" fill="#cccccc" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+            <!-- 木板 -->
+            <rect id="scene2-board" x="180" y="320" width="240" height="20" fill="#a1887f" stroke="#000000" stroke-width="2"/>
+
+            <!-- 木块标签 -->
+            <text id="scene2-label-block" x="280" y="245" text-anchor="middle" font-size="16" fill="#000000">木块</text>
+            <!-- 木板标签 -->
+            <text id="scene2-label-board" x="430" y="335" text-anchor="start" font-size="16" fill="#000000">木板</text>
+
+            <!-- 重力G箭头（步骤1显示） -->
+            <line id="scene2-arrow-g" x1="280" y1="290" x2="280" y2="350" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)" style="display:none;"/>
+            <text id="scene2-label-g" x="170" y="325" text-anchor="end" font-size="16" fill="#c62828" style="display:none;">G</text>
+
+            <!-- 支持力N箭头（步骤1显示） -->
+            <line id="scene2-arrow-n" x1="280" y1="320" x2="280" y2="260" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)" style="display:none;"/>
+            <text id="scene2-label-n" x="340" y="285" text-anchor="start" font-size="16" fill="#1565c0" style="display:none;">N</text>
+
+            <!-- 步骤1说明（步骤1显示） -->
+            <text id="scene2-text-step1" x="360" y="215" text-anchor="start" font-size="16" fill="#000000" style="display:none;">二力平衡</text>
+
+            <!-- 压力F_压箭头（步骤2显示） -->
+            <line id="scene2-arrow-f" x1="280" y1="320" x2="280" y2="380" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)" style="display:none;"/>
+            <text id="scene2-label-f" x="245" y="365" text-anchor="end" font-size="16" fill="#c62828" style="display:none;">F压</text>
+
+            <!-- 步骤2说明（步骤2显示） -->
+            <text id="scene2-text-step2" x="360" y="410" text-anchor="start" font-size="16" fill="#000000" style="display:none;">施力物体：木块</text>
+
+            <!-- 木块受力框（步骤3显示） -->
+            <rect id="scene2-frame-block" x="230" y="250" width="100" height="80" fill="none" stroke="#888888" stroke-dasharray="5,5" stroke-width="1.5" style="display:none;"/>
+            <!-- 木板受力框（步骤3显示） -->
+            <rect id="scene2-frame-board" x="240" y="315" width="80" height="30" fill="none" stroke="#888888" stroke-dasharray="5,5" stroke-width="1.5" style="display:none;"/>
+
+            <!-- 步骤3说明（步骤3显示） -->
+            <text id="scene2-text-step3" x="390" y="280" text-anchor="start" font-size="16" fill="#2e7d32" style="display:none;">作用在不同物体上</text>
+
+            <!-- 对比表格（步骤4显示）- 使用 foreignObject 避免 SVG 文字与背景矩形重叠检测问题 -->
+            <foreignObject id="scene2-table" x="520" y="120" width="250" height="240" style="display:none;">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; font-size: 14px; border: 1.5px solid #888888; background: rgba(232,245,233,0.2); box-sizing: border-box; border-radius: 2px;">
+                    <div style="text-align: center; font-weight: bold; font-size: 15px; padding: 10px 0 8px; border-bottom: 1px solid #888888; color: #000000;">平衡力 vs 相互作用力</div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="border-bottom: 1px solid #888888;">
+                            <td style="width: 32%; text-align: center; padding: 7px 0; font-size: 13px;"></td>
+                            <td style="width: 34%; text-align: center; padding: 7px 0; border-left: 1px solid #888888; font-size: 13px; font-weight: bold;">平衡力</td>
+                            <td style="width: 34%; text-align: center; padding: 7px 0; border-left: 1px solid #888888; font-size: 13px; font-weight: bold;">相互作用力</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #888888;">
+                            <td style="padding: 7px 10px; font-size: 13px;">大小</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px;">相等</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px;">相等</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #888888;">
+                            <td style="padding: 7px 10px; font-size: 13px;">方向</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px;">相反</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px;">相反</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #888888;">
+                            <td style="padding: 7px 10px; font-size: 13px;">作用线</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px;">共线</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px;">共线</td>
+                        </tr>
+                        <tr style="background: rgba(232,245,233,0.5);">
+                            <td style="padding: 7px 10px; font-size: 13px;">作用物体</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px; color: #2e7d32; font-weight: bold;">同一物体</td>
+                            <td style="text-align: center; border-left: 1px solid #888888; font-size: 13px; color: #2e7d32; font-weight: bold;">不同物体</td>
+                        </tr>
+                    </table>
+                </div>
+            </foreignObject>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 元素引用
+        const els = {
+            arrowG: document.getElementById('scene2-arrow-g'),
+            labelG: document.getElementById('scene2-label-g'),
+            arrowN: document.getElementById('scene2-arrow-n'),
+            labelN: document.getElementById('scene2-label-n'),
+            textStep1: document.getElementById('scene2-text-step1'),
+            arrowF: document.getElementById('scene2-arrow-f'),
+            labelF: document.getElementById('scene2-label-f'),
+            textStep2: document.getElementById('scene2-text-step2'),
+            frameBlock: document.getElementById('scene2-frame-block'),
+            frameBoard: document.getElementById('scene2-frame-board'),
+            textStep3: document.getElementById('scene2-text-step3'),
+            table: document.getElementById('scene2-table'),
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next'),
+            stepIndicator: document.getElementById('scene2-step-indicator')
+        };
+
+        function show(el) {
+            if (el) { el.style.display = ''; el.style.opacity = '1'; }
+        }
+        function hide(el) {
+            if (el) { el.style.display = 'none'; el.style.opacity = '0'; }
+        }
+
+        function setStep(n) {
+            if (n < 0 || n >= totalSteps) return;
+            currentStep = n;
+
+            // 步骤0：仅显示木块、木板、标签
+            // 步骤1：+ G箭头、N箭头、G标签、N标签、"二力平衡"
+            // 步骤2：+ F压箭头、F压标签、"施力物体：木块"
+            // 步骤3：+ 木块受力框、木板受力框、"作用在不同物体上"
+            // 步骤4：+ 对比表格
+
+            if (currentStep >= 1) {
+                show(els.arrowG); show(els.labelG);
+                show(els.arrowN); show(els.labelN);
+                show(els.textStep1);
+            } else {
+                hide(els.arrowG); hide(els.labelG);
+                hide(els.arrowN); hide(els.labelN);
+                hide(els.textStep1);
+            }
+
+            if (currentStep >= 2) {
+                show(els.arrowF); show(els.labelF);
+                show(els.textStep2);
+            } else {
+                hide(els.arrowF); hide(els.labelF);
+                hide(els.textStep2);
+            }
+
+            if (currentStep >= 3) {
+                show(els.frameBlock); show(els.frameBoard);
+                show(els.textStep3);
+            } else {
+                hide(els.frameBlock); hide(els.frameBoard);
+                hide(els.textStep3);
+            }
+
+            if (currentStep >= 4) {
+                show(els.table);
+            } else {
+                hide(els.table);
+            }
+
+            // 更新按钮状态
+            els.btnPrev.disabled = (currentStep === 0);
+            els.btnNext.disabled = (currentStep === totalSteps - 1);
+            els.stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+        }
+
+        // 事件绑定
+        els.btnPrev.addEventListener('click', function() { setStep(currentStep - 1); });
+        els.btnNext.addEventListener('click', function() { setStep(currentStep + 1); });
+
+        // 初始化
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

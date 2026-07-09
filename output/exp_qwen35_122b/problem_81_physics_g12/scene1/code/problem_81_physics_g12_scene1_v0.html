@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理问题 81 - 初始平衡状态与受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #1565c0; border-radius: 4px; background: #fff; color: #1565c0; }
+        #scene1-controls button:hover { background: #e3f2fd; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { padding: 8px 16px; font-size: 14px; color: #666; }
+        .force-label { font-size: 14px; fill: #c62828; font-weight: bold; }
+        .object-label { font-size: 16px; fill: #1565c0; font-weight: bold; }
+        .value-label { font-size: 13px; fill: #333; }
+        .equation-box { fill: #fff; stroke: #1565c0; stroke-width: 1; }
+        .equation-text { font-size: 11px; fill: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+            </defs>
+            
+            <!-- 竖直墙面 -->
+            <line x1="50" y1="150" x2="50" y2="300" stroke="#000" stroke-width="2"/>
+            
+            <!-- 水平平台 -->
+            <line x1="50" y1="300" x2="350" y2="300" stroke="#000" stroke-width="2"/>
+            
+            <!-- 平台竖边 -->
+            <line x1="350" y1="300" x2="350" y2="420" stroke="#000" stroke-width="2"/>
+            
+            <!-- 弹簧（锯齿线） -->
+            <polyline id="scene1-spring" points="80,240 90,250 100,230 110,250 120,230 130,250 140,230 150,250 160,230 170,250 180,230 190,250 200,240" stroke="#000" stroke-width="2" fill="none"/>
+            
+            <!-- 物体 A -->
+            <rect id="scene1-obj-A" x="200" y="260" width="80" height="40" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene1-label-A" class="object-label" x="240" y="250" text-anchor="middle">A</text>
+            <text id="scene1-label-mA" class="value-label" x="240" y="320" text-anchor="middle">m</text>
+            
+            <!-- 滑轮支架 -->
+            <line x1="580" y1="50" x2="620" y2="50" stroke="#000" stroke-width="2"/>
+            <line x1="580" y1="46" x2="580" y2="54" stroke="#000" stroke-width="1"/>
+            <line x1="590" y1="46" x2="590" y2="54" stroke="#000" stroke-width="1"/>
+            <line x1="600" y1="46" x2="600" y2="54" stroke="#000" stroke-width="1"/>
+            <line x1="610" y1="46" x2="610" y2="54" stroke="#000" stroke-width="1"/>
+            <line x1="620" y1="46" x2="620" y2="54" stroke="#000" stroke-width="1"/>
+            
+            <!-- 滑轮 -->
+            <circle id="scene1-pulley" cx="600" cy="80" r="25" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 细线斜段 -->
+            <line id="scene1-string-slope" x1="280" y1="280" x2="600" y2="80" stroke="#000" stroke-width="1.5"/>
+            
+            <!-- 细线竖段 -->
+            <line id="scene1-string-vert" x1="600" y1="105" x2="600" y2="320" stroke="#000" stroke-width="1.5"/>
+            
+            <!-- 物体 B -->
+            <rect id="scene1-obj-B" x="570" y="320" width="60" height="60" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene1-label-B" class="object-label" x="600" y="400" text-anchor="middle">B</text>
+            <text id="scene1-label-mB" class="value-label" x="600" y="305" text-anchor="middle">m</text>
+            
+            <!-- 水平参考线 -->
+            <line id="scene1-ref-line" x1="280" y1="280" x2="400" y2="280" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 角度弧 -->
+            <path id="scene1-angle-arc" d="M 360,280 A 40,40 0 0 0 387.3,260" stroke="#1565c0" stroke-width="1.5" fill="none"/>
+            <text id="scene1-label-angle" class="value-label" x="405" y="235" text-anchor="middle">30°</text>
+            
+            <!-- 弹簧伸长量标签 -->
+            <text id="scene1-label-x0" class="value-label" x="140" y="220" text-anchor="middle">x₀</text>
+            
+            <!-- 力矢量组（初始隐藏） -->
+            <!-- B 的受力 -->
+            <g id="scene1-forces-B" style="display: none; opacity: 0;">
+                <!-- G_B 重力 -->
+                <line id="scene1-force-G_B-line" x1="600" y1="350" x2="600" y2="410" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text id="scene1-label-G_B" class="force-label" x="615" y="405">mg</text>
+                <!-- T_B 拉力 -->
+                <line id="scene1-force-T_B-line" x1="600" y1="320" x2="600" y2="260" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text id="scene1-label-T_B" class="force-label" x="615" y="255">T</text>
+            </g>
+            
+            <!-- A 的受力 -->
+            <g id="scene1-forces-A" style="display: none; opacity: 0;">
+                <!-- G_A 重力 -->
+                <line id="scene1-force-G_A-line" x1="240" y1="280" x2="240" y2="340" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text id="scene1-label-G_A" class="force-label" x="255" y="335">mg</text>
+                <!-- N 支持力 -->
+                <line id="scene1-force-N-line" x1="240" y1="300" x2="240" y2="360" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text id="scene1-label-N" class="force-label" x="255" y="375">N</text>
+                <!-- F_弹 弹力 -->
+                <line id="scene1-force-Fspring-line" x1="200" y1="280" x2="120" y2="280" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text id="scene1-label-Fspring" class="force-label" x="105" y="275">F_弹</text>
+                <!-- T_A 拉力（30°方向） -->
+                <line id="scene1-force-T_A-line" x1="280" y1="280" x2="380" y2="222" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text id="scene1-label-T_A" class="force-label" x="395" y="215">T</text>
+            </g>
+            
+            <!-- 平衡方程框（步骤 3 显示）- 移到右侧下方，避开 B -->
+            <g id="scene1-equations" style="display: none; opacity: 0;">
+                <rect id="scene1-equation-box" x="470" y="350" width="300" height="130" class="equation-box" rx="5"/>
+                <text id="scene1-equation-title" class="equation-text" x="480" y="372" font-weight="bold" font-size="12">平衡方程与弹簧伸长量</text>
+                <text id="scene1-equation-1" class="equation-text" x="480" y="392">B 平衡：T = mg</text>
+                <text id="scene1-equation-2" class="equation-text" x="480" y="410">A 水平平衡：F_弹 = T·cos30° = mg·cos30°</text>
+                <text id="scene1-equation-3" class="equation-text" x="480" y="428">A 竖直平衡：N + T·sin30° = mg</text>
+                <text id="scene1-equation-4" class="equation-text" x="480" y="446">弹簧伸长量：x₀ = F_弹/k = (mg·cos30°)/k</text>
+            </g>
+            
+            <!-- 高亮效果（步骤 1 和 2 使用） -->
+            <rect id="scene1-highlight-B" x="565" y="315" width="70" height="70" fill="none" stroke="#ff9800" stroke-width="3" stroke-dasharray="5,5" style="display: none; opacity: 0;"/>
+            <rect id="scene1-highlight-A" x="195" y="255" width="90" height="50" fill="none" stroke="#ff9800" stroke-width="3" stroke-dasharray="5,5" style="display: none; opacity: 0;"/>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现 - 初始平衡状态与受力分析
+        // 布局坐标表（参考）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // | 竖直墙面 | 线段 | (50,150)-(50,300) | 4×150 | 左侧固定支撑 |
+        // | 水平平台 | 线段 | (50,300)-(350,300) | 300×4 | 物体 A 的支撑面 |
+        // | 弹簧 | 锯齿线 | (80,240)-(200,240) | 120×20 | 连接墙面与 A |
+        // | 物体 A | 矩形 | (200,260)-(280,300) | 80×40 | 平台上滑块 |
+        // | 滑轮 | 圆 | (600,80) | r=25 | 定滑轮 |
+        // | 物体 B | 矩形 | (570,320)-(630,380) | 60×60 | 悬挂物体 |
+        
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素（同时处理 display 和 opacity）
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function showSVG(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el) el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        function hideSVG(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el) el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 根据步骤显示/隐藏元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示系统配置
+                    hideSVG(document.getElementById('scene1-forces-B'));
+                    hideSVG(document.getElementById('scene1-forces-A'));
+                    hideSVG(document.getElementById('scene1-equations'));
+                    hideSVG(document.getElementById('scene1-highlight-B'));
+                    hideSVG(document.getElementById('scene1-highlight-A'));
+                    break;
+                    
+                case 1:
+                    // B 的受力分析
+                    showSVG(document.getElementById('scene1-forces-B'));
+                    hideSVG(document.getElementById('scene1-forces-A'));
+                    hideSVG(document.getElementById('scene1-equations'));
+                    hideSVG(document.getElementById('scene1-highlight-A'));
+                    showSVG(document.getElementById('scene1-highlight-B'));
+                    break;
+                    
+                case 2:
+                    // A 的受力分析
+                    showSVG(document.getElementById('scene1-forces-B'));
+                    showSVG(document.getElementById('scene1-forces-A'));
+                    hideSVG(document.getElementById('scene1-equations'));
+                    showSVG(document.getElementById('scene1-highlight-A'));
+                    showSVG(document.getElementById('scene1-highlight-B'));
+                    break;
+                    
+                case 3:
+                    // 平衡方程与弹簧伸长量
+                    showSVG(document.getElementById('scene1-forces-B'));
+                    showSVG(document.getElementById('scene1-forces-A'));
+                    showSVG(document.getElementById('scene1-equations'));
+                    hideSVG(document.getElementById('scene1-highlight-A'));
+                    hideSVG(document.getElementById('scene1-highlight-B'));
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

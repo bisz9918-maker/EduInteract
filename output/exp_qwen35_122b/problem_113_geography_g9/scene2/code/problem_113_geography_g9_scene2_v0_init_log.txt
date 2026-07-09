@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 经度差计算与东西半球判断</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 5px; background: #f5f5f5; transition: all 0.2s; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; font-weight: bold; color: #333; }
+        svg { display: block; }
+        .scene2-text { font-size: 14px; font-family: "Microsoft YaHei", sans-serif; }
+        .scene2-text-bold { font-size: 16px; font-weight: bold; }
+        .scene2-fade { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 定义 -->
+            <defs>
+                <style>
+                    .scene2-text { font-size: 14px; font-family: "Microsoft YaHei", sans-serif; }
+                    .scene2-text-bold { font-size: 16px; font-weight: bold; }
+                </style>
+            </defs>
+
+            <!-- 半球区域（底层） -->
+            <g id="scene2-hemisphere-group" style="opacity: 0;">
+                <!-- 西半球区域左 -->
+                <rect id="scene2-west-left" x="100" y="350" width="100" height="70" fill="#c62828" fill-opacity="0.15" style="opacity: 0;" />
+                <!-- 东半球区域 -->
+                <rect id="scene2-east" x="200" y="350" width="400" height="70" fill="#1565c0" fill-opacity="0.15" style="opacity: 0;" />
+                <!-- 西半球区域右 -->
+                <rect id="scene2-west-right" x="600" y="350" width="100" height="70" fill="#c62828" fill-opacity="0.15" style="opacity: 0;" />
+            </g>
+
+            <!-- 半球分界线 -->
+            <g id="scene2-boundary-group" style="opacity: 0;">
+                <!-- 20°W 分界线 -->
+                <line id="scene2-boundary-20W" x1="200" y1="350" x2="200" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" style="opacity: 0;" />
+                <!-- 160°E 分界线 -->
+                <line id="scene2-boundary-160E" x1="600" y1="350" x2="600" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" style="opacity: 0;" />
+            </g>
+
+            <!-- 基础图形 -->
+            <g id="scene2-base-group">
+                <!-- 纬线 L（弧线） -->
+                <path id="scene2-latitude-L" d="M 260 220 Q 400 200 540 220" stroke="#000000" stroke-width="2" fill="none" />
+                <!-- 经线 OP -->
+                <line id="scene2-meridian-OP" x1="400" y1="80" x2="280" y2="220" stroke="#000000" stroke-width="2" />
+                <!-- 经线 OQ -->
+                <line id="scene2-meridian-OQ" x1="400" y1="80" x2="520" y2="220" stroke="#000000" stroke-width="2" />
+                <!-- 极点 O -->
+                <circle id="scene2-pole-O" cx="400" cy="80" r="3" fill="#000000" />
+                <!-- P 点 -->
+                <circle id="scene2-point-P" cx="280" cy="220" r="2.5" fill="#000000" />
+                <!-- Q 点 -->
+                <circle id="scene2-point-Q" cx="520" cy="220" r="2.5" fill="#000000" />
+            </g>
+
+            <!-- 标签 -->
+            <g id="scene2-labels-group">
+                <!-- O 标签 -->
+                <text id="scene2-label-O" x="397" y="65" class="scene2-text" fill="#000000">O</text>
+                <!-- L 标签 -->
+                <text id="scene2-label-L" x="250" y="200" class="scene2-text" fill="#000000">L</text>
+                <!-- P 点经度初始标注 45° -->
+                <text id="scene2-label-P-long-initial" x="240" y="240" class="scene2-text" fill="#000000">45°</text>
+                <!-- Q 点经度标注 15°E -->
+                <text id="scene2-label-Q-long" x="530" y="240" class="scene2-text-bold" fill="#1565c0">15°E</text>
+            </g>
+
+            <!-- 经度差标注（步骤 1 后显示） - 移到三角形右侧外部避免与经线重叠 -->
+            <g id="scene2-longdiff-group" style="opacity: 0;">
+                <!-- 经度差弧线 - 移到右侧 -->
+                <path id="scene2-longdiff-arc" d="M 460 155 Q 490 145 520 155" stroke="#2e7d32" stroke-width="2" fill="none" style="opacity: 0;" />
+                <!-- 经度差标签 - 移到三角形右侧外部 -->
+                <text id="scene2-longdiff-label" x="540" y="155" class="scene2-text-bold" fill="#2e7d32" style="opacity: 0;">经度差 = 30°</text>
+            </g>
+
+            <!-- P 点经度结果（步骤 1 后显示） -->
+            <text id="scene2-P-long-result" x="220" y="275" class="scene2-text-bold" fill="#c62828" style="opacity: 0;">P 点经度 = 45°E</text>
+
+            <!-- 半球标签（步骤 2 后显示） - 调整位置在矩形区域上方 -->
+            <g id="scene2-hemisphere-labels" style="opacity: 0;">
+                <text id="scene2-label-west-left" x="150" y="340" class="scene2-text" fill="#c62828" text-anchor="middle">西半球</text>
+                <text id="scene2-label-east" x="400" y="340" class="scene2-text" fill="#1565c0" text-anchor="middle">东半球</text>
+                <text id="scene2-label-west-right" x="650" y="340" class="scene2-text" fill="#c62828" text-anchor="middle">西半球</text>
+            </g>
+
+            <!-- 半球分界线标签（步骤 2 后显示） -->
+            <g id="scene2-boundary-labels" style="opacity: 0;">
+                <text id="scene2-label-20W" x="190" y="430" class="scene2-text" fill="#888888" text-anchor="middle">20°W</text>
+                <text id="scene2-label-160E" x="585" y="430" class="scene2-text" fill="#888888" text-anchor="middle">160°E</text>
+            </g>
+
+            <!-- 方向结论（步骤 5 后显示） - 调整位置到矩形区域下方 -->
+            <text id="scene2-direction-conclusion" x="400" y="445" class="scene2-text-bold" fill="#000000" text-anchor="middle" style="opacity: 0;">P 在 Q 的正东方</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 极点 O | (400,80) | 黑色实心圆，标签在 (397,65) |
+        // | 经线 OP | (400,80)-(280,220) | 黑色实线 |
+        // | 经线 OQ | (400,80)-(520,220) | 黑色实线 |
+        // | 纬线 L | 弧线 (260,220)-(540,220) | 黑色弧线，标签在 (250,200) |
+        // | P 点 | (280,220) | 黑色实心圆 |
+        // | Q 点 | (520,220) | 黑色实心圆 |
+        // | P 点经度初始 | (240,240) | 黑色"45°" |
+        // | Q 点经度 | (530,240) | 蓝色加粗"15°E" |
+        // | 经度差弧线 | (460,155)-(520,155) | 绿色 - 移到右侧避免与经线重叠 |
+        // | 经度差标签 | (540,155) | 绿色 - 移到三角形右侧外部 |
+        // | P 点经度结果 | (220,275) | 红色加粗 |
+        // | 20°W 分界线 | (200,350)-(200,420) | 灰色虚线 |
+        // | 160°E 分界线 | (600,350)-(600,420) | 灰色虚线 |
+        // | 东半球区域 | (200,350)-(600,420) | 蓝色 15% |
+        // | 西半球区域 | (100,350)-(200,420) 和 (600,350)-(700,420) | 红色 15% |
+        // | 半球标签 | y=340 | 在矩形区域上方 |
+        // | 方向结论 | (400,445) | 黑色 - 在矩形区域下方 |
+
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 6,
+
+            // 步骤配置
+            steps: [
+                // 步骤 0：初始状态 - 基础图形
+                {
+                    name: "初始状态",
+                    show: ['base', 'labels-initial'],
+                    hide: ['longdiff', 'P-long-result', 'hemisphere', 'boundary', 'hemisphere-labels', 'boundary-labels', 'direction']
+                },
+                // 步骤 1：情况一（经度差 30°）
+                {
+                    name: "情况一：经度差 30°",
+                    show: ['base', 'longdiff-30', 'P-long-result-45E'],
+                    hide: ['hemisphere', 'boundary', 'hemisphere-labels', 'boundary-labels', 'direction']
+                },
+                // 步骤 2：情况一（东西半球判断）
+                {
+                    name: "情况一：半球判断",
+                    show: ['base', 'longdiff-30', 'P-long-result-45E', 'hemisphere', 'boundary', 'hemisphere-labels', 'boundary-labels'],
+                    hide: ['direction']
+                },
+                // 步骤 3：情况二（经度差 60°）
+                {
+                    name: "情况二：经度差 60°",
+                    show: ['base', 'longdiff-60', 'P-long-result-45W'],
+                    hide: ['hemisphere', 'boundary', 'hemisphere-labels', 'boundary-labels', 'direction']
+                },
+                // 步骤 4：情况二（东西半球判断）
+                {
+                    name: "情况二：半球判断",
+                    show: ['base', 'longdiff-60', 'P-long-result-45W', 'hemisphere', 'boundary', 'hemisphere-labels', 'boundary-labels'],
+                    hide: ['direction']
+                },
+                // 步骤 5：方向判断
+                {
+                    name: "方向判断",
+                    show: ['base', 'longdiff-60', 'P-long-result-45W', 'hemisphere', 'boundary', 'hemisphere-labels', 'boundary-labels', 'direction'],
+                    hide: []
+                }
+            ],
+
+            // 工具函数：显示元素
+            show: function(elId) {
+                const el = document.getElementById(elId);
+                if (el) {
+                    el.style.opacity = '1';
+                    el.style.display = 'block';
+                }
+            },
+
+            // 工具函数：隐藏元素
+            hide: function(elId) {
+                const el = document.getElementById(elId);
+                if (el) {
+                    el.style.opacity = '0';
+                    // 对于 g 元素，需要处理子元素
+                    if (el.tagName === 'g') {
+                        el.style.display = 'none';
+                    } else {
+                        el.style.display = 'block';
+                    }
+                }
+            },
+
+            // 渲染当前步骤
+            renderStep: function() {
+                const config = this.steps[this.currentStep];
+
+                // 隐藏所有
+                this.hide('longdiff-group');
+                this.hide('scene2-P-long-result');
+                this.hide('scene2-hemisphere-group');
+                this.hide('scene2-boundary-group');
+                this.hide('scene2-hemisphere-labels');
+                this.hide('scene2-boundary-labels');
+                this.hide('scene2-direction-conclusion');
+                this.hide('scene2-label-P-long-initial');
+
+                // 根据配置显示元素
+                config.show.forEach(item => {
+                    switch(item) {
+                        case 'base':
+                            this.show('scene2-base-group');
+                            break;
+                        case 'longdiff-30':
+                            this.show('scene2-longdiff-group');
+                            const arc30 = document.getElementById('scene2-longdiff-arc');
+                            const label30 = document.getElementById('scene2-longdiff-label');
+                            if (arc30) { arc30.style.opacity = '1'; }
+                            if (label30) { label30.textContent = '经度差 = 30°'; label30.style.opacity = '1'; }
+                            break;
+                        case 'longdiff-60':
+                            this.show('scene2-longdiff-group');
+                            const arc60 = document.getElementById('scene2-longdiff-arc');
+                            const label60 = document.getElementById('scene2-longdiff-label');
+                            if (arc60) { arc60.style.opacity = '1'; }
+                            if (label60) { label60.textContent = '经度差 = 60°'; label60.style.opacity = '1'; }
+                            break;
+                        case 'P-long-result-45E':
+                            const result45E = document.getElementById('scene2-P-long-result');
+                            if (result45E) { result45E.textContent = 'P 点经度 = 45°E'; result45E.style.opacity = '1'; }
+                            break;
+                        case 'P-long-result-45W':
+                            const result45W = document.getElementById('scene2-P-long-result');
+                            if (result45W) { result45W.textContent = 'P 点经度 = 45°W'; result45W.style.opacity = '1'; }
+                            break;
+                        case 'hemisphere':
+                            this.show('scene2-hemisphere-group');
+                            this.show('scene2-west-left');
+                            this.show('scene2-east');
+                            this.show('scene2-west-right');
+                            break;
+                        case 'boundary':
+                            this.show('scene2-boundary-group');
+                            this.show('scene2-boundary-20W');
+                            this.show('scene2-boundary-160E');
+                            break;
+                        case 'hemisphere-labels':
+                            this.show('scene2-hemisphere-labels');
+                            break;
+                        case 'boundary-labels':
+                            this.show('scene2-boundary-labels');
+                            break;
+                        case 'direction':
+                            this.show('scene2-direction-conclusion');
+                            break;
+                    }
+                });
+
+                // 更新步骤指示器
+                document.getElementById('scene2-step-indicator').textContent = `步骤 ${this.currentStep + 1}/${this.totalSteps}`;
+
+                // 更新按钮状态
+                document.getElementById('scene2-btn-prev').disabled = (this.currentStep === 0);
+                document.getElementById('scene2-btn-next').disabled = (this.currentStep === this.totalSteps - 1);
+            },
+
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    this.currentStep++;
+                    this.renderStep();
+                }
+            },
+
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.renderStep();
+                }
+            },
+
+            // 初始化
+            init: function() {
+                // 绑定按钮事件
+                document.getElementById('scene2-btn-prev').addEventListener('click', () => this.prevStep());
+                document.getElementById('scene2-btn-next').addEventListener('click', () => this.nextStep());
+
+                // 初始渲染
+                this.renderStep();
+            }
+        };
+
+        // 启动
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

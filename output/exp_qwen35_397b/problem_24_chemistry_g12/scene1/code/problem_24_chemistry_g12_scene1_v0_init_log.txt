@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三容器初始状态对比 - 化学平衡</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 容器样式 */
+        .scene1-container-box {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        /* 填充区域样式 */
+        .scene1-fill {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .scene1-fill.visible {
+            opacity: 0.15;
+        }
+        /* 活塞样式 */
+        #scene1-piston-yi {
+            fill: #888888;
+            stroke: #555555;
+            stroke-width: 1;
+        }
+        #scene1-piston-yi.highlight {
+            animation: scene1-piston-blink 0.8s ease-in-out infinite;
+        }
+        @keyframes scene1-piston-blink {
+            0%, 100% { fill: #888888; }
+            50% { fill: #555555; }
+        }
+        /* 活塞纹理线 */
+        .scene1-piston-line {
+            stroke: #555555;
+            stroke-width: 1;
+            opacity: 0;
+        }
+        .scene1-piston-line.visible {
+            opacity: 0.6;
+        }
+        /* 标识牌样式 */
+        .scene1-tag {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .scene1-tag.visible {
+            opacity: 1;
+        }
+        .scene1-tag-text {
+            fill: #ffffff;
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+        /* 物质标签样式 */
+        .scene1-substance {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .scene1-substance.visible {
+            opacity: 1;
+        }
+        .scene1-substance-text {
+            fill: #000000;
+            font-size: 16px;
+            text-anchor: middle;
+            font-weight: 500;
+        }
+        /* 容器标签样式 */
+        .scene1-label {
+            fill: #000000;
+            font-size: 20px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+        /* V₀标识样式 */
+        #scene1-vo-line {
+            stroke: #000000;
+            stroke-width: 2;
+            marker-start: url(#scene1-arrowhead);
+            marker-end: url(#scene1-arrowhead);
+        }
+        #scene1-vo-label {
+            fill: #000000;
+            font-size: 18px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+        /* V₀箭头闪烁 */
+        #scene1-vo-line.emphasize {
+            animation: scene1-vo-blink 1s ease-in-out infinite;
+        }
+        @keyframes scene1-vo-blink {
+            0%, 100% { stroke: #000000; }
+            50% { stroke: #333333; }
+        }
+        /* 控件按钮样式 */
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #scene1-btn-prev {
+            background-color: #9e9e9e;
+            color: #ffffff;
+        }
+        #scene1-btn-prev:hover {
+            background-color: #757575;
+        }
+        #scene1-btn-prev:disabled {
+            background-color: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-btn-next {
+            background-color: #1976d2;
+            color: #ffffff;
+        }
+        #scene1-btn-next:hover {
+            background-color: #1565c0;
+        }
+        #scene1-btn-next:disabled {
+            background-color: #90caf9;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #424242;
+            display: flex;
+            align-items: center;
+        }
+        /* 控件栏容器 */
+        #scene1-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="5" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- V₀标识线（始终显示） -->
+            <line id="scene1-vo-line" x1="100" y1="170" x2="700" y2="170" />
+            <text id="scene1-vo-label" x="400" y="155">V₀</text>
+
+            <!-- ========== 甲容器 ========== -->
+            <!-- 容器边框 -->
+            <rect id="scene1-container-jia" class="scene1-container-box" x="100" y="200" width="150" height="180" />
+            <!-- 填充区域 -->
+            <rect id="scene1-fill-jia" class="scene1-fill" x="105" y="205" width="140" height="170" fill="#e3f2fd" />
+            <!-- 恒容标识牌 -->
+            <g id="scene1-tag-rong-jia" class="scene1-tag">
+                <rect x="80" y="280" width="15" height="60" fill="#1565c0" />
+                <text class="scene1-tag-text" x="87.5" y="295">恒</text>
+                <text class="scene1-tag-text" x="87.5" y="315">容</text>
+            </g>
+            <!-- 物质标签 -->
+            <g id="scene1-substance-jia" class="scene1-substance">
+                <text class="scene1-substance-text" x="175" y="255">0.2 mol</text>
+                <text class="scene1-substance-text" x="175" y="280">NO₂</text>
+            </g>
+            <!-- 容器名称标签 -->
+            <text class="scene1-label" x="175" y="425">甲</text>
+
+            <!-- ========== 乙容器 ========== -->
+            <!-- 活塞（始终显示轮廓） -->
+            <rect id="scene1-piston-yi" x="325" y="185" width="150" height="15" />
+            <g id="scene1-piston-lines-yi">
+                <line class="scene1-piston-line" x1="335" y1="190" x2="465" y2="190" />
+                <line class="scene1-piston-line" x1="335" y1="195" x2="465" y2="195" />
+            </g>
+            <!-- 容器边框（顶部开放） -->
+            <rect id="scene1-container-yi" class="scene1-container-box" x="325" y="200" width="150" height="180" />
+            <!-- 填充区域 -->
+            <rect id="scene1-fill-yi" class="scene1-fill" x="330" y="205" width="140" height="170" fill="#e8f5e9" />
+            <!-- 恒压标识牌 -->
+            <g id="scene1-tag-ya-yi" class="scene1-tag">
+                <rect x="485" y="280" width="15" height="60" fill="#2e7d32" />
+                <text class="scene1-tag-text" x="492.5" y="295">恒</text>
+                <text class="scene1-tag-text" x="492.5" y="315">压</text>
+            </g>
+            <!-- 物质标签 -->
+            <g id="scene1-substance-yi" class="scene1-substance">
+                <text class="scene1-substance-text" x="400" y="255">0.2 mol</text>
+                <text class="scene1-substance-text" x="400" y="280">NO₂</text>
+            </g>
+            <!-- 容器名称标签 -->
+            <text class="scene1-label" x="400" y="425">乙</text>
+
+            <!-- ========== 丙容器 ========== -->
+            <!-- 容器边框 -->
+            <rect id="scene1-container-bing" class="scene1-container-box" x="550" y="200" width="150" height="180" />
+            <!-- 填充区域 -->
+            <rect id="scene1-fill-bing" class="scene1-fill" x="555" y="205" width="140" height="170" fill="#e3f2fd" />
+            <!-- 恒容标识牌 -->
+            <g id="scene1-tag-rong-bing" class="scene1-tag">
+                <rect x="710" y="280" width="15" height="60" fill="#1565c0" />
+                <text class="scene1-tag-text" x="717.5" y="295">恒</text>
+                <text class="scene1-tag-text" x="717.5" y="315">容</text>
+            </g>
+            <!-- 物质标签 -->
+            <g id="scene1-substance-bing" class="scene1-substance">
+                <text class="scene1-substance-text" x="625" y="255">0.1 mol</text>
+                <text class="scene1-substance-text" x="625" y="280">N₂O₄</text>
+            </g>
+            <!-- 容器名称标签 -->
+            <text class="scene1-label" x="625" y="425">丙</text>
+
+            <!-- 控件栏（放在 SVG 内部底部） -->
+            <g id="scene1-controls" transform="translate(0, 440)">
+                <rect x="280" y="0" width="240" height="45" fill="#f5f5f5" stroke="#e0e0e0" rx="4" />
+                <g transform="translate(290, 7)">
+                    <rect id="scene1-btn-prev-bg" x="0" y="0" width="80" height="30" fill="#9e9e9e" rx="4" />
+                    <text id="scene1-btn-prev-text" x="40" y="20" fill="#ffffff" font-size="14" text-anchor="middle">◀ 上一步</text>
+                </g>
+                <g transform="translate(430, 7)">
+                    <rect id="scene1-btn-next-bg" x="0" y="0" width="80" height="30" fill="#1976d2" rx="4" />
+                    <text id="scene1-btn-next-text" x="40" y="20" fill="#ffffff" font-size="14" text-anchor="middle">下一步 ▶</text>
+                </g>
+                <text id="scene1-step-indicator" x="380" y="42" font-size="13" text-anchor="middle" fill="#424242">步骤 0/4</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 三容器初始状态对比
+
+        // 状态定义：每步显示的元素
+        const steps = {
+            0: {
+                // 初始状态：仅显示容器框架、活塞轮廓、V₀标识、容器名称
+                fills: [],
+                tags: [],
+                substances: [],
+                pistonHighlight: false,
+                voEmphasize: false,
+                pistonLines: false
+            },
+            1: {
+                // 甲容器：填充 + 物质 + 恒容标识
+                fills: ['scene1-fill-jia'],
+                tags: ['scene1-tag-rong-jia'],
+                substances: ['scene1-substance-jia'],
+                pistonHighlight: false,
+                voEmphasize: false,
+                pistonLines: false
+            },
+            2: {
+                // 乙容器：填充 + 物质 + 恒压标识 + 活塞高亮
+                fills: ['scene1-fill-jia', 'scene1-fill-yi'],
+                tags: ['scene1-tag-rong-jia', 'scene1-tag-ya-yi'],
+                substances: ['scene1-substance-jia', 'scene1-substance-yi'],
+                pistonHighlight: true,
+                voEmphasize: false,
+                pistonLines: true
+            },
+            3: {
+                // 丙容器：填充 + 物质 + 恒容标识
+                fills: ['scene1-fill-jia', 'scene1-fill-yi', 'scene1-fill-bing'],
+                tags: ['scene1-tag-rong-jia', 'scene1-tag-ya-yi', 'scene1-tag-rong-bing'],
+                substances: ['scene1-substance-jia', 'scene1-substance-yi', 'scene1-substance-bing'],
+                pistonHighlight: false,
+                voEmphasize: false,
+                pistonLines: true
+            },
+            4: {
+                // 完成状态：所有元素 + V₀强调
+                fills: ['scene1-fill-jia', 'scene1-fill-yi', 'scene1-fill-bing'],
+                tags: ['scene1-tag-rong-jia', 'scene1-tag-ya-yi', 'scene1-tag-rong-bing'],
+                substances: ['scene1-substance-jia', 'scene1-substance-yi', 'scene1-substance-bing'],
+                pistonHighlight: false,
+                voEmphasize: true,
+                pistonLines: true
+            }
+        };
+
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('visible');
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('visible');
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay(step) {
+            const state = steps[step];
+
+            // 更新填充区域
+            ['scene1-fill-jia', 'scene1-fill-yi', 'scene1-fill-bing'].forEach(id => {
+                if (state.fills.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+
+            // 更新标识牌
+            ['scene1-tag-rong-jia', 'scene1-tag-ya-yi', 'scene1-tag-rong-bing'].forEach(id => {
+                if (state.tags.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+
+            // 更新物质标签
+            ['scene1-substance-jia', 'scene1-substance-yi', 'scene1-substance-bing'].forEach(id => {
+                if (state.substances.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+
+            // 更新活塞高亮
+            const piston = document.getElementById('scene1-piston-yi');
+            if (piston) {
+                if (state.pistonHighlight) {
+                    piston.classList.add('highlight');
+                } else {
+                    piston.classList.remove('highlight');
+                }
+            }
+
+            // 更新活塞纹理线
+            const pistonLines = document.querySelectorAll('.scene1-piston-line');
+            pistonLines.forEach(line => {
+                if (state.pistonLines) {
+                    line.classList.add('visible');
+                } else {
+                    line.classList.remove('visible');
+                }
+            });
+
+            // 更新 V₀ 强调
+            const voLine = document.getElementById('scene1-vo-line');
+            if (voLine) {
+                if (state.voEmphasize) {
+                    voLine.classList.add('emphasize');
+                } else {
+                    voLine.classList.remove('emphasize');
+                }
+            }
+
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene1-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤 ${step}/${totalSteps}`;
+            }
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-btn-prev-bg');
+            const nextBtn = document.getElementById('scene1-btn-next-bg');
+            const prevText = document.getElementById('scene1-btn-prev-text');
+            const nextText = document.getElementById('scene1-btn-next-text');
+
+            if (prevBtn && prevText) {
+                if (step === 0) {
+                    prevBtn.setAttribute('fill', '#bdbdbd');
+                    prevText.setAttribute('fill', '#9e9e9e');
+                } else {
+                    prevBtn.setAttribute('fill', '#9e9e9e');
+                    prevText.setAttribute('fill', '#ffffff');
+                }
+            }
+
+            if (nextBtn && nextText) {
+                if (step >= totalSteps) {
+                    nextBtn.setAttribute('fill', '#90caf9');
+                    nextText.setAttribute('fill', '#bbdefb');
+                } else {
+                    nextBtn.setAttribute('fill', '#1976d2');
+                    nextText.setAttribute('fill', '#ffffff');
+                }
+            }
+        }
+
+        // 前进一步
+        function stepForward() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateDisplay(currentStep);
+            }
+        }
+
+        // 后退一步
+        function stepBack() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay(currentStep);
+            }
+        }
+
+        // 绑定按钮点击事件
+        function setupEventListeners() {
+            const prevGroup = document.getElementById('scene1-btn-prev-bg').parentNode;
+            const nextGroup = document.getElementById('scene1-btn-next-bg').parentNode;
+
+            if (prevGroup) {
+                prevGroup.style.cursor = 'pointer';
+                prevGroup.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (currentStep > 0) {
+                        stepBack();
+                    }
+                });
+            }
+
+            if (nextGroup) {
+                nextGroup.style.cursor = 'pointer';
+                nextGroup.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (currentStep < totalSteps) {
+                        stepForward();
+                    }
+                });
+            }
+        }
+
+        // 初始化
+        function init() {
+            updateDisplay(currentStep);
+            setupEventListeners();
+        }
+
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

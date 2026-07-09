@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3: 恒容与恒压对化学平衡的影响</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .slider-track { position: absolute; bottom: 40px; left: 200px; width: 400px; height: 4px; background: #888888; border-radius: 2px; }
+        .slider-button { position: absolute; bottom: 34px; left: 200px; width: 24px; height: 24px; background: #1565c0; border-radius: 50%; cursor: pointer; border: 2px solid #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .slider-button:hover { background: #1976d2; }
+        .slider-button:active { background: #0d47a1; }
+        .progress-text { position: absolute; bottom: 10px; left: 400px; transform: translateX(-50%); font-size: 14px; color: #333333; }
+        .data-panel { position: absolute; right: 20px; top: 80px; width: 120px; font-size: 13px; }
+        .data-title { font-weight: bold; color: #333333; margin-bottom: 8px; }
+        .data-row { margin: 6px 0; color: #555555; }
+        .data-value { font-weight: bold; color: #1565c0; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 反应方程式 -->
+            <text x="400" y="25" text-anchor="middle" font-size="18" font-weight="bold" fill="#333333">2NO₂ ⇌ N₂O₄</text>
+            
+            <!-- 甲容器边框 -->
+            <rect x="100" y="100" width="180" height="220" fill="#f5f5f5" stroke="#333333" stroke-width="2" id="scene3-jia-border"/>
+            <text x="190" y="350" text-anchor="middle" font-size="16" font-weight="bold" fill="#333333">甲</text>
+            <text x="295" y="210" font-size="12" fill="#666666">恒容</text>
+            
+            <!-- 乙容器边框 -->
+            <rect x="420" y="100" width="180" height="220" fill="#f5f5f5" stroke="#333333" stroke-width="2" id="scene3-yi-border"/>
+            <!-- 乙容器活塞 -->
+            <rect x="420" y="100" width="180" height="15" fill="#c62828" stroke="#333333" stroke-width="2" id="scene3-piston"/>
+            <text x="510" y="350" text-anchor="middle" font-size="16" font-weight="bold" fill="#333333">乙</text>
+            <text x="615" y="210" font-size="12" fill="#666666">恒压</text>
+            
+            <!-- 甲容器内分子容器 -->
+            <g id="scene3-jia-molecules"></g>
+            
+            <!-- 乙容器内分子容器 -->
+            <g id="scene3-yi-molecules"></g>
+            
+            <!-- 滑块轨道 -->
+            <line x1="200" y1="390" x2="600" y2="390" stroke="#888888" stroke-width="4" id="scene3-slider-track"/>
+            
+            <!-- 滑块按钮 -->
+            <circle cx="200" cy="390" r="12" fill="#1565c0" stroke="#ffffff" stroke-width="2" id="scene3-slider-button" style="cursor: pointer;"/>
+            
+            <!-- 数据面板 -->
+            <g id="scene3-data-panel">
+                <text x="680" y="80" font-size="14" font-weight="bold" fill="#333333">N₂O₄ 含量对比</text>
+                <text x="680" y="120" font-size="13" fill="#555555">甲：<tspan id="scene3-data-jia" font-weight="bold" fill="#1565c0">0.0%</tspan></text>
+                <text x="680" y="150" font-size="13" fill="#555555">乙：<tspan id="scene3-data-yi" font-weight="bold" fill="#1565c0">0.0%</tspan></text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <div class="slider-track" id="scene3-track-container"></div>
+            <div class="slider-button" id="scene3-slider-btn"></div>
+            <div class="progress-text" id="scene3-progress-text">反应进度：0%</div>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现
+        // 布局坐标表：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // |------|------|-----------|------|------|
+        // | 反应方程式 | text | (400,25) | - | 顶部居中 |
+        // | 甲容器边框 | rect | (100,100)-(280,320) | 180×220 | 左侧恒容容器 |
+        // | 甲容器标签 | text | (190,350) | - | 容器下方 |
+        // | 甲容器内分子 | circle | 分布在 (120-260,120-300) | 半径 8/10 | 蓝色/绿色 |
+        // | 乙容器边框 | rect | (420,100)-(600,320) | 180×220 | 右侧恒压容器 |
+        // | 乙容器活塞 | rect | (420,100)-(600,115) | 180×15 | 红色，可上下移动 |
+        // | 乙容器标签 | text | (510,350) | - | 容器下方 |
+        // | 滑块轨道 | line | (200,390)-(600,390) | 400×4 | 底部居中 |
+        // | 滑块按钮 | circle | (200,390) | 半径 12 | 初始位置 0% |
+        // | 数据面板 | text | (680,80)-(780,200) | - | 右侧显示 |
+        
+        const svg = document.getElementById('scene3-svg');
+        const jiaMolecules = document.getElementById('scene3-jia-molecules');
+        const yiMolecules = document.getElementById('scene3-yi-molecules');
+        const piston = document.getElementById('scene3-piston');
+        const sliderButton = document.getElementById('scene3-slider-button');
+        const sliderBtn = document.getElementById('scene3-slider-btn');
+        const trackContainer = document.getElementById('scene3-track-container');
+        const progressText = document.getElementById('scene3-progress-text');
+        const dataJia = document.getElementById('scene3-data-jia');
+        const dataYi = document.getElementById('scene3-data-yi');
+        
+        // 状态变量
+        let progress = 0;  // 0-100
+        let isDragging = false;
+        
+        // 分子预生成位置（避免每帧重新计算）
+        const jiaPositions = [];
+        const yiPositions = [];
+        const containerWidth = 160;  // 容器内部宽度 (180-20)
+        const containerHeight = 200; // 容器内部高度 (220-20)
+        
+        // 生成不重叠的分子位置
+        function generatePositions(containerId) {
+            const positions = [];
+            const startX = containerId === 'jia' ? 110 : 430;
+            const startY = 110;
+            
+            for (let i = 0; i < 25; i++) {
+                let attempts = 0;
+                let pos;
+                do {
+                    pos = {
+                        x: startX + Math.random() * (containerWidth - 20),
+                        y: startY + Math.random() * (containerHeight - 20)
+                    };
+                    attempts++;
+                } while (attempts < 100 && positions.some(p => {
+                    const dx = p.x - pos.x;
+                    const dy = p.y - pos.y;
+                    return Math.sqrt(dx * dx + dy * dy) < 22;  // 最小间距 22px
+                }));
+                positions.push(pos);
+            }
+            return positions;
+        }
+        
+        jiaPositions.push(...generatePositions('jia'));
+        yiPositions.push(...generatePositions('yi'));
+        
+        // 根据进度计算分子数量
+        function calculateMolecules(p) {
+            // 甲（恒容）：平衡时 N₂O₄% ≈ 65%
+            const jiaN2O4Percent = 0.65 * (p / 100);
+            const jiaN2O4 = Math.round(20 * jiaN2O4Percent / (1 + jiaN2O4Percent));
+            const jiaNO2 = 20 - 2 * jiaN2O4;
+            
+            // 乙（恒压）：平衡时 N₂O₄% ≈ 75%
+            const yiN2O4Percent = 0.75 * (p / 100);
+            const yiN2O4 = Math.round(20 * yiN2O4Percent / (1 + yiN2O4Percent));
+            const yiNO2 = 20 - 2 * yiN2O4;
+            
+            return {
+                jiaNO2: Math.max(0, jiaNO2),
+                jiaN2O4: Math.max(0, jiaN2O4),
+                yiNO2: Math.max(0, yiNO2),
+                yiN2O4: Math.max(0, yiN2O4),
+                jiaPercent: jiaN2O4Percent * 100,
+                yiPercent: yiN2O4Percent * 100
+            };
+        }
+        
+        // 渲染分子
+        function renderMolecules(molecules) {
+            // 甲容器分子
+            jiaMolecules.innerHTML = '';
+            for (let i = 0; i < molecules.jiaNO2 && i < jiaPositions.length; i++) {
+                const pos = jiaPositions[i];
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', 8);
+                circle.setAttribute('fill', '#1565c0');
+                circle.setAttribute('opacity', '0.8');
+                jiaMolecules.appendChild(circle);
+            }
+            for (let i = 0; i < molecules.jiaN2O4 && i < jiaPositions.length - molecules.jiaNO2; i++) {
+                const pos = jiaPositions[molecules.jiaNO2 + i];
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', 10);
+                circle.setAttribute('fill', '#2e7d32');
+                circle.setAttribute('opacity', '0.8');
+                jiaMolecules.appendChild(circle);
+            }
+            
+            // 乙容器分子
+            yiMolecules.innerHTML = '';
+            for (let i = 0; i < molecules.yiNO2 && i < yiPositions.length; i++) {
+                const pos = yiPositions[i];
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', 8);
+                circle.setAttribute('fill', '#1565c0');
+                circle.setAttribute('opacity', '0.8');
+                yiMolecules.appendChild(circle);
+            }
+            for (let i = 0; i < molecules.yiN2O4 && i < yiPositions.length - molecules.yiNO2; i++) {
+                const pos = yiPositions[molecules.yiNO2 + i];
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', 10);
+                circle.setAttribute('fill', '#2e7d32');
+                circle.setAttribute('opacity', '0.8');
+                yiMolecules.appendChild(circle);
+            }
+        }
+        
+        // 更新活塞位置
+        function updatePiston(p) {
+            // 活塞最大下移 60px (从 y=100 到 y=160)
+            const pistonY = 100 + p * 0.6;
+            piston.setAttribute('y', pistonY);
+        }
+        
+        // 更新滑块位置
+        function updateSlider(p) {
+            const x = 200 + p * 4;
+            sliderButton.setAttribute('cx', x);
+            sliderBtn.style.left = (x - 12) + 'px';
+        }
+        
+        // 更新数据面板
+        function updateData(molecules) {
+            dataJia.textContent = molecules.jiaPercent.toFixed(1) + '%';
+            dataYi.textContent = molecules.yiPercent.toFixed(1) + '%';
+        }
+        
+        // 更新进度文本
+        function updateProgressText(p) {
+            progressText.textContent = '反应进度：' + p + '%';
+        }
+        
+        // 主渲染函数
+        function render() {
+            const molecules = calculateMolecules(progress);
+            renderMolecules(molecules);
+            updatePiston(progress);
+            updateSlider(progress);
+            updateData(molecules);
+            updateProgressText(progress);
+        }
+        
+        // 滑块拖拽事件
+        function handleSliderMove(clientX) {
+            const rect = trackContainer.getBoundingClientRect();
+            let x = clientX - rect.left;
+            x = Math.max(0, Math.min(400, x));
+            progress = Math.round(x / 4);
+            render();
+        }
+        
+        sliderBtn.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        sliderBtn.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.clientX);
+            }
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.touches[0].clientX);
+            }
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+        
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // 点击轨道直接跳转
+        trackContainer.addEventListener('click', function(e) {
+            const rect = trackContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            progress = Math.round(Math.max(0, Math.min(400, x)) / 4);
+            render();
+        });
+        
+        // 初始化渲染
+        render();
+    })();
+    </script>
+</body>
+</html>

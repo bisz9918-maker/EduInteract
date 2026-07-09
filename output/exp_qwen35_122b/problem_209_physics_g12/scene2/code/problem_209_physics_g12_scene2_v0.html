@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斜面受力分析 - 上滑与下滑阶段</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        #scene2-btn-prev { background: #9e9e9e; color: white; }
+        #scene2-btn-prev:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene2-btn-next { background: #1565c0; color: white; }
+        #scene2-btn-next:disabled { background: #64b5f6; cursor: not-allowed; }
+        #scene2-step-indicator { display: flex; align-items: center; font-size: 14px; color: #000000; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .equation-box { fill: #f5f5f5; stroke: #000000; stroke-width: 1px; }
+        .solve-box { fill: #e3f2fd; stroke: #1565c0; stroke-width: 2px; }
+        .force-arrow { stroke-width: 2px; fill: none; marker-end: url(#arrowhead); }
+        .net-force { stroke-width: 4px; }
+        .equation-text { font-size: 9px; fill: #000000; }
+        .label-text { font-size: 9px; font-weight: bold; }
+        .mg-label { fill: #000000; }
+        .mgsin-label { fill: #1565c0; }
+        .mgcos-label { fill: #1565c0; }
+        .n-label { fill: #2e7d32; }
+        .f-label { fill: #c62828; }
+        .fnet-label { fill: #888880; }
+        .a-label { fill: #c62828; font-weight: bold; }
+        .section-title { font-size: 13px; font-weight: bold; fill: #000000; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="arrowhead-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888880"/>
+                </marker>
+            </defs>
+
+            <!-- 上滑阶段标题 -->
+            <text id="scene2-title-up" class="section-title" x="80" y="35">上滑阶段</text>
+
+            <!-- 下滑阶段标题 -->
+            <text id="scene2-title-down" class="section-title" x="80" y="235">下滑阶段</text>
+
+            <!-- 上滑斜面 -->
+            <line id="scene2-ramp-up" x1="80" y1="180" x2="220" y2="60" stroke="#000000" stroke-width="2"/>
+
+            <!-- 上滑物块 -->
+            <rect id="scene2-block-up" x="145" y="140" width="30" height="25" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 下滑斜面 -->
+            <line id="scene2-ramp-down" x1="80" y1="380" x2="220" y2="260" stroke="#000000" stroke-width="2"/>
+
+            <!-- 下滑物块 -->
+            <rect id="scene2-block-down" x="145" y="340" width="30" height="25" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 上滑阶段力矢量（初始隐藏） -->
+            <g id="scene2-forces-up" style="display: none; opacity: 0;">
+                <!-- 上滑重力 mg -->
+                <line id="scene2-mg-up" class="force-arrow" x1="160" y1="152" x2="160" y2="202" stroke="#000000" marker-end="url(#arrowhead)"/>
+                <text id="scene2-mg-label-up" class="label-text mg-label" x="174" y="185">mg</text>
+
+                <!-- 上滑 mg sinθ -->
+                <line id="scene2-mgsin-up" class="force-arrow" x1="160" y1="152" x2="210" y2="185" stroke="#1565c0" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene2-mgsin-label-up" class="label-text mgsin-label" x="228" y="168">mg sinθ</text>
+
+                <!-- 上滑 mg cosθ -->
+                <line id="scene2-mgcos-up" class="force-arrow" x1="160" y1="152" x2="160" y2="190" stroke="#1565c0" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene2-mgcos-label-up" class="label-text mgcos-label" x="105" y="162">mg cosθ</text>
+
+                <!-- 上滑支持力 N -->
+                <line id="scene2-n-up" class="force-arrow" x1="160" y1="152" x2="160" y2="115" stroke="#2e7d32" marker-end="url(#arrowhead-green)"/>
+                <text id="scene2-n-label-up" class="label-text n-label" x="174" y="98">N</text>
+
+                <!-- 上滑摩擦力 f₁ -->
+                <line id="scene2-f1-up" class="force-arrow" x1="160" y1="152" x2="130" y2="128" stroke="#c62828" marker-end="url(#arrowhead-red)"/>
+                <text id="scene2-f1-label-up" class="label-text f-label" x="85" y="110">f₁</text>
+
+                <!-- 上滑合力 F₁ -->
+                <line id="scene2-f1-net-up" class="force-arrow net-force" x1="160" y1="152" x2="120" y2="120" stroke="#888880" marker-end="url(#arrowhead-gray)"/>
+                <text id="scene2-f1-net-label-up" class="label-text fnet-label" x="70" y="100">F₁</text>
+
+                <!-- 上滑加速度 a₁ -->
+                <text id="scene2-a1-label" class="label-text a-label" x="230" y="90">a₁</text>
+            </g>
+
+            <!-- 下滑阶段力矢量（初始隐藏） -->
+            <g id="scene2-forces-down" style="display: none; opacity: 0;">
+                <!-- 下滑重力 mg -->
+                <line id="scene2-mg-down" class="force-arrow" x1="160" y1="352" x2="160" y2="402" stroke="#000000" marker-end="url(#arrowhead)"/>
+                <text id="scene2-mg-label-down" class="label-text mg-label" x="174" y="385">mg</text>
+
+                <!-- 下滑 mg sinθ -->
+                <line id="scene2-mgsin-down" class="force-arrow" x1="160" y1="352" x2="210" y2="385" stroke="#1565c0" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene2-mgsin-label-down" class="label-text mgsin-label" x="228" y="368">mg sinθ</text>
+
+                <!-- 下滑 mg cosθ -->
+                <line id="scene2-mgcos-down" class="force-arrow" x1="160" y1="352" x2="160" y2="390" stroke="#1565c0" marker-end="url(#arrowhead-blue)"/>
+                <text id="scene2-mgcos-label-down" class="label-text mgcos-label" x="105" y="362">mg cosθ</text>
+
+                <!-- 下滑支持力 N -->
+                <line id="scene2-n-down" class="force-arrow" x1="160" y1="352" x2="160" y2="315" stroke="#2e7d32" marker-end="url(#arrowhead-green)"/>
+                <text id="scene2-n-label-down" class="label-text n-label" x="174" y="298">N</text>
+
+                <!-- 下滑摩擦力 f₂ -->
+                <line id="scene2-f2-down" class="force-arrow" x1="160" y1="352" x2="190" y2="378" stroke="#c62828" marker-end="url(#arrowhead-red)"/>
+                <text id="scene2-f2-label-down" class="label-text f-label" x="204" y="380">f₂</text>
+
+                <!-- 下滑合力 F₂ -->
+                <line id="scene2-f2-net-down" class="force-arrow net-force" x1="160" y1="352" x2="195" y2="380" stroke="#888880" marker-end="url(#arrowhead-gray)"/>
+                <text id="scene2-f2-net-label-down" class="label-text fnet-label" x="205" y="386">F₂</text>
+
+                <!-- 下滑加速度 a₂ -->
+                <text id="scene2-a2-label" class="label-text a-label" x="230" y="350">a₂</text>
+            </g>
+
+            <!-- 方程框 1（上滑方程） -->
+            <rect id="scene2-eq-box-1" class="equation-box" x="450" y="80" width="300" height="100"/>
+            <text id="scene2-eq-text-1" class="equation-text" x="460" y="100" style="display: none;"></text>
+
+            <!-- 方程框 2（下滑方程） -->
+            <rect id="scene2-eq-box-2" class="equation-box" x="450" y="280" width="300" height="100"/>
+            <text id="scene2-eq-text-2" class="equation-text" x="460" y="300" style="display: none;"></text>
+
+            <!-- 求解框 -->
+            <rect id="scene2-solve-box" class="solve-box" x="450" y="400" width="300" height="40"/>
+            <text id="scene2-solve-text" class="equation-text" x="460" y="415" style="display: none; fill: #1565c0; font-weight: bold;"></text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next">下一步▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 斜面受力分析
+
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+
+        // 步骤内容定义 - 缩短方程文本以避免超出画布
+        const stepContent = {
+            0: {
+                description: "基础场景",
+                eq1: "",
+                eq2: "",
+                solve: "",
+                showForcesUp: false,
+                showForcesDown: false
+            },
+            1: {
+                description: "重力分解",
+                eq1: "N = mg cosθ",
+                eq2: "N = mg cosθ",
+                solve: "",
+                showForcesUp: true,
+                showForcesDown: true,
+                hideFriction: true
+            },
+            2: {
+                description: "上滑阶段",
+                eq1: "上滑：F₁ = mg sinθ + μmg cosθ\nma₁ = mg sinθ + μmg cosθ → a₁ = g(sinθ + μcosθ)",
+                eq2: "N = mg cosθ",
+                solve: "",
+                showForcesUp: true,
+                showForcesDown: true,
+                hideFriction: false,
+                hideDownNet: true
+            },
+            3: {
+                description: "下滑阶段",
+                eq1: "上滑：F₁ = mg sinθ + μmg cosθ\nma₁ = mg sinθ + μmg cosθ → a₁ = g(sinθ + μcosθ)",
+                eq2: "下滑：F₂ = mg sinθ - μmg cosθ\nma₂ = mg sinθ - μmg cosθ → a₂ = g(sinθ - μcosθ)",
+                solve: "",
+                showForcesUp: true,
+                showForcesDown: true,
+                hideFriction: false,
+                hideDownNet: false
+            },
+            4: {
+                description: "联立求解",
+                eq1: "上滑：F₁ = mg sinθ + μmg cosθ\nma₁ = mg sinθ + μmg cosθ → a₁ = g(sinθ + μcosθ)",
+                eq2: "下滑：F₂ = mg sinθ - μmg cosθ\nma₂ = mg sinθ - μmg cosθ → a₂ = g(sinθ - μcosθ)",
+                solve: "由 v-t 图：a₁ = v₀/t₁，a₂ = v₁/(2t₁)\nμ = (v₀ - 2v₁) / [(v₀ + 2v₁)tanθ]",
+                showForcesUp: true,
+                showForcesDown: true,
+                hideFriction: false,
+                hideDownNet: false
+            }
+        };
+
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        function renderStep() {
+            const content = stepContent[currentStep];
+
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === TOTAL_STEPS - 1);
+
+            // 控制力矢量显示
+            const forcesUp = document.getElementById('scene2-forces-up');
+            const forcesDown = document.getElementById('scene2-forces-down');
+
+            if (content.showForcesUp) {
+                show(forcesUp);
+                forcesUp.classList.add('fade-in');
+            } else {
+                hide(forcesUp);
+            }
+
+            if (content.showForcesDown) {
+                show(forcesDown);
+                forcesDown.classList.add('fade-in');
+            } else {
+                hide(forcesDown);
+            }
+
+            // 步骤 1 时隐藏摩擦力
+            if (content.hideFriction) {
+                hide(document.getElementById('scene2-f1-up'));
+                hide(document.getElementById('scene2-f1-label-up'));
+                hide(document.getElementById('scene2-f1-net-up'));
+                hide(document.getElementById('scene2-f1-net-label-up'));
+                hide(document.getElementById('scene2-a1-label'));
+                hide(document.getElementById('scene2-f2-down'));
+                hide(document.getElementById('scene2-f2-label-down'));
+                hide(document.getElementById('scene2-f2-net-down'));
+                hide(document.getElementById('scene2-f2-net-label-down'));
+                hide(document.getElementById('scene2-a2-label'));
+            }
+
+            // 步骤 2 时隐藏下滑合力
+            if (content.hideDownNet) {
+                hide(document.getElementById('scene2-f2-down'));
+                hide(document.getElementById('scene2-f2-label-down'));
+                hide(document.getElementById('scene2-f2-net-down'));
+                hide(document.getElementById('scene2-f2-net-label-down'));
+                hide(document.getElementById('scene2-a2-label'));
+            }
+
+            // 更新方程文本
+            const eqText1 = document.getElementById('scene2-eq-text-1');
+            const eqText2 = document.getElementById('scene2-eq-text-2');
+            const solveText = document.getElementById('scene2-solve-text');
+
+            if (content.eq1) {
+                eqText1.textContent = content.eq1;
+                show(eqText1);
+            } else {
+                hide(eqText1);
+            }
+
+            if (content.eq2) {
+                eqText2.textContent = content.eq2;
+                show(eqText2);
+            } else {
+                hide(eqText2);
+            }
+
+            if (content.solve) {
+                solveText.textContent = content.solve;
+                show(solveText);
+            } else {
+                hide(solveText);
+            }
+
+            // 触发 MathJax 重新渲染
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        // 按钮事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

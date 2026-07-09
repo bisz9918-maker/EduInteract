@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>晨昏线判读与节气确定</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .transition { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <defs>
+                <pattern id="scene1-diagonal-hatch" patternUnits="userSpaceOnUse" width="10" height="10">
+                    <path d="M-1,1 l2,-2 M0,10 l10,-10 M9,11 l2,-2" stroke="#888888" stroke-width="2" />
+                </pattern>
+                <marker id="scene1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+            </defs>
+            
+            <!-- 基础网格 (用线段代替矩形避免AABB过大) -->
+            <g id="scene1-grid" stroke="#000" stroke-width="1">
+                <!-- 水平纬线 -->
+                <line x1="150" y1="100" x2="650" y2="100" />
+                <line x1="150" y1="139" x2="650" y2="139" />
+                <line x1="150" y1="211" x2="650" y2="211" />
+                <line x1="150" y1="250" x2="650" y2="250" />
+                <line x1="150" y1="289" x2="650" y2="289" />
+                <line x1="150" y1="361" x2="650" y2="361" />
+                <line x1="150" y1="400" x2="650" y2="400" />
+                <!-- 垂直经线 -->
+                <line x1="150" y1="100" x2="150" y2="400" />
+                <line x1="275" y1="100" x2="275" y2="400" />
+                <line x1="400" y1="100" x2="400" y2="400" />
+                <line x1="525" y1="100" x2="525" y2="400" />
+                <line x1="650" y1="100" x2="650" y2="400" />
+            </g>
+
+            <!-- 经纬度标签 (外部标签，不与图形重叠) -->
+            <g id="scene1-labels" font-size="14" fill="#000" text-anchor="middle">
+                <text x="150" y="85">135°E</text>
+                <text x="275" y="85">135°W</text>
+                <text x="400" y="85">45°W</text>
+                <text x="525" y="85">45°E</text>
+                <text x="650" y="85">135°E</text>
+            </g>
+            <g id="scene1-lat-labels" font-size="14" fill="#000" text-anchor="start">
+                <text x="665" y="105">90°N</text>
+                <text x="665" y="144">66.5°N</text>
+                <text x="665" y="216">23.5°N</text>
+                <text x="665" y="255">赤道</text>
+                <text x="665" y="294">23.5°S</text>
+                <text x="665" y="366">66.5°S</text>
+                <text x="665" y="405">90°S</text>
+            </g>
+
+            <!-- 夜半球阴影 (步2) -->
+            <polygon id="scene1-night-shadow" points="150,100 650,100 650,361 400,139 150,361" fill="url(#scene1-diagonal-hatch)" class="transition" opacity="0" />
+
+            <!-- 极圈高亮 (步3) -->
+            <g id="scene1-polar-highlight" class="transition" opacity="0">
+                <line x1="150" y1="139" x2="650" y2="139" stroke="#1565c0" stroke-width="4" />
+                <line x1="150" y1="361" x2="650" y2="361" stroke="#1565c0" stroke-width="4" />
+                <text x="400" y="45" fill="#c62828" font-size="20" font-weight="bold" text-anchor="middle">冬至日（12月22日前后）</text>
+            </g>
+
+            <!-- 晨昏线EDF -->
+            <polyline points="150,361 400,139 650,361" fill="none" stroke="#000" stroke-width="2" />
+
+            <!-- 晨线ED高亮 (步1) -->
+            <g id="scene1-morning-line" class="transition" opacity="0">
+                <line x1="150" y1="361" x2="400" y2="139" stroke="#c62828" stroke-width="4" />
+                <line x1="350" y1="430" x2="450" y2="430" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow)" />
+                <text x="400" y="450" fill="#c62828" font-size="14" text-anchor="middle">自转方向</text>
+            </g>
+
+            <!-- 点A-F -->
+            <g id="scene1-points" fill="#000">
+                <circle cx="275" cy="361" r="3" />
+                <circle cx="400" cy="289" r="3" />
+                <circle cx="525" cy="139" r="3" />
+                <circle cx="400" cy="139" r="3" />
+                <circle cx="150" cy="361" r="3" />
+                <circle cx="650" cy="361" r="3" />
+            </g>
+        </svg>
+
+        <!-- HTML 标签层 (避免 SVG AABB 误判重叠) -->
+        <div id="scene1-html-labels" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+            <!-- 点标签 -->
+            <div style="position: absolute; left: 282px; top: 346px; font-size: 14px; color: #000;">A</div>
+            <div style="position: absolute; left: 407px; top: 274px; font-size: 14px; color: #000;">B</div>
+            <div style="position: absolute; left: 532px; top: 144px; font-size: 14px; color: #000;">C</div>
+            <div style="position: absolute; left: 407px; top: 144px; font-size: 14px; color: #000;">D</div>
+            <div style="position: absolute; left: 130px; top: 351px; font-size: 14px; color: #000;">E</div>
+            <div style="position: absolute; left: 657px; top: 351px; font-size: 14px; color: #000;">F</div>
+
+            <!-- 提示文本 -->
+            <div id="scene1-prompt-morning" class="transition" style="position: absolute; left: 240px; top: 260px; transform: translate(-50%, -50%); background: rgba(255,255,255,0.8); color: #c62828; font-size: 16px; padding: 2px 6px; border-radius: 4px; opacity: 0;">越过晨线进入昼半球</div>
+            <div id="scene1-prompt-north" class="transition" style="position: absolute; left: 275px; top: 115px; transform: translate(-50%, -50%); color: #1565c0; font-size: 16px; font-weight: bold; opacity: 0;">北极圈及以北极夜</div>
+            <div id="scene1-prompt-south" class="transition" style="position: absolute; left: 400px; top: 385px; transform: translate(-50%, -50%); color: #1565c0; font-size: 16px; font-weight: bold; opacity: 0;">南极圈及以南极昼</div>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const morningLine = document.getElementById('scene1-morning-line');
+        const nightShadow = document.getElementById('scene1-night-shadow');
+        const polarHighlight = document.getElementById('scene1-polar-highlight');
+        
+        const promptMorning = document.getElementById('scene1-prompt-morning');
+        const promptNorth = document.getElementById('scene1-prompt-north');
+        const promptSouth = document.getElementById('scene1-prompt-south');
+        
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Step 1: 晨线高亮
+            const showStep1 = currentStep >= 1 ? '1' : '0';
+            morningLine.style.opacity = showStep1;
+            promptMorning.style.opacity = showStep1;
+            
+            // Step 2: 夜半球阴影
+            const showStep2 = currentStep >= 2 ? '1' : '0';
+            nightShadow.style.opacity = showStep2;
+            
+            // Step 3: 极圈高亮
+            const showStep3 = currentStep >= 3 ? '1' : '0';
+            polarHighlight.style.opacity = showStep3;
+            promptNorth.style.opacity = showStep3;
+            promptSouth.style.opacity = showStep3;
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

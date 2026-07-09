@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 40px; text-align: center; }
+        
+        /* SVG Styles */
+        .scene2-stroke { stroke: #000000; stroke-width: 2; fill: none; }
+        .scene2-fill-gray { fill: #555555; }
+        .scene2-fill-lightgray { fill: #999999; }
+        .scene2-text { fill: #000000; font-size: 16px; font-family: Arial, sans-serif; }
+        .scene2-water { fill: #1565c0; opacity: 0.2; }
+        .scene2-red-water { fill: #c62828; opacity: 0.3; }
+        .scene2-red-highlight { fill: #c62828; }
+        
+        /* Transitions */
+        #scene2-dropper-bulb { transition: transform 0.3s ease; transform-origin: 563px 200px; }
+        #scene2-nh3-text { transition: opacity 0.5s ease; }
+        #scene2-pressure-arrow { transition: opacity 0.5s ease; }
+        .scene2-valve-handle { transition: transform 0.5s ease; }
+        #scene2-valve-a { transform-origin: 480px 220px; }
+        #scene2-valve-b { transform-origin: 400px 270px; }
+        #scene2-valve-c { transform-origin: 320px 220px; }
+        
+        .scene2-water-flow { 
+            stroke: #1565c0; 
+            stroke-width: 6; 
+            opacity: 0.5;
+        }
+        #scene2-water-1 { transition: stroke-dashoffset 0.5s linear; }
+        #scene2-water-2 { transition: stroke-dashoffset 0.5s linear 0.5s; }
+        #scene2-water-3 { transition: stroke-dashoffset 0.3s linear 1.0s; }
+        
+        #scene2-red-fountain-text { transition: opacity 0.5s ease; }
+        #scene2-b-liquid { transition: opacity 1s ease; }
+        
+        /* Animations */
+        @keyframes scene2-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(10px); }
+        }
+        .scene2-floating { animation: scene2-float 1.5s infinite ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- Definitions -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 烧杯及水 -->
+            <polygon points="330,310 470,310 460,430 340,430" class="scene2-stroke" />
+            <polygon points="335,360 465,360 458,425 342,425" class="scene2-water" />
+            
+            <!-- 导管外壁左 -->
+            <line x1="245" y1="140" x2="245" y2="215" class="scene2-stroke" />
+            <line x1="245" y1="215" x2="395" y2="215" class="scene2-stroke" />
+            <line x1="395" y1="215" x2="395" y2="390" class="scene2-stroke" />
+            <!-- 导管外壁右 -->
+            <line x1="555" y1="140" x2="555" y2="215" class="scene2-stroke" />
+            <line x1="405" y1="215" x2="555" y2="215" class="scene2-stroke" />
+            <line x1="405" y1="215" x2="405" y2="390" class="scene2-stroke" />
+            <!-- 导管内壁 -->
+            <line x1="255" y1="140" x2="255" y2="225" class="scene2-stroke" />
+            <line x1="255" y1="225" x2="545" y2="225" class="scene2-stroke" />
+            <line x1="545" y1="225" x2="545" y2="140" class="scene2-stroke" />
+
+            <!-- 水流路径 (初始隐藏) -->
+            <line id="scene2-water-1" x1="400" y1="390" x2="400" y2="220" class="scene2-water-flow" style="stroke-dasharray: 170; stroke-dashoffset: 170;" />
+            <line id="scene2-water-2" x1="400" y1="220" x2="550" y2="220" class="scene2-water-flow" style="stroke-dasharray: 150; stroke-dashoffset: 150;" />
+            <line id="scene2-water-3" x1="550" y1="220" x2="550" y2="140" class="scene2-water-flow" style="stroke-dasharray: 80; stroke-dashoffset: 80;" />
+
+            <!-- 橡胶塞 -->
+            <rect x="235" y="125" width="30" height="25" class="scene2-fill-gray" />
+            <rect x="535" y="125" width="30" height="25" class="scene2-fill-gray" />
+
+            <!-- 烧瓶A (分3段避免包围盒过大) -->
+            <path d="M200,87.3 A50,50 0 0,1 300,87.3" class="scene2-stroke" />
+            <path d="M200,87.3 A50,50 0 0,0 235,135 L235,180" class="scene2-stroke" />
+            <path d="M300,87.3 A50,50 0 0,1 265,135 L265,180" class="scene2-stroke" />
+
+            <!-- 烧瓶B (分3段避免包围盒过大) -->
+            <path d="M500,87.3 A50,50 0 0,1 600,87.3" class="scene2-stroke" />
+            <path d="M500,87.3 A50,50 0 0,0 535,135 L535,180" class="scene2-stroke" />
+            <path d="M600,87.3 A50,50 0 0,1 565,135 L565,180" class="scene2-stroke" />
+            
+            <!-- B瓶积液 (初始隐藏) -->
+            <path id="scene2-b-liquid" d="M505.5,110 A50,50 0 0,0 535,135 L565,135 A50,50 0 0,0 594.5,110 Z" class="scene2-red-water" style="opacity: 0;" />
+
+            <!-- 胶头滴管 -->
+            <rect x="560" y="110" width="6" height="80" class="scene2-stroke" fill="#ffffff" />
+            <ellipse id="scene2-dropper-bulb" cx="563" cy="200" rx="8" ry="15" class="scene2-stroke scene2-fill-lightgray" />
+            
+            <!-- 滴管水滴容器 -->
+            <g id="scene2-drops-container"></g>
+
+            <!-- 活塞 -->
+            <!-- 活塞c -->
+            <circle cx="320" cy="220" r="10" class="scene2-stroke" fill="#ffffff" />
+            <line id="scene2-valve-c" x1="320" y1="210" x2="320" y2="230" class="scene2-stroke scene2-valve-handle" style="transform: rotate(0deg);" />
+            <!-- 活塞a -->
+            <circle cx="480" cy="220" r="10" class="scene2-stroke" fill="#ffffff" />
+            <line id="scene2-valve-a" x1="480" y1="210" x2="480" y2="230" class="scene2-stroke scene2-valve-handle" style="transform: rotate(0deg);" />
+            <!-- 活塞b -->
+            <circle cx="400" cy="270" r="10" class="scene2-stroke" fill="#ffffff" />
+            <line id="scene2-valve-b" x1="390" y1="270" x2="410" y2="270" class="scene2-stroke scene2-valve-handle" style="transform: rotate(90deg);" />
+
+            <!-- 喷泉粒子容器 -->
+            <g id="scene2-fountain-container"></g>
+
+            <!-- 文本标签 -->
+            <text x="250" y="35" class="scene2-text" text-anchor="middle">A</text>
+            <text x="550" y="35" class="scene2-text" text-anchor="middle">B</text>
+            <text x="480" y="195" class="scene2-text" text-anchor="middle">a</text>
+            <text x="425" y="275" class="scene2-text">b</text>
+            <text x="320" y="195" class="scene2-text" text-anchor="middle">c</text>
+            <text x="480" y="390" class="scene2-text">滴有酚酞的水</text>
+            <text id="scene2-red-fountain-text" x="620" y="150" class="scene2-text scene2-red-highlight" style="opacity: 0;">红色喷泉</text>
+            
+            <text id="scene2-nh3-text" x="550" y="105" class="scene2-text" text-anchor="middle">NH₃</text>
+            <text x="250" y="105" class="scene2-text" text-anchor="middle">HCl</text>
+
+            <!-- 压强降低箭头 (初始隐藏) -->
+            <g id="scene2-pressure-arrow" style="opacity: 0;" class="scene2-floating">
+                <line x1="620" y1="80" x2="620" y2="120" stroke="#c62828" stroke-width="4" marker-end="url(#scene2-arrowhead)" />
+                <text x="635" y="105" fill="#c62828" font-size="14px">压强降低</text>
+            </g>
+
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">0 / 4</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        const dropperBulb = document.getElementById('scene2-dropper-bulb');
+        const dropsContainer = document.getElementById('scene2-drops-container');
+        const nh3Text = document.getElementById('scene2-nh3-text');
+        const pressureArrow = document.getElementById('scene2-pressure-arrow');
+        const valveA = document.getElementById('scene2-valve-a');
+        const valveB = document.getElementById('scene2-valve-b');
+        
+        const water1 = document.getElementById('scene2-water-1');
+        const water2 = document.getElementById('scene2-water-2');
+        const water3 = document.getElementById('scene2-water-3');
+        
+        const fountainContainer = document.getElementById('scene2-fountain-container');
+        const bLiquid = document.getElementById('scene2-b-liquid');
+        const redFountainText = document.getElementById('scene2-red-fountain-text');
+        
+        let fountainAnimationId = null;
+        let particles = [];
+
+        function updateState() {
+            stepIndicator.textContent = `${currentStep} / ${maxStep}`;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Step 0: Initial
+            if (currentStep < 1) {
+                dropperBulb.style.transform = 'scaleY(1)';
+                dropsContainer.innerHTML = '';
+            }
+            
+            // Step 1: Squeeze dropper
+            if (currentStep >= 1) {
+                dropperBulb.style.transform = 'scaleY(0.6)';
+                if (currentStep === 1 && dropsContainer.children.length === 0) {
+                    createDrops();
+                }
+            }
+            
+            // Step 2: Gas dissolves
+            if (currentStep < 2) {
+                nh3Text.style.opacity = '1';
+                pressureArrow.style.opacity = '0';
+            } else {
+                nh3Text.style.opacity = '0';
+                pressureArrow.style.opacity = '1';
+            }
+            
+            // Step 3: Open valves
+            if (currentStep < 3) {
+                valveA.style.transform = 'rotate(0deg)';
+                valveB.style.transform = 'rotate(90deg)';
+            } else {
+                valveA.style.transform = 'rotate(90deg)';
+                valveB.style.transform = 'rotate(0deg)';
+            }
+            
+            // Step 4: Fountain
+            if (currentStep < 4) {
+                water1.style.strokeDashoffset = '170';
+                water2.style.strokeDashoffset = '150';
+                water3.style.strokeDashoffset = '80';
+                bLiquid.style.opacity = '0';
+                redFountainText.style.opacity = '0';
+                stopFountain();
+            } else {
+                water1.style.strokeDashoffset = '0';
+                water2.style.strokeDashoffset = '0';
+                water3.style.strokeDashoffset = '0';
+                
+                // Delay fountain start to match water flow (0.5 + 0.5 + 0.3 = 1.3s)
+                setTimeout(() => {
+                    if (currentStep === 4) {
+                        startFountain();
+                        bLiquid.style.opacity = '1';
+                        redFountainText.style.opacity = '1';
+                    }
+                }, 1300);
+            }
+        }
+
+        function createDrops() {
+            dropsContainer.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                const drop = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                drop.setAttribute('cx', '563');
+                drop.setAttribute('cy', '110');
+                drop.setAttribute('r', '3');
+                drop.setAttribute('fill', '#1565c0');
+                drop.style.opacity = '0';
+                dropsContainer.appendChild(drop);
+                
+                setTimeout(() => {
+                    if (currentStep >= 1) {
+                        drop.style.transition = 'all 0.5s ease-in';
+                        drop.style.opacity = '1';
+                        drop.setAttribute('cy', '150');
+                        setTimeout(() => { drop.style.opacity = '0'; }, 400);
+                    }
+                }, i * 300);
+            }
+        }
+
+        function startFountain() {
+            if (fountainAnimationId) return;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                createParticle();
+            }
+            animateFountain();
+        }
+
+        function createParticle() {
+            const p = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            p.setAttribute('r', Math.random() * 2 + 1);
+            p.setAttribute('fill', '#c62828');
+            fountainContainer.appendChild(p);
+            
+            particles.push({
+                el: p,
+                x: 550,
+                y: 140,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -Math.random() * 5 - 2,
+                life: 1.0
+            });
+        }
+
+        function animateFountain() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // gravity
+                p.life -= 0.02;
+                
+                if (p.life <= 0 || p.y > 130) {
+                    p.el.remove();
+                    particles.splice(i, 1);
+                    if (currentStep === 4) createParticle();
+                } else {
+                    p.el.setAttribute('cx', p.x);
+                    p.el.setAttribute('cy', p.y);
+                    p.el.style.opacity = p.life;
+                }
+            }
+            if (currentStep === 4) {
+                fountainAnimationId = requestAnimationFrame(animateFountain);
+            }
+        }
+
+        function stopFountain() {
+            if (fountainAnimationId) {
+                cancelAnimationFrame(fountainAnimationId);
+                fountainAnimationId = null;
+            }
+            fountainContainer.innerHTML = '';
+            particles = [];
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+
+        // Initialize
+        updateState();
+    })();
+    </script>
+</body>
+</html>

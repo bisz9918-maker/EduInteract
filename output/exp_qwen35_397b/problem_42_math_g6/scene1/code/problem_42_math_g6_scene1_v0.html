@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图解析 - 正方体计数</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .view-title {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #333;
+        }
+        .view-rect {
+            fill: #e3f2fd;
+            stroke: #000;
+            stroke-width: 2;
+        }
+        .grid-cell {
+            fill: #1565c0;
+            fill-opacity: 0.2;
+            stroke: #000;
+            stroke-width: 1;
+        }
+        .grid-cell-highlight {
+            fill: #2e7d32;
+            fill-opacity: 0.3;
+        }
+        .pos-label {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #000;
+            text-anchor: middle;
+        }
+        .height-label {
+            font-size: 14px;
+            fill: #d32f2f;
+            text-anchor: middle;
+            font-weight: bold;
+        }
+        .dash-line {
+            stroke: #888;
+            stroke-width: 1;
+            stroke-dasharray: 5,5;
+            fill: none;
+        }
+        .highlight-rect {
+            fill: #2e7d32;
+            fill-opacity: 0.4;
+            stroke: #2e7d32;
+            stroke-width: 2;
+        }
+        .conclusion-text {
+            font-size: 18px;
+            font-weight: bold;
+            fill: #2e7d32;
+            text-anchor: middle;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .nav-btn {
+            width: 100px;
+            height: 36px;
+            font-size: 14px;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #fff;
+            color: #1565c0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-btn:hover:not(:disabled) {
+            background: #1565c0;
+            color: #fff;
+        }
+        .nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .step-indicator {
+            font-size: 14px;
+            color: #666;
+            min-width: 80px;
+            text-align: center;
+        }
+        .fade-element {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .fade-element.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 主视图区域 -->
+            <text id="scene1-main-title" x="90" y="35" class="view-title">从正面看</text>
+            <g id="scene1-main-view">
+                <!-- 左列2层 -->
+                <rect id="scene1-main-left-top" x="60" y="50" width="30" height="30" class="view-rect"/>
+                <rect id="scene1-main-left-bottom" x="60" y="80" width="30" height="30" class="view-rect"/>
+                <!-- 中列1层 -->
+                <rect id="scene1-main-mid" x="90" y="80" width="30" height="30" class="view-rect"/>
+                <!-- 右列1层 -->
+                <rect id="scene1-main-right" x="120" y="80" width="30" height="30" class="view-rect"/>
+            </g>
+            <!-- 主视图高亮层 -->
+            <g id="scene1-main-highlight" class="fade-element">
+                <rect x="60" y="50" width="30" height="60" class="highlight-rect"/>
+            </g>
+
+            <!-- 左视图区域 -->
+            <text id="scene1-left-title" x="290" y="35" class="view-title">从左边看</text>
+            <g id="scene1-left-view">
+                <!-- 左列2层 -->
+                <rect id="scene1-left-left-top" x="260" y="50" width="30" height="30" class="view-rect"/>
+                <rect id="scene1-left-left-bottom" x="260" y="80" width="30" height="30" class="view-rect"/>
+                <!-- 右列1层 -->
+                <rect id="scene1-left-right" x="290" y="80" width="30" height="30" class="view-rect"/>
+            </g>
+            <!-- 左视图高亮层 -->
+            <g id="scene1-left-highlight" class="fade-element">
+                <rect x="260" y="50" width="30" height="60" class="highlight-rect"/>
+            </g>
+
+            <!-- 俯视图区域（上方） -->
+            <text id="scene1-top-title" x="490" y="35" class="view-title">从上面看</text>
+            <g id="scene1-top-view">
+                <!-- 第一行3个 -->
+                <rect id="scene1-top-row1-col1" x="460" y="50" width="30" height="30" class="view-rect"/>
+                <rect id="scene1-top-row1-col2" x="490" y="50" width="30" height="30" class="view-rect"/>
+                <rect id="scene1-top-row1-col3" x="520" y="50" width="30" height="30" class="view-rect"/>
+                <!-- 第二行1个 -->
+                <rect id="scene1-top-row2-col1" x="460" y="80" width="30" height="30" class="view-rect"/>
+            </g>
+
+            <!-- 下方俯视图网格 -->
+            <g id="scene1-grid" class="fade-element">
+                <!-- 位置A：第1行第1列 -->
+                <rect id="scene1-pos-A-rect" x="280" y="180" width="60" height="60" class="grid-cell"/>
+                <text id="scene1-pos-A-label" x="310" y="215" class="pos-label">A</text>
+                <!-- 位置B：第1行第2列 -->
+                <rect id="scene1-pos-B-rect" x="340" y="180" width="60" height="60" class="grid-cell"/>
+                <text id="scene1-pos-B-label" x="370" y="215" class="pos-label">B</text>
+                <!-- 位置C：第1行第3列 -->
+                <rect id="scene1-pos-C-rect" x="400" y="180" width="60" height="60" class="grid-cell"/>
+                <text id="scene1-pos-C-label" x="430" y="215" class="pos-label">C</text>
+                <!-- 位置D：第2行第1列 -->
+                <rect id="scene1-pos-D-rect" x="280" y="240" width="60" height="60" class="grid-cell"/>
+                <text id="scene1-pos-D-label" x="310" y="275" class="pos-label">D</text>
+            </g>
+
+            <!-- 主视-俯视对应虚线 -->
+            <g id="scene1-main-dash-lines" class="fade-element">
+                <line id="scene1-dash-1" x1="120" y1="110" x2="280" y2="180" class="dash-line"/>
+                <line id="scene1-dash-2" x1="100" y1="110" x2="340" y2="180" class="dash-line"/>
+                <line id="scene1-dash-3" x1="80" y1="110" x2="400" y2="180" class="dash-line"/>
+            </g>
+
+            <!-- 左视-俯视对应虚线 -->
+            <g id="scene1-left-dash-lines" class="fade-element">
+                <line id="scene1-dash-4" x1="320" y1="110" x2="280" y2="180" class="dash-line"/>
+                <line id="scene1-dash-5" x1="300" y1="110" x2="280" y2="240" class="dash-line"/>
+            </g>
+
+            <!-- 高度标注 -->
+            <g id="scene1-height-labels" class="fade-element">
+                <text id="scene1-height-A" x="310" y="160" class="height-label">高度2</text>
+                <text id="scene1-height-B" x="370" y="160" class="height-label">高度1</text>
+                <text id="scene1-height-C" x="430" y="160" class="height-label">高度1</text>
+                <text id="scene1-height-D" x="250" y="275" class="height-label">高度1</text>
+            </g>
+
+            <!-- 结论 -->
+            <g id="scene1-conclusion" class="fade-element">
+                <text x="400" y="350" class="conclusion-text">共 5 个正方体</text>
+                <text x="400" y="375" class="conclusion-text" style="font-size:14px;fill:#666;">2 + 1 + 1 + 1 = 5</text>
+            </g>
+
+            <!-- 控件栏 -->
+            <g id="scene1-controls">
+                <foreignObject x="250" y="455" width="300" height="40">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="display:flex;justify-content:center;align-items:center;gap:12px;">
+                        <button id="scene1-prev-btn" class="nav-btn" disabled>◀ 上一步</button>
+                        <span id="scene1-step-indicator" class="step-indicator">步骤 1/5</span>
+                        <button id="scene1-next-btn" class="nav-btn">下一步 ▶</button>
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：三视图解析与正方体计数
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 各步骤可见元素配置
+        const stepConfig = {
+            0: { // 初始状态：仅显示三个视图
+                grid: false,
+                mainDash: false,
+                leftDash: false,
+                heightLabels: false,
+                conclusion: false,
+                mainHighlight: false,
+                leftHighlight: false
+            },
+            1: { // 显示俯视图网格和位置标签
+                grid: true,
+                mainDash: false,
+                leftDash: false,
+                heightLabels: false,
+                conclusion: false,
+                mainHighlight: false,
+                leftHighlight: false
+            },
+            2: { // 显示主视图与俯视图对应关系
+                grid: true,
+                mainDash: true,
+                leftDash: false,
+                heightLabels: false,
+                conclusion: false,
+                mainHighlight: true,
+                leftHighlight: false
+            },
+            3: { // 显示左视图与俯视图对应关系
+                grid: true,
+                mainDash: true,
+                leftDash: true,
+                heightLabels: false,
+                conclusion: false,
+                mainHighlight: true,
+                leftHighlight: true
+            },
+            4: { // 显示高度标注和结论
+                grid: true,
+                mainDash: true,
+                leftDash: true,
+                heightLabels: true,
+                conclusion: true,
+                mainHighlight: true,
+                leftHighlight: true
+            }
+        };
+
+        // 工具函数：显示/隐藏元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('visible');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('visible');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新步骤状态
+        function updateStep() {
+            const config = stepConfig[currentStep];
+
+            // 更新网格显示
+            if (config.grid) {
+                showElement('scene1-grid');
+            } else {
+                hideElement('scene1-grid');
+            }
+
+            // 更新主视图虚线
+            if (config.mainDash) {
+                showElement('scene1-main-dash-lines');
+            } else {
+                hideElement('scene1-main-dash-lines');
+            }
+
+            // 更新左视图虚线
+            if (config.leftDash) {
+                showElement('scene1-left-dash-lines');
+            } else {
+                hideElement('scene1-left-dash-lines');
+            }
+
+            // 更新高度标注
+            if (config.heightLabels) {
+                showElement('scene1-height-labels');
+            } else {
+                hideElement('scene1-height-labels');
+            }
+
+            // 更新结论
+            if (config.conclusion) {
+                showElement('scene1-conclusion');
+            } else {
+                hideElement('scene1-conclusion');
+            }
+
+            // 更新主视图高亮
+            if (config.mainHighlight) {
+                showElement('scene1-main-highlight');
+            } else {
+                hideElement('scene1-main-highlight');
+            }
+
+            // 更新左视图高亮
+            if (config.leftHighlight) {
+                showElement('scene1-left-highlight');
+            } else {
+                hideElement('scene1-left-highlight');
+            }
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-prev-btn');
+            const nextBtn = document.getElementById('scene1-next-btn');
+            const stepIndicator = document.getElementById('scene1-step-indicator');
+
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps - 1);
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+
+        // 事件绑定
+        document.getElementById('scene1-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        document.getElementById('scene1-next-btn').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

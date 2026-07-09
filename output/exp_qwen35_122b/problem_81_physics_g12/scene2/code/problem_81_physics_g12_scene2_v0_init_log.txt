@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 悬线断开后的运动过程</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 4px; background: #ffffff; color: #1565c0; }
+        .scene2-btn:hover { background: #e3f2fd; }
+        .scene2-btn:disabled { border-color: #bdbdbd; color: #bdbdbd; cursor: not-allowed; }
+        #scene2-step-indicator { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #616161; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 左侧标题（y=45 确保不裁切） -->
+            <text x="100" y="45" font-size="16" fill="#000000" id="scene2-title-left">A 的简谐运动</text>
+            <!-- 右侧标题（y=45 确保不裁切） -->
+            <text x="550" y="45" font-size="16" fill="#000000" id="scene2-title-right">B 的自由落体</text>
+            
+            <!-- 左侧墙面 -->
+            <line x1="20" y1="80" x2="20" y2="200" stroke="#000000" stroke-width="2" id="scene2-wall"/>
+            
+            <!-- 水平轨道 -->
+            <line x1="20" y1="200" x2="450" y2="200" stroke="#000000" stroke-width="2" id="scene2-track"/>
+            
+            <!-- 弹簧（锯齿线，动态） -->
+            <path id="scene2-spring" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 物体 A（动态位置） -->
+            <rect id="scene2-obj-a" x="150" y="150" width="50" height="50" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-a" x="175" y="135" font-size="14" fill="#000000" text-anchor="middle">A</text>
+            
+            <!-- 初始位置线 -->
+            <line id="scene2-line-initial" x1="175" y1="130" x2="175" y2="220" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-initial" x="175" y="120" font-size="12" fill="#1565c0" text-anchor="middle" opacity="0">初始</text>
+            
+            <!-- 平衡位置线 -->
+            <line id="scene2-line-equilibrium" x1="225" y1="130" x2="225" y2="220" stroke="#2e7d32" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-equilibrium" x="225" y="120" font-size="12" fill="#2e7d32" text-anchor="middle" opacity="0">平衡</text>
+            
+            <!-- 压缩最短线 -->
+            <line id="scene2-line-compressed" x1="55" y1="130" x2="55" y2="220" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-compressed" x="55" y="120" font-size="12" fill="#c62828" text-anchor="middle" opacity="0">压缩最短</text>
+            
+            <!-- 振幅标注线（双向箭头） -->
+            <line id="scene2-amp-arrow" x1="55" y1="230" x2="225" y2="230" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene2-amp-arrow-left" x1="55" y1="225" x2="60" y2="230" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene2-amp-arrow-left2" x1="55" y1="235" x2="60" y2="230" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene2-amp-arrow-right" x1="225" y1="225" x2="220" y2="230" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene2-amp-arrow-right2" x1="225" y1="235" x2="220" y2="230" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-amplitude" x="140" y="245" font-size="14" fill="#1565c0" opacity="0">A</text>
+            
+            <!-- 右侧天花板 -->
+            <line x1="520" y1="60" x2="780" y2="60" stroke="#000000" stroke-width="2" id="scene2-ceiling"/>
+            <!-- 天花板斜线装饰 -->
+            <line x1="520" y1="60" x2="530" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="540" y1="60" x2="550" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="560" y1="60" x2="570" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="580" y1="60" x2="590" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="600" y1="60" x2="610" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="620" y1="60" x2="630" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="640" y1="60" x2="650" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="660" y1="60" x2="670" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="680" y1="60" x2="690" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="700" y1="60" x2="710" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="720" y1="60" x2="730" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="740" y1="60" x2="750" y2="50" stroke="#000000" stroke-width="1"/>
+            <line x1="760" y1="60" x2="770" y2="50" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 滑轮 -->
+            <circle id="scene2-pulley" cx="650" cy="80" r="20" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 下落轨迹线 -->
+            <line id="scene2-fall-track" x1="650" y1="100" x2="650" y2="350" stroke="#000000" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+            
+            <!-- 物体 B（动态位置） -->
+            <rect id="scene2-obj-b" x="630" y="100" width="40" height="40" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-b" x="650" y="170" font-size="14" fill="#000000" text-anchor="middle">B</text>
+            
+            <!-- 地面线 -->
+            <line x1="520" y1="350" x2="780" y2="350" stroke="#000000" stroke-width="2" id="scene2-ground"/>
+            <!-- 地面斜线装饰 -->
+            <line x1="520" y1="350" x2="530" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="540" y1="350" x2="550" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="560" y1="350" x2="570" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="580" y1="350" x2="590" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="600" y1="350" x2="610" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="620" y1="350" x2="630" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="640" y1="350" x2="650" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="660" y1="350" x2="670" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="680" y1="350" x2="690" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="700" y1="350" x2="710" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="720" y1="350" x2="730" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="740" y1="350" x2="750" y2="360" stroke="#000000" stroke-width="1"/>
+            <line x1="760" y1="350" x2="770" y2="360" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 高度标注线（双向箭头） -->
+            <line id="scene2-height-arrow" x1="700" y1="100" x2="700" y2="350" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <line id="scene2-height-arrow-top" x1="695" y1="100" x2="705" y2="100" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <line id="scene2-height-arrow-bottom" x1="695" y1="350" x2="705" y2="350" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-h" x="715" y="220" font-size="14" fill="#c62828" opacity="0">h</text>
+            
+            <!-- 时间轴线 -->
+            <line id="scene2-time-axis" x1="100" y1="400" x2="700" y2="400" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 时间标记点 -->
+            <circle id="scene2-time-dot-0" cx="100" cy="400" r="5" fill="#000000"/>
+            <circle id="scene2-time-dot-1" cx="400" cy="400" r="5" fill="#1565c0" opacity="0.3"/>
+            <circle id="scene2-time-dot-2" cx="700" cy="400" r="5" fill="#c62828" opacity="0.3"/>
+            
+            <!-- 时间标签 -->
+            <text id="scene2-label-t0" x="90" y="420" font-size="12" fill="#000000">t=0</text>
+            <text id="scene2-label-t1" x="360" y="420" font-size="12" fill="#1565c0" opacity="0">t=T/4</text>
+            <text id="scene2-label-t2" x="650" y="420" font-size="12" fill="#c62828" opacity="0">t=T/2</text>
+            
+            <!-- 步骤 3 总结文字（y=460 确保不裁切） -->
+            <text id="scene2-summary-text" x="200" y="460" font-size="14" fill="#000000" opacity="0">当 B 落地时（t=T/2），A 恰好将弹簧压缩到最短</text>
+            
+            <!-- 时间同步箭头（步骤 3） -->
+            <line id="scene2-sync-arrow" x1="700" y1="400" x2="55" y2="280" stroke="#c62828" stroke-width="2" opacity="0" marker-end="url(#arrowhead)"/>
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <div id="scene2-step-indicator">步骤 1/4</div>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 悬线断开后的运动过程与时间关联
+        
+        // 配置数据
+        const config = {
+            // 物体 A 位置（矩形左上角）
+            aPositions: {
+                initial: { x: 150, y: 150 },
+                equilibrium: { x: 200, y: 150 },
+                compressed: { x: 30, y: 150 }
+            },
+            // 物体 B 位置（矩形左上角）
+            bPositions: {
+                initial: { x: 630, y: 100 },
+                middle: { x: 630, y: 200 },
+                ground: { x: 630, y: 310 }
+            },
+            // 弹簧右端点 x 坐标（左端固定在 x=20）
+            springEndX: {
+                initial: 150,
+                equilibrium: 200,
+                compressed: 80
+            },
+            // 步骤定义
+            steps: [
+                {
+                    name: "步骤 1/4",
+                    description: "悬线断开瞬间",
+                    aPos: 'initial',
+                    bPos: 'initial',
+                    springEnd: 'initial',
+                    showInitialLine: true,
+                    showEquilibriumLine: false,
+                    showCompressedLine: false,
+                    showAmpArrow: false,
+                    showHeightArrow: true,
+                    highlightTime: 0,
+                    showT1Label: false,
+                    showT2Label: false,
+                    showSummary: false,
+                    showSyncArrow: false
+                },
+                {
+                    name: "步骤 2/4",
+                    description: "A 运动至平衡位置，B 下落",
+                    aPos: 'equilibrium',
+                    bPos: 'middle',
+                    springEnd: 'equilibrium',
+                    showInitialLine: false,
+                    showEquilibriumLine: true,
+                    showCompressedLine: false,
+                    showAmpArrow: false,
+                    showHeightArrow: true,
+                    highlightTime: 1,
+                    showT1Label: true,
+                    showT2Label: false,
+                    showSummary: false,
+                    showSyncArrow: false
+                },
+                {
+                    name: "步骤 3/4",
+                    description: "A 压缩弹簧到最短，B 落地",
+                    aPos: 'compressed',
+                    bPos: 'ground',
+                    springEnd: 'compressed',
+                    showInitialLine: false,
+                    showEquilibriumLine: false,
+                    showCompressedLine: true,
+                    showAmpArrow: true,
+                    showHeightArrow: true,
+                    highlightTime: 2,
+                    showT1Label: true,
+                    showT2Label: true,
+                    showSummary: false,
+                    showSyncArrow: false
+                },
+                {
+                    name: "步骤 4/4",
+                    description: "时间关系总结",
+                    aPos: 'compressed',
+                    bPos: 'ground',
+                    springEnd: 'compressed',
+                    showInitialLine: true,
+                    showEquilibriumLine: true,
+                    showCompressedLine: true,
+                    showAmpArrow: true,
+                    showHeightArrow: true,
+                    highlightTime: 2,
+                    showT1Label: true,
+                    showT2Label: true,
+                    showSummary: true,
+                    showSyncArrow: true
+                }
+            ]
+        };
+        
+        // 当前步骤
+        let currentStep = 0;
+        
+        // 获取 DOM 元素
+        const svg = document.getElementById('scene2-svg');
+        const objA = document.getElementById('scene2-obj-a');
+        const objB = document.getElementById('scene2-obj-b');
+        const spring = document.getElementById('scene2-spring');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 位置线元素
+        const lineInitial = document.getElementById('scene2-line-initial');
+        const lineEquilibrium = document.getElementById('scene2-line-equilibrium');
+        const lineCompressed = document.getElementById('scene2-line-compressed');
+        
+        // 标签元素
+        const labelInitial = document.getElementById('scene2-label-initial');
+        const labelEquilibrium = document.getElementById('scene2-label-equilibrium');
+        const labelCompressed = document.getElementById('scene2-label-compressed');
+        const labelAmplitude = document.getElementById('scene2-label-amplitude');
+        const labelH = document.getElementById('scene2-label-h');
+        const labelT1 = document.getElementById('scene2-label-t1');
+        const labelT2 = document.getElementById('scene2-label-t2');
+        
+        // 振幅箭头
+        const ampArrow = document.getElementById('scene2-amp-arrow');
+        const ampArrowLeft = document.getElementById('scene2-amp-arrow-left');
+        const ampArrowLeft2 = document.getElementById('scene2-amp-arrow-left2');
+        const ampArrowRight = document.getElementById('scene2-amp-arrow-right');
+        const ampArrowRight2 = document.getElementById('scene2-amp-arrow-right2');
+        
+        // 高度箭头
+        const heightArrow = document.getElementById('scene2-height-arrow');
+        const heightArrowTop = document.getElementById('scene2-height-arrow-top');
+        const heightArrowBottom = document.getElementById('scene2-height-arrow-bottom');
+        
+        // 时间标记
+        const timeDot0 = document.getElementById('scene2-time-dot-0');
+        const timeDot1 = document.getElementById('scene2-time-dot-1');
+        const timeDot2 = document.getElementById('scene2-time-dot-2');
+        
+        // 总结文字和同步箭头
+        const summaryText = document.getElementById('scene2-summary-text');
+        const syncArrow = document.getElementById('scene2-sync-arrow');
+        
+        // 绘制弹簧（锯齿线）
+        function drawSpring(startX, endX, y, segments = 8) {
+            const height = 4;
+            const segmentWidth = (endX - startX) / segments;
+            let path = `M ${startX} ${y - height/2}`;
+            
+            for (let i = 1; i <= segments; i++) {
+                const x = startX + i * segmentWidth;
+                if (i === segments) {
+                    path += ` L ${x} ${y - height/2}`;
+                } else {
+                    path += ` L ${x} ${y + (i % 2 === 0 ? -height/2 : height/2)}`;
+                }
+            }
+            
+            return path;
+        }
+        
+        // 更新弹簧显示
+        function updateSpring(endX) {
+            const startX = 20;
+            const y = 160;
+            spring.setAttribute('d', drawSpring(startX, endX, y));
+        }
+        
+        // 显示/隐藏元素工具函数
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        function showSvg(el) {
+            el.setAttribute('opacity', '1');
+        }
+        
+        function hideSvg(el) {
+            el.setAttribute('opacity', '0');
+        }
+        
+        // 更新场景状态
+        function updateScene(stepIndex, animate = true) {
+            const step = config.steps[stepIndex];
+            
+            if (animate) {
+                // 动画过渡
+                animateTransition(stepIndex);
+            } else {
+                // 直接更新
+                applyStep(step);
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = stepIndex === 0;
+            btnNext.disabled = stepIndex === config.steps.length - 1;
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = step.name;
+        }
+        
+        // 应用步骤配置
+        function applyStep(step) {
+            // 更新物体 A 位置
+            const aPos = config.aPositions[step.aPos];
+            objA.setAttribute('x', aPos.x);
+            objA.setAttribute('y', aPos.y);
+            
+            // 更新物体 B 位置
+            const bPos = config.bPositions[step.bPos];
+            objB.setAttribute('x', bPos.x);
+            objB.setAttribute('y', bPos.y);
+            
+            // 更新弹簧
+            updateSpring(config.springEndX[step.springEnd]);
+            
+            // 更新位置线
+            step.showInitialLine ? showSvg(lineInitial) : hideSvg(lineInitial);
+            step.showEquilibriumLine ? showSvg(lineEquilibrium) : hideSvg(lineEquilibrium);
+            step.showCompressedLine ? showSvg(lineCompressed) : hideSvg(lineCompressed);
+            
+            // 更新位置线标签
+            step.showInitialLine ? showSvg(labelInitial) : hideSvg(labelInitial);
+            step.showEquilibriumLine ? showSvg(labelEquilibrium) : hideSvg(labelEquilibrium);
+            step.showCompressedLine ? showSvg(labelCompressed) : hideSvg(labelCompressed);
+            
+            // 更新振幅标注
+            step.showAmpArrow ? showSvg(ampArrow) : hideSvg(ampArrow);
+            step.showAmpArrow ? showSvg(ampArrowLeft) : hideSvg(ampArrowLeft);
+            step.showAmpArrow ? showSvg(ampArrowLeft2) : hideSvg(ampArrowLeft2);
+            step.showAmpArrow ? showSvg(ampArrowRight) : hideSvg(ampArrowRight);
+            step.showAmpArrow ? showSvg(ampArrowRight2) : hideSvg(ampArrowRight2);
+            step.showAmpArrow ? showSvg(labelAmplitude) : hideSvg(labelAmplitude);
+            
+            // 更新高度标注
+            step.showHeightArrow ? showSvg(heightArrow) : hideSvg(heightArrow);
+            step.showHeightArrow ? showSvg(heightArrowTop) : hideSvg(heightArrowTop);
+            step.showHeightArrow ? showSvg(heightArrowBottom) : hideSvg(heightArrowBottom);
+            step.showHeightArrow ? showSvg(labelH) : hideSvg(labelH);
+            
+            // 更新时间标记高亮
+            timeDot0.setAttribute('opacity', step.highlightTime === 0 ? '1' : '0.3');
+            timeDot1.setAttribute('opacity', step.highlightTime === 1 ? '1' : '0.3');
+            timeDot2.setAttribute('opacity', step.highlightTime === 2 ? '1' : '0.3');
+            
+            // 更新时间标签
+            step.showT1Label ? showSvg(labelT1) : hideSvg(labelT1);
+            step.showT2Label ? showSvg(labelT2) : hideSvg(labelT2);
+            
+            // 更新总结文字和同步箭头
+            step.showSummary ? showSvg(summaryText) : hideSvg(summaryText);
+            step.showSyncArrow ? showSvg(syncArrow) : hideSvg(syncArrow);
+        }
+        
+        // 动画过渡
+        function animateTransition(targetStep) {
+            const startStep = currentStep;
+            const startStepConfig = config.steps[startStep];
+            const endStepConfig = config.steps[targetStep];
+            
+            const startPosA = config.aPositions[startStepConfig.aPos];
+            const endPosA = config.aPositions[endStepConfig.aPos];
+            const startPosB = config.bPositions[startStepConfig.bPos];
+            const endPosB = config.bPositions[endStepConfig.bPos];
+            const startSpringEnd = config.springEndX[startStepConfig.springEnd];
+            const endSpringEnd = config.springEndX[endStepConfig.springEnd];
+            
+            const duration = 300;
+            const startTime = performance.now();
+            
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // 线性插值
+                const curX = startPosA.x + (endPosA.x - startPosA.x) * progress;
+                const curY = startPosA.y + (endPosA.y - startPosA.y) * progress;
+                objA.setAttribute('x', curX);
+                objA.setAttribute('y', curY);
+                
+                const curBX = startPosB.x + (endPosB.x - startPosB.x) * progress;
+                const curBY = startPosB.y + (endPosB.y - startPosB.y) * progress;
+                objB.setAttribute('x', curBX);
+                objB.setAttribute('y', curBY);
+                
+                const curSpringEnd = startSpringEnd + (endSpringEnd - startSpringEnd) * progress;
+                updateSpring(curSpringEnd);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // 动画结束，应用完整配置
+                    applyStep(endStepConfig);
+                }
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < config.steps.length - 1) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+        
+        // 初始化场景
+        updateScene(currentStep, false);
+    })();
+    </script>
+</body>
+</html>

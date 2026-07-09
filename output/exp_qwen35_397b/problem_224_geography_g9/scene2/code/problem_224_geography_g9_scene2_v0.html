@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点定位与日期判断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: none; border-radius: 4px; }
+        .scene2-btn-prev { background: #e0e0e0; color: #333; }
+        .scene2-btn-next { background: #1565c0; color: #fff; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #333; margin: 0 20px; }
+        .scene2-hidden { display: none; opacity: 0; }
+        .scene2-visible { display: block; opacity: 1; }
+        .scene2-fade-in { animation: scene2FadeIn 0.3s ease-in; }
+        @keyframes scene2FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义斜线填充图案 -->
+            <defs>
+                <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#888888" stroke-width="1" />
+                </pattern>
+                <pattern id="scene2-hatch-red" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#c62828" stroke-width="1" />
+                </pattern>
+            </defs>
+
+            <!-- 外框矩形 -->
+            <rect id="scene2-frame" x="100" y="95" width="600" height="245" fill="none" stroke="#000000" stroke-width="2" />
+
+            <!-- 经线 -->
+            <line id="scene2-meridian-135E" x1="100" y1="95" x2="100" y2="340" stroke="#000000" stroke-width="2" />
+            <line id="scene2-meridian-45E" x1="400" y1="95" x2="400" y2="340" stroke="#000000" stroke-width="2" />
+            <line id="scene2-meridian-45W" x1="700" y1="95" x2="700" y2="340" stroke="#000000" stroke-width="2" />
+
+            <!-- 纬线 -->
+            <line id="scene2-parallel-90N" x1="100" y1="95" x2="700" y2="95" stroke="#000000" stroke-width="2" />
+            <line id="scene2-parallel-66.5N" x1="100" y1="135" x2="700" y2="135" stroke="#000000" stroke-width="2" />
+            <line id="scene2-parallel-23.5N" x1="100" y1="176" x2="700" y2="176" stroke="#000000" stroke-width="2" />
+            <line id="scene2-parallel-0" x1="100" y1="217" x2="700" y2="217" stroke="#000000" stroke-width="2" />
+            <line id="scene2-parallel-23.5S" x1="100" y1="258" x2="700" y2="258" stroke="#000000" stroke-width="2" />
+            <line id="scene2-parallel-66.5S" x1="100" y1="299" x2="700" y2="299" stroke="#000000" stroke-width="2" />
+            <line id="scene2-parallel-90S" x1="100" y1="340" x2="700" y2="340" stroke="#000000" stroke-width="2" />
+
+            <!-- 夜半球填充（晨昏线下方区域） -->
+            <polygon id="scene2-night-area" points="100,299 400,95 700,299 700,340 100,340" fill="url(#scene2-hatch)" opacity="0.3" />
+
+            <!-- 晨昏线 EDF -->
+            <polyline id="scene2-terminator" points="100,299 400,95 700,299" fill="none" stroke="#000000" stroke-width="2" />
+
+            <!-- 北极圈高亮线（步骤 1 显示） -->
+            <line id="scene2-arctic-highlight" x1="100" y1="135" x2="700" y2="135" stroke="#c62828" stroke-width="4" class="scene2-hidden" />
+
+            <!-- 极夜区域（步骤 1 显示） -->
+            <polygon id="scene2-polar-night" points="100,95 700,95 700,135 100,135" fill="url(#scene2-hatch-red)" opacity="0.2" class="scene2-hidden" />
+
+            <!-- 南回归线高亮（步骤 3 显示） -->
+            <line id="scene2-tropic-highlight" x1="100" y1="258" x2="700" y2="258" stroke="#2e7d32" stroke-width="4" class="scene2-hidden" />
+
+            <!-- 45°W 经线高亮（步骤 4 显示） -->
+            <line id="scene2-meridian-45W-highlight" x1="700" y1="95" x2="700" y2="340" stroke="#2e7d32" stroke-width="4" class="scene2-hidden" />
+
+            <!-- 直射光线箭头（步骤 4 显示） -->
+            <line id="scene2-sun-ray" x1="700" y1="375" x2="700" y2="273" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead)" class="scene2-hidden" />
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 太阳直射点（步骤 5 显示） -->
+            <circle id="scene2-subsolar-point" cx="700" cy="258" r="6" fill="#2e7d32" class="scene2-hidden" />
+
+            <!-- 点 A, B, C, D, E, F -->
+            <circle id="scene2-point-A" cx="200" cy="299" r="3" fill="#000000" />
+            <circle id="scene2-point-B" cx="400" cy="217" r="3" fill="#000000" />
+            <circle id="scene2-point-C" cx="600" cy="135" r="3" fill="#000000" />
+            <circle id="scene2-point-D" cx="400" cy="95" r="3" fill="#000000" />
+            <circle id="scene2-point-E" cx="100" cy="299" r="3" fill="#000000" />
+            <circle id="scene2-point-F" cx="700" cy="299" r="3" fill="#000000" />
+
+            <!-- 经度标签 - 上移 -->
+            <text id="scene2-label-135" x="100" y="70" text-anchor="middle" font-size="14" fill="#000000">135°</text>
+            <text id="scene2-label-45-center" x="400" y="70" text-anchor="middle" font-size="14" fill="#000000">45°</text>
+            <text id="scene2-label-45-right" x="700" y="70" text-anchor="middle" font-size="14" fill="#000000">45°</text>
+
+            <!-- 纬度标签 - 右侧外部 -->
+            <text id="scene2-label-90N" x="755" y="100" font-size="12" fill="#000000">90°N</text>
+            <text id="scene2-label-66.5N" x="755" y="140" font-size="12" fill="#000000">66.5°N</text>
+            <text id="scene2-label-23.5N" x="755" y="181" font-size="12" fill="#000000">23.5°N</text>
+            <text id="scene2-label-0" x="755" y="222" font-size="12" fill="#000000">0°</text>
+            <text id="scene2-label-23.5S" x="755" y="263" font-size="12" fill="#000000">23.5°S</text>
+            <text id="scene2-label-66.5S" x="755" y="304" font-size="12" fill="#000000">66.5°S</text>
+            <text id="scene2-label-90S" x="755" y="345" font-size="12" fill="#000000">90°S</text>
+
+            <!-- 点标签 - 放在图形外部 -->
+            <text id="scene2-label-A" x="200" y="325" text-anchor="middle" font-size="12" fill="#000000">A</text>
+            <text id="scene2-label-B" x="445" y="222" font-size="12" fill="#000000">B</text>
+            <text id="scene2-label-C" x="600" y="120" text-anchor="middle" font-size="12" fill="#000000">C</text>
+            <text id="scene2-label-D" x="400" y="40" text-anchor="middle" font-size="12" fill="#000000">D</text>
+            <text id="scene2-label-E" x="85" y="314" text-anchor="end" font-size="12" fill="#000000">E</text>
+            <text id="scene2-label-F" x="720" y="325" font-size="12" fill="#000000">F</text>
+
+            <!-- 步骤 1：北极圈极夜标注 -->
+            <text id="scene2-label-polar-night" x="400" y="118" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold" class="scene2-hidden">北极圈极夜</text>
+
+            <!-- 步骤 2：日期标注 -->
+            <text id="scene2-label-date" x="400" y="470" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold" class="scene2-hidden">12 月 22 日前后 冬至日</text>
+
+            <!-- 步骤 3：太阳直射纬度标注 - 简化 -->
+            <text id="scene2-label-tropic" x="765" y="285" font-size="11" fill="#2e7d32" class="scene2-hidden">直射 23.5°S</text>
+
+            <!-- 步骤 4：昼半球中央经线标注 -->
+            <text id="scene2-label-meridian" x="400" y="492" text-anchor="middle" font-size="12" fill="#2e7d32" class="scene2-hidden">昼半球中央经线 45°W</text>
+
+            <!-- 步骤 5：太阳直射点坐标 - 合并到步骤 4 显示 -->
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next" class="scene2-btn scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 太阳直射点定位与日期判断
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 每步需要显示的元素 ID 列表
+        const stepElements = {
+            0: [],
+            1: ['scene2-arctic-highlight', 'scene2-polar-night', 'scene2-label-polar-night'],
+            2: ['scene2-label-date'],
+            3: ['scene2-tropic-highlight', 'scene2-label-tropic'],
+            4: ['scene2-sun-ray', 'scene2-meridian-45W-highlight', 'scene2-label-meridian'],
+            5: ['scene2-subsolar-point']
+        };
+
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible', 'scene2-fade-in');
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-visible', 'scene2-fade-in');
+                el.classList.add('scene2-hidden');
+            }
+        }
+
+        function updateDisplay() {
+            for (let step = 1; step < totalSteps; step++) {
+                if (stepElements[step]) {
+                    stepElements[step].forEach(id => hideElement(id));
+                }
+            }
+            for (let step = 1; step <= currentStep; step++) {
+                if (stepElements[step]) {
+                    stepElements[step].forEach(id => showElement(id));
+                }
+            }
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            document.getElementById('scene2-btn-prev').disabled = currentStep === 0;
+            document.getElementById('scene2-btn-next').disabled = currentStep === totalSteps - 1;
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        }
+
+        document.getElementById('scene2-btn-prev').addEventListener('click', prevStep);
+        document.getElementById('scene2-btn-next').addEventListener('click', nextStep);
+
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

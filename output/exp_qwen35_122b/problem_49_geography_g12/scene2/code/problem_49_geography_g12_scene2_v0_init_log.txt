@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 太阳直射点坐标推导</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 6px; background: #f5f5f5; transition: all 0.2s; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { padding: 8px 16px; font-size: 14px; font-weight: bold; display: flex; align-items: center; }
+        .scene2-element { transition: opacity 0.3s ease; }
+        .scene2-highlight { stroke-width: 3 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 坐标表注释：
+                南极点 O: (400,300)
+                外圆边界: 圆心 (400,300), 半径 180
+                70°S 纬线圈: 圆心 (400,300), 半径 80
+                经线 OB(0 时经线): (400,300)-(320,180)
+                经线 OC(12 时经线): (400,300)-(480,420)
+                切点 M: (400,220)
+                晨昏线 MA: (400,220)-(520,200)
+                太阳直射点 P: (480,420)
+                
+                标签位置调整（避免重叠）：
+                O: (400,340) - 向下移动远离圆心
+                M: (420,210) - 向右上移动远离切点
+                70°S: (510,405) - 向右下移动
+                0 时经线: (260,135) - 向左上移动远离外圆
+                12 时经线: (520,465) - 更靠右下，移到按钮上方
+                P: (535,445) - 更靠右远离 12 时经线
+                晨昏线: (570,165) - 向右上移动远离外圆
+            -->
+            
+            <!-- 外圆边界（上半圆） -->
+            <path id="scene2-outer-circle" class="scene2-element" d="M 220,300 A 180,180 0 0,1 580,300" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 70°S 纬线圈（上半圆） -->
+            <path id="scene2-arc-70s" class="scene2-element" d="M 320,300 A 80,80 0 0,1 480,300" fill="none" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            
+            <!-- 经线 OB（0 时经线，灰色虚线） -->
+            <line id="scene2-line-ob" class="scene2-element" x1="400" y1="300" x2="320" y2="180" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 经线 OC（12 时经线，绿色加粗） -->
+            <line id="scene2-line-oc" class="scene2-element" x1="400" y1="300" x2="480" y2="420" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            
+            <!-- 晨昏线 MA -->
+            <line id="scene2-line-ma" class="scene2-element" x1="400" y1="220" x2="520" y2="200" stroke="#000000" stroke-width="2" opacity="0"/>
+            
+            <!-- 南极点 O -->
+            <circle id="scene2-point-o" class="scene2-element" cx="400" cy="300" r="6" fill="#000000" opacity="0"/>
+            
+            <!-- 切点 M -->
+            <circle id="scene2-point-m" class="scene2-element" cx="400" cy="220" r="5" fill="#000000" opacity="0"/>
+            
+            <!-- 太阳直射点 P -->
+            <circle id="scene2-point-p" class="scene2-element" cx="480" cy="420" r="8" fill="#c62828" opacity="0"/>
+            
+            <!-- 纬度计算箭头 -->
+            <g id="scene2-latitude-group" class="scene2-element" opacity="0">
+                <line x1="140" y1="220" x2="140" y2="320" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="80" y="265" font-size="14" fill="#000000">90°-70°=20°</text>
+                <text x="70" y="345" font-size="13" fill="#c62828">太阳直射点纬度=20°S</text>
+            </g>
+            
+            <!-- 经度关系箭头 -->
+            <g id="scene2-longitude-group" class="scene2-element" opacity="0">
+                <line x1="660" y1="220" x2="660" y2="320" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="580" y="265" font-size="14" fill="#000000">0 时经线↔12 时经线</text>
+                <text x="595" y="285" font-size="12" fill="#666">(相差 180°)</text>
+            </g>
+            
+            <!-- 最终坐标框 -->
+            <g id="scene2-final-group" class="scene2-element" opacity="0">
+                <rect x="240" y="455" width="320" height="28" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="4"/>
+                <text x="255" y="475" font-size="13" fill="#e65100">太阳直射点坐标：(20°S, 12 时经线)</text>
+            </g>
+            
+            <!-- 标签 -->
+            <text id="scene2-label-o" class="scene2-element" x="400" y="340" font-size="14" fill="#000000" text-anchor="middle" opacity="0">O</text>
+            <text id="scene2-label-m" class="scene2-element" x="420" y="210" font-size="14" fill="#000000" opacity="0">M</text>
+            <text id="scene2-label-70s" class="scene2-element" x="510" y="405" font-size="13" fill="#1565c0" opacity="0">70°S</text>
+            <text id="scene2-label-ob" class="scene2-element" x="260" y="135" font-size="12" fill="#888888" text-anchor="middle" opacity="0">0 时经线</text>
+            <text id="scene2-label-oc" class="scene2-element" x="520" y="465" font-size="12" fill="#2e7d32" text-anchor="middle" opacity="0">12 时经线</text>
+            <text id="scene2-label-p" class="scene2-element" x="535" y="445" font-size="13" fill="#c62828" opacity="0">P(太阳直射点)</text>
+            <text id="scene2-label-ma" class="scene2-element" x="570" y="165" font-size="13" fill="#000000" opacity="0">晨昏线</text>
+            
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <div id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/5</div>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 太阳直射点坐标推导
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            // 步骤元素配置
+            stepElements: {
+                0: {
+                    show: ['scene2-outer-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-line-ma', 'scene2-label-o', 'scene2-label-m', 'scene2-label-ma'],
+                    hide: ['scene2-arc-70s', 'scene2-line-ob', 'scene2-line-oc', 'scene2-point-p', 'scene2-latitude-group', 'scene2-longitude-group', 'scene2-final-group', 'scene2-label-70s', 'scene2-label-ob', 'scene2-label-oc', 'scene2-label-p']
+                },
+                1: {
+                    show: ['scene2-outer-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-line-ma', 'scene2-arc-70s', 'scene2-label-o', 'scene2-label-m', 'scene2-label-ma', 'scene2-label-70s', 'scene2-latitude-group'],
+                    hide: ['scene2-line-ob', 'scene2-line-oc', 'scene2-point-p', 'scene2-longitude-group', 'scene2-final-group', 'scene2-label-ob', 'scene2-label-oc', 'scene2-label-p']
+                },
+                2: {
+                    show: ['scene2-outer-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-line-ma', 'scene2-arc-70s', 'scene2-line-ob', 'scene2-line-oc', 'scene2-label-o', 'scene2-label-m', 'scene2-label-ma', 'scene2-label-70s', 'scene2-label-ob', 'scene2-label-oc', 'scene2-latitude-group', 'scene2-longitude-group'],
+                    hide: ['scene2-point-p', 'scene2-final-group', 'scene2-label-p']
+                },
+                3: {
+                    show: ['scene2-outer-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-line-ma', 'scene2-arc-70s', 'scene2-line-ob', 'scene2-line-oc', 'scene2-point-p', 'scene2-label-o', 'scene2-label-m', 'scene2-label-ma', 'scene2-label-70s', 'scene2-label-ob', 'scene2-label-oc', 'scene2-label-p', 'scene2-latitude-group', 'scene2-longitude-group'],
+                    hide: ['scene2-final-group']
+                },
+                4: {
+                    show: ['scene2-outer-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-line-ma', 'scene2-arc-70s', 'scene2-line-ob', 'scene2-line-oc', 'scene2-point-p', 'scene2-label-o', 'scene2-label-m', 'scene2-label-ma', 'scene2-label-70s', 'scene2-label-ob', 'scene2-label-oc', 'scene2-label-p', 'scene2-latitude-group', 'scene2-longitude-group', 'scene2-final-group'],
+                    hide: []
+                }
+            },
+            
+            // 初始化
+            init: function() {
+                this.updateScene();
+                this.bindEvents();
+            },
+            
+            // 更新场景显示
+            updateScene: function() {
+                const config = this.stepElements[this.currentStep];
+                
+                // 显示元素
+                config.show.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.opacity = '1';
+                        el.style.display = 'block';
+                    }
+                });
+                
+                // 隐藏元素
+                config.hide.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.opacity = '0';
+                        if (el.tagName === 'G' || el.tagName === 'svg' || el.tagName === 'SVG') {
+                            el.style.display = 'none';
+                        }
+                    }
+                });
+                
+                // 更新步骤指示器
+                document.getElementById('scene2-step-indicator').textContent = `步骤 ${this.currentStep + 1}/${this.totalSteps}`;
+                
+                // 更新按钮状态
+                document.getElementById('scene2-btn-prev').disabled = (this.currentStep === 0);
+                document.getElementById('scene2-btn-next').disabled = (this.currentStep === this.totalSteps - 1);
+            },
+            
+            // 绑定事件
+            bindEvents: function() {
+                const prevBtn = document.getElementById('scene2-btn-prev');
+                const nextBtn = document.getElementById('scene2-btn-next');
+                
+                prevBtn.addEventListener('click', () => {
+                    if (this.currentStep > 0) {
+                        this.currentStep--;
+                        this.updateScene();
+                    }
+                });
+                
+                nextBtn.addEventListener('click', () => {
+                    if (this.currentStep < this.totalSteps - 1) {
+                        this.currentStep++;
+                        this.updateScene();
+                    }
+                });
+            }
+        };
+        
+        // 启动场景
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

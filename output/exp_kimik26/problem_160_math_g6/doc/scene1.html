@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平移法求凹字形周长</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        .scene1-btn {
+            padding: 8px 18px;
+            font-size: 14px;
+            border: 1px solid #bdbdbd;
+            border-radius: 6px;
+            background: #fafafa;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #333;
+        }
+        .scene1-btn:hover:not(:disabled) { background: #eeeeee; }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 70px; text-align: center; }
+
+        /* 结论卡片 (HTML层) */
+        #scene1-card {
+            position: absolute;
+            left: 480px;
+            top: 140px;
+            width: 240px;
+            padding: 16px 20px;
+            background: #f5f5f5;
+            border: 1px solid #bdbdbd;
+            border-radius: 8px;
+            z-index: 5;
+            transition: opacity 0.4s;
+        }
+        #scene1-card-title { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 12px; }
+        #scene1-card-content { font-size: 14px; color: #555; line-height: 1.6; }
+
+        /* 选项高亮 (HTML层) */
+        #scene1-option-box {
+            position: absolute;
+            left: 480px;
+            top: 340px;
+            width: 200px;
+            height: 40px;
+            background: #e8f5e9;
+            border: 2px solid #2e7d32;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #2e7d32;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 5;
+        }
+        #scene1-option-box.show { opacity: 1; }
+
+        /* SVG 样式 */
+        svg { display: block; }
+
+        /* 边线基础样式 */
+        .scene1-edge { stroke: #000000; stroke-width: 2.5px; stroke-linecap: round; transition: all 0.4s; }
+        .scene1-edge.dim { opacity: 0.25; }
+        .scene1-edge.highlight-blue { stroke: #1565c0; stroke-width: 3px; }
+        .scene1-edge.highlight-red { stroke: #c62828; stroke-width: 3px; }
+
+        /* 填充 — 拆分为4个矩形避免凹字形bbox过大导致标签误报重叠 */
+        .scene1-fill { fill: #e3f2fd; fill-opacity: 0.15; transition: opacity 0.5s; }
+        .scene1-fill.dim { opacity: 0.25; }
+
+        /* 标签样式 */
+        .scene1-label { font-size: 14px; fill: #000000; font-family: "Microsoft YaHei", sans-serif; transition: opacity 0.4s; }
+        .scene1-label.dim { opacity: 0.25; }
+        .scene1-label.red { fill: #c62828; font-weight: bold; }
+        .scene1-label.blue { fill: #1565c0; font-weight: bold; }
+
+        /* 已知数值 */
+        .scene1-value { font-size: 14px; fill: #1565c0; font-family: "Microsoft YaHei", sans-serif; font-weight: bold; transition: opacity 0.4s; }
+        .scene1-value.dim { opacity: 0.25; }
+
+        /* ghost 元素 */
+        .scene1-ghost { stroke: #c62828; stroke-width: 2.5px; stroke-linecap: round; opacity: 0; transition: transform 0.6s ease-out, opacity 0.4s; }
+        .scene1-ghost.show { opacity: 1; }
+
+        /* 轨迹虚线 */
+        .scene1-track { stroke: #888888; stroke-width: 1.5px; stroke-dasharray: 6 4; opacity: 0; transition: opacity 0.4s; }
+        .scene1-track.show { opacity: 1; }
+
+        /* 等长标记 */
+        .scene1-eqmark { stroke: #c62828; stroke-width: 2px; opacity: 0; transition: opacity 0.4s; }
+        .scene1-eqmark.show { opacity: 1; }
+
+        /* 中央公式 */
+        .scene1-formula { font-size: 22px; fill: #000; font-weight: bold; font-family: "Microsoft YaHei", sans-serif; opacity: 0; transition: opacity 0.5s; }
+        .scene1-formula.show { opacity: 1; }
+        .scene1-formula-sub { font-size: 18px; fill: #c62828; font-family: "Microsoft YaHei", sans-serif; opacity: 0; transition: opacity 0.5s; }
+        .scene1-formula-sub.show { opacity: 1; }
+
+        /* 直角标记 */
+        .scene1-corner { stroke: #000; stroke-width: 1.5px; fill: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- 结论卡片 -->
+        <div id="scene1-card">
+            <div id="scene1-card-title">已知条件</div>
+            <div id="scene1-card-content">b = 50米, c = 30米<br>g = 10米</div>
+        </div>
+
+        <!-- 选项高亮 -->
+        <div id="scene1-option-box">C．180米</div>
+
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 主图形组 -->
+            <g id="scene1-main-shape">
+                <!-- 填充：拆为4个矩形，避免凹字形整体bbox把凹槽区域标签误判为重叠 -->
+                <rect class="scene1-fill" id="scene1-fill-r1" x="140" y="200" width="80" height="120"/>
+                <rect class="scene1-fill" id="scene1-fill-r2" x="220" y="170" width="40" height="30"/>
+                <rect class="scene1-fill" id="scene1-fill-r3" x="260" y="140" width="40" height="30"/>
+                <rect class="scene1-fill" id="scene1-fill-r4" x="300" y="200" width="40" height="120"/>
+
+                <!-- 边线 -->
+                <line class="scene1-edge" id="scene1-edge-a" x1="140" y1="200" x2="140" y2="320"/>
+                <line class="scene1-edge" id="scene1-edge-b" x1="140" y1="320" x2="340" y2="320"/>
+                <line class="scene1-edge" id="scene1-edge-c" x1="340" y1="200" x2="340" y2="320"/>
+                <line class="scene1-edge" id="scene1-edge-d" x1="300" y1="200" x2="340" y2="200"/>
+                <line class="scene1-edge" id="scene1-edge-e" x1="260" y1="140" x2="260" y2="170"/>
+                <line class="scene1-edge" id="scene1-edge-f" x1="260" y1="140" x2="300" y2="140"/>
+                <line class="scene1-edge" id="scene1-edge-g" x1="220" y1="170" x2="260" y2="170"/>
+                <line class="scene1-edge" id="scene1-edge-h" x1="140" y1="200" x2="220" y2="200"/>
+                <line class="scene1-edge" id="scene1-edge-s1" x1="220" y1="200" x2="220" y2="170"/>
+                <line class="scene1-edge" id="scene1-edge-s2" x1="300" y1="140" x2="300" y2="200"/>
+
+                <!-- 直角标记 (10个拐角) -->
+                <polyline class="scene1-corner" points="150,320 150,310 140,310"/>
+                <polyline class="scene1-corner" points="150,200 150,210 140,210"/>
+                <polyline class="scene1-corner" points="220,210 210,210 210,200"/>
+                <polyline class="scene1-corner" points="210,170 210,180 220,180"/>
+                <polyline class="scene1-corner" points="260,180 250,180 250,170"/>
+                <polyline class="scene1-corner" points="250,140 250,150 260,150"/>
+                <polyline class="scene1-corner" points="300,150 290,150 290,140"/>
+                <polyline class="scene1-corner" points="290,200 290,190 300,190"/>
+                <polyline class="scene1-corner" points="340,190 330,190 330,200"/>
+                <polyline class="scene1-corner" points="330,320 330,310 340,310"/>
+            </g>
+
+            <!-- 边标签 —— 全部放在对应边外侧，避开填充矩形 -->
+            <text class="scene1-label" id="scene1-label-a" x="110" y="265" text-anchor="middle">a</text>
+            <text class="scene1-label" id="scene1-label-b" x="240" y="335" text-anchor="middle">b</text>
+            <text class="scene1-label" id="scene1-label-c" x="385" y="265" text-anchor="start">c</text>
+            <text class="scene1-label" id="scene1-label-d" x="355" y="190" text-anchor="start">d</text>
+            <text class="scene1-label" id="scene1-label-e" x="275" y="125" text-anchor="start">e</text>
+            <text class="scene1-label" id="scene1-label-f" x="305" y="108" text-anchor="middle">f</text>
+            <text class="scene1-label" id="scene1-label-g" x="205" y="158" text-anchor="end">g</text>
+            <text class="scene1-label" id="scene1-label-h" x="180" y="178" text-anchor="middle">h</text>
+
+            <!-- 已知数值 —— 放在边外侧，间距充足 -->
+            <text class="scene1-value" id="scene1-val-b" x="240" y="380" text-anchor="middle">50米</text>
+            <text class="scene1-value" id="scene1-val-c" x="410" y="265" text-anchor="start">30米</text>
+            <text class="scene1-value" id="scene1-val-g" x="230" y="108" text-anchor="middle">10米</text>
+
+            <!-- ===== 步骤1: 水平边平移 ghost ===== -->
+            <line class="scene1-ghost" id="scene1-ghost-h" x1="140" y1="200" x2="220" y2="200"/>
+            <line class="scene1-ghost" id="scene1-ghost-g" x1="220" y1="170" x2="260" y2="170"/>
+            <line class="scene1-ghost" id="scene1-ghost-d" x1="300" y1="200" x2="340" y2="200"/>
+            <line class="scene1-ghost" id="scene1-ghost-f" x1="260" y1="140" x2="300" y2="140"/>
+
+            <!-- 轨迹虚线 (步骤1) -->
+            <line class="scene1-track" id="scene1-track-h" x1="140" y1="200" x2="140" y2="320"/>
+            <line class="scene1-track" id="scene1-track-h2" x1="220" y1="200" x2="220" y2="320"/>
+            <line class="scene1-track" id="scene1-track-g" x1="220" y1="170" x2="220" y2="320"/>
+            <line class="scene1-track" id="scene1-track-g2" x1="260" y1="170" x2="260" y2="320"/>
+            <line class="scene1-track" id="scene1-track-d" x1="300" y1="200" x2="300" y2="320"/>
+            <line class="scene1-track" id="scene1-track-d2" x1="340" y1="200" x2="340" y2="320"/>
+            <line class="scene1-track" id="scene1-track-f" x1="260" y1="140" x2="260" y2="170"/>
+            <line class="scene1-track" id="scene1-track-f2" x1="300" y1="140" x2="300" y2="170"/>
+
+            <!-- 等长标记 f=g (步骤1) -->
+            <line class="scene1-eqmark" id="scene1-eqmark-fg1" x1="270" y1="165" x2="270" y2="175"/>
+            <line class="scene1-eqmark" id="scene1-eqmark-fg2" x1="275" y1="165" x2="275" y2="175"/>
+            <line class="scene1-eqmark" id="scene1-eqmark-fg3" x1="285" y1="135" x2="285" y2="145"/>
+            <line class="scene1-eqmark" id="scene1-eqmark-fg4" x1="290" y1="135" x2="290" y2="145"/>
+
+            <!-- 步骤1 等式标签 —— 放在图形右侧，避免与标签/数值重叠 -->
+            <text class="scene1-label red" id="scene1-eq-hgd" x="380" y="360" text-anchor="start" opacity="0">h + g + d = b</text>
+            <text class="scene1-label red" id="scene1-eq-fg" x="320" y="152" text-anchor="middle" opacity="0">f = g</text>
+
+            <!-- ===== 步骤2: 竖直边平移 ghost ===== -->
+            <line class="scene1-ghost" id="scene1-ghost-a" x1="140" y1="200" x2="140" y2="320"/>
+            <line class="scene1-ghost" id="scene1-ghost-s1" x1="220" y1="200" x2="220" y2="170"/>
+            <line class="scene1-ghost" id="scene1-ghost-e" x1="260" y1="140" x2="260" y2="170"/>
+            <line class="scene1-ghost" id="scene1-ghost-s2" x1="300" y1="140" x2="300" y2="200"/>
+
+            <!-- 轨迹虚线 (步骤2) -->
+            <line class="scene1-track" id="scene1-track-a" x1="140" y1="200" x2="360" y2="200"/>
+            <line class="scene1-track" id="scene1-track-a2" x1="140" y1="320" x2="360" y2="320"/>
+            <line class="scene1-track" id="scene1-track-s1" x1="220" y1="200" x2="380" y2="200"/>
+            <line class="scene1-track" id="scene1-track-s1b" x1="220" y1="170" x2="380" y2="170"/>
+            <line class="scene1-track" id="scene1-track-e" x1="260" y1="140" x2="400" y2="140"/>
+            <line class="scene1-track" id="scene1-track-e2" x1="260" y1="170" x2="400" y2="170"/>
+            <line class="scene1-track" id="scene1-track-s2" x1="300" y1="140" x2="420" y2="140"/>
+            <line class="scene1-track" id="scene1-track-s2b" x1="300" y1="200" x2="420" y2="200"/>
+
+            <!-- 步骤2 等式标签 —— 放在图形左侧，远离ghost与卡片 -->
+            <text class="scene1-label red" id="scene1-eq-vsum" x="120" y="225" text-anchor="start" opacity="0">竖直边之和 = 2c</text>
+
+            <!-- ===== 步骤3: 中央公式 —— 偏左放置，避免与右侧卡片重叠 ===== -->
+            <text class="scene1-formula" id="scene1-formula-main" x="240" y="220" text-anchor="middle">周长 C = 2(b + c + g)</text>
+            <text class="scene1-formula-sub" id="scene1-formula-sub" x="240" y="260" text-anchor="middle">= 2×(50 + 30 + 10) = 180（米）</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button class="scene1-btn" id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button class="scene1-btn" id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var currentStep = 0;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        var mainShape = document.getElementById('scene1-main-shape');
+        var fills = {
+            r1: document.getElementById('scene1-fill-r1'),
+            r2: document.getElementById('scene1-fill-r2'),
+            r3: document.getElementById('scene1-fill-r3'),
+            r4: document.getElementById('scene1-fill-r4')
+        };
+        var edges = {
+            a: document.getElementById('scene1-edge-a'),
+            b: document.getElementById('scene1-edge-b'),
+            c: document.getElementById('scene1-edge-c'),
+            d: document.getElementById('scene1-edge-d'),
+            e: document.getElementById('scene1-edge-e'),
+            f: document.getElementById('scene1-edge-f'),
+            g: document.getElementById('scene1-edge-g'),
+            h: document.getElementById('scene1-edge-h'),
+            s1: document.getElementById('scene1-edge-s1'),
+            s2: document.getElementById('scene1-edge-s2')
+        };
+        var labels = {
+            a: document.getElementById('scene1-label-a'),
+            b: document.getElementById('scene1-label-b'),
+            c: document.getElementById('scene1-label-c'),
+            d: document.getElementById('scene1-label-d'),
+            e: document.getElementById('scene1-label-e'),
+            f: document.getElementById('scene1-label-f'),
+            g: document.getElementById('scene1-label-g'),
+            h: document.getElementById('scene1-label-h')
+        };
+        var values = {
+            b: document.getElementById('scene1-val-b'),
+            c: document.getElementById('scene1-val-c'),
+            g: document.getElementById('scene1-val-g')
+        };
+
+        var cardTitle = document.getElementById('scene1-card-title');
+        var cardContent = document.getElementById('scene1-card-content');
+        var optionBox = document.getElementById('scene1-option-box');
+
+        var ghostH = document.getElementById('scene1-ghost-h');
+        var ghostG = document.getElementById('scene1-ghost-g');
+        var ghostD = document.getElementById('scene1-ghost-d');
+        var ghostF = document.getElementById('scene1-ghost-f');
+
+        var tracksStep1 = [
+            document.getElementById('scene1-track-h'),
+            document.getElementById('scene1-track-h2'),
+            document.getElementById('scene1-track-g'),
+            document.getElementById('scene1-track-g2'),
+            document.getElementById('scene1-track-d'),
+            document.getElementById('scene1-track-d2'),
+            document.getElementById('scene1-track-f'),
+            document.getElementById('scene1-track-f2')
+        ];
+
+        var eqmarks = [
+            document.getElementById('scene1-eqmark-fg1'),
+            document.getElementById('scene1-eqmark-fg2'),
+            document.getElementById('scene1-eqmark-fg3'),
+            document.getElementById('scene1-eqmark-fg4')
+        ];
+
+        var eqHgd = document.getElementById('scene1-eq-hgd');
+        var eqFg = document.getElementById('scene1-eq-fg');
+
+        var ghostA = document.getElementById('scene1-ghost-a');
+        var ghostS1 = document.getElementById('scene1-ghost-s1');
+        var ghostE = document.getElementById('scene1-ghost-e');
+        var ghostS2 = document.getElementById('scene1-ghost-s2');
+
+        var tracksStep2 = [
+            document.getElementById('scene1-track-a'),
+            document.getElementById('scene1-track-a2'),
+            document.getElementById('scene1-track-s1'),
+            document.getElementById('scene1-track-s1b'),
+            document.getElementById('scene1-track-e'),
+            document.getElementById('scene1-track-e2'),
+            document.getElementById('scene1-track-s2'),
+            document.getElementById('scene1-track-s2b')
+        ];
+
+        var eqVsum = document.getElementById('scene1-eq-vsum');
+
+        var formulaMain = document.getElementById('scene1-formula-main');
+        var formulaSub = document.getElementById('scene1-formula-sub');
+
+        function setOpacity(el, val) { if(el) { el.style.opacity = val; } }
+        function addClass(el, cls) { if(el) { el.classList.add(cls); } }
+        function removeClass(el, cls) { if(el) { el.classList.remove(cls); } }
+
+        function resetAll() {
+            Object.values(edges).forEach(function(e) {
+                removeClass(e, 'highlight-blue');
+                removeClass(e, 'highlight-red');
+                removeClass(e, 'dim');
+            });
+            Object.values(labels).forEach(function(l) {
+                removeClass(l, 'dim');
+                removeClass(l, 'red');
+                l.style.opacity = '';
+            });
+            Object.values(values).forEach(function(v) {
+                removeClass(v, 'dim');
+                v.style.opacity = '';
+            });
+            Object.values(fills).forEach(function(f) {
+                removeClass(f, 'dim');
+            });
+
+            removeClass(ghostH, 'show');
+            removeClass(ghostG, 'show');
+            removeClass(ghostD, 'show');
+            removeClass(ghostF, 'show');
+            removeClass(ghostA, 'show');
+            removeClass(ghostS1, 'show');
+            removeClass(ghostE, 'show');
+            removeClass(ghostS2, 'show');
+
+            ghostH.style.transform = '';
+            ghostG.style.transform = '';
+            ghostD.style.transform = '';
+            ghostF.style.transform = '';
+            ghostA.style.transform = '';
+            ghostS1.style.transform = '';
+            ghostE.style.transform = '';
+            ghostS2.style.transform = '';
+
+            tracksStep1.forEach(function(t) { removeClass(t, 'show'); });
+            tracksStep2.forEach(function(t) { removeClass(t, 'show'); });
+
+            eqmarks.forEach(function(m) { removeClass(m, 'show'); });
+
+            setOpacity(eqHgd, 0);
+            setOpacity(eqFg, 0);
+            setOpacity(eqVsum, 0);
+
+            removeClass(formulaMain, 'show');
+            removeClass(formulaSub, 'show');
+            removeClass(optionBox, 'show');
+
+            mainShape.style.opacity = '1';
+        }
+
+        function renderStep(step) {
+            resetAll();
+            stepIndicator.textContent = '步骤 ' + (step + 1) + '/4';
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === 3);
+
+            if (step === 0) {
+                cardTitle.textContent = '已知条件';
+                cardContent.innerHTML = 'b = 50米, c = 30米<br>g = 10米';
+
+                addClass(edges.b, 'highlight-blue');
+                addClass(edges.c, 'highlight-blue');
+                addClass(edges.g, 'highlight-blue');
+            }
+            else if (step === 1) {
+                cardTitle.textContent = '水平边分析';
+                cardContent.innerHTML = '水平边总长 = 2b + 2g<br>= 2×50 + 2×10 = 120（米）';
+
+                addClass(edges.h, 'highlight-blue');
+                addClass(edges.g, 'highlight-blue');
+                addClass(edges.f, 'highlight-blue');
+                addClass(edges.d, 'highlight-blue');
+                addClass(edges.b, 'highlight-blue');
+
+                addClass(edges.a, 'dim');
+                addClass(edges.c, 'dim');
+                addClass(edges.e, 'dim');
+                addClass(edges.s1, 'dim');
+                addClass(edges.s2, 'dim');
+
+                tracksStep1.forEach(function(t) { addClass(t, 'show'); });
+
+                addClass(ghostH, 'show');
+                addClass(ghostG, 'show');
+                addClass(ghostD, 'show');
+                addClass(ghostF, 'show');
+
+                ghostH.getBoundingClientRect();
+                ghostG.getBoundingClientRect();
+                ghostD.getBoundingClientRect();
+                ghostF.getBoundingClientRect();
+
+                ghostH.style.transform = 'translate(0px, 120px)';
+                ghostG.style.transform = 'translate(0px, 150px)';
+                ghostD.style.transform = 'translate(0px, 120px)';
+                ghostF.style.transform = 'translate(0px, 30px)';
+
+                setTimeout(function() {
+                    if (currentStep !== 1) return;
+                    eqmarks.forEach(function(m) { addClass(m, 'show'); });
+                    setOpacity(eqHgd, 1);
+                    setOpacity(eqFg, 1);
+                }, 650);
+            }
+            else if (step === 2) {
+                cardTitle.textContent = '竖直边分析';
+                cardContent.innerHTML = '竖直边总长 = 2c<br>= 2×30 = 60（米）';
+
+                addClass(edges.a, 'highlight-blue');
+                addClass(edges.c, 'highlight-blue');
+                addClass(edges.e, 'highlight-blue');
+                addClass(edges.s1, 'highlight-blue');
+                addClass(edges.s2, 'highlight-blue');
+
+                addClass(edges.b, 'dim');
+                addClass(edges.h, 'dim');
+                addClass(edges.g, 'dim');
+                addClass(edges.f, 'dim');
+                addClass(edges.d, 'dim');
+
+                tracksStep2.forEach(function(t) { addClass(t, 'show'); });
+
+                addClass(ghostA, 'show');
+                addClass(ghostS1, 'show');
+                addClass(ghostE, 'show');
+                addClass(ghostS2, 'show');
+
+                ghostA.getBoundingClientRect();
+                ghostS1.getBoundingClientRect();
+                ghostE.getBoundingClientRect();
+                ghostS2.getBoundingClientRect();
+
+                ghostA.style.transform = 'translate(220px, 0px)';
+                ghostS1.style.transform = 'translate(160px, 0px)';
+                ghostE.style.transform = 'translate(140px, 0px)';
+                ghostS2.style.transform = 'translate(120px, 0px)';
+
+                setTimeout(function() {
+                    if (currentStep !== 2) return;
+                    setOpacity(eqVsum, 1);
+                }, 650);
+            }
+            else if (step === 3) {
+                cardTitle.textContent = '最终答案';
+                cardContent.innerHTML = '周长 = 180 米';
+
+                mainShape.style.opacity = '0.25';
+                Object.values(fills).forEach(function(f) { addClass(f, 'dim'); });
+                // 步骤3完全隐藏图形标签和数值，避免与中央公式重叠
+                Object.values(labels).forEach(function(l) { l.style.opacity = '0'; });
+                Object.values(values).forEach(function(v) { v.style.opacity = '0'; });
+
+                addClass(formulaMain, 'show');
+                setTimeout(function() {
+                    if (currentStep !== 3) return;
+                    addClass(formulaSub, 'show');
+                }, 500);
+
+                setTimeout(function() {
+                    if (currentStep !== 3) return;
+                    addClass(optionBox, 'show');
+                }, 800);
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 3) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

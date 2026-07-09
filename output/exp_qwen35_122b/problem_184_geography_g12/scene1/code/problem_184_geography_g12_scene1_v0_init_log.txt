@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球公转轨道与两分两至位置判断</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        #scene1-conclusion { position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #c62828; font-weight: bold; text-align: center; max-width: 600px; opacity: 0; transition: opacity 0.3s; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 辅助线：轨道长轴和短轴 -->
+            <line id="scene1-axis-h" x1="100" y1="250" x2="700" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" opacity="0.5"/>
+            <line id="scene1-axis-v" x1="400" y1="80" x2="400" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" opacity="0.5"/>
+            
+            <!-- 椭圆轨道 -->
+            <path id="scene1-orbit" d="M 150,250 A 250,140 0 1,1 650,250 A 250,140 0 1,1 150,250" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 太阳 -->
+            <circle id="scene1-sun" cx="550" cy="250" r="30" fill="#ffeb3b" stroke="#f57f17" stroke-width="2"/>
+            <text id="scene1-sun-label" x="550" y="330" text-anchor="middle" font-size="14" fill="#000000">太阳</text>
+            
+            <!-- 地球位置 A/B/C/D -->
+            <circle id="scene1-earth-a" cx="400" cy="110" r="20" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene1-earth-a-label" x="400" y="45" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">A</text>
+            
+            <circle id="scene1-earth-b" cx="150" cy="250" r="20" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene1-earth-b-label" x="115" y="255" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">B</text>
+            
+            <circle id="scene1-earth-c" cx="400" cy="390" r="20" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene1-earth-c-label" x="400" y="455" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">C</text>
+            
+            <circle id="scene1-earth-d" cx="650" cy="250" r="20" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene1-earth-d-label" x="685" y="255" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">D</text>
+            
+            <!-- 地轴（步骤 1 显示） -->
+            <line id="scene1-axis-a" x1="385" y1="55" x2="415" y2="165" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene1-axis-b" x1="135" y1="195" x2="165" y2="305" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene1-axis-c" x1="385" y1="335" x2="415" y2="445" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <line id="scene1-axis-d" x1="635" y1="195" x2="665" y2="305" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            
+            <!-- 地轴极点标注（步骤 1 显示） -->
+            <text id="scene1-north-pole-a" x="420" y="50" font-size="12" fill="#1565c0" opacity="0">北极</text>
+            <text id="scene1-south-pole-a" x="335" y="210" font-size="12" fill="#1565c0" opacity="0">南极</text>
+            
+            <!-- 太阳光线（步骤 2 显示） -->
+            <line id="scene1-ray-b" x1="520" y1="250" x2="170" y2="250" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <line id="scene1-ray-d" x1="580" y1="250" x2="630" y2="250" stroke="#c62828" stroke-width="2" opacity="0"/>
+            
+            <!-- 直射点标记（步骤 2 显示） -->
+            <circle id="scene1-subpoint-b" cx="150" cy="250" r="5" fill="#2e7d32" opacity="0"/>
+            <circle id="scene1-subpoint-d" cx="650" cy="250" r="5" fill="#2e7d32" opacity="0"/>
+            
+            <!-- 节气标签（步骤 3 显示） -->
+            <text id="scene1-solar-term-a" x="400" y="35" text-anchor="middle" font-size="14" fill="#000000" opacity="0">春分</text>
+            <text id="scene1-solar-term-b" x="90" y="255" text-anchor="middle" font-size="14" fill="#000000" opacity="0">夏至</text>
+            <text id="scene1-solar-term-c" x="400" y="485" text-anchor="middle" font-size="14" fill="#000000" opacity="0">秋分</text>
+            <text id="scene1-solar-term-d" x="710" y="255" text-anchor="middle" font-size="14" fill="#000000" opacity="0">冬至</text>
+            
+            <!-- 高亮效果（步骤 4 显示） -->
+            <circle id="scene1-highlight-b" cx="150" cy="250" r="25" fill="none" stroke="#ff9800" stroke-width="3" stroke-dasharray="5,3" opacity="0"/>
+            <circle id="scene1-highlight-d" cx="650" cy="250" r="25" fill="none" stroke="#ff9800" stroke-width="3" stroke-dasharray="5,3" opacity="0"/>
+        </svg>
+        
+        <div id="scene1-conclusion">地轴倾斜方向不变，北极倾向太阳时为夏至，背离时为冬至</div>
+        <div id="scene1-step-indicator">步骤 1/5</div>
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 地球公转轨道与两分两至位置判断
+        // 布局坐标表：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 椭圆轨道 | path | 中心 (400,250)，长轴 500，短轴 280 | 500×280 | - | 黑色实线，线宽 2 |
+        // | 太阳 | circle | (550,250) | r=30 | 下方 (550,330) | 黄色填充，标注"太阳" |
+        // | 地球 A | circle | (400,110) | r=20 | 上方 (400,45) | 蓝色填充 20% 透明度，标注"A" |
+        // | 地球 B | circle | (150,250) | r=20 | 左方 (115,255) | 蓝色填充 20% 透明度，标注"B" |
+        // | 地球 C | circle | (400,390) | r=20 | 下方 (400,455) | 蓝色填充 20% 透明度，标注"C" |
+        // | 地球 D | circle | (650,250) | r=20 | 右方 (685,255) | 蓝色填充 20% 透明度，标注"D" |
+        // | 地轴 A | line | (385,55)-(415,165) | 30×110 | - | 蓝色，穿过地球 A，倾斜 |
+        // | 地轴 B | line | (135,195)-(165,305) | 30×110 | - | 蓝色，穿过地球 B，倾斜 |
+        // | 地轴 C | line | (385,335)-(415,445) | 30×110 | - | 蓝色，穿过地球 C，倾斜 |
+        // | 地轴 D | line | (635,195)-(665,305) | 30×110 | - | 蓝色，穿过地球 D，倾斜 |
+        
+        const currentStepMax = 4;
+        let currentStep = 0;
+        
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const conclusion = document.getElementById('scene1-conclusion');
+        
+        // 元素 ID 映射
+        const elements = {
+            // 步骤 1：地轴
+            axisA: ['scene1-axis-a', 'scene1-axis-b', 'scene1-axis-c', 'scene1-axis-d', 'scene1-north-pole-a', 'scene1-south-pole-a'],
+            // 步骤 2：太阳光线和直射点
+            ray: ['scene1-ray-b', 'scene1-ray-d', 'scene1-subpoint-b', 'scene1-subpoint-d'],
+            // 步骤 3：节气标签
+            solarTerm: ['scene1-solar-term-a', 'scene1-solar-term-b', 'scene1-solar-term-c', 'scene1-solar-term-d'],
+            // 步骤 4：高亮
+            highlight: ['scene1-highlight-b', 'scene1-highlight-d']
+        };
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                if (el.tagName === 'line' || el.tagName === 'circle' || el.tagName === 'path') {
+                    el.style.display = 'block'; // 保持 SVG 元素显示，只改 opacity
+                } else {
+                    el.style.display = 'none';
+                }
+            }
+        }
+        
+        function updateStep() {
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            if (currentStep === currentStepMax) {
+                nextBtn.textContent = '完成';
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+                nextBtn.disabled = false;
+            }
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${currentStepMax + 1}`;
+            
+            // 根据步骤显示/隐藏元素
+            // 步骤 0：基础结构（已默认显示）
+            // 步骤 1：显示地轴
+            if (currentStep >= 1) {
+                elements.axisA.forEach(showElement);
+            } else {
+                elements.axisA.forEach(hideElement);
+            }
+            
+            // 步骤 2：显示太阳光线和直射点
+            if (currentStep >= 2) {
+                elements.ray.forEach(showElement);
+            } else {
+                elements.ray.forEach(hideElement);
+            }
+            
+            // 步骤 3：显示节气标签
+            if (currentStep >= 3) {
+                elements.solarTerm.forEach(showElement);
+            } else {
+                elements.solarTerm.forEach(hideElement);
+            }
+            
+            // 步骤 4：显示高亮和结论
+            if (currentStep >= 4) {
+                elements.highlight.forEach(showElement);
+                conclusion.style.opacity = '1';
+            } else {
+                elements.highlight.forEach(hideElement);
+                conclusion.style.opacity = '0';
+            }
+        }
+        
+        prevBtn.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

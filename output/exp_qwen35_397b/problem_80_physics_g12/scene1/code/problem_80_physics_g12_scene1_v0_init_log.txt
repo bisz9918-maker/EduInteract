@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单摆摆动过程与机械能守恒</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; padding: 8px 12px; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 背景 -->
+            <rect width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 岸边 (左侧) -->
+            <polygon id="scene1-shore" points="0,280 50,280 50,345 0,345" fill="#9e9e9e" opacity="0.5"/>
+            
+            <!-- 水面线 -->
+            <line id="scene1-water-surface" x1="50" y1="345" x2="750" y2="345" stroke="#1976d2" stroke-width="2"/>
+            <!-- 水波纹 -->
+            <line x1="60" y1="355" x2="740" y2="355" stroke="#1976d2" stroke-width="1" opacity="0.5"/>
+            <line x1="70" y1="365" x2="730" y2="365" stroke="#1976d2" stroke-width="1" opacity="0.4"/>
+            <line x1="80" y1="375" x2="720" y2="375" stroke="#1976d2" stroke-width="1" opacity="0.3"/>
+            
+            <!-- 浮台 (右侧) -->
+            <rect id="scene1-platform" x="550" y="335" width="200" height="10" fill="#212121"/>
+            <text x="640" y="325" font-size="14" text-anchor="middle">浮台</text>
+            
+            <!-- 悬挂点 O -->
+            <circle id="scene1-suspend-point" cx="250" cy="60" r="6" fill="#1565c0"/>
+            <text id="scene1-label-O" x="262" y="52" font-size="14" fill="#000">O</text>
+            
+            <!-- 竖直参考线 (虚线) -->
+            <line id="scene1-vertical-ref" x1="250" y1="60" x2="250" y2="120" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 角度弧线 α -->
+            <path id="scene1-angle-arc" d="M 250 85 A 25 25 0 0 0 235 95" fill="none" stroke="#000" stroke-width="2"/>
+            <text id="scene1-label-alpha" x="235" y="95" font-size="14" fill="#000">α=53°</text>
+            
+            <!-- 初始绳子 (从悬挂点到初始质点) -->
+            <line id="scene1-rope-initial" x1="250" y1="60" x2="130" y2="150" stroke="#000" stroke-width="3"/>
+            <text id="scene1-label-l" x="180" y="95" font-size="14" fill="#000">l=2m</text>
+            
+            <!-- 初始质点 m -->
+            <circle id="scene1-mass-initial" cx="130" cy="150" r="8" fill="#c62828"/>
+            <text id="scene1-label-m" x="115" y="155" font-size="14" fill="#000">m</text>
+            
+            <!-- 摆动轨迹圆弧 (虚线，步骤1高亮) -->
+            <path id="scene1-trajectory" d="M 130 150 A 150 150 0 0 1 250 210" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 最低点绳子 -->
+            <line id="scene1-rope-lowest" x1="250" y1="60" x2="250" y2="210" stroke="#000" stroke-width="3" opacity="0"/>
+            
+            <!-- 最低点质点 -->
+            <circle id="scene1-mass-lowest" cx="250" cy="210" r="8" fill="#c62828" opacity="0"/>
+            
+            <!-- 高度 H 标注 (双向箭头) -->
+            <line id="scene1-height-H" x1="320" y1="60" x2="320" y2="345" stroke="#2e7d32" stroke-width="2"/>
+            <!-- H 箭头 -->
+            <polygon points="320,50 315,65 325,65" fill="#2e7d32"/>
+            <polygon points="320,355 315,340 325,340" fill="#2e7d32"/>
+            <text id="scene1-label-H" x="330" y="200" font-size="14" fill="#2e7d32">H=3.8m</text>
+            
+            <!-- 高度差 h 标注 (双向箭头，步骤2显示) -->
+            <line id="scene1-height-h" x1="270" y1="150" x2="270" y2="210" stroke="#2e7d32" stroke-width="2" opacity="0"/>
+            <!-- h 箭头 -->
+            <polygon id="scene1-h-arrow-top" points="270,140 265,155 275,155" fill="#2e7d32" opacity="0"/>
+            <polygon id="scene1-h-arrow-bottom" points="270,220 265,205 275,205" fill="#2e7d32" opacity="0"/>
+            <text id="scene1-label-h" x="210" y="175" font-size="14" fill="#2e7d32" opacity="0">h=l(1-cosα)</text>
+            
+            <!-- 速度向量 v (步骤3显示) -->
+            <line id="scene1-velocity-v" x1="250" y1="210" x2="330" y2="210" stroke="#1565c0" stroke-width="3" opacity="0"/>
+            <polygon id="scene1-v-arrow" points="340,210 325,205 325,215" fill="#1565c0" opacity="0"/>
+            <text id="scene1-label-v" x="290" y="195" font-size="14" fill="#1565c0" opacity="0">v</text>
+            
+            <!-- 机械能守恒公式 (步骤3显示) -->
+            <text id="scene1-label-formula" x="450" y="150" font-size="16" fill="#000" opacity="0">
+                <tspan x="450" dy="0">机械能守恒:</tspan>
+                <tspan x="450" dy="25">mgh = ½mv²</tspan>
+            </text>
+            
+            <!-- 控件栏 -->
+            <g id="scene1-controls">
+                <rect x="320" y="455" width="160" height="35" fill="#f5f5f5" stroke="#ccc" rx="4"/>
+                <text id="scene1-step-indicator" x="400" y="478" font-size="14" text-anchor="middle" fill="#333">步骤 0/3</text>
+            </g>
+        </svg>
+        
+        <!-- HTML 按钮控件 -->
+        <div style="position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px;">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 坐标表参考:
+        // 悬挂点 O: (250, 60)
+        // 初始质点: (130, 150)
+        // 最低点质点: (250, 210)
+        // 水面: y=345
+        // 高度 H 标注线: x=320, y=60~345
+        // 高度 h 标注线: x=270, y=150~210
+        
+        let currentStep = 0;
+        const totalSteps = 3;
+        
+        // 步骤定义
+        const steps = [
+            {
+                // 步骤 0: 初始状态
+                show: ['scene1-suspend-point', 'scene1-rope-initial', 'scene1-mass-initial', 
+                       'scene1-vertical-ref', 'scene1-angle-arc', 'scene1-water-surface', 
+                       'scene1-shore', 'scene1-platform', 'scene1-height-H',
+                       'scene1-label-O', 'scene1-label-l', 'scene1-label-alpha', 
+                       'scene1-label-H', 'scene1-label-m'],
+                hide: ['scene1-rope-lowest', 'scene1-mass-lowest', 'scene1-trajectory', 
+                       'scene1-height-h', 'scene1-h-arrow-top', 'scene1-h-arrow-bottom',
+                       'scene1-velocity-v', 'scene1-v-arrow', 'scene1-label-h', 
+                       'scene1-label-v', 'scene1-label-formula']
+            },
+            {
+                // 步骤 1: 显示摆动轨迹和最低点
+                show: ['scene1-suspend-point', 'scene1-rope-initial', 'scene1-mass-initial', 
+                       'scene1-vertical-ref', 'scene1-angle-arc', 'scene1-water-surface', 
+                       'scene1-shore', 'scene1-platform', 'scene1-height-H',
+                       'scene1-label-O', 'scene1-label-l', 'scene1-label-alpha', 
+                       'scene1-label-H', 'scene1-label-m',
+                       'scene1-rope-lowest', 'scene1-mass-lowest', 'scene1-trajectory'],
+                hide: ['scene1-height-h', 'scene1-h-arrow-top', 'scene1-h-arrow-bottom',
+                       'scene1-velocity-v', 'scene1-v-arrow', 'scene1-label-h', 
+                       'scene1-label-v', 'scene1-label-formula']
+            },
+            {
+                // 步骤 2: 显示高度差 h
+                show: ['scene1-suspend-point', 'scene1-rope-initial', 'scene1-mass-initial', 
+                       'scene1-vertical-ref', 'scene1-angle-arc', 'scene1-water-surface', 
+                       'scene1-shore', 'scene1-platform', 'scene1-height-H',
+                       'scene1-label-O', 'scene1-label-l', 'scene1-label-alpha', 
+                       'scene1-label-H', 'scene1-label-m',
+                       'scene1-rope-lowest', 'scene1-mass-lowest', 'scene1-trajectory',
+                       'scene1-height-h', 'scene1-h-arrow-top', 'scene1-h-arrow-bottom', 'scene1-label-h'],
+                hide: ['scene1-velocity-v', 'scene1-v-arrow', 'scene1-label-v', 'scene1-label-formula']
+            },
+            {
+                // 步骤 3: 显示速度和机械能守恒公式
+                show: ['scene1-suspend-point', 'scene1-rope-initial', 'scene1-mass-initial', 
+                       'scene1-vertical-ref', 'scene1-angle-arc', 'scene1-water-surface', 
+                       'scene1-shore', 'scene1-platform', 'scene1-height-H',
+                       'scene1-label-O', 'scene1-label-l', 'scene1-label-alpha', 
+                       'scene1-label-H', 'scene1-label-m',
+                       'scene1-rope-lowest', 'scene1-mass-lowest', 'scene1-trajectory',
+                       'scene1-height-h', 'scene1-h-arrow-top', 'scene1-h-arrow-bottom', 'scene1-label-h',
+                       'scene1-velocity-v', 'scene1-v-arrow', 'scene1-label-v', 'scene1-label-formula'],
+                hide: []
+            }
+        ];
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                if (el.tagName === 'line' || el.tagName === 'circle' || el.tagName === 'path' || 
+                    el.tagName === 'polygon' || el.tagName === 'rect' || el.tagName === 'text') {
+                    el.removeAttribute('opacity');
+                } else {
+                    el.style.display = 'block';
+                }
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.tagName === 'line' || el.tagName === 'circle' || el.tagName === 'path' || 
+                    el.tagName === 'polygon' || el.tagName === 'rect' || el.tagName === 'text') {
+                    el.setAttribute('opacity', '0');
+                } else {
+                    el.style.display = 'none';
+                }
+            }
+        }
+        
+        function updateStep() {
+            const step = steps[currentStep];
+            
+            // 显示该步骤应显示的元素
+            step.show.forEach(id => showElement(id));
+            
+            // 隐藏该步骤应隐藏的元素
+            step.hide.forEach(id => hideElement(id));
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = currentStep === 0;
+            document.getElementById('scene1-btn-next').disabled = currentStep === totalSteps;
+        }
+        
+        function stepForward() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        }
+        
+        function stepBackward() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+        
+        // 绑定事件
+        document.getElementById('scene1-btn-next').addEventListener('click', stepForward);
+        document.getElementById('scene1-btn-prev').addEventListener('click', stepBackward);
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

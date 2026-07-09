@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑轮组水平拉动物体 - 受力分析与机械效率</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 20px; border: 2px solid #1565c0; background: #ffffff; color: #1565c0; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; transition: all 0.2s; }
+        .scene1-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 墙壁斜线填充 -->
+                <pattern id="scene1-wall-hatch" patternUnits="userSpaceOnUse" width="8" height="8">
+                    <path d="M0,8 L8,0" stroke="#000" stroke-width="1"/>
+                </pattern>
+                <!-- 地面斜线填充 -->
+                <pattern id="scene1-ground-hatch" patternUnits="userSpaceOnUse" width="8" height="8">
+                    <path d="M0,0 L8,8" stroke="#000" stroke-width="1"/>
+                </pattern>
+                <!-- 箭头标记 -->
+                <marker id="scene1-arrow-black" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000"/>
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- ===== 静态基础结构 ===== -->
+
+            <!-- 墙壁 -->
+            <rect x="20" y="80" width="30" height="300" fill="#f5f5f5" stroke="#000" stroke-width="2"/>
+            <rect x="20" y="80" width="30" height="300" fill="url(#scene1-wall-hatch)" opacity="0.5"/>
+
+            <!-- 地面 -->
+            <line x1="0" y1="360" x2="800" y2="360" stroke="#000" stroke-width="2"/>
+            <rect x="0" y="360" width="800" height="20" fill="url(#scene1-ground-hatch)" opacity="0.3"/>
+
+            <!-- 定滑轮固定杆 -->
+            <line x1="50" y1="200" x2="65" y2="200" stroke="#000" stroke-width="3"/>
+
+            <!-- 定滑轮 -->
+            <circle id="scene1-pulley-fixed" cx="100" cy="200" r="35" fill="none" stroke="#000" stroke-width="2"/>
+            <circle cx="100" cy="200" r="3" fill="#000"/>
+
+            <!-- 定滑轮钩子 -->
+            <path d="M135,200 C140,200 143,205 140,210" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- 动滑轮 -->
+            <circle id="scene1-pulley-moving" cx="260" cy="200" r="35" fill="none" stroke="#000" stroke-width="2"/>
+            <circle cx="260" cy="200" r="3" fill="#000"/>
+
+            <!-- 动滑轮连接杆（到物体A） -->
+            <line x1="295" y1="200" x2="340" y2="200" stroke="#000" stroke-width="3"/>
+
+            <!-- 物体A -->
+            <rect id="scene1-box-a" x="340" y="140" width="80" height="120" fill="none" stroke="#000" stroke-width="2"/>
+            <text x="380" y="208" text-anchor="middle" font-size="20" fill="#000" font-weight="bold">A</text>
+
+            <!-- 绳子（初始为细黑线） -->
+            <g id="scene1-ropes">
+                <line id="scene1-rope1" x1="100" y1="165" x2="260" y2="165" stroke="#000" stroke-width="1.5"/>
+                <line id="scene1-rope2" x1="100" y1="200" x2="260" y2="200" stroke="#000" stroke-width="1.5"/>
+                <line id="scene1-rope3" x1="100" y1="235" x2="260" y2="235" stroke="#000" stroke-width="1.5"/>
+            </g>
+
+            <!-- ===== 已知条件标注（步骤0即显示） ===== -->
+
+            <!-- F=5N -->
+            <g id="scene1-label-f">
+                <line x1="420" y1="165" x2="310" y2="165" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+                <text x="365" y="155" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">F=5N</text>
+            </g>
+
+            <!-- v物=1m/s -->
+            <g id="scene1-label-v">
+                <line x1="340" y1="120" x2="450" y2="120" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-green)"/>
+                <text x="395" y="110" text-anchor="middle" font-size="13" fill="#2e7d32" font-weight="bold">v<sub>物</sub>=1m/s</text>
+            </g>
+
+            <!-- G=50N -->
+            <g id="scene1-label-g">
+                <line x1="380" y1="260" x2="380" y2="345" stroke="#000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="400" y="310" font-size="13" fill="#000" font-weight="bold">G=50N</text>
+            </g>
+
+            <!-- η=80% -->
+            <g id="scene1-label-eta">
+                <rect x="520" y="80" width="100" height="30" rx="4" fill="#ffffff" stroke="#1565c0" stroke-width="2" opacity="0.9"/>
+                <text x="570" y="100" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">η=80%</text>
+            </g>
+
+            <!-- ===== 步骤1：绳子标记 ===== -->
+            <g id="scene1-step1-marks" style="display:none; opacity:0;">
+                <text x="180" y="155" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">①</text>
+                <text x="180" y="195" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">②</text>
+                <text x="180" y="250" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">③</text>
+            </g>
+
+            <!-- ===== 步骤2：受力分析 ===== -->
+            <g id="scene1-step2-forces" style="display:none; opacity:0;">
+                <!-- 支持力N -->
+                <line x1="380" y1="60" x2="380" y2="100" stroke="#000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="400" y="45" font-size="13" fill="#000" font-weight="bold">N=50N</text>
+
+                <!-- 摩擦力f -->
+                <line x1="300" y1="200" x2="240" y2="200" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)"/>
+                <text id="scene1-label-f-text" x="230" y="190" text-anchor="end" font-size="13" fill="#c62828" font-weight="bold">f=?</text>
+
+                <!-- 拉力T -->
+                <line x1="420" y1="200" x2="455" y2="200" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+                <text id="scene1-label-t-text" x="470" y="195" font-size="13" fill="#1565c0" font-weight="bold">T=?</text>
+            </g>
+
+            <!-- 步骤2提示文字 -->
+            <g id="scene1-step2-hint" style="display:none; opacity:0;">
+                <text x="400" y="390" text-anchor="middle" font-size="13" fill="#888888">匀速直线运动 → 合力为0 → T = f</text>
+            </g>
+
+            <!-- ===== 公式框 ===== -->
+            <g id="scene1-formula-box" style="display:none; opacity:0;">
+                <rect x="520" y="120" width="260" height="180" rx="6" fill="#ffffff" stroke="#1565c0" stroke-width="2" opacity="0.95"/>
+                <g id="scene1-formula-content">
+                    <!-- 动态内容 -->
+                </g>
+            </g>
+
+            <!-- ===== 选项卡片（步骤5） ===== -->
+            <g id="scene1-options" style="display:none; opacity:0;">
+                <!-- 选项A -->
+                <rect x="80" y="400" width="150" height="40" rx="4" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
+                <text x="155" y="424" text-anchor="middle" font-size="13" fill="#c62828">A. 合力为5N ×</text>
+
+                <!-- 选项B -->
+                <rect x="250" y="400" width="150" height="40" rx="4" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+                <text x="325" y="424" text-anchor="middle" font-size="13" fill="#2e7d32">B. f=12N ✓</text>
+
+                <!-- 选项C -->
+                <rect x="420" y="400" width="150" height="40" rx="4" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
+                <text x="495" y="424" text-anchor="middle" font-size="13" fill="#c62828">C. P=5W ×</text>
+
+                <!-- 选项D -->
+                <rect x="590" y="400" width="150" height="40" rx="4" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
+                <text x="665" y="424" text-anchor="middle" font-size="13" fill="#c62828">D. W=500J ×</text>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() { 'use strict';
+
+        var currentStep = 0;
+        var maxStep = 5;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+
+        function show(el) {
+            el.style.display = '';
+            el.style.opacity = '1';
+        }
+
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        function setFormula(step) {
+            var content = document.getElementById('scene1-formula-content');
+            var lines = [];
+
+            if (step === 1) {
+                lines = [
+                    { y: 155, text: 'v\u{7ef3} = n\u00b7v\u{7269} = 3\u00d71m/s = 3m/s' }
+                ];
+            } else if (step === 2) {
+                lines = [
+                    { y: 155, text: '匀速直线运动 \u2192 合力为0' },
+                    { y: 180, text: 'T = f' }
+                ];
+            } else if (step === 3) {
+                lines = [
+                    { y: 145, text: '\u03b7 = W\u{6709}\u{7528}/W\u{603b}' },
+                    { y: 170, text: '= f\u00b7s\u{7269}/(F\u00b7s\u{7ef3})' },
+                    { y: 195, text: '= f/(nF)' },
+                    { y: 220, text: '80% = f/(3\u00d75N)' },
+                    { y: 245, text: 'f = 12N' }
+                ];
+            } else if (step === 4) {
+                lines = [
+                    { y: 145, text: 'P = F\u00b7v\u{7ef3} = 5N\u00d73m/s = 15W' },
+                    { y: 170, text: 'W\u{6709}\u{7528}(10s) = f\u00b7s\u{7269}' },
+                    { y: 195, text: '= 12N\u00d7(1m/s\u00d710s) = 120J' }
+                ];
+            }
+
+            content.innerHTML = '';
+            lines.forEach(function(line) {
+                var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', '650');
+                text.setAttribute('y', line.y);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '14');
+                text.setAttribute('fill', '#000');
+                text.textContent = line.text;
+                content.appendChild(text);
+            });
+        }
+
+        function renderStep(step) {
+            var rope1 = document.getElementById('scene1-rope1');
+            var rope2 = document.getElementById('scene1-rope2');
+            var rope3 = document.getElementById('scene1-rope3');
+            var step1Marks = document.getElementById('scene1-step1-marks');
+            var step2Forces = document.getElementById('scene1-step2-forces');
+            var step2Hint = document.getElementById('scene1-step2-hint');
+            var formulaBox = document.getElementById('scene1-formula-box');
+            var options = document.getElementById('scene1-options');
+            var labelFText = document.getElementById('scene1-label-f-text');
+            var labelTText = document.getElementById('scene1-label-t-text');
+
+            // 重置绳子
+            rope1.setAttribute('stroke', '#000');
+            rope1.setAttribute('stroke-width', '1.5');
+            rope2.setAttribute('stroke', '#000');
+            rope2.setAttribute('stroke-width', '1.5');
+            rope3.setAttribute('stroke', '#000');
+            rope3.setAttribute('stroke-width', '1.5');
+
+            // 重置动态元素
+            hide(step1Marks);
+            hide(step2Forces);
+            hide(step2Hint);
+            hide(formulaBox);
+            hide(options);
+            labelFText.textContent = 'f=?';
+            labelTText.textContent = 'T=?';
+
+            if (step >= 1) {
+                rope1.setAttribute('stroke', '#1565c0');
+                rope1.setAttribute('stroke-width', '3');
+                rope2.setAttribute('stroke', '#1565c0');
+                rope2.setAttribute('stroke-width', '3');
+                rope3.setAttribute('stroke', '#1565c0');
+                rope3.setAttribute('stroke-width', '3');
+                show(step1Marks);
+                show(formulaBox);
+                setFormula(1);
+            }
+
+            if (step >= 2) {
+                show(step2Forces);
+                show(step2Hint);
+                show(formulaBox);
+                setFormula(2);
+            }
+
+            if (step >= 3) {
+                labelFText.textContent = 'f=12N';
+                labelTText.textContent = 'T=12N';
+                show(formulaBox);
+                setFormula(3);
+            }
+
+            if (step >= 4) {
+                show(formulaBox);
+                setFormula(4);
+            }
+
+            if (step >= 5) {
+                show(options);
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === maxStep);
+        }
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染
+        renderStep(0);
+
+    })();
+    </script>
+</body>
+</html>

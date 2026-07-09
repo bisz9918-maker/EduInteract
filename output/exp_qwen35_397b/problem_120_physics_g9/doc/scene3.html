@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功率比例与方程求解</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #1565c0; background: #e3f2fd; border-radius: 4px; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene3-step-indicator { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 标题 -->
+            <text id="scene3-title" x="400" y="40" text-anchor="middle" font-size="16px" font-weight="bold">功率比例与方程求解</text>
+            
+            <!-- 功率比例框（步骤 0 始终显示） -->
+            <rect id="scene3-ratio-box" x="250" y="60" width="300" height="40" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene3-ratio-text" x="400" y="85" text-anchor="middle" font-size="18px" fill="#1565c0" font-weight="bold">P_max : P_min = 9 : 4</text>
+            
+            <!-- 步骤 1 框 -->
+            <g id="scene3-step1" style="display: none;">
+                <rect x="100" y="120" width="600" height="40" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1"/>
+                <text x="400" y="145" text-anchor="middle" font-size="14px">P = I²R_L → P_max = I_max²R_L, P_min = I_min²R_L</text>
+            </g>
+            
+            <!-- 步骤 2 框 -->
+            <g id="scene3-step2" style="display: none;">
+                <rect x="100" y="175" width="600" height="40" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1"/>
+                <text x="400" y="200" text-anchor="middle" font-size="14px">P_max/P_min = I_max²/I_min² = 9/4</text>
+            </g>
+            
+            <!-- 步骤 3 框 -->
+            <g id="scene3-step3" style="display: none;">
+                <rect x="100" y="230" width="600" height="40" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1"/>
+                <text x="400" y="255" text-anchor="middle" font-size="14px">I_max/I_min = 3/2 → I_max = 0.3A (∵I_min=0.2A)</text>
+            </g>
+            
+            <!-- 步骤 4 框 -->
+            <g id="scene3-step4" style="display: none;">
+                <rect x="100" y="285" width="600" height="40" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1"/>
+                <text x="400" y="310" text-anchor="middle" font-size="14px">U = I_min(R_L+R) = I_max(R_L+R/2) → 解得 R_L=20Ω, U=12V</text>
+            </g>
+            
+            <!-- 步骤 5：结果汇总和选项验证 -->
+            <g id="scene3-step5" style="display: none;">
+                <!-- 结果汇总框 -->
+                <rect x="100" y="340" width="600" height="40" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+                <text x="400" y="365" text-anchor="middle" font-size="14px" fill="#2e7d32" font-weight="bold">R_L=20Ω | R=20Ω | U=12V | P_max=1.8W</text>
+                
+                <!-- 选项 A 框（错误） -->
+                <rect x="120" y="400" width="130" height="35" fill="#ffebee" stroke="#c62828" stroke-width="2"/>
+                <text x="185" y="422" text-anchor="middle" font-size="12px" fill="#c62828">A. U=10V ✗</text>
+                
+                <!-- 选项 B 框（正确） -->
+                <rect x="270" y="400" width="130" height="35" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+                <text x="335" y="422" text-anchor="middle" font-size="12px" fill="#2e7d32">B. R_L=20Ω ✓</text>
+                
+                <!-- 选项 C 框（错误，实际 R=20Ω不是 40Ω） -->
+                <rect x="420" y="400" width="130" height="35" fill="#ffebee" stroke="#c62828" stroke-width="2"/>
+                <text x="485" y="422" text-anchor="middle" font-size="12px" fill="#c62828">C. R=40Ω ✗</text>
+                
+                <!-- 选项 D 框（正确） -->
+                <rect x="570" y="400" width="130" height="35" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+                <text x="635" y="422" text-anchor="middle" font-size="12px" fill="#2e7d32">D. P_max=1.8W ✓</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏：HTML 按钮 -->
+        <button id="scene3-btn-prev" class="scene3-btn" style="position: absolute; left: 280px; bottom: 45px;" disabled>◀ 上一步</button>
+        <button id="scene3-btn-next" class="scene3-btn" style="position: absolute; left: 440px; bottom: 45px;">下一步 ▶</button>
+        <div id="scene3-step-indicator-html" class="scene3-step-indicator">步骤 0/5</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 功率比例与方程求解
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // |------|------|-----------|------|------|
+        // | 标题区 | 文本 | (400,40) | 200×30 | 居中 |
+        // | 功率比例框 | 矩形 | (250,60)-(550,100) | 300×40 | #1565c0 边框 |
+        // | 步骤 1 框 | 矩形 | (100,120)-(700,160) | 600×40 | P 表达式 |
+        // | 步骤 2 框 | 矩形 | (100,175)-(700,215) | 600×40 | 比例方程 |
+        // | 步骤 3 框 | 矩形 | (100,230)-(700,270) | 600×40 | 求解 R_L |
+        // | 步骤 4 框 | 矩形 | (100,285)-(700,325) | 600×40 | 求解 U |
+        // | 结果汇总框 | 矩形 | (100,340)-(700,380) | 600×40 | 最终结果 |
+        // | 选项 A-D 框 | 矩形 | (120-700,400)-(250-435) | 130×35 | 验证选项 |
+        // | 上一步按钮 | 按钮 | (280,455) | 80×30 | 控件栏左侧 |
+        // | 下一步按钮 | 按钮 | (440,455) | 80×30 | 控件栏右侧 |
+        // | 步骤指示器 | 文本 | (400,465) | 100×20 | "步骤 X/5"居中 |
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const indicatorHtml = document.getElementById('scene3-step-indicator-html');
+        
+        // 显示/隐藏元素工具函数
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有步骤
+            for (let i = 1; i <= totalSteps; i++) {
+                hideElement('scene3-step' + i);
+            }
+            
+            // 显示当前步骤及之前的所有步骤
+            for (let i = 1; i <= currentStep; i++) {
+                showElement('scene3-step' + i);
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            
+            // 更新步骤指示器
+            indicatorHtml.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+        }
+        
+        // 上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        // 下一步
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

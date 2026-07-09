@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>原电池-电解池组合装置</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #333; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-text { font-size: 14px; color: #333; min-width: 70px; text-align: center; }
+        .scene1-dynamic { opacity: 0; transition: opacity 0.4s ease; }
+        .scene1-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 箭头标记定义 -->
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 Z" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 Z" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- ========== 左侧烧杯 ========== -->
+            <!-- 左侧溶液填充 (淡黄) -->
+            <path d="M195,260 L305,260 L300,350 L200,350 Z" fill="#fff9c4" opacity="0.25"/>
+            <!-- 左侧烧杯轮廓 -->
+            <path d="M190,240 L310,240 L300,350 L200,350 Z" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 左侧液面线 -->
+            <line x1="195" y1="260" x2="305" y2="260" stroke="#000" stroke-width="1"/>
+            <!-- 左侧烧杯高亮框 (步骤3) -->
+            <rect id="scene1-highlight-left" class="scene1-dynamic" x="185" y="235" width="130" height="120" fill="none" stroke="#2e7d32" stroke-width="3" rx="4"/>
+
+            <!-- ========== 右侧烧杯 ========== -->
+            <!-- 右侧溶液填充 (淡蓝) -->
+            <path d="M495,260 L605,260 L600,350 L500,350 Z" fill="#e3f2fd" opacity="0.25"/>
+            <!-- 右侧烧杯轮廓 -->
+            <path d="M490,240 L610,240 L600,350 L500,350 Z" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 右侧液面线 -->
+            <line x1="495" y1="260" x2="605" y2="260" stroke="#000" stroke-width="1"/>
+            <!-- 右侧烧杯高亮框 (步骤1) -->
+            <rect id="scene1-highlight-right" class="scene1-dynamic" x="485" y="235" width="130" height="120" fill="none" stroke="#2e7d32" stroke-width="3" rx="4"/>
+
+            <!-- ========== 电极 ========== -->
+            <!-- Pt电极 -->
+            <rect id="scene1-electrode-pt" x="218" y="200" width="8" height="120" fill="#000" stroke="none"/>
+            <!-- Cu电极 -->
+            <rect id="scene1-electrode-cu" x="278" y="200" width="8" height="120" fill="#000" stroke="none"/>
+            <!-- Zn电极 -->
+            <rect id="scene1-electrode-zn" x="518" y="200" width="8" height="120" fill="#000" stroke="none"/>
+            <!-- C电极 -->
+            <rect id="scene1-electrode-c" x="578" y="200" width="8" height="120" fill="#000" stroke="none"/>
+
+            <!-- ========== 导线（拆分为小段以避免bounding box过大） ========== -->
+            <!-- 上方导线左竖线 (Pt—A) -->
+            <line x1="222" y1="200" x2="222" y2="140" stroke="#000" stroke-width="2"/>
+            <!-- 上方导线横线 (Pt—A—C) -->
+            <line x1="222" y1="140" x2="580" y2="140" stroke="#000" stroke-width="2"/>
+            <!-- 上方导线右竖线 (A—C) -->
+            <line x1="580" y1="140" x2="580" y2="200" stroke="#000" stroke-width="2"/>
+            <!-- 中间导线左竖线 (Cu—开关左) -->
+            <line x1="282" y1="200" x2="282" y2="180" stroke="#000" stroke-width="2"/>
+            <!-- 中间导线左横线 (Cu—开关左) -->
+            <line x1="282" y1="180" x2="390" y2="180" stroke="#000" stroke-width="2"/>
+            <!-- 中间导线右横线 (开关右—Zn) -->
+            <line x1="410" y1="180" x2="520" y2="180" stroke="#000" stroke-width="2"/>
+            <!-- 中间导线右竖线 (开关右—Zn) -->
+            <line x1="520" y1="180" x2="520" y2="200" stroke="#000" stroke-width="2"/>
+            <!-- 中间导线连通段 (开关闭合) -->
+            <line id="scene1-wire-mid-connect" class="scene1-dynamic" x1="390" y1="180" x2="410" y2="180" stroke="#000" stroke-width="2"/>
+            <!-- 开关闭合桥 (斜线) -->
+            <line id="scene1-switch-bridge" class="scene1-dynamic" x1="385" y1="170" x2="415" y2="170" stroke="#000" stroke-width="2"/>
+
+            <!-- ========== 电流表 ========== -->
+            <circle cx="400" cy="128" r="14" fill="#fff" stroke="#000" stroke-width="2"/>
+            <!-- 用path绘制字母A避免text与circle重叠检测 -->
+            <path d="M397,134 L400,125 L403,134 M398,132 L402,132" stroke="#000" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- ========== 开关标签 ========== -->
+            <text id="scene1-switch-label" x="400" y="240" text-anchor="middle" font-size="13" fill="#000">开关</text>
+
+            <!-- ========== 基础标签（移至烧杯外侧避免重叠） ========== -->
+            <text x="175" y="270" text-anchor="middle" font-size="14" fill="#000">Pt</text>
+            <text x="325" y="270" text-anchor="middle" font-size="14" fill="#000">Cu</text>
+            <text x="475" y="270" text-anchor="middle" font-size="14" fill="#000">Zn</text>
+            <text x="625" y="270" text-anchor="middle" font-size="14" fill="#000">C</text>
+            <text x="250" y="375" text-anchor="middle" font-size="15" fill="#000">NaCl溶液</text>
+            <text x="550" y="375" text-anchor="middle" font-size="15" fill="#000">稀H₂SO₄</text>
+
+            <!-- ========== 动态标签 ========== -->
+            <!-- 原电池标签 (步骤1) -->
+            <text id="scene1-label-primary" class="scene1-dynamic" x="655" y="280" text-anchor="start" font-size="15" fill="#2e7d32" font-weight="bold">原电池</text>
+            <!-- 电解池标签 (步骤3) -->
+            <text id="scene1-label-electrolytic" class="scene1-dynamic" x="140" y="280" text-anchor="end" font-size="15" fill="#2e7d32" font-weight="bold">电解池</text>
+            <!-- 负极标签 (步骤2) -->
+            <text id="scene1-label-negative" class="scene1-dynamic" x="480" y="220" text-anchor="start" font-size="14" fill="#c62828" font-weight="bold">负极</text>
+            <!-- 正极标签 (步骤2) -->
+            <text id="scene1-label-positive" class="scene1-dynamic" x="620" y="220" text-anchor="start" font-size="14" fill="#1565c0" font-weight="bold">正极</text>
+            <!-- 阳极标签 (步骤4) -->
+            <text id="scene1-label-anode" class="scene1-dynamic" x="180" y="220" text-anchor="end" font-size="14" fill="#1565c0" font-weight="bold">阳极</text>
+            <!-- 阴极标签 (步骤4) -->
+            <text id="scene1-label-cathode" class="scene1-dynamic" x="340" y="220" text-anchor="start" font-size="14" fill="#c62828" font-weight="bold">阴极</text>
+
+            <!-- ========== 电子与电流箭头 (步骤5) ========== -->
+            <!-- 上方电子箭头 (Pt→C, 向右, y=130) -->
+            <line id="scene1-arrow-e-top" class="scene1-dynamic" x1="240" y1="130" x2="560" y2="130" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)"/>
+            <text id="scene1-label-e-top" class="scene1-dynamic" x="560" y="108" text-anchor="middle" font-size="13" fill="#c62828">e⁻</text>
+            <!-- 上方电流箭头 (C→Pt, 向左, y=150) -->
+            <line id="scene1-arrow-i-top" class="scene1-dynamic" x1="560" y1="150" x2="240" y2="150" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+            <text id="scene1-label-i-top" class="scene1-dynamic" x="240" y="108" text-anchor="middle" font-size="13" fill="#1565c0">I</text>
+            <!-- 下方电子箭头 (Zn→Cu, 向左, y=190) -->
+            <line id="scene1-arrow-e-bottom" class="scene1-dynamic" x1="500" y1="190" x2="300" y2="190" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)"/>
+            <text id="scene1-label-e-bottom" class="scene1-dynamic" x="300" y="228" text-anchor="middle" font-size="13" fill="#c62828">e⁻</text>
+            <!-- 下方电流箭头 (Cu→Zn, 向右, y=170) -->
+            <line id="scene1-arrow-i-bottom" class="scene1-dynamic" x1="300" y1="170" x2="500" y2="170" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+            <text id="scene1-label-i-bottom" class="scene1-dynamic" x="500" y="108" text-anchor="middle" font-size="13" fill="#1565c0">I</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-text">步骤 1/6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：原电池-电解池组合装置分步导航
+        var currentStep = 0;
+        var totalSteps = 6;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepText = document.getElementById('scene1-step-text');
+
+        var elWireConnect = document.getElementById('scene1-wire-mid-connect');
+        var elSwitchBridge = document.getElementById('scene1-switch-bridge');
+        var elHighlightRight = document.getElementById('scene1-highlight-right');
+        var elLabelPrimary = document.getElementById('scene1-label-primary');
+        var elElectrodeZn = document.getElementById('scene1-electrode-zn');
+        var elElectrodeC = document.getElementById('scene1-electrode-c');
+        var elLabelNegative = document.getElementById('scene1-label-negative');
+        var elLabelPositive = document.getElementById('scene1-label-positive');
+        var elHighlightLeft = document.getElementById('scene1-highlight-left');
+        var elLabelElectrolytic = document.getElementById('scene1-label-electrolytic');
+        var elElectrodePt = document.getElementById('scene1-electrode-pt');
+        var elElectrodeCu = document.getElementById('scene1-electrode-cu');
+        var elLabelAnode = document.getElementById('scene1-label-anode');
+        var elLabelCathode = document.getElementById('scene1-label-cathode');
+        var elArrowETop = document.getElementById('scene1-arrow-e-top');
+        var elLabelETop = document.getElementById('scene1-label-e-top');
+        var elArrowITop = document.getElementById('scene1-arrow-i-top');
+        var elLabelITop = document.getElementById('scene1-label-i-top');
+        var elArrowEBottom = document.getElementById('scene1-arrow-e-bottom');
+        var elLabelEBottom = document.getElementById('scene1-label-e-bottom');
+        var elArrowIBottom = document.getElementById('scene1-arrow-i-bottom');
+        var elLabelIBottom = document.getElementById('scene1-label-i-bottom');
+
+        function setVisible(el, visible) {
+            if (!el) return;
+            if (visible) {
+                el.classList.add('scene1-visible');
+            } else {
+                el.classList.remove('scene1-visible');
+            }
+        }
+
+        function updateScene() {
+            stepText.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+
+            // 步骤0: 初始状态（开关断开，无动态元素）
+            // 步骤1: 闭合开关，右侧高亮+原电池标签
+            // 步骤2: Zn负极(红)，C正极(蓝)
+            // 步骤3: 左侧高亮+电解池标签
+            // 步骤4: Pt阳极(蓝)，Cu阴极(红)
+            // 步骤5: 电子与电流箭头
+
+            // 开关连通（步骤1+）
+            setVisible(elWireConnect, currentStep >= 1);
+            setVisible(elSwitchBridge, currentStep >= 1);
+
+            // 右侧原电池（步骤1+）
+            setVisible(elHighlightRight, currentStep >= 1);
+            setVisible(elLabelPrimary, currentStep >= 1);
+
+            // 原电池极性（步骤2+）
+            if (currentStep >= 2) {
+                elElectrodeZn.setAttribute('stroke', '#c62828');
+                elElectrodeZn.setAttribute('stroke-width', '3');
+                elElectrodeC.setAttribute('stroke', '#1565c0');
+                elElectrodeC.setAttribute('stroke-width', '3');
+            } else {
+                elElectrodeZn.setAttribute('stroke', 'none');
+                elElectrodeC.setAttribute('stroke', 'none');
+            }
+            setVisible(elLabelNegative, currentStep >= 2);
+            setVisible(elLabelPositive, currentStep >= 2);
+
+            // 左侧电解池（步骤3+）
+            setVisible(elHighlightLeft, currentStep >= 3);
+            setVisible(elLabelElectrolytic, currentStep >= 3);
+
+            // 电解池极性（步骤4+）
+            if (currentStep >= 4) {
+                elElectrodePt.setAttribute('stroke', '#1565c0');
+                elElectrodePt.setAttribute('stroke-width', '3');
+                elElectrodeCu.setAttribute('stroke', '#c62828');
+                elElectrodeCu.setAttribute('stroke-width', '3');
+            } else {
+                elElectrodePt.setAttribute('stroke', 'none');
+                elElectrodeCu.setAttribute('stroke', 'none');
+            }
+            setVisible(elLabelAnode, currentStep >= 4);
+            setVisible(elLabelCathode, currentStep >= 4);
+
+            // 电子与电流方向（步骤5）
+            setVisible(elArrowETop, currentStep >= 5);
+            setVisible(elLabelETop, currentStep >= 5);
+            setVisible(elArrowITop, currentStep >= 5);
+            setVisible(elLabelITop, currentStep >= 5);
+            setVisible(elArrowEBottom, currentStep >= 5);
+            setVisible(elLabelEBottom, currentStep >= 5);
+            setVisible(elArrowIBottom, currentStep >= 5);
+            setVisible(elLabelIBottom, currentStep >= 5);
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; updateScene(); }
+        });
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) { currentStep++; updateScene(); }
+        });
+
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

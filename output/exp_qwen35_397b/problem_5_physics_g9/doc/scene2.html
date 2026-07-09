@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路电流路径演示</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            background: #1565c0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene2-btn:hover:not(:disabled) {
+            background: #0d47a1;
+        }
+        .scene2-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #666;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            display: none !important;
+            opacity: 0 !important;
+        }
+        .scene2-visible {
+            display: block !important;
+            opacity: 1 !important;
+        }
+        /* 电流箭头动画 */
+        .scene2-current-arrow {
+            fill: #2e7d32;
+            opacity: 0;
+        }
+        .scene2-current-arrow.active {
+            opacity: 1;
+        }
+        /* 高亮支路 */
+        .scene2-highlight-l1 {
+            stroke: #1565c0;
+            stroke-width: 4;
+            fill: rgba(21, 101, 192, 0.2);
+        }
+        .scene2-highlight-l2 {
+            stroke: #c62828;
+            stroke-width: 4;
+            fill: rgba(198, 36, 40, 0.2);
+        }
+        /* 虚线框 */
+        .scene2-dash-box {
+            fill: none;
+            stroke: #1565c0;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+            opacity: 0;
+        }
+        .scene2-dash-box.visible {
+            opacity: 1;
+        }
+        /* 结论文本框 */
+        #scene2-conclusion-box {
+            fill: #f5f5f5;
+            stroke: #9e9e9e;
+            stroke-width: 1;
+            opacity: 0;
+        }
+        #scene2-conclusion-box.visible {
+            opacity: 1;
+        }
+        #scene2-conclusion-text {
+            font-size: 12px;
+            fill: #333;
+            opacity: 0;
+        }
+        #scene2-conclusion-text.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <polygon points="0,0 10,4 0,8" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 电源（电池组）左上角 (50,50)-(150,150) -->
+            <g id="scene2-power">
+                <rect x="50" y="50" width="100" height="100" fill="#e0e0e0" stroke="#000" stroke-width="2"/>
+                <line x1="70" y1="50" x2="70" y2="70" stroke="#000" stroke-width="3"/>
+                <line x1="90" y1="50" x2="90" y2="70" stroke="#000" stroke-width="3"/>
+                <line x1="110" y1="50" x2="110" y2="70" stroke="#000" stroke-width="3"/>
+                <line x1="130" y1="50" x2="130" y2="70" stroke="#000" stroke-width="3"/>
+                <text x="155" y="75" font-size="16" fill="#000" id="scene2-label-plus">+</text>
+                <text x="35" y="140" font-size="16" fill="#000" id="scene2-label-minus">-</text>
+            </g>
+
+            <!-- 电流表 中央偏上 (350,80)-(450,200) -->
+            <g id="scene2-ammeter">
+                <circle cx="400" cy="140" r="40" fill="#fff" stroke="#000" stroke-width="2"/>
+                <text x="400" y="145" font-size="20" fill="#000" text-anchor="middle" id="scene2-label-a">A</text>
+                <line x1="380" y1="180" x2="380" y2="200" stroke="#000" stroke-width="3"/>
+                <line x1="420" y1="180" x2="420" y2="200" stroke="#000" stroke-width="3"/>
+                <text x="380" y="215" font-size="10" fill="#666" text-anchor="middle">-</text>
+                <text x="420" y="215" font-size="10" fill="#666" text-anchor="middle">+</text>
+            </g>
+
+            <!-- 开关 右上角 (600,50)-(700,120) -->
+            <g id="scene2-switch">
+                <rect x="620" y="80" width="60" height="30" fill="#fff" stroke="#000" stroke-width="2"/>
+                <circle cx="630" cy="95" r="4" fill="#000"/>
+                <circle cx="670" cy="95" r="4" fill="#000"/>
+                <line x1="630" y1="95" x2="670" y2="95" stroke="#000" stroke-width="3"/>
+            </g>
+
+            <!-- 灯L₁ 左下角 (100,300)-(200,400) -->
+            <g id="scene2-lamp1">
+                <circle cx="150" cy="350" r="30" fill="#fff" stroke="#000" stroke-width="2"/>
+                <line x1="135" y1="335" x2="165" y2="365" stroke="#000" stroke-width="2"/>
+                <line x1="165" y1="335" x2="135" y2="365" stroke="#000" stroke-width="2"/>
+                <text x="150" y="390" font-size="14" fill="#000" text-anchor="middle" id="scene2-label-l1">L₁</text>
+            </g>
+
+            <!-- 灯L₂ 右下角 (600,300)-(700,400) -->
+            <g id="scene2-lamp2">
+                <circle cx="650" cy="350" r="30" fill="#fff" stroke="#000" stroke-width="2"/>
+                <line x1="635" y1="335" x2="665" y2="365" stroke="#000" stroke-width="2"/>
+                <line x1="665" y1="335" x2="635" y2="365" stroke="#000" stroke-width="2"/>
+                <text x="650" y="390" font-size="14" fill="#000" text-anchor="middle" id="scene2-label-l2">L₂</text>
+            </g>
+
+            <!-- 导线 -->
+            <g id="scene2-wires" stroke="#000" stroke-width="2" fill="none">
+                <!-- 导线1: 电源正极 → 电流表正接线柱 -->
+                <path id="scene2-wire-1" d="M 150,70 Q 250,70 250,140 Q 250,200 380,200 L 380,180"/>
+                <!-- 导线2: 电流表负接线柱 → 分流节点 -->
+                <path id="scene2-wire-2" d="M 420,180 L 420,200 Q 420,250 500,250"/>
+                <!-- 导线3: 分流节点 → 开关 -->
+                <path id="scene2-wire-3" d="M 500,250 Q 550,250 550,150 Q 550,95 620,95"/>
+                <!-- 导线4: 开关 → L₂右端 -->
+                <path id="scene2-wire-4" d="M 670,95 Q 700,95 700,200 Q 700,300 680,350"/>
+                <!-- 导线5: 分流节点 → L₁右端 -->
+                <path id="scene2-wire-5" d="M 500,250 Q 400,250 400,300 Q 400,350 180,350"/>
+                <!-- 导线6: L₁左端 → 汇合点 -->
+                <path id="scene2-wire-6" d="M 120,350 Q 80,350 80,400 Q 80,450 150,450"/>
+                <!-- 导线7: L₂左端 → 汇合点 -->
+                <path id="scene2-wire-7" d="M 620,350 Q 550,350 550,400 Q 550,450 450,450"/>
+                <!-- 导线8: 汇合点 → 电源负极 -->
+                <path id="scene2-wire-8" d="M 150,450 Q 100,450 80,400 Q 60,300 50,150"/>
+            </g>
+
+            <!-- 分流节点和汇合节点 -->
+            <circle id="scene2-node-split" cx="500" cy="250" r="6" fill="#000"/>
+            <circle id="scene2-node-merge1" cx="150" cy="450" r="5" fill="#000"/>
+            <circle id="scene2-node-merge2" cx="450" cy="450" r="5" fill="#000"/>
+
+            <!-- 电流箭头（初始隐藏） -->
+            <g id="scene2-arrows" class="scene2-hidden">
+                <!-- 箭头1: 电源→电流表 -->
+                <polygon id="scene2-arrow-1" class="scene2-current-arrow" points="0,0 10,4 0,8"/>
+                <!-- 箭头2: 分流→L₁ -->
+                <polygon id="scene2-arrow-2" class="scene2-current-arrow" points="0,0 10,4 0,8"/>
+                <!-- 箭头3: 分流→L₂ -->
+                <polygon id="scene2-arrow-3" class="scene2-current-arrow" points="0,0 10,4 0,8"/>
+            </g>
+
+            <!-- 支路高亮层（初始隐藏） -->
+            <g id="scene2-highlights" class="scene2-hidden">
+                <!-- L₁支路高亮 -->
+                <path id="scene2-highlight-l1-path" class="scene2-highlight-l1" 
+                      d="M 420,180 L 420,200 Q 420,250 400,250 Q 300,250 300,300 Q 300,350 180,350"
+                      opacity="0"/>
+                <!-- L₂支路高亮 -->
+                <path id="scene2-highlight-l2-path" class="scene2-highlight-l2"
+                      d="M 500,250 Q 550,250 550,150 Q 550,95 620,95 L 670,95 Q 700,95 700,200 Q 700,300 680,350"
+                      opacity="0"/>
+            </g>
+
+            <!-- 虚线框（标识电流表与L₁串联） -->
+            <rect id="scene2-dash-box" class="scene2-dash-box" x="100" y="50" width="350" height="350"/>
+
+            <!-- 电流标签 -->
+            <text id="scene2-label-i1" x="350" y="280" font-size="14" fill="#1565c0" class="scene2-hidden">I₁</text>
+            <text id="scene2-label-i2" x="580" y="200" font-size="14" fill="#c62828" class="scene2-hidden">I₂</text>
+
+            <!-- 结论文本框 -->
+            <rect id="scene2-conclusion-box" x="650" y="50" width="130" height="120" rx="5"/>
+            <text id="scene2-conclusion-text" x="715" y="80" font-size="12" fill="#333" text-anchor="middle" class="scene2-hidden">
+                <tspan x="715" dy="0">电流表与L₁串联</tspan>
+                <tspan x="715" dy="18">测量通过L₁的电流</tspan>
+                <tspan x="715" dy="18">答案：A</tspan>
+            </text>
+
+            <!-- 控件栏（放在SVG内部底部） -->
+            <g id="scene2-controls">
+                <rect x="250" y="450" width="300" height="40" fill="none"/>
+                <text id="scene2-step-indicator" x="400" y="445" font-size="14" fill="#666" text-anchor="middle">步骤 0/4</text>
+            </g>
+        </svg>
+
+        <!-- HTML 按钮控件 -->
+        <div id="scene2-controls-html" style="position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10;">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 电流路径动态演示
+
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 4;
+
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 箭头元素
+        const arrow1 = document.getElementById('scene2-arrow-1');
+        const arrow2 = document.getElementById('scene2-arrow-2');
+        const arrow3 = document.getElementById('scene2-arrow-3');
+        const arrowsGroup = document.getElementById('scene2-arrows');
+
+        // 高亮元素
+        const highlightsGroup = document.getElementById('scene2-highlights');
+        const highlightL1 = document.getElementById('scene2-highlight-l1-path');
+        const highlightL2 = document.getElementById('scene2-highlight-l2-path');
+
+        // 虚线框
+        const dashBox = document.getElementById('scene2-dash-box');
+
+        // 结论文本
+        const conclusionBox = document.getElementById('scene2-conclusion-box');
+        const conclusionText = document.getElementById('scene2-conclusion-text');
+
+        // 电流标签
+        const labelI1 = document.getElementById('scene2-label-i1');
+        const labelI2 = document.getElementById('scene2-label-i2');
+
+        // 动画路径定义
+        const path1 = [
+            {x: 150, y: 70}, {x: 200, y: 70}, {x: 250, y: 70},
+            {x: 250, y: 100}, {x: 250, y: 140}, {x: 250, y: 180},
+            {x: 300, y: 200}, {x: 350, y: 200}, {x: 380, y: 200}, {x: 380, y: 180}
+        ];
+        const path2 = [
+            {x: 500, y: 250}, {x: 450, y: 250}, {x: 400, y: 250},
+            {x: 400, y: 280}, {x: 400, y: 320}, {x: 350, y: 350},
+            {x: 300, y: 350}, {x: 250, y: 350}, {x: 200, y: 350}, {x: 180, y: 350}
+        ];
+        const path3 = [
+            {x: 500, y: 250}, {x: 520, y: 250}, {x: 550, y: 250},
+            {x: 550, y: 220}, {x: 550, y: 180}, {x: 550, y: 150},
+            {x: 550, y: 120}, {x: 580, y: 95}, {x: 620, y: 95},
+            {x: 650, y: 95}, {x: 680, y: 95}, {x: 700, y: 120},
+            {x: 700, y: 160}, {x: 700, y: 200}, {x: 700, y: 250},
+            {x: 700, y: 300}, {x: 690, y: 330}, {x: 680, y: 350}
+        ];
+
+        // 动画函数 - 沿路径移动箭头
+        function animateArrow(arrow, path, duration, callback) {
+            let startTime = null;
+            const totalPoints = path.length;
+
+            function animate(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // 计算当前在路径上的位置
+                const currentIndex = Math.floor(progress * (totalPoints - 1));
+                const nextIndex = Math.min(currentIndex + 1, totalPoints - 1);
+                const segmentProgress = (progress * (totalPoints - 1)) - currentIndex;
+
+                const x = path[currentIndex].x + (path[nextIndex].x - path[currentIndex].x) * segmentProgress;
+                const y = path[currentIndex].y + (path[nextIndex].y - path[currentIndex].y) * segmentProgress;
+
+                // 计算箭头方向
+                const dx = path[nextIndex].x - path[currentIndex].x;
+                const dy = path[nextIndex].y - path[currentIndex].y;
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+                arrow.setAttribute('transform', `translate(${x - 5}, ${y - 4}) rotate(${angle + 90})`);
+                arrow.classList.add('active');
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else if (callback) {
+                    callback();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            stepIndicator.textContent = `步骤 ${currentState}/${totalSteps}`;
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === totalSteps;
+            btnNext.textContent = currentState === totalSteps ? '完成' : '下一步 ▶';
+        }
+
+        // 重置所有动态元素
+        function resetElements() {
+            arrowsGroup.classList.add('scene2-hidden');
+            highlightsGroup.classList.add('scene2-hidden');
+            highlightL1.setAttribute('opacity', '0');
+            highlightL2.setAttribute('opacity', '0');
+            dashBox.classList.remove('visible');
+            conclusionBox.classList.remove('visible');
+            conclusionText.classList.add('scene2-hidden');
+            labelI1.classList.add('scene2-hidden');
+            labelI2.classList.add('scene2-hidden');
+
+            arrow1.classList.remove('active');
+            arrow2.classList.remove('active');
+            arrow3.classList.remove('active');
+        }
+
+        // 执行步骤动画
+        function goToStep(step) {
+            resetElements();
+
+            if (step === 0) {
+                // 初始状态：只显示静态电路图
+                updateStep();
+                return;
+            }
+
+            if (step >= 1) {
+                // 步骤1：电流从正极到电流表
+                arrowsGroup.classList.remove('scene2-hidden');
+                arrow1.classList.add('active');
+                animateArrow(arrow1, path1, 1500);
+            }
+
+            if (step >= 2) {
+                // 步骤2：电流分流到L₁和L₂
+                arrowsGroup.classList.remove('scene2-hidden');
+                labelI1.classList.remove('scene2-hidden');
+                labelI2.classList.remove('scene2-hidden');
+
+                // 箭头1保持在终点
+                const lastP1 = path1[path1.length - 1];
+                arrow1.setAttribute('transform', `translate(${lastP1.x - 5}, ${lastP1.y - 4}) rotate(90)`);
+
+                // 动画箭头2和3
+                setTimeout(() => {
+                    animateArrow(arrow2, path2, 1500);
+                    animateArrow(arrow3, path3, 1500);
+                }, 500);
+            }
+
+            if (step >= 3) {
+                // 步骤3：高亮支路，显示虚线框
+                highlightsGroup.classList.remove('scene2-hidden');
+                highlightL1.setAttribute('opacity', '0.6');
+                highlightL2.setAttribute('opacity', '0.6');
+                dashBox.classList.add('visible');
+
+                // 保持箭头在终点
+                const lastP1 = path1[path1.length - 1];
+                const lastP2 = path2[path2.length - 1];
+                const lastP3 = path3[path3.length - 1];
+                arrow1.setAttribute('transform', `translate(${lastP1.x - 5}, ${lastP1.y - 4}) rotate(90)`);
+                arrow2.setAttribute('transform', `translate(${lastP2.x - 5}, ${lastP2.y - 4}) rotate(90)`);
+                arrow3.setAttribute('transform', `translate(${lastP3.x - 5}, ${lastP3.y - 4}) rotate(90)`);
+            }
+
+            if (step >= 4) {
+                // 步骤4：显示结论
+                conclusionBox.classList.add('visible');
+                conclusionText.classList.remove('scene2-hidden');
+            }
+
+            updateStep();
+        }
+
+        // 事件处理
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                goToStep(currentState);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                goToStep(currentState);
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

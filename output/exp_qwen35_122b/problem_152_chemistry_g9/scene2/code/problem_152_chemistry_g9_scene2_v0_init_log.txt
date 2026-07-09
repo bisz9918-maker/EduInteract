@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测定空气中氧气含量实验 - 场景 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 16px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; background: #fff; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+        #scene2-btn-next:not(:disabled) { background: #2196f3; color: white; border-color: #1976d2; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        .hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes flameFlicker { 0%, 100% { opacity: 0.9; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }
+        .flame-anim { animation: flameFlicker 0.3s ease-in-out infinite; }
+        .water-transition { transition: y 0.5s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-canvas" width="800" height="500">
+            <!-- 集气瓶瓶身 -->
+            <g id="scene2-jar-group">
+                <!-- 瓶身主体 -->
+                <rect id="scene2-jar-body" x="80" y="80" width="240" height="300" fill="rgba(255,255,255,0.2)" stroke="#000" stroke-width="2"/>
+                <line x1="80" y1="380" x2="320" y2="380" stroke="#000" stroke-width="2"/>
+                <!-- 瓶口 -->
+                <rect id="scene2-jar-neck" x="160" y="60" width="80" height="20" fill="rgba(255,255,255,0.2)" stroke="#000" stroke-width="2"/>
+                <!-- 橡皮塞 -->
+                <rect id="scene2-rubber-stopper" x="150" y="55" width="100" height="20" fill="#424242"/>
+                <!-- 刻度线 -->
+                <g id="scene2-marks">
+                    <line id="scene2-mark-1" x1="320" y1="320" x2="340" y2="320" stroke="#000" stroke-width="1"/>
+                    <line id="scene2-mark-2" x1="320" y1="260" x2="340" y2="260" stroke="#000" stroke-width="1"/>
+                    <line id="scene2-mark-3" x1="320" y1="200" x2="340" y2="200" stroke="#000" stroke-width="1"/>
+                    <line id="scene2-mark-4" x1="320" y1="140" x2="340" y2="140" stroke="#000" stroke-width="1"/>
+                    <!-- 刻度标签 -->
+                    <text id="scene2-label-mark-1" x="345" y="325" font-size="14" fill="#000">1</text>
+                    <text id="scene2-label-mark-2" x="345" y="265" font-size="14" fill="#000">2</text>
+                    <text id="scene2-label-mark-3" x="345" y="205" font-size="14" fill="#000">3</text>
+                    <text id="scene2-label-mark-4" x="345" y="145" font-size="14" fill="#000">4</text>
+                </g>
+                <!-- 初始水位（少量水在瓶底） -->
+                <g id="scene2-initial-water">
+                    <rect id="scene2-water-initial" x="80" y="350" width="240" height="30" fill="#1565c0" opacity="0.3"/>
+                    <line id="scene2-water-line-initial" x1="80" y1="350" x2="320" y2="350" stroke="#1976d2" stroke-width="1"/>
+                </g>
+                <!-- 步骤 5 后上升的水位 -->
+                <g id="scene2-rising-water" class="hidden">
+                    <rect id="scene2-water-rising" x="80" y="350" width="240" height="0" fill="#1565c0" opacity="0.3" class="water-transition"/>
+                    <line id="scene2-water-line-rising" x1="80" y1="350" x2="320" y2="350" stroke="#1976d2" stroke-width="1" class="water-transition"/>
+                </g>
+                <!-- 刻度 1 高亮（步骤 6） -->
+                <rect id="scene2-mark-1-highlight" x="315" y="315" width="30" height="10" fill="none" stroke="#ff9800" stroke-width="2" class="hidden"/>
+            </g>
+
+            <!-- 燃烧匙 -->
+            <g id="scene2-spoon-group">
+                <!-- 燃烧匙杆 -->
+                <line id="scene2-spoon-rod" x1="200" y1="75" x2="200" y2="150" stroke="#757575" stroke-width="4"/>
+                <!-- 燃烧匙勺 -->
+                <ellipse id="scene2-spoon-bowl" cx="200" cy="160" rx="15" ry="10" fill="#757575"/>
+                <!-- 红磷（初始） -->
+                <ellipse id="scene2-red-phosphorus" cx="200" cy="160" rx="12" ry="8" fill="#c62828" class="step-0"/>
+                <!-- 火焰（步骤 1） -->
+                <ellipse id="scene2-flame" cx="200" cy="150" rx="10" ry="15" fill="url(#flameGradient)" class="hidden flame-anim"/>
+                <defs>
+                    <radialGradient id="flameGradient">
+                        <stop offset="0%" style="stop-color:#ff5722;stop-opacity:1"/>
+                        <stop offset="100%" style="stop-color:#c62828;stop-opacity:0.8"/>
+                    </radialGradient>
+                </defs>
+            </g>
+
+            <!-- 白烟（步骤 2-5） -->
+            <g id="scene2-smoke" class="hidden">
+                <circle cx="120" cy="150" r="8" fill="#888" opacity="0.4"/>
+                <circle cx="150" cy="120" r="10" fill="#888" opacity="0.4"/>
+                <circle cx="180" cy="140" r="7" fill="#888" opacity="0.4"/>
+                <circle cx="210" cy="130" r="9" fill="#888" opacity="0.4"/>
+                <circle cx="240" cy="160" r="8" fill="#888" opacity="0.4"/>
+                <circle cx="160" cy="180" r="11" fill="#888" opacity="0.4"/>
+                <circle cx="200" cy="200" r="6" fill="#888" opacity="0.4"/>
+                <circle cx="230" cy="190" r="9" fill="#888" opacity="0.4"/>
+                <circle cx="140" cy="220" r="7" fill="#888" opacity="0.4"/>
+                <circle cx="190" cy="240" r="10" fill="#888" opacity="0.4"/>
+                <circle cx="250" cy="210" r="8" fill="#888" opacity="0.4"/>
+                <circle cx="170" cy="100" r="6" fill="#888" opacity="0.4"/>
+                <circle cx="220" cy="110" r="9" fill="#888" opacity="0.4"/>
+                <circle cx="130" cy="190" r="7" fill="#888" opacity="0.4"/>
+                <circle cx="260" cy="170" r="8" fill="#888" opacity="0.4"/>
+            </g>
+
+            <!-- 导管 -->
+            <g id="scene2-tube-group">
+                <!-- 水平段 -->
+                <line id="scene2-tube-horizontal" x1="240" y1="90" x2="500" y2="90" stroke="#9e9e9e" stroke-width="4"/>
+                <!-- 垂直段 -->
+                <line id="scene2-tube-vertical" x1="500" y1="90" x2="500" y2="340" stroke="#9e9e9e" stroke-width="4"/>
+                <!-- 止水夹 -->
+                <rect id="scene2-clip" x="420" y="85" width="30" height="10" fill="#c62828" rx="2"/>
+            </g>
+
+            <!-- 烧杯 -->
+            <g id="scene2-beaker-group">
+                <!-- 烧杯轮廓（梯形） -->
+                <path id="scene2-beaker" d="M 550 200 L 720 200 L 700 380 L 570 380 Z" fill="none" stroke="#000" stroke-width="2"/>
+                <!-- 烧杯内水 -->
+                <rect id="scene2-beaker-water" x="555" y="240" width="160" height="135" fill="#1565c0" opacity="0.3"/>
+                <line id="scene2-beaker-water-line" x1="555" y1="240" x2="715" y2="240" stroke="#1976d2" stroke-width="1"/>
+            </g>
+
+            <!-- 导管内水流箭头（步骤 5） -->
+            <g id="scene2-water-flow" class="hidden">
+                <line id="scene2-flow-arrow" x1="495" y1="200" x2="495" y2="300" stroke="#1565c0" stroke-width="3" marker-end="url(#arrowhead)"/>
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                    </marker>
+                </defs>
+            </g>
+
+            <!-- 气压箭头（步骤 3-4） -->
+            <g id="scene2-pressure-arrow" class="hidden">
+                <line x1="200" y1="180" x2="200" y2="220" stroke="#888" stroke-width="2" marker-end="url(#arrowhead-gray)"/>
+                <line x1="160" y1="200" x2="200" y2="200" stroke="#888" stroke-width="2" marker-end="url(#arrowhead-gray)"/>
+                <line x1="240" y1="200" x2="200" y2="200" stroke="#888" stroke-width="2" marker-end="url(#arrowhead-gray)"/>
+                <line x1="200" y1="220" x2="200" y2="180" stroke="#888" stroke-width="2" marker-end="url(#arrowhead-gray)"/>
+                <defs>
+                    <marker id="arrowhead-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#888"/>
+                    </marker>
+                </defs>
+            </g>
+
+            <!-- 标签 -->
+            <text id="scene2-label-phosphorus" x="260" y="165" font-size="14" fill="#000" class="step-0">红磷</text>
+            <text id="scene2-label-smoke" x="150" y="100" font-size="14" fill="#000" class="hidden">白烟</text>
+            <text id="scene2-label-water" x="635" y="190" font-size="14" fill="#000">水</text>
+            <text id="scene2-label-clip" x="435" y="70" font-size="14" fill="#000">止水夹</text>
+            <text id="scene2-label-pressure" x="180" y="240" font-size="14" fill="#000" class="hidden">气压↓</text>
+
+            <!-- 结论文字（步骤 6） -->
+            <text id="scene2-conclusion" x="200" y="40" font-size="18" fill="#2e7d32" font-weight="bold" class="hidden">氧气约占空气体积的 1/5</text>
+
+            <!-- 控件栏 -->
+            <g id="scene2-controls-group">
+                <rect id="scene2-controls-bg" x="200" y="440" width="400" height="50" fill="#f5f5f5" rx="8" opacity="0.9"/>
+                <button id="scene2-btn-prev" x="250" y="450" width="100" height="30">◀ 上一步</button>
+                <text id="scene2-step-indicator" x="370" y="470" font-size="14" fill="#333">步骤 1/7</text>
+                <button id="scene2-btn-next" x="450" y="450" width="100" height="30">下一步 ▶</button>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // 布局坐标表对照：
+        // 集气瓶瓶身：(80,80)-(320,380) 240×300
+        // 集气瓶瓶口：(160,60)-(240,80) 80×20
+        // 橡皮塞：(150,55)-(250,75) 100×20
+        // 燃烧匙杆：(200,75)-(200,150) 4×75
+        // 燃烧匙勺：(185,150)-(215,170) 30×20
+        // 红磷：(188,155)-(212,168) 24×13
+        // 刻度线 1-4：y=320,260,200,140
+        // 初始水位：y=350
+        // 上升水位目标：y=320（刻度 1 处）
+        // 导管水平段：(240,90)-(500,90)
+        // 导管垂直段：(500,90)-(500,320)
+        // 止水夹：(420,85)-(450,95)
+        // 烧杯：(550,200)-(720,380)
+        // 烧杯内水：(555,240)-(715,375)
+
+        // 状态变量
+        var currentStep = 0;
+        var totalSteps = 7;
+
+        // 获取 DOM 元素
+        var elements = {
+            prevBtn: document.getElementById('scene2-btn-prev'),
+            nextBtn: document.getElementById('scene2-btn-next'),
+            stepIndicator: document.getElementById('scene2-step-indicator'),
+            flame: document.getElementById('scene2-flame'),
+            redPhosphorus: document.getElementById('scene2-red-phosphorus'),
+            smoke: document.getElementById('scene2-smoke'),
+            smokeLabel: document.getElementById('scene2-label-smoke'),
+            clip: document.getElementById('scene2-clip'),
+            clipLabel: document.getElementById('scene2-label-clip'),
+            pressureArrow: document.getElementById('scene2-pressure-arrow'),
+            pressureLabel: document.getElementById('scene2-label-pressure'),
+            waterFlow: document.getElementById('scene2-water-flow'),
+            initialWater: document.getElementById('scene2-initial-water'),
+            risingWater: document.getElementById('scene2-rising-water'),
+            waterRising: document.getElementById('scene2-water-rising'),
+            waterLineRising: document.getElementById('scene2-water-line-rising'),
+            mark1Highlight: document.getElementById('scene2-mark-1-highlight'),
+            conclusion: document.getElementById('scene2-conclusion'),
+            phosphorusLabel: document.getElementById('scene2-label-phosphorus')
+        };
+
+        // 显示/隐藏工具函数
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                el.classList.add('fade-in');
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+                el.classList.remove('fade-in');
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/7';
+
+            // 更新按钮状态
+            elements.prevBtn.disabled = (currentStep === 0);
+            elements.nextBtn.disabled = (currentStep === 6);
+
+            // 步骤 0：初始状态
+            if (currentStep === 0) {
+                hide(elements.flame);
+                show(elements.redPhosphorus);
+                hide(elements.smoke);
+                hide(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#c62828');
+                hide(elements.clipLabel);
+                hide(elements.pressureArrow);
+                hide(elements.pressureLabel);
+                hide(elements.waterFlow);
+                show(elements.initialWater);
+                hide(elements.risingWater);
+                hide(elements.mark1Highlight);
+                hide(elements.conclusion);
+                show(elements.phosphorusLabel);
+            }
+            // 步骤 1：点燃红磷
+            else if (currentStep === 1) {
+                show(elements.flame);
+                hide(elements.redPhosphorus);
+                hide(elements.smoke);
+                hide(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#c62828');
+                hide(elements.clipLabel);
+                hide(elements.pressureArrow);
+                hide(elements.pressureLabel);
+                hide(elements.waterFlow);
+                show(elements.initialWater);
+                hide(elements.risingWater);
+                hide(elements.mark1Highlight);
+                hide(elements.conclusion);
+                show(elements.phosphorusLabel);
+            }
+            // 步骤 2：燃烧结束，白烟产生
+            else if (currentStep === 2) {
+                hide(elements.flame);
+                hide(elements.redPhosphorus);
+                show(elements.smoke);
+                show(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#c62828');
+                hide(elements.clipLabel);
+                hide(elements.pressureArrow);
+                hide(elements.pressureLabel);
+                hide(elements.waterFlow);
+                show(elements.initialWater);
+                hide(elements.risingWater);
+                hide(elements.mark1Highlight);
+                hide(elements.conclusion);
+                hide(elements.phosphorusLabel);
+            }
+            // 步骤 3：冷却至室温
+            else if (currentStep === 3) {
+                hide(elements.flame);
+                hide(elements.redPhosphorus);
+                show(elements.smoke);
+                show(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#c62828');
+                hide(elements.clipLabel);
+                show(elements.pressureArrow);
+                show(elements.pressureLabel);
+                hide(elements.waterFlow);
+                show(elements.initialWater);
+                hide(elements.risingWater);
+                hide(elements.mark1Highlight);
+                hide(elements.conclusion);
+                hide(elements.phosphorusLabel);
+            }
+            // 步骤 4：打开止水夹
+            else if (currentStep === 4) {
+                hide(elements.flame);
+                hide(elements.redPhosphorus);
+                show(elements.smoke);
+                show(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#2e7d32');
+                show(elements.clipLabel);
+                elements.clipLabel.textContent = '止水夹（开）';
+                show(elements.pressureArrow);
+                show(elements.pressureLabel);
+                hide(elements.waterFlow);
+                show(elements.initialWater);
+                hide(elements.risingWater);
+                hide(elements.mark1Highlight);
+                hide(elements.conclusion);
+                hide(elements.phosphorusLabel);
+            }
+            // 步骤 5：水倒吸入集气瓶
+            else if (currentStep === 5) {
+                hide(elements.flame);
+                hide(elements.redPhosphorus);
+                show(elements.smoke);
+                show(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#2e7d32');
+                show(elements.clipLabel);
+                elements.clipLabel.textContent = '止水夹（开）';
+                show(elements.pressureArrow);
+                show(elements.pressureLabel);
+                show(elements.waterFlow);
+                hide(elements.initialWater);
+                show(elements.risingWater);
+                // 触发动画：水位上升到刻度 1（y=320）
+                setTimeout(function() {
+                    elements.waterRising.setAttribute('y', '320');
+                    elements.waterRising.setAttribute('height', '60');
+                    elements.waterLineRising.setAttribute('y1', '320');
+                    elements.waterLineRising.setAttribute('y2', '320');
+                }, 50);
+                hide(elements.mark1Highlight);
+                hide(elements.conclusion);
+                hide(elements.phosphorusLabel);
+            }
+            // 步骤 6：结论
+            else if (currentStep === 6) {
+                hide(elements.flame);
+                hide(elements.redPhosphorus);
+                hide(elements.smoke);
+                hide(elements.smokeLabel);
+                elements.clip.setAttribute('fill', '#2e7d32');
+                show(elements.clipLabel);
+                elements.clipLabel.textContent = '止水夹（开）';
+                hide(elements.pressureArrow);
+                hide(elements.pressureLabel);
+                show(elements.waterFlow);
+                hide(elements.initialWater);
+                show(elements.risingWater);
+                elements.waterRising.setAttribute('y', '320');
+                elements.waterRising.setAttribute('height', '60');
+                elements.waterLineRising.setAttribute('y1', '320');
+                elements.waterLineRising.setAttribute('y2', '320');
+                show(elements.mark1Highlight);
+                show(elements.conclusion);
+                hide(elements.phosphorusLabel);
+            }
+        }
+
+        // 事件绑定
+        elements.prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        elements.nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

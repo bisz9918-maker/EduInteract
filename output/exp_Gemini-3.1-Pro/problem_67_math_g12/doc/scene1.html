@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>椭圆切线性质探究</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\(', '\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; user-select: none; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-panel { position: absolute; top: 20px; left: 580px; width: 200px; height: 200px; background: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 10px; box-sizing: border-box; font-size: 14px; pointer-events: none; }
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .point { fill: #000; }
+        .point-label { font-size: 14px; fill: #000; }
+        .draggable-point { fill: #1565c0; stroke: #fff; stroke-width: 2px; cursor: pointer; }
+        .draggable-label { font-size: 14px; fill: #1565c0; }
+        .axis { stroke: #000; stroke-width: 1px; }
+        .ellipse { stroke: #000; stroke-width: 1.5px; fill: none; }
+        .line-l { stroke: #000; stroke-width: 1.5px; }
+        .aux-line { stroke: #888; stroke-width: 1.5px; stroke-dasharray: 4,4; }
+        .solid-aux { stroke: #888; stroke-width: 2px; }
+        .highlight-blue { stroke: #1565c0; stroke-width: 2px; }
+        .highlight-red { stroke: #c62828; stroke-width: 2px; }
+        .highlight-thick { stroke: #1565c0; stroke-width: 3px; }
+        .arc-red { fill: #c62828; fill-opacity: 0.2; stroke: #c62828; stroke-width: 1px; }
+        .arc-green { fill: #2e7d32; fill-opacity: 0.2; stroke: #2e7d32; stroke-width: 1px; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- Definitions for markers -->
+            <defs>
+                <marker id="scene1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />
+                </marker>
+            </defs>
+            
+            <!-- Axes -->
+            <line class="axis" x1="50" y1="250" x2="750" y2="250" marker-end="url(#scene1-arrow)" />
+            <line class="axis" x1="350" y1="450" x2="350" y2="50" marker-end="url(#scene1-arrow)" />
+            <text class="point-label" x="730" y="235">X</text>
+            <text class="point-label" x="365" y="70">Y</text>
+            <text class="point-label" x="335" y="270">O</text>
+
+            <!-- Ellipse -->
+            <ellipse class="ellipse" cx="350" cy="250" rx="200" ry="120" />
+
+            <!-- Line l -->
+            <line class="line-l" x1="550" y1="50" x2="550" y2="450" />
+            <text class="point-label" x="565" y="440">l</text>
+
+            <!-- Dynamic Elements Group -->
+            <g id="scene1-dynamic">
+                <!-- Arcs -->
+                <path id="scene1-arc-pfm" class="arc-red" style="opacity: 0;" />
+                <path id="scene1-arc-bfm" class="arc-red" style="opacity: 0;" />
+                <path id="scene1-arc-fpm" class="arc-green" style="opacity: 0;" />
+                <path id="scene1-arc-dpm" class="arc-green" style="opacity: 0;" />
+
+                <!-- Lines -->
+                <line id="scene1-line-ap" class="aux-line" />
+                <line id="scene1-line-bd" class="solid-aux" />
+                <line id="scene1-line-pm" class="highlight-blue" style="opacity: 0;" />
+                <line id="scene1-line-fm" class="highlight-red" style="opacity: 0;" />
+                <line id="scene1-line-pf" class="highlight-red" style="opacity: 0;" />
+                <line id="scene1-line-bm" class="highlight-thick" style="opacity: 0;" />
+            </g>
+
+            <!-- Static Points -->
+            <circle class="point" cx="150" cy="250" r="4" />
+            <text class="point-label" x="135" y="270">A</text>
+            
+            <circle class="point" cx="550" cy="250" r="4" />
+            <text class="point-label" x="565" y="270">B</text>
+            
+            <circle class="point" cx="510" cy="250" r="4" />
+            <text class="point-label" x="495" y="270">F</text>
+
+            <!-- Dynamic Points -->
+            <circle id="scene1-point-d" class="point" r="4" />
+            <text id="scene1-label-d" class="point-label">D</text>
+            
+            <circle id="scene1-point-m" class="point" r="4" />
+            <text id="scene1-label-m" class="point-label">M</text>
+
+            <circle id="scene1-point-p" class="draggable-point" r="6" />
+            <text id="scene1-label-p" class="draggable-label">P</text>
+        </svg>
+
+        <div id="scene1-panel">
+            <div id="scene1-panel-content"></div>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">1 / 5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Constants
+        const cx = 350, cy = 250;
+        const a = 200, b = 120;
+        const c = Math.sqrt(a*a - b*b); // 160
+        const ptA = { x: cx - a, y: cy }; // 150, 250
+        const ptB = { x: cx + a, y: cy }; // 550, 250
+        const ptF = { x: cx + c, y: cy }; // 510, 250
+        
+        // State
+        let currentStep = 0;
+        let t = 60 * Math.PI / 180; // Initial angle 60 degrees
+
+        // Elements
+        const svg = d3.select('#scene1-svg');
+        const pPoint = d3.select('#scene1-point-p');
+        const pLabel = d3.select('#scene1-label-p');
+        const dPoint = d3.select('#scene1-point-d');
+        const dLabel = d3.select('#scene1-label-d');
+        const mPoint = d3.select('#scene1-point-m');
+        const mLabel = d3.select('#scene1-label-m');
+        
+        const lineAP = d3.select('#scene1-line-ap');
+        const lineBD = d3.select('#scene1-line-bd');
+        const linePM = d3.select('#scene1-line-pm');
+        const lineFM = d3.select('#scene1-line-fm');
+        const linePF = d3.select('#scene1-line-pf');
+        const lineBM = d3.select('#scene1-line-bm');
+
+        const arcPFM = d3.select('#scene1-arc-pfm');
+        const arcBFM = d3.select('#scene1-arc-bfm');
+        const arcFPM = d3.select('#scene1-arc-fpm');
+        const arcDPM = d3.select('#scene1-arc-dpm');
+
+        const panelContent = d3.select('#scene1-panel-content');
+        const btnPrev = d3.select('#scene1-btn-prev');
+        const btnNext = d3.select('#scene1-btn-next');
+        const stepIndicator = d3.select('#scene1-step-indicator');
+
+        // Helper: Calculate distance
+        function dist(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        // Helper: Calculate angle between three points (p1-center-p2)
+        function calcAngle(center, p1, p2) {
+            const a1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+            const a2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+            let angle = a2 - a1;
+            if (angle < 0) angle += 2 * Math.PI;
+            if (angle > Math.PI) angle = 2 * Math.PI - angle;
+            return angle * 180 / Math.PI;
+        }
+
+        // Helper: Generate SVG arc path
+        function getArcPath(center, p1, p2, radius) {
+            const a1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+            const a2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+            
+            let startAngle = a1;
+            let endAngle = a2;
+            
+            let diff = endAngle - startAngle;
+            if (diff < -Math.PI) diff += 2 * Math.PI;
+            if (diff > Math.PI) diff -= 2 * Math.PI;
+            
+            endAngle = startAngle + diff;
+            
+            const startX = center.x + radius * Math.cos(startAngle);
+            const startY = center.y + radius * Math.sin(startAngle);
+            const endX = center.x + radius * Math.cos(endAngle);
+            const endY = center.y + radius * Math.sin(endAngle);
+            
+            const largeArcFlag = Math.abs(diff) > Math.PI ? 1 : 0;
+            const sweepFlag = diff > 0 ? 1 : 0;
+            
+            return `M ${center.x} ${center.y} L ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY} Z`;
+        }
+
+        // Update function
+        function update() {
+            // Calculate P
+            const px = cx + a * Math.cos(t);
+            const py = cy - b * Math.sin(t);
+            const ptP = { x: px, y: py };
+
+            // Calculate D (intersection of AP and x=550)
+            const slopeAP = (py - ptA.y) / (px - ptA.x);
+            const dx = 550;
+            const dy = ptA.y + slopeAP * (dx - ptA.x);
+            const ptD = { x: dx, y: dy };
+
+            // Calculate M (midpoint of BD)
+            const mx = 550;
+            const my = (ptB.y + dy) / 2;
+            const ptM = { x: mx, y: my };
+
+            // Update Points and Labels
+            pPoint.attr('cx', px).attr('cy', py);
+            pLabel.attr('x', px - 15).attr('y', py - 15);
+            
+            dPoint.attr('cx', dx).attr('cy', dy);
+            dLabel.attr('x', dx + 15).attr('y', dy + 5);
+            
+            mPoint.attr('cx', mx).attr('cy', my);
+            mLabel.attr('x', mx + 15).attr('y', my + 5);
+
+            // Update Lines
+            lineAP.attr('x1', ptA.x).attr('y1', ptA.y).attr('x2', dx).attr('y2', dy);
+            lineBD.attr('x1', ptB.x).attr('y1', ptB.y).attr('x2', dx).attr('y2', dy);
+            
+            linePM.attr('x1', px).attr('y1', py).attr('x2', mx).attr('y2', my);
+            lineFM.attr('x1', ptF.x).attr('y1', ptF.y).attr('x2', mx).attr('y2', my);
+            linePF.attr('x1', px).attr('y1', py).attr('x2', ptF.x).attr('y2', ptF.y);
+            lineBM.attr('x1', ptB.x).attr('y1', ptB.y).attr('x2', mx).attr('y2', my);
+
+            // Update Arcs
+            arcPFM.attr('d', getArcPath(ptF, ptP, ptM, 30));
+            arcBFM.attr('d', getArcPath(ptF, ptM, ptB, 30));
+            arcFPM.attr('d', getArcPath(ptP, ptF, ptM, 30));
+            arcDPM.attr('d', getArcPath(ptP, ptM, ptD, 30));
+
+            // Update Visibility based on step
+            linePM.style('opacity', currentStep >= 1 ? 1 : 0);
+            lineFM.style('opacity', currentStep >= 2 ? 1 : 0);
+            arcPFM.style('opacity', currentStep >= 2 ? 1 : 0);
+            arcBFM.style('opacity', currentStep >= 2 ? 1 : 0);
+            
+            linePF.style('opacity', currentStep >= 3 ? 1 : 0);
+            arcFPM.style('opacity', currentStep >= 3 ? 1 : 0);
+            arcDPM.style('opacity', currentStep >= 3 ? 1 : 0);
+            
+            lineBM.style('opacity', currentStep >= 4 ? 1 : 0);
+            if (currentStep >= 4) {
+                linePM.classed('highlight-thick', true).classed('highlight-blue', false);
+            } else {
+                linePM.classed('highlight-thick', false).classed('highlight-blue', true);
+            }
+
+            // Update Panel Content
+            let panelHtml = '';
+            if (currentStep === 0) {
+                panelHtml = '<b>初始状态</b><br><br>拖拽点P，观察各点联动。';
+            } else if (currentStep === 1) {
+                panelHtml = '<b>结论②</b><br><br>连接PM。<br>观察PM始终为椭圆的切线。';
+            } else if (currentStep === 2) {
+                const angPFM = calcAngle(ptF, ptP, ptM).toFixed(1);
+                const angBFM = calcAngle(ptF, ptM, ptB).toFixed(1);
+                panelHtml = `<b>结论①</b><br><br>∠PFM = ${angPFM}°<br>∠BFM = ${angBFM}°<br><br>FM平分∠PFB。`;
+            } else if (currentStep === 3) {
+                const angFPM = calcAngle(ptP, ptF, ptM).toFixed(1);
+                const angDPM = calcAngle(ptP, ptM, ptD).toFixed(1);
+                panelHtml = `<b>结论③</b><br><br>∠FPM = ${angFPM}°<br>∠DPM = ${angDPM}°<br><br>PM不平分∠FPD。`;
+            } else if (currentStep === 4) {
+                const lenPM = dist(ptP, ptM).toFixed(1);
+                const lenBM = dist(ptB, ptM).toFixed(1);
+                panelHtml = `<b>结论④</b><br><br>PM = ${lenPM}<br>BM = ${lenBM}<br><br>使得PM=BM的点P不存在。`;
+            }
+            panelContent.html(panelHtml);
+
+            // Update Controls
+            btnPrev.property('disabled', currentStep === 0);
+            btnNext.property('disabled', currentStep === 4);
+            stepIndicator.text(`${currentStep + 1} / 5`);
+        }
+
+        // Drag behavior
+        const drag = d3.drag()
+            .on('drag', (event) => {
+                // Convert mouse coordinates to angle t
+                const dx = event.x - cx;
+                const dy = cy - event.y;
+                let newT = Math.atan2(dy / b, dx / a);
+                if (newT < 0) newT += 2 * Math.PI;
+                
+                // Limit t to [30°, 80°]
+                const minT = 30 * Math.PI / 180;
+                const maxT = 80 * Math.PI / 180;
+                if (newT < minT) newT = minT;
+                if (newT > maxT) newT = maxT;
+                
+                t = newT;
+                update();
+            });
+
+        pPoint.call(drag);
+        pLabel.call(drag);
+
+        // Button listeners
+        btnPrev.on('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                update();
+            }
+        });
+
+        btnNext.on('click', () => {
+            if (currentStep < 4) {
+                currentStep++;
+                update();
+            }
+        });
+
+        // Initial render
+        // Wait for DOM to be ready before initial update to ensure bounding boxes are correct if needed
+        setTimeout(() => {
+            // Force initial update to set positions
+            update();
+            // Then trigger another update to ensure labels are positioned correctly
+            requestAnimationFrame(update);
+        }, 100);
+    })();
+    </script>
+</body>
+</html>

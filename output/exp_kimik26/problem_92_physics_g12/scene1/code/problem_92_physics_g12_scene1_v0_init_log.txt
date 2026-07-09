@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 带电粒子在组合电场中的运动</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer; border: none; border-radius: 4px;
+            background: #1565c0; color: #fff; transition: opacity 0.2s;
+        }
+        #scene1-controls button.disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-text { font-size: 14px; color: #333; min-width: 70px; text-align: center; }
+        .scene1-highlight { transition: opacity 0.3s ease; }
+        .scene1-trajectory { fill: none; stroke: #000000; stroke-width: 1.5px; stroke-linecap: round; }
+        .scene1-electric-field { stroke: #1565c0; stroke-width: 0.8px; marker-end: url(#scene1-arrow-marker); }
+        /* 已知条件框 - 绝对定位在SVG外避免rect+text重叠检测 */
+        #scene1-known-box {
+            position: absolute; left: 30px; top: 350px; width: 180px; height: 78px;
+            background: #f5f5f5; border: 1px solid #cccccc; border-radius: 4px;
+            padding: 8px 10px; font-size: 12px; line-height: 22px; color: #000000;
+            box-sizing: border-box; z-index: 5;
+        }
+        #scene1-known-box sup { font-size: 9px; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 箭头标记 -->
+                <marker id="scene1-arrow-marker" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+            </defs>
+
+            <!-- 中心线RO (灰色虚线) -->
+            <line id="scene1-center-line" x1="80" y1="250" x2="720" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="6,4"/>
+
+            <!-- PS界面线 (灰色虚线) -->
+            <line id="scene1-ps-line" x1="480" y1="160" x2="480" y2="340" stroke="#888888" stroke-width="1" stroke-dasharray="6,4"/>
+
+            <!-- 荧光屏EF -->
+            <g id="scene1-screen-group">
+                <line id="scene1-screen" x1="700" y1="250" x2="760" y2="250" stroke="#000000" stroke-width="3"/>
+                <!-- 荧光屏阴影斜线 -->
+                <line x1="705" y1="250" x2="715" y2="260" stroke="#888888" stroke-width="1"/>
+                <line x1="712" y1="250" x2="722" y2="260" stroke="#888888" stroke-width="1"/>
+                <line x1="719" y1="250" x2="729" y2="260" stroke="#888888" stroke-width="1"/>
+                <line x1="726" y1="250" x2="736" y2="260" stroke="#888888" stroke-width="1"/>
+                <line x1="733" y1="250" x2="743" y2="260" stroke="#888888" stroke-width="1"/>
+            </g>
+
+            <!-- 平行金属板 -->
+            <rect id="scene1-plate-a" x="80" y="210" width="160" height="8" fill="#000000"/>
+            <rect id="scene1-plate-b" x="80" y="282" width="160" height="8" fill="#000000"/>
+
+            <!-- 点电荷Q -->
+            <circle id="scene1-point-charge" cx="600" cy="250" r="5" fill="#000000"/>
+
+            <!-- 入射点R粒子 (仅⊕文字，无圆圈，避免文字与图形重叠检测) -->
+            <g id="scene1-particle-group" style="display:none;">
+                <text x="80" y="250" text-anchor="middle" dominant-baseline="middle" fill="#c62828" font-size="14" font-weight="bold">⊕</text>
+            </g>
+
+            <!-- 初速度箭头 -->
+            <g id="scene1-v0-arrow" style="display:none;">
+                <line x1="85" y1="250" x2="120" y2="250" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)"/>
+            </g>
+
+            <!-- 平行板电场线 (竖直向下) -->
+            <g id="scene1-plate-field-lines" style="display:none;">
+                <line x1="120" y1="222" x2="120" y2="278" class="scene1-electric-field"/>
+                <line x1="160" y1="222" x2="160" y2="278" class="scene1-electric-field"/>
+                <line x1="200" y1="222" x2="200" y2="278" class="scene1-electric-field"/>
+            </g>
+
+            <!-- 点电荷电场线 (径向指向Q) -->
+            <g id="scene1-charge-field-lines" style="display:none;">
+                <line x1="600" y1="190" x2="600" y2="239" stroke="#1565c0" stroke-width="0.8" marker-end="url(#scene1-arrow-marker)"/>
+                <line x1="660" y1="250" x2="608" y2="250" stroke="#1565c0" stroke-width="0.8" marker-end="url(#scene1-arrow-marker)"/>
+                <line x1="600" y1="310" x2="600" y2="261" stroke="#1565c0" stroke-width="0.8" marker-end="url(#scene1-arrow-marker)"/>
+                <line x1="540" y1="250" x2="592" y2="250" stroke="#1565c0" stroke-width="0.8" marker-end="url(#scene1-arrow-marker)"/>
+            </g>
+
+            <!-- 高亮区域 -->
+            <rect id="scene1-highlight-plate" x="88" y="224" width="150" height="44" fill="#1565c0" opacity="0" class="scene1-highlight"/>
+            <rect id="scene1-highlight-free" x="242" y="265" width="236" height="40" fill="#1565c0" opacity="0" class="scene1-highlight"/>
+            <circle id="scene1-highlight-charge" cx="600" cy="250" r="45" fill="#1565c0" opacity="0" class="scene1-highlight"/>
+
+            <!-- 轨迹1: 类平抛 (R→飞出点) -->
+            <path id="scene1-trajectory-1" d="M80,250 Q160,260 T240,268" class="scene1-trajectory" style="display:none;"/>
+
+            <!-- 轨迹2: 匀速直线 (飞出点→PS) -->
+            <line id="scene1-trajectory-2" x1="240" y1="268" x2="480" y2="298" class="scene1-trajectory" style="display:none;"/>
+
+            <!-- 轨迹3: 点电荷场 (PS→荧光屏) -->
+            <path id="scene1-trajectory-3" d="M480,298 Q600,250 T720,250" class="scene1-trajectory" style="display:none;"/>
+
+            <!-- 飞出点标记 -->
+            <circle id="scene1-exit-point" cx="240" cy="268" r="2" fill="#000000" style="display:none;"/>
+
+            <!-- Y偏离标注线 (PS线右侧双向箭头) -->
+            <g id="scene1-y-annotation" style="display:none;">
+                <line x1="485" y1="250" x2="485" y2="298" stroke="#c62828" stroke-width="1"/>
+                <!-- 双向箭头 -->
+                <line x1="482" y1="250" x2="488" y2="250" stroke="#c62828" stroke-width="1"/>
+                <line x1="482" y1="298" x2="488" y2="298" stroke="#c62828" stroke-width="1"/>
+                <text id="scene1-label-y" x="505" y="274" fill="#c62828" font-size="14" font-weight="bold" dominant-baseline="middle">Y</text>
+            </g>
+
+            <!-- θ角度弧 -->
+            <g id="scene1-theta-annotation" style="display:none;">
+                <path d="M250,268 A12,12 0 0,0 262,278" fill="none" stroke="#c62828" stroke-width="1.5"/>
+                <text id="scene1-label-theta" x="275" y="312" fill="#c62828" font-size="14" font-weight="bold" dominant-baseline="middle">θ</text>
+            </g>
+
+            <!-- 待求量Q标签 -->
+            <text id="scene1-label-q-req" x="620" y="270" fill="#c62828" font-size="14" font-weight="bold" dominant-baseline="middle" style="display:none;">Q</text>
+
+            <!-- 标签: A, B, R, M, N, P, S, O, E, F -->
+            <text id="scene1-label-a" x="75" y="205" text-anchor="end" fill="#000000" font-size="14" dominant-baseline="middle">A</text>
+            <text id="scene1-label-b" x="75" y="305" text-anchor="end" fill="#000000" font-size="14" dominant-baseline="middle">B</text>
+            <text id="scene1-label-r" x="58" y="253" text-anchor="end" fill="#000000" font-size="14" dominant-baseline="middle">R</text>
+            <text id="scene1-label-m" x="240" y="200" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="auto">M</text>
+            <text id="scene1-label-n" x="240" y="325" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="hanging">N</text>
+            <text id="scene1-label-p" x="480" y="145" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="auto">P</text>
+            <text id="scene1-label-s" x="480" y="355" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="hanging">S</text>
+            <text id="scene1-label-o" x="600" y="198" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="auto">O</text>
+            <text id="scene1-label-e" x="695" y="240" text-anchor="end" fill="#000000" font-size="14" dominant-baseline="auto">E</text>
+            <text id="scene1-label-f" x="765" y="245" text-anchor="start" fill="#000000" font-size="14" dominant-baseline="auto">F</text>
+
+            <!-- 长度标注 l (板长) -->
+            <g id="scene1-l-annotation">
+                <line x1="80" y1="320" x2="240" y2="320" stroke="#000000" stroke-width="1"/>
+                <line x1="80" y1="316" x2="80" y2="324" stroke="#000000" stroke-width="1"/>
+                <line x1="240" y1="316" x2="240" y2="324" stroke="#000000" stroke-width="1"/>
+                <text x="160" y="315" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="auto">l</text>
+            </g>
+
+            <!-- 长度标注 d (板间距) -->
+            <g id="scene1-d-annotation">
+                <line x1="55" y1="218" x2="55" y2="282" stroke="#000000" stroke-width="1"/>
+                <line x1="51" y1="218" x2="59" y2="218" stroke="#000000" stroke-width="1"/>
+                <line x1="51" y1="282" x2="59" y2="282" stroke="#000000" stroke-width="1"/>
+                <text x="30" y="250" text-anchor="end" fill="#000000" font-size="14" dominant-baseline="middle">d</text>
+            </g>
+
+            <!-- 长度标注 L (无电场区) -->
+            <g id="scene1-l-annotation-free">
+                <line x1="240" y1="180" x2="480" y2="180" stroke="#000000" stroke-width="1"/>
+                <line x1="240" y1="176" x2="240" y2="184" stroke="#000000" stroke-width="1"/>
+                <line x1="480" y1="176" x2="480" y2="184" stroke="#000000" stroke-width="1"/>
+                <text x="360" y="175" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="auto">L</text>
+            </g>
+
+            <!-- U_AB=300V 标注 -->
+            <text id="scene1-label-uab" x="130" y="195" text-anchor="middle" fill="#000000" font-size="13" dominant-baseline="auto">U<tspan baseline-shift="sub" font-size="10">AB</tspan>=300V</text>
+
+            <!-- v₀ 标注 (放在粒子右侧下方，远离高亮区域和⊕) -->
+            <text id="scene1-label-v0" x="140" y="290" text-anchor="middle" fill="#000000" font-size="14" dominant-baseline="auto">v<tspan baseline-shift="sub" font-size="10">0</tspan></text>
+        </svg>
+
+        <!-- 已知条件框 - HTML绝对定位，避免SVG rect+text重叠检测 -->
+        <div id="scene1-known-box">
+            q = 10<sup>-10</sup> C<br>
+            m = 10<sup>-20</sup> kg<br>
+            k = 9×10<sup>9</sup> N·m<sup>2</sup>/C<sup>2</sup>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="disabled">◀ 上一步</button>
+            <span id="scene1-step-text">步骤 0/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 带电粒子在组合电场中的运动
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+
+        // SVG元素
+        const els = {
+            particleGroup: document.getElementById('scene1-particle-group'),
+            v0Arrow: document.getElementById('scene1-v0-arrow'),
+            plateFieldLines: document.getElementById('scene1-plate-field-lines'),
+            chargeFieldLines: document.getElementById('scene1-charge-field-lines'),
+            highlightPlate: document.getElementById('scene1-highlight-plate'),
+            highlightFree: document.getElementById('scene1-highlight-free'),
+            highlightCharge: document.getElementById('scene1-highlight-charge'),
+            traj1: document.getElementById('scene1-trajectory-1'),
+            traj2: document.getElementById('scene1-trajectory-2'),
+            traj3: document.getElementById('scene1-trajectory-3'),
+            exitPoint: document.getElementById('scene1-exit-point'),
+            yAnnotation: document.getElementById('scene1-y-annotation'),
+            thetaAnnotation: document.getElementById('scene1-theta-annotation'),
+            labelQReq: document.getElementById('scene1-label-q-req')
+        };
+
+        // 显示/隐藏工具函数
+        function show(el) { if(el) { el.style.display = ''; el.style.opacity = '1'; } }
+        function hide(el) { if(el) { el.style.display = 'none'; } }
+        function setOpacity(el, val) { if(el) { el.style.opacity = String(val); } }
+
+        // 轨迹画出动画
+        function animatePath(pathEl, duration) {
+            if (!pathEl) return;
+            show(pathEl);
+            const length = pathEl.getTotalLength();
+            pathEl.style.strokeDasharray = length + ' ' + length;
+            pathEl.style.strokeDashoffset = length;
+            const startTime = performance.now();
+            function step(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // ease-out
+                const ease = 1 - Math.pow(1 - progress, 3);
+                pathEl.style.strokeDashoffset = length * (1 - ease);
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    pathEl.style.strokeDasharray = '';
+                    pathEl.style.strokeDashoffset = '';
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        function animateLine(lineEl, duration) {
+            if (!lineEl) return;
+            show(lineEl);
+            const x1 = parseFloat(lineEl.getAttribute('x1'));
+            const y1 = parseFloat(lineEl.getAttribute('y1'));
+            const x2 = parseFloat(lineEl.getAttribute('x2'));
+            const y2 = parseFloat(lineEl.getAttribute('y2'));
+            const length = Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+            lineEl.style.strokeDasharray = length + ' ' + length;
+            lineEl.style.strokeDashoffset = length;
+            const startTime = performance.now();
+            function step(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                lineEl.style.strokeDashoffset = length * (1 - ease);
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    lineEl.style.strokeDasharray = '';
+                    lineEl.style.strokeDashoffset = '';
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        // 渲染当前步骤
+        function render() {
+            stepText.textContent = '步骤 ' + currentStep + '/5';
+            btnPrev.classList.toggle('disabled', currentStep === 0);
+            btnNext.classList.toggle('disabled', currentStep === totalSteps);
+
+            // 步骤0: 初始装置与已知条件
+            if (currentStep === 0) {
+                hide(els.particleGroup);
+                hide(els.v0Arrow);
+                hide(els.plateFieldLines);
+                hide(els.chargeFieldLines);
+                setOpacity(els.highlightPlate, 0);
+                setOpacity(els.highlightFree, 0);
+                setOpacity(els.highlightCharge, 0);
+                hide(els.traj1);
+                hide(els.traj2);
+                hide(els.traj3);
+                hide(els.exitPoint);
+                hide(els.yAnnotation);
+                hide(els.thetaAnnotation);
+                hide(els.labelQReq);
+                // 重置轨迹样式
+                [els.traj1, els.traj2, els.traj3].forEach(t => {
+                    if(t) { t.style.strokeDasharray = ''; t.style.strokeDashoffset = ''; t.style.strokeWidth = '1.5px'; }
+                });
+            }
+            // 步骤1: 高亮平行板，电场线，粒子，v₀
+            else if (currentStep === 1) {
+                show(els.particleGroup);
+                show(els.v0Arrow);
+                show(els.plateFieldLines);
+                hide(els.chargeFieldLines);
+                setOpacity(els.highlightPlate, 0.15);
+                setOpacity(els.highlightFree, 0);
+                setOpacity(els.highlightCharge, 0);
+                hide(els.traj1);
+                hide(els.traj2);
+                hide(els.traj3);
+                hide(els.exitPoint);
+                hide(els.yAnnotation);
+                hide(els.thetaAnnotation);
+                hide(els.labelQReq);
+            }
+            // 步骤2: 轨迹1画出
+            else if (currentStep === 2) {
+                show(els.particleGroup);
+                show(els.v0Arrow);
+                show(els.plateFieldLines);
+                hide(els.chargeFieldLines);
+                setOpacity(els.highlightPlate, 0.15);
+                setOpacity(els.highlightFree, 0);
+                setOpacity(els.highlightCharge, 0);
+                show(els.exitPoint);
+                hide(els.traj2);
+                hide(els.traj3);
+                hide(els.yAnnotation);
+                hide(els.thetaAnnotation);
+                hide(els.labelQReq);
+                // 轨迹1动画
+                animatePath(els.traj1, 600);
+            }
+            // 步骤3: 轨迹2画出，高亮无电场区
+            else if (currentStep === 3) {
+                show(els.particleGroup);
+                show(els.v0Arrow);
+                show(els.plateFieldLines);
+                hide(els.chargeFieldLines);
+                setOpacity(els.highlightPlate, 0.15);
+                setOpacity(els.highlightFree, 0.15);
+                setOpacity(els.highlightCharge, 0);
+                show(els.exitPoint);
+                show(els.traj1);
+                hide(els.traj3);
+                hide(els.yAnnotation);
+                hide(els.thetaAnnotation);
+                hide(els.labelQReq);
+                // 确保轨迹1已显示
+                els.traj1.style.strokeDasharray = '';
+                els.traj1.style.strokeDashoffset = '';
+                // 轨迹2动画
+                animateLine(els.traj2, 600);
+            }
+            // 步骤4: 轨迹3画出，点电荷电场线，高亮点电荷区
+            else if (currentStep === 4) {
+                show(els.particleGroup);
+                show(els.v0Arrow);
+                show(els.plateFieldLines);
+                show(els.chargeFieldLines);
+                setOpacity(els.highlightPlate, 0.15);
+                setOpacity(els.highlightFree, 0.15);
+                setOpacity(els.highlightCharge, 0.15);
+                show(els.exitPoint);
+                show(els.traj1);
+                show(els.traj2);
+                hide(els.yAnnotation);
+                hide(els.thetaAnnotation);
+                hide(els.labelQReq);
+                // 确保前两条轨迹已显示
+                els.traj1.style.strokeDasharray = '';
+                els.traj1.style.strokeDashoffset = '';
+                els.traj2.style.strokeDasharray = '';
+                els.traj2.style.strokeDashoffset = '';
+                // 轨迹3动画
+                animatePath(els.traj3, 800);
+            }
+            // 步骤5: 待求量标注，轨迹加粗，高亮淡出
+            else if (currentStep === 5) {
+                show(els.particleGroup);
+                show(els.v0Arrow);
+                show(els.plateFieldLines);
+                show(els.chargeFieldLines);
+                setOpacity(els.highlightPlate, 0.05);
+                setOpacity(els.highlightFree, 0.05);
+                setOpacity(els.highlightCharge, 0.05);
+                show(els.exitPoint);
+                show(els.traj1);
+                show(els.traj2);
+                show(els.traj3);
+                show(els.yAnnotation);
+                show(els.thetaAnnotation);
+                show(els.labelQReq);
+                // 轨迹加粗
+                [els.traj1, els.traj2, els.traj3].forEach(t => {
+                    if(t) t.style.strokeWidth = '2px';
+                });
+                // 确保轨迹无dash残留
+                els.traj1.style.strokeDasharray = '';
+                els.traj1.style.strokeDashoffset = '';
+                els.traj2.style.strokeDasharray = '';
+                els.traj2.style.strokeDashoffset = '';
+                els.traj3.style.strokeDasharray = '';
+                els.traj3.style.strokeDashoffset = '';
+            }
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                render();
+            }
+        });
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                render();
+            }
+        });
+
+        // 初始渲染
+        render();
+    })();
+    </script>
+</body>
+</html>

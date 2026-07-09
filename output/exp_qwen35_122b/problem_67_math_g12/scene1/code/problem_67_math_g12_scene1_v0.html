@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>椭圆几何性质动态演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 10; }
+        #scene1-slider-label { font-size: 14px; color: #333; }
+        #scene1-slider { width: 300px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 坐标轴 -->
+            <line x1="150" y1="250" x2="650" y2="250" stroke="#000000" stroke-width="1" id="scene1-axis-x"/>
+            <line x1="400" y1="400" x2="400" y2="100" stroke="#000000" stroke-width="1" id="scene1-axis-y"/>
+            
+            <!-- 椭圆轮廓 -->
+            <ellipse cx="400" cy="250" rx="200" ry="120" fill="none" stroke="#000000" stroke-width="2" id="scene1-ellipse"/>
+            
+            <!-- 直线 l (切线) -->
+            <line x1="600" y1="120" x2="600" y2="380" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" id="scene1-line-l"/>
+            
+            <!-- 线段 AP -->
+            <line x1="200" y1="250" x2="0" y2="0" stroke="#000000" stroke-width="1" id="scene1-seg-AP"/>
+            
+            <!-- 线段 BD (竖直线段) -->
+            <line x1="600" y1="250" x2="600" y2="0" stroke="#000000" stroke-width="1" id="scene1-seg-BD"/>
+            
+            <!-- 线段 PF -->
+            <line x1="0" y1="0" x2="560" y2="250" stroke="#000000" stroke-width="1" id="scene1-seg-PF"/>
+            
+            <!-- 线段 FM -->
+            <line x1="560" y1="250" x2="600" y2="0" stroke="#1565c0" stroke-width="2" id="scene1-seg-FM"/>
+            
+            <!-- 线段 PM -->
+            <line x1="0" y1="0" x2="600" y2="0" stroke="#2e7d32" stroke-width="2" id="scene1-seg-PM"/>
+            
+            <!-- 点 O (原点) -->
+            <circle cx="400" cy="250" r="5" fill="#000000" id="scene1-point-O"/>
+            
+            <!-- 点 A (左顶点) -->
+            <circle cx="200" cy="250" r="5" fill="#000000" id="scene1-point-A"/>
+            
+            <!-- 点 B (右顶点) -->
+            <circle cx="600" cy="250" r="5" fill="#000000" id="scene1-point-B"/>
+            
+            <!-- 点 F (右焦点) -->
+            <circle cx="560" cy="250" r="5" fill="#000000" id="scene1-point-F"/>
+            
+            <!-- 点 P (椭圆上动点) -->
+            <circle cx="0" cy="0" r="6" fill="#1565c0" id="scene1-point-P"/>
+            
+            <!-- 点 D (AP 与 l 交点) -->
+            <circle cx="600" cy="0" r="5" fill="#c62828" id="scene1-point-D"/>
+            
+            <!-- 点 M (BD 中点) -->
+            <circle cx="600" cy="0" r="5" fill="#2e7d32" id="scene1-point-M"/>
+            
+            <!-- 标签 -->
+            <text x="380" y="310" font-size="16" fill="#000000" id="scene1-label-O">O</text>
+            <text x="185" y="310" font-size="16" fill="#000000" id="scene1-label-A">A</text>
+            <text x="605" y="310" font-size="16" fill="#000000" id="scene1-label-B">B</text>
+            <text x="555" y="310" font-size="16" fill="#000000" id="scene1-label-F">F</text>
+            <text x="640" y="240" font-size="16" fill="#000000" id="scene1-label-x">x</text>
+            <text x="380" y="90" font-size="16" fill="#000000" id="scene1-label-y">y</text>
+            <text x="610" y="385" font-size="16" fill="#888888" id="scene1-label-l">l</text>
+            <text x="0" y="0" font-size="16" fill="#1565c0" id="scene1-label-P">P</text>
+            <text x="615" y="0" font-size="16" fill="#c62828" id="scene1-label-D">D</text>
+            <text x="615" y="0" font-size="16" fill="#2e7d32" id="scene1-label-M">M</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <span id="scene1-slider-label">点 P 位置</span>
+            <input type="range" id="scene1-slider" min="0" max="100" value="50">
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 椭圆几何性质动态演示
+        // 布局坐标表对照：
+        // 画布尺寸：800×500px
+        // 坐标系：原点在 (400,250)，x 轴向右，y 轴向上
+        // 椭圆参数：a = 200px, b = 120px, c = √(a²-b²) ≈ 160px
+        // 点 A: (-a,0)=(200,250), 点 B: (a,0)=(600,250), 点 O: (0,0)=(400,250), 点 F: (c,0)=(560,250)
+        // 直线 l: x = a (数学坐标) = 600 (SVG 坐标)
+        
+        const svg = document.getElementById('scene1-svg');
+        const slider = document.getElementById('scene1-slider');
+        
+        // 椭圆参数
+        const centerX = 400;
+        const centerY = 250;
+        const a = 200;  // 半长轴
+        const b = 120;  // 半短轴
+        const c = Math.sqrt(a * a - b * b);  // 半焦距 ≈ 160
+        
+        // SVG 坐标转换函数（数学坐标 → SVG 坐标）
+        function toSvgX(x) { return centerX + x; }
+        function toSvgY(y) { return centerY - y; }  // y 轴翻转
+        
+        // 根据滑块值计算点 P 的位置（角度从 25°到 155°，确保 P 在椭圆上半部分且远离顶点）
+        function updateScene() {
+            const sliderValue = parseInt(slider.value);
+            const angle = 25 + (sliderValue / 100) * 130;  // 25° ~ 155°
+            const theta = angle * Math.PI / 180;
+            
+            // 点 P 坐标（椭圆参数方程）
+            const Px = a * Math.cos(theta);
+            const Py = b * Math.sin(theta);
+            const svgPx = toSvgX(Px);
+            const svgPy = toSvgY(Py);
+            
+            // 点 D：直线 AP 与直线 l (x=a) 的交点
+            // A 的数学坐标 (-a, 0), P 的数学坐标 (Px, Py)
+            // 直线 AP: y - 0 = k(x - (-a)), k = Py / (Px + a)
+            const k = Py / (Px + a);
+            const D_y_math = k * (a + a);  // x = a, 所以 x - (-a) = 2a
+            const svgDy = toSvgY(D_y_math);
+            
+            // 点 M：BD 中点
+            // B 的数学坐标 (a, 0), D 的数学坐标 (a, D_y_math)
+            const My = (0 + D_y_math) / 2;
+            const svgMy = toSvgY(My);
+            
+            // 更新线段 AP
+            const segAP = document.getElementById('scene1-seg-AP');
+            segAP.setAttribute('x1', toSvgX(-a));
+            segAP.setAttribute('y1', toSvgY(0));
+            segAP.setAttribute('x2', svgPx);
+            segAP.setAttribute('y2', svgPy);
+            
+            // 更新线段 BD
+            const segBD = document.getElementById('scene1-seg-BD');
+            segBD.setAttribute('x1', toSvgX(a));
+            segBD.setAttribute('y1', toSvgY(0));
+            segBD.setAttribute('x2', toSvgX(a));
+            segBD.setAttribute('y2', svgDy);
+            
+            // 更新线段 PF
+            const segPF = document.getElementById('scene1-seg-PF');
+            segPF.setAttribute('x1', svgPx);
+            segPF.setAttribute('y1', svgPy);
+            segPF.setAttribute('x2', toSvgX(c));
+            segPF.setAttribute('y2', toSvgY(0));
+            
+            // 更新线段 FM
+            const segFM = document.getElementById('scene1-seg-FM');
+            segFM.setAttribute('x1', toSvgX(c));
+            segFM.setAttribute('y1', toSvgY(0));
+            segFM.setAttribute('x2', toSvgX(a));
+            segFM.setAttribute('y2', svgMy);
+            
+            // 更新线段 PM
+            const segPM = document.getElementById('scene1-seg-PM');
+            segPM.setAttribute('x1', svgPx);
+            segPM.setAttribute('y1', svgPy);
+            segPM.setAttribute('x2', toSvgX(a));
+            segPM.setAttribute('y2', svgMy);
+            
+            // 更新点 P
+            const pointP = document.getElementById('scene1-point-P');
+            pointP.setAttribute('cx', svgPx);
+            pointP.setAttribute('cy', svgPy);
+            
+            // 更新点 D
+            const pointD = document.getElementById('scene1-point-D');
+            pointD.setAttribute('cx', toSvgX(a));
+            pointD.setAttribute('cy', svgDy);
+            
+            // 更新点 M
+            const pointM = document.getElementById('scene1-point-M');
+            pointM.setAttribute('cx', toSvgX(a));
+            pointM.setAttribute('cy', svgMy);
+            
+            // 更新标签 P 位置（根据 P 的位置动态调整偏移方向）
+            const labelP = document.getElementById('scene1-label-P');
+            // P 在左半椭圆时标签在左上方，右半椭圆时标签在右上方
+            if (Px < 0) {
+                labelP.setAttribute('x', svgPx - 35);
+                labelP.setAttribute('y', svgPy - 10);
+            } else {
+                labelP.setAttribute('x', svgPx + 15);
+                labelP.setAttribute('y', svgPy - 10);
+            }
+            
+            // 更新标签 D 位置（确保不超出画布，且与 M 标签保持间距）
+            const labelD = document.getElementById('scene1-label-D');
+            // 限制 D 的显示位置，避免超出画布
+            const clampedSvgDy = Math.max(80, Math.min(svgDy, 380));
+            labelD.setAttribute('x', toSvgX(a) + 15);
+            labelD.setAttribute('y', clampedSvgDy - 10);
+            
+            // 更新标签 M 位置（确保与 D 标签保持间距，且不低于 x 轴）
+            const labelM = document.getElementById('scene1-label-M');
+            // M 的 y 坐标应该始终在 B 点上方或附近，确保标签不超出画布
+            const clampedSvgMy = Math.max(200, Math.min(svgMy, 380));
+            labelM.setAttribute('x', toSvgX(a) + 15);
+            labelM.setAttribute('y', clampedSvgMy + 5);
+        }
+        
+        // 滑块事件监听
+        slider.addEventListener('input', updateScene);
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

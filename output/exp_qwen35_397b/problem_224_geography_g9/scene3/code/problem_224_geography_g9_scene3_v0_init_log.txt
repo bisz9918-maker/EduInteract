@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳光照图 - 各点地理参数比较分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #999; border-radius: 4px; background: #e0e0e0; }
+        .scene3-btn:hover { background: #bdbdbd; }
+        .scene3-btn.active { background: #4caf50; color: white; border-color: #388e3c; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 经纬网 - 用 line 元素，不用 rect -->
+            <g id="scene3-grid">
+                <!-- 纬线 -->
+                <line x1="100" y1="50" x2="700" y2="50" stroke="#000000" stroke-width="2"/>
+                <line x1="100" y1="108" x2="700" y2="108" stroke="#000000" stroke-width="2"/>
+                <line x1="100" y1="166" x2="700" y2="166" stroke="#000000" stroke-width="2"/>
+                <line x1="100" y1="225" x2="700" y2="225" stroke="#000000" stroke-width="2"/>
+                <line x1="100" y1="283" x2="700" y2="283" stroke="#000000" stroke-width="2"/>
+                <line x1="100" y1="342" x2="700" y2="342" stroke="#000000" stroke-width="2"/>
+                <line x1="100" y1="400" x2="700" y2="400" stroke="#000000" stroke-width="2"/>
+                
+                <!-- 经线 -->
+                <line x1="100" y1="50" x2="100" y2="400" stroke="#000000" stroke-width="2"/>
+                <line x1="300" y1="50" x2="300" y2="400" stroke="#000000" stroke-width="2"/>
+                <line x1="500" y1="50" x2="500" y2="400" stroke="#000000" stroke-width="2"/>
+                <line x1="700" y1="50" x2="700" y2="400" stroke="#000000" stroke-width="2"/>
+            </g>
+            
+            <!-- 晨昏线 EDF -->
+            <polyline id="scene3-morning-line" points="100,342 300,108 700,342" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 纬度标签（右侧） -->
+            <text x="710" y="55" font-size="12" fill="#000000">90°N</text>
+            <text x="710" y="113" font-size="12" fill="#000000">66.5°N</text>
+            <text x="710" y="171" font-size="12" fill="#000000">23.5°N</text>
+            <text x="710" y="230" font-size="12" fill="#000000">赤道</text>
+            <text x="710" y="288" font-size="12" fill="#000000">23.5°S</text>
+            <text x="710" y="347" font-size="12" fill="#000000">66.5°S</text>
+            <text x="710" y="405" font-size="12" fill="#000000">90°S</text>
+            
+            <!-- 经度标签（顶部） -->
+            <text x="85" y="35" font-size="12" fill="#000000">135°</text>
+            <text x="285" y="35" font-size="12" fill="#000000">45°</text>
+            <text x="485" y="35" font-size="12" fill="#000000">45°</text>
+            
+            <!-- A、B、C、D 四个点 -->
+            <circle id="scene3-point-a" cx="100" cy="342" r="6" fill="#1565c0"/>
+            <circle id="scene3-point-b" cx="300" cy="225" r="6" fill="#1565c0"/>
+            <circle id="scene3-point-c" cx="500" cy="108" r="6" fill="#1565c0"/>
+            <circle id="scene3-point-d" cx="300" cy="108" r="6" fill="#1565c0"/>
+            
+            <!-- 点标签 - 全部放在矩形外部，远离线条 -->
+            <!-- A 点 (100,342) 在左边界，标签放左下方外部 -->
+            <text id="scene3-label-a" x="75" y="370" font-size="14" fill="#000000">A</text>
+            <!-- B 点 (300,225) 在经线上，标签放右侧外部，远离晨昏线 -->
+            <text id="scene3-label-b" x="350" y="245" font-size="14" fill="#000000">B</text>
+            <!-- C 点 (500,108) 在纬线上，标签放右上方外部 -->
+            <text id="scene3-label-c" x="540" y="100" font-size="14" fill="#000000">C</text>
+            <!-- D 点 (300,108) 在交点，标签放正上方外部 -->
+            <text id="scene3-label-d" x="300" y="70" font-size="14" fill="#000000">D</text>
+            
+            <!-- 太阳高度标注（初始隐藏）- 放在点右侧，用白色背景垫底 -->
+            <!-- D 点右侧 -->
+            <g id="scene3-sunheight-d" opacity="0">
+                <rect x="315" y="100" width="28" height="22" fill="#ffffff" stroke="none"/>
+                <text x="329" y="116" font-size="14" fill="#2e7d32" text-anchor="middle">0°</text>
+            </g>
+            <!-- C 点右侧 -->
+            <g id="scene3-sunheight-c" opacity="0">
+                <rect x="515" y="100" width="28" height="22" fill="#ffffff" stroke="none"/>
+                <text x="529" y="116" font-size="14" fill="#2e7d32" text-anchor="middle">0°</text>
+            </g>
+            
+            <!-- 状态连线（初始隐藏） -->
+            <line id="scene3-line-bc" x1="300" y1="225" x2="500" y2="108" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene3-line-bd" x1="300" y1="225" x2="300" y2="108" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene3-line-cd" x1="500" y1="108" x2="300" y2="108" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 结论文字区 - 放在按钮上方 -->
+            <text id="scene3-conclusion" x="400" y="445" font-size="16" fill="#2e7d32" font-weight="bold" text-anchor="middle">请选择比较类型</text>
+        </svg>
+        
+        <div id="scene3-controls">
+            <button id="scene3-btn-state1" class="scene3-btn">正午太阳高度角</button>
+            <button id="scene3-btn-state2" class="scene3-btn">地方时</button>
+            <button id="scene3-btn-state3" class="scene3-btn">线速度</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现：各点地理参数比较分析
+        
+        let currentState = 0;
+        
+        // 获取 DOM 元素
+        const lineBC = document.getElementById('scene3-line-bc');
+        const lineBD = document.getElementById('scene3-line-bd');
+        const lineCD = document.getElementById('scene3-line-cd');
+        const sunheightD = document.getElementById('scene3-sunheight-d');
+        const sunheightC = document.getElementById('scene3-sunheight-c');
+        const conclusion = document.getElementById('scene3-conclusion');
+        const btn1 = document.getElementById('scene3-btn-state1');
+        const btn2 = document.getElementById('scene3-btn-state2');
+        const btn3 = document.getElementById('scene3-btn-state3');
+        
+        // 隐藏所有连线和标注
+        function hideAll() {
+            lineBC.setAttribute('opacity', '0');
+            lineBD.setAttribute('opacity', '0');
+            lineCD.setAttribute('opacity', '0');
+            sunheightD.setAttribute('opacity', '0');
+            sunheightC.setAttribute('opacity', '0');
+        }
+        
+        // 重置按钮状态
+        function resetButtons() {
+            btn1.classList.remove('active');
+            btn2.classList.remove('active');
+            btn3.classList.remove('active');
+        }
+        
+        // 更新状态
+        function updateState(state) {
+            currentState = state;
+            hideAll();
+            resetButtons();
+            
+            if (state === 1) {
+                // 正午太阳高度角
+                lineBC.setAttribute('opacity', '1');
+                sunheightD.setAttribute('opacity', '1');
+                sunheightC.setAttribute('opacity', '1');
+                conclusion.textContent = '正午太阳高度角相等：B 和 C（同纬度对称点）';
+                btn1.classList.add('active');
+            } else if (state === 2) {
+                // 地方时
+                lineBD.setAttribute('opacity', '1');
+                conclusion.textContent = '地方时相等：B 和 D（同经度 45°W）';
+                btn2.classList.add('active');
+            } else if (state === 3) {
+                // 线速度
+                lineCD.setAttribute('opacity', '1');
+                conclusion.textContent = '线速度相等：C 和 D（同纬度 66.5°N）';
+                btn3.classList.add('active');
+            } else {
+                // 初始状态
+                conclusion.textContent = '请选择比较类型';
+            }
+        }
+        
+        // 绑定按钮事件
+        btn1.addEventListener('click', function() { updateState(1); });
+        btn2.addEventListener('click', function() { updateState(2); });
+        btn3.addEventListener('click', function() { updateState(3); });
+        
+    })();
+    </script>
+</body>
+</html>

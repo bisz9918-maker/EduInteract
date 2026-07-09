@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经线上球面距离计算</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        .scene2-btn:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐类 */
+        .scene2-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene2-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* 计算框样式 */
+        #scene2-calc-box {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            width: 140px;
+            padding: 12px;
+            background: #f5f5f5;
+            border: 1px solid #888888;
+            border-radius: 4px;
+        }
+        #scene2-calc-box .calc-line {
+            font-size: 12px;
+            margin-bottom: 6px;
+            color: #000000;
+        }
+        #scene2-calc-box .calc-result {
+            font-size: 14px;
+            font-weight: bold;
+            color: #c62828;
+            margin: 10px 0;
+        }
+        #scene2-calc-box .calc-answer {
+            font-size: 14px;
+            font-weight: bold;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 经纬网背景 -->
+            <g id="scene2-grid">
+                <!-- 经线 -->
+                <line id="scene2-meridian-180w" x1="80" y1="90" x2="80" y2="450" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-meridian-120w" x1="180" y1="90" x2="180" y2="450" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-meridian-60w" x1="280" y1="90" x2="280" y2="450" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-meridian-0" x1="380" y1="90" x2="380" y2="450" stroke="#000000" stroke-width="1.5"/>
+                <line id="scene2-meridian-60e" x1="480" y1="90" x2="480" y2="450" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-meridian-120e" x1="580" y1="90" x2="580" y2="450" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-meridian-180e" x1="680" y1="90" x2="680" y2="450" stroke="#000000" stroke-width="1"/>
+                
+                <!-- 纬线 -->
+                <line id="scene2-parallel-90n" x1="80" y1="90" x2="680" y2="90" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-parallel-60n" x1="80" y1="150" x2="680" y2="150" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-parallel-30n" x1="80" y1="210" x2="680" y2="210" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-parallel-0" x1="80" y1="270" x2="680" y2="270" stroke="#000000" stroke-width="1.5"/>
+                <line id="scene2-parallel-30s" x1="80" y1="330" x2="680" y2="330" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-parallel-60s" x1="80" y1="390" x2="680" y2="390" stroke="#000000" stroke-width="1"/>
+                <line id="scene2-parallel-90s" x1="80" y1="450" x2="680" y2="450" stroke="#000000" stroke-width="1"/>
+                
+                <!-- 经度标签 (顶部，y=35 确保距边缘>20px) -->
+                <text id="scene2-lon-180w" x="80" y="35" text-anchor="middle" font-size="12" fill="#000000">180°</text>
+                <text id="scene2-lon-120w" x="180" y="35" text-anchor="middle" font-size="12" fill="#000000">120°W</text>
+                <text id="scene2-lon-60w" x="280" y="35" text-anchor="middle" font-size="12" fill="#000000">60°W</text>
+                <text id="scene2-lon-0" x="380" y="35" text-anchor="middle" font-size="12" fill="#000000">0°</text>
+                <text id="scene2-lon-60e" x="480" y="35" text-anchor="middle" font-size="12" fill="#000000">60°E</text>
+                <text id="scene2-lon-120e" x="580" y="35" text-anchor="middle" font-size="12" fill="#000000">120°E</text>
+                <text id="scene2-lon-180e" x="680" y="35" text-anchor="middle" font-size="12" fill="#000000">180°</text>
+                
+                <!-- 纬度标签 (左侧，x=65 确保距边缘>20px) -->
+                <text id="scene2-lat-90n" x="65" y="95" text-anchor="end" font-size="12" fill="#000000">90°N</text>
+                <text id="scene2-lat-60n" x="65" y="155" text-anchor="end" font-size="12" fill="#000000">60°N</text>
+                <text id="scene2-lat-30n" x="65" y="215" text-anchor="end" font-size="12" fill="#000000">30°N</text>
+                <text id="scene2-lat-0" x="65" y="275" text-anchor="end" font-size="12" fill="#000000">0°</text>
+                <text id="scene2-lat-30s" x="65" y="335" text-anchor="end" font-size="12" fill="#000000">30°S</text>
+                <text id="scene2-lat-60s" x="65" y="395" text-anchor="end" font-size="12" fill="#000000">60°S</text>
+                <text id="scene2-lat-90s" x="65" y="455" text-anchor="end" font-size="12" fill="#000000">90°S</text>
+            </g>
+            
+            <!-- B 点 (60°S, 0°) -->
+            <circle id="scene2-point-b" cx="380" cy="390" r="6" fill="#1565c0"/>
+            <text id="scene2-label-b" x="395" y="405" font-size="12" fill="#000000">B (60°S, 0°)</text>
+            
+            <!-- C 点 (0°, 0°) -->
+            <circle id="scene2-point-c" cx="380" cy="270" r="6" fill="#1565c0"/>
+            <text id="scene2-label-c" x="395" y="260" font-size="12" fill="#000000">C (0°, 0°)</text>
+            
+            <!-- B→C 路径 (初始隐藏) -->
+            <line id="scene2-path-bc" x1="380" y1="390" x2="380" y2="270" stroke="#c62828" stroke-width="3" class="scene2-hidden"/>
+            
+            <!-- 纬度差标注弧 (初始隐藏) -->
+            <path id="scene2-arc-lat" d="M 360 330 A 20 20 0 0 1 360 370" stroke="#2e7d32" stroke-width="2" fill="none" stroke-dasharray="4,4" class="scene2-hidden"/>
+            <text id="scene2-label-lat" x="335" y="355" font-size="12" fill="#2e7d32" class="scene2-hidden">60°</text>
+        </svg>
+        
+        <!-- 计算框 (HTML 元素，初始隐藏) -->
+        <div id="scene2-calc-box" class="scene2-hidden">
+            <div class="calc-line">距离=纬度差</div>
+            <div class="calc-line">×111 km/°</div>
+            <div class="calc-line">60°×111</div>
+            <div class="calc-result">≈6660 km</div>
+            <div id="scene2-calc-answer" class="calc-answer scene2-hidden">答案：C</div>
+        </div>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/4</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：经线上球面距离计算
+        
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const calcBox = document.getElementById('scene2-calc-box');
+        const calcAnswer = document.getElementById('scene2-calc-answer');
+        
+        // 需要显隐控制的 SVG 元素
+        const pathBc = document.getElementById('scene2-path-bc');
+        const arcLat = document.getElementById('scene2-arc-lat');
+        const labelLat = document.getElementById('scene2-label-lat');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.classList.remove('scene2-hidden');
+            el.classList.add('scene2-visible');
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.classList.remove('scene2-visible');
+            el.classList.add('scene2-hidden');
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 更新界面状态
+        function updateState() {
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentState + '/' + totalSteps;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps);
+            btnNext.textContent = (currentState === totalSteps) ? '完成 ✓' : '下一步 ▶';
+            
+            // 根据当前状态显示/隐藏元素
+            // 步骤 0: 只显示 B、C 点和标签
+            // 步骤 1: 显示 B→C 路径
+            // 步骤 2: 显示纬度差标注
+            // 步骤 3: 显示计算框
+            // 步骤 4: 显示答案
+            
+            if (currentState >= 1) {
+                show(pathBc);
+            } else {
+                hide(pathBc);
+            }
+            
+            if (currentState >= 2) {
+                show(arcLat);
+                show(labelLat);
+            } else {
+                hide(arcLat);
+                hide(labelLat);
+            }
+            
+            if (currentState >= 3) {
+                show(calcBox);
+            } else {
+                hide(calcBox);
+            }
+            
+            if (currentState >= 4) {
+                show(calcAnswer);
+            } else {
+                hide(calcAnswer);
+            }
+        }
+        
+        // 上一步按钮点击处理
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+        
+        // 下一步按钮点击处理
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateState();
+            }
+        });
+        
+        // 初始化
+        updateState();
+        
+    })();
+    </script>
+</body>
+</html>

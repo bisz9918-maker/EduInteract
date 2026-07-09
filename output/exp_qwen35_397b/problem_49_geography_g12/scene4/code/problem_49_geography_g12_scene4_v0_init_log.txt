@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正午太阳高度角与地方时计算演示</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Segoe UI', sans-serif; }
+        #scene4-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene4-svg { width: 800px; height: 500px; }
+        .scene4-slider-track { fill: #e0e0e0; stroke: #1565c0; stroke-width: 2px; }
+        .scene4-slider-handle { fill: #2e7d32; cursor: pointer; }
+        .scene4-slider-handle:hover { fill: #1b5e20; }
+        .scene4-axis-line { stroke: #1565c0; stroke-width: 2px; }
+        .scene4-axis-tick { stroke: #000000; stroke-width: 1px; }
+        .scene4-earth-circle { fill: #e3f2fd; stroke: #000000; stroke-width: 1.5px; }
+        .scene4-equator { stroke: #888888; stroke-width: 1px; stroke-dasharray: 5,5; }
+        .scene4-point { fill: #2e7d32; }
+        .scene4-point-s { fill: #c62828; }
+        .scene4-sun-ray { stroke: #c62828; stroke-width: 2px; fill: none; }
+        .scene4-horizon { stroke: #888888; stroke-width: 1px; stroke-dasharray: 5,5; }
+        .scene4-angle-arc { stroke: #2e7d32; stroke-width: 1.5px; fill: none; }
+        .scene4-label { font-size: 14px; fill: #000000; }
+        .scene4-formula { font-size: 16px; fill: #000000; }
+        .scene4-result { font-size: 18px; fill: #2e7d32; font-weight: bold; }
+        .scene4-slider-label { font-size: 14px; fill: #333333; }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <svg id="scene4-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 公式区 -->
+            <rect id="scene4-formula-bg" x="400" y="50" width="380" height="50" fill="#f5f5f5" stroke="#cccccc" stroke-width="1px" rx="5"/>
+            <text id="scene4-formula-display" x="590" y="75" text-anchor="middle" class="scene4-formula">H = 90° - |φ - δ|</text>
+            
+            <!-- 结果区 -->
+            <rect id="scene4-result-bg" x="400" y="110" width="380" height="50" fill="#f5f5f5" stroke="#cccccc" stroke-width="1px" rx="5"/>
+            <text id="scene4-result-display" x="590" y="135" text-anchor="middle" class="scene4-result">正午太阳高度角：79.5°</text>
+            <text id="scene4-time-display" x="590" y="155" text-anchor="middle" class="scene4-result" font-size="14px">地方时：待计算</text>
+            
+            <!-- 地球截面圆 -->
+            <circle id="scene4-earth-circle" cx="180" cy="200" r="100" class="scene4-earth-circle"/>
+            
+            <!-- 地心 O -->
+            <circle id="scene4-point-o" cx="180" cy="200" r="4" fill="#000000"/>
+            <text id="scene4-label-o" x="165" y="220" class="scene4-label">O</text>
+            
+            <!-- 赤道线 -->
+            <line id="scene4-equator" x1="80" y1="200" x2="280" y2="200" class="scene4-equator"/>
+            <text id="scene4-label-equator" x="290" y="205" class="scene4-label" font-size="12px">赤道</text>
+            
+            <!-- 当地纬度点 P (动态) -->
+            <circle id="scene4-point-p" cx="230" cy="150" r="5" class="scene4-point"/>
+            <text id="scene4-label-p" x="240" y="145" class="scene4-label">φ</text>
+            
+            <!-- 直射点 S (动态) -->
+            <circle id="scene4-point-s" cx="200" cy="180" r="5" class="scene4-point-s"/>
+            <text id="scene4-label-s" x="210" y="175" class="scene4-label" fill="#c62828">δ</text>
+            
+            <!-- 太阳光线 (平行箭头) -->
+            <g id="scene4-sun-rays">
+                <line x1="280" y1="120" x2="340" y2="140" class="scene4-sun-ray" marker-end="url(#scene4-arrow)"/>
+                <line x1="280" y1="150" x2="340" y2="170" class="scene4-sun-ray" marker-end="url(#scene4-arrow)"/>
+                <line x1="280" y1="180" x2="340" y2="200" class="scene4-sun-ray" marker-end="url(#scene4-arrow)"/>
+            </g>
+            
+            <!-- 地平线 (过 P 点切线) -->
+            <line id="scene4-horizon" x1="140" y1="250" x2="260" y2="250" class="scene4-horizon"/>
+            
+            <!-- 太阳高度角 H 弧线 -->
+            <path id="scene4-angle-arc" d="M 220 250 A 40 40 0 0 1 240 230" class="scene4-angle-arc"/>
+            <text id="scene4-label-h" x="250" y="245" class="scene4-label" fill="#2e7d32">H</text>
+            
+            <!-- 经度数轴 -->
+            <line id="scene4-axis-longitude" x1="450" y1="200" x2="750" y2="200" class="scene4-axis-line"/>
+            
+            <!-- 经度刻度 -->
+            <g id="scene4-axis-ticks">
+                <line x1="450" y1="195" x2="450" y2="205" class="scene4-axis-tick"/>
+                <text x="450" y="225" text-anchor="middle" class="scene4-label" font-size="12px">-180°</text>
+                
+                <line x1="500" y1="195" x2="500" y2="205" class="scene4-axis-tick"/>
+                <text x="500" y="225" text-anchor="middle" class="scene4-label" font-size="12px">-120°</text>
+                
+                <line x1="550" y1="195" x2="550" y2="205" class="scene4-axis-tick"/>
+                <text x="550" y="225" text-anchor="middle" class="scene4-label" font-size="12px">-60°</text>
+                
+                <line x1="600" y1="195" x2="600" y2="205" class="scene4-axis-tick"/>
+                <text x="600" y="225" text-anchor="middle" class="scene4-label" font-size="12px">0°</text>
+                
+                <line x1="650" y1="195" x2="650" y2="205" class="scene4-axis-tick"/>
+                <text x="650" y="225" text-anchor="middle" class="scene4-label" font-size="12px">60°</text>
+                
+                <line x1="700" y1="195" x2="700" y2="205" class="scene4-axis-tick"/>
+                <text x="700" y="225" text-anchor="middle" class="scene4-label" font-size="12px">120°</text>
+                
+                <line x1="750" y1="195" x2="750" y2="205" class="scene4-axis-tick"/>
+                <text x="750" y="225" text-anchor="middle" class="scene4-label" font-size="12px">180°</text>
+            </g>
+            
+            <!-- 时间刻度 (数轴下方) -->
+            <g id="scene4-time-ticks">
+                <text x="450" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">0时</text>
+                <text x="500" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">4时</text>
+                <text x="550" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">8时</text>
+                <text x="600" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">12时</text>
+                <text x="650" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">16时</text>
+                <text x="700" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">20时</text>
+                <text x="750" y="245" text-anchor="middle" class="scene4-label" font-size="11px" fill="#666666">24时</text>
+            </g>
+            
+            <!-- 当地经度标记点 (动态) -->
+            <circle id="scene4-point-longitude" cx="657" cy="200" r="6" fill="#2e7d32"/>
+            <text id="scene4-label-longitude" x="657" y="185" text-anchor="middle" class="scene4-label" font-size="12px">114.5°E</text>
+            
+            <!-- 纬度滑块轨道 -->
+            <rect id="scene4-slider-latitude-track" x="100" y="440" width="250" height="15" class="scene4-slider-track" rx="7"/>
+            <text id="scene4-slider-latitude-label" x="80" y="452" text-anchor="end" class="scene4-slider-label">纬度φ</text>
+            <circle id="scene4-handle-latitude" cx="225" cy="447" r="10" class="scene4-slider-handle"/>
+            <text id="scene4-latitude-value" x="225" y="480" text-anchor="middle" class="scene4-label" font-size="12px">30.5°N</text>
+            
+            <!-- 经度滑块轨道 -->
+            <rect id="scene4-slider-longitude-track" x="450" y="440" width="250" height="15" class="scene4-slider-track" rx="7"/>
+            <text id="scene4-slider-longitude-label" x="430" y="452" text-anchor="end" class="scene4-slider-label">经度λ</text>
+            <circle id="scene4-handle-longitude" cx="575" cy="447" r="10" class="scene4-slider-handle"/>
+            <text id="scene4-longitude-value" x="575" y="480" text-anchor="middle" class="scene4-label" font-size="12px">114.5°E</text>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene4-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+            </defs>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4: 正午太阳高度角与地方时计算演示
+        // 布局坐标表:
+        // | 元素 | 位置/范围 | 备注 |
+        // |------|-----------|------|
+        // | 地球截面圆 | 圆心 (180,200), r=100 | 左侧主图 |
+        // | 地心 O | (180,200) | 标注"O" |
+        // | 赤道线 | (80,200)-(280,200) | 水平虚线 |
+        // | 当地纬度点 P | (230,150) 对应 30.5°N | 动态 |
+        // | 直射点 S | (200,180) 对应 20°N | 固定 |
+        // | 经度数轴 | (450,200)-(750,200) | 右侧主图 |
+        // | 纬度滑块 | (100,440)-(350,455) | 范围 -90° 到 90° |
+        // | 经度滑块 | (450,440)-(700,455) | 范围 -180° 到 180° |
+        // | 公式区 | (400,50)-(780,100) | H = 90° - |φ - δ| |
+        // | 结果区 | (400,110)-(780,160) | 显示计算结果 |
+        
+        const state = {
+            latitude: 30.5,      // 当地纬度，范围 -90 到 90
+            longitude: 114.5,    // 当地经度，范围 -180 到 180
+            directLatitude: 20   // 太阳直射点纬度，固定 20°N
+        };
+        
+        // 滑块配置
+        const latitudeSlider = {
+            trackX: 100, trackY: 447, trackWidth: 250,
+            min: -90, max: 90
+        };
+        
+        const longitudeSlider = {
+            trackX: 450, trackY: 447, trackWidth: 250,
+            min: -180, max: 180
+        };
+        
+        // DOM 元素
+        const pointP = document.getElementById('scene4-point-p');
+        const labelP = document.getElementById('scene4-label-p');
+        const pointLongitude = document.getElementById('scene4-point-longitude');
+        const labelLongitude = document.getElementById('scene4-label-longitude');
+        const handleLatitude = document.getElementById('scene4-handle-latitude');
+        const handleLongitude = document.getElementById('scene4-handle-longitude');
+        const latitudeValue = document.getElementById('scene4-latitude-value');
+        const longitudeValue = document.getElementById('scene4-longitude-value');
+        const resultDisplay = document.getElementById('scene4-result-display');
+        const timeDisplay = document.getElementById('scene4-time-display');
+        const angleArc = document.getElementById('scene4-angle-arc');
+        const labelH = document.getElementById('scene4-label-h');
+        
+        // 坐标计算函数
+        function latitudeToY(lat) {
+            // 纬度转换为地球截面圆上的 Y 坐标
+            // 90°N -> y=100, 0° -> y=200, 90°S -> y=300
+            return 200 - Math.sin(lat * Math.PI / 180) * 100;
+        }
+        
+        function latitudeToX(lat) {
+            // 纬度转换为地球截面圆上的 X 坐标（假设在右侧经线上）
+            return 180 + Math.cos(lat * Math.PI / 180) * 100;
+        }
+        
+        function longitudeToX(lon) {
+            // 经度转换为数轴上的 X 坐标
+            // -180° -> x=450, 0° -> x=600, 180° -> x=750
+            return 450 + (lon + 180) / 360 * 300;
+        }
+        
+        function latToSliderX(lat) {
+            // 纬度转换为滑块手柄 X 坐标
+            return latitudeSlider.trackX + (lat - latitudeSlider.min) / (latitudeSlider.max - latitudeSlider.min) * latitudeSlider.trackWidth;
+        }
+        
+        function sliderXToLat(x) {
+            // 滑块手柄 X 坐标转换为纬度
+            const clampedX = Math.max(latitudeSlider.trackX, Math.min(latitudeSlider.trackX + latitudeSlider.trackWidth, x));
+            return latitudeSlider.min + (clampedX - latitudeSlider.trackX) / latitudeSlider.trackWidth * (latitudeSlider.max - latitudeSlider.min);
+        }
+        
+        function lonToSliderX(lon) {
+            // 经度转换为滑块手柄 X 坐标
+            return longitudeSlider.trackX + (lon - longitudeSlider.min) / (longitudeSlider.max - longitudeSlider.min) * longitudeSlider.trackWidth;
+        }
+        
+        function sliderXToLon(x) {
+            // 滑块手柄 X 坐标转换为经度
+            const clampedX = Math.max(longitudeSlider.trackX, Math.min(longitudeSlider.trackX + longitudeSlider.trackWidth, x));
+            return longitudeSlider.min + (clampedX - longitudeSlider.trackX) / longitudeSlider.trackWidth * (longitudeSlider.max - longitudeSlider.min);
+        }
+        
+        // 计算正午太阳高度角 H = 90° - |φ - δ|
+        function calculateSolarAltitude(lat, directLat) {
+            return 90 - Math.abs(lat - directLat);
+        }
+        
+        // 计算地方时（基于经度差，15°=1 小时）
+        function calculateLocalTime(lon) {
+            // 以 0°经线为基准（12 时为正午）
+            // 每 15°经度差 = 1 小时时间差
+            const timeDiff = lon / 15;
+            let localTime = 12 + timeDiff;
+            // 规范化到 0-24 范围
+            while (localTime < 0) localTime += 24;
+            while (localTime >= 24) localTime -= 24;
+            return localTime;
+        }
+        
+        // 格式化纬度显示
+        function formatLatitude(lat) {
+            if (lat > 0) return lat.toFixed(1) + '°N';
+            if (lat < 0) return Math.abs(lat).toFixed(1) + '°S';
+            return '0°';
+        }
+        
+        // 格式化经度显示
+        function formatLongitude(lon) {
+            if (lon > 0) return lon.toFixed(1) + '°E';
+            if (lon < 0) return Math.abs(lon).toFixed(1) + '°W';
+            return '0°';
+        }
+        
+        // 格式化时间显示
+        function formatTime(hours) {
+            const h = Math.floor(hours);
+            const m = Math.round((hours - h) * 60);
+            if (m === 0) return h + '时';
+            return h + '时' + m + '分';
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            // 更新地球截面图上的 P 点位置
+            const pX = latitudeToX(state.latitude);
+            const pY = latitudeToY(state.latitude);
+            pointP.setAttribute('cx', pX);
+            pointP.setAttribute('cy', pY);
+            labelP.setAttribute('x', pX + 10);
+            labelP.setAttribute('y', pY - 5);
+            
+            // 更新经度数轴上的标记点
+            const lonX = longitudeToX(state.longitude);
+            pointLongitude.setAttribute('cx', lonX);
+            labelLongitude.setAttribute('x', lonX);
+            labelLongitude.textContent = formatLongitude(state.longitude);
+            
+            // 更新滑块手柄位置
+            handleLatitude.setAttribute('cx', latToSliderX(state.latitude));
+            handleLongitude.setAttribute('cx', lonToSliderX(state.longitude));
+            
+            // 更新数值标签
+            latitudeValue.textContent = formatLatitude(state.latitude);
+            longitudeValue.textContent = formatLongitude(state.longitude);
+            
+            // 计算并更新结果
+            const H = calculateSolarAltitude(state.latitude, state.directLatitude);
+            const localTime = calculateLocalTime(state.longitude);
+            
+            resultDisplay.textContent = '正午太阳高度角：' + H.toFixed(1) + '°';
+            
+            if (H < 0) {
+                timeDisplay.textContent = '地方时：' + formatTime(localTime) + '（极夜，无日照）';
+            } else {
+                timeDisplay.textContent = '地方时：' + formatTime(localTime);
+            }
+            
+            // 更新太阳高度角弧线
+            updateAngleArc(pX, pY, H);
+        }
+        
+        // 更新角度弧线
+        function updateAngleArc(pX, pY, H) {
+            // 简化：弧线位置相对固定，只更新标签
+            labelH.textContent = 'H=' + H.toFixed(0) + '°';
+        }
+        
+        // 拖拽处理
+        let draggingLatitude = false;
+        let draggingLongitude = false;
+        
+        function handleMouseDown(e) {
+            const rect = document.getElementById('scene4-svg').getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // 检查是否点击纬度滑块手柄
+            const latHandleX = parseFloat(handleLatitude.getAttribute('cx'));
+            const latHandleY = parseFloat(handleLatitude.getAttribute('cy'));
+            if (Math.sqrt((x - latHandleX) ** 2 + (y - latHandleY) ** 2) < 20) {
+                draggingLatitude = true;
+                return;
+            }
+            
+            // 检查是否点击经度滑块手柄
+            const lonHandleX = parseFloat(handleLongitude.getAttribute('cx'));
+            const lonHandleY = parseFloat(handleLongitude.getAttribute('cy'));
+            if (Math.sqrt((x - lonHandleX) ** 2 + (y - lonHandleY) ** 2) < 20) {
+                draggingLongitude = true;
+                return;
+            }
+        }
+        
+        function handleMouseMove(e) {
+            if (!draggingLatitude && !draggingLongitude) return;
+            
+            const rect = document.getElementById('scene4-svg').getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            
+            if (draggingLatitude) {
+                state.latitude = sliderXToLat(x);
+            } else if (draggingLongitude) {
+                state.longitude = sliderXToLon(x);
+            }
+            
+            updateDisplay();
+        }
+        
+        function handleMouseUp() {
+            draggingLatitude = false;
+            draggingLongitude = false;
+        }
+        
+        // 触摸事件支持
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = document.getElementById('scene4-svg').getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            const latHandleX = parseFloat(handleLatitude.getAttribute('cx'));
+            const latHandleY = parseFloat(handleLatitude.getAttribute('cy'));
+            if (Math.sqrt((x - latHandleX) ** 2 + (y - latHandleY) ** 2) < 25) {
+                draggingLatitude = true;
+                return;
+            }
+            
+            const lonHandleX = parseFloat(handleLongitude.getAttribute('cx'));
+            const lonHandleY = parseFloat(handleLongitude.getAttribute('cy'));
+            if (Math.sqrt((x - lonHandleX) ** 2 + (y - lonHandleY) ** 2) < 25) {
+                draggingLongitude = true;
+            }
+        }
+        
+        function handleTouchMove(e) {
+            if (!draggingLatitude && !draggingLongitude) return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            const rect = document.getElementById('scene4-svg').getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            
+            if (draggingLatitude) {
+                state.latitude = sliderXToLat(x);
+            } else if (draggingLongitude) {
+                state.longitude = sliderXToLon(x);
+            }
+            
+            updateDisplay();
+        }
+        
+        function handleTouchEnd() {
+            draggingLatitude = false;
+            draggingLongitude = false;
+        }
+        
+        // 事件绑定
+        const svg = document.getElementById('scene4-svg');
+        svg.addEventListener('mousedown', handleMouseDown);
+        svg.addEventListener('mousemove', handleMouseMove);
+        svg.addEventListener('mouseup', handleMouseUp);
+        svg.addEventListener('mouseleave', handleMouseUp);
+        
+        svg.addEventListener('touchstart', handleTouchStart, { passive: false });
+        svg.addEventListener('touchmove', handleTouchMove, { passive: false });
+        svg.addEventListener('touchend', handleTouchEnd);
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

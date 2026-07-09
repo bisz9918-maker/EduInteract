@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网坐标读取</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 经纬线样式 */
+        .scene1-meridian { stroke: #888888; stroke-width: 2; fill: none; }
+        .scene1-meridian-bold { stroke: #000000; stroke-width: 3; fill: none; }
+        .scene1-parallel { stroke: #888888; stroke-width: 2; fill: none; }
+        .scene1-parallel-bold { stroke: #000000; stroke-width: 3; fill: none; }
+        
+        /* 点标记样式 */
+        .scene1-point { fill: #1565c0; }
+        .scene1-point-highlight { fill: #c62828; }
+        
+        /* 标签样式 */
+        .scene1-label { font-size: 14px; fill: #333333; }
+        .scene1-point-label { font-size: 16px; font-weight: bold; fill: #1565c0; }
+        .scene1-axis-label { font-size: 14px; fill: #333333; }
+        .scene1-ew-label, .scene1-ns-label { font-size: 12px; fill: #666666; }
+        
+        /* 坐标框样式 */
+        .scene1-coord-box { fill: #e3f2fd; stroke: #1565c0; stroke-width: 1; }
+        .scene1-coord-text { font-size: 13px; fill: #1565c0; }
+        
+        /* 按钮样式 */
+        .scene1-btn {
+            fill: #1565c0;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .scene1-btn:hover { opacity: 0.8; }
+        .scene1-btn-disabled { fill: #cccccc; cursor: not-allowed; }
+        .scene1-btn-text { font-size: 14px; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+        .scene1-btn-text-disabled { fill: #888888; }
+        
+        /* 步骤指示器 */
+        .scene1-step-indicator { font-size: 14px; fill: #333333; text-anchor: middle; }
+        
+        /* 标题 */
+        .scene1-title { font-size: 16px; font-weight: bold; fill: #333333; text-anchor: middle; }
+        
+        /* 光晕效果 */
+        .scene1-glow {
+            filter: drop-shadow(0 0 4px rgba(198, 40, 40, 0.6));
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 标题 (调整位置，y=40 确保 top edge >= 20px) -->
+            <text id="scene1-title" x="400" y="40" class="scene1-title">经纬网坐标读取</text>
+            
+            <!-- 经度标签行 (y=60) -->
+            <text x="120" y="60" class="scene1-axis-label" text-anchor="middle">120°</text>
+            <text x="200" y="60" class="scene1-axis-label" text-anchor="middle">140°</text>
+            <text x="280" y="60" class="scene1-axis-label" text-anchor="middle">160°</text>
+            <text x="360" y="60" class="scene1-axis-label" text-anchor="middle">180°</text>
+            <text x="440" y="60" class="scene1-axis-label" text-anchor="middle">160°</text>
+            <text x="520" y="60" class="scene1-axis-label" text-anchor="middle">140°</text>
+            <text x="600" y="60" class="scene1-axis-label" text-anchor="middle">120°</text>
+            
+            <!-- E/W 标识 (调整位置避免重叠) -->
+            <text x="350" y="75" class="scene1-ew-label" text-anchor="end">E</text>
+            <text x="370" y="75" class="scene1-ew-label" text-anchor="start">W</text>
+            
+            <!-- 纬度标签列 (x=85) - 调整 y 坐标与纬线对齐 -->
+            <text x="85" y="72" class="scene1-axis-label" text-anchor="end">80°</text>
+            <text x="85" y="125" class="scene1-axis-label" text-anchor="end">60°</text>
+            <text x="85" y="178" class="scene1-axis-label" text-anchor="end">40°</text>
+            <text x="85" y="232" class="scene1-axis-label" text-anchor="end">20°</text>
+            <text x="85" y="285" class="scene1-axis-label" text-anchor="end">0°</text>
+            <text x="85" y="338" class="scene1-axis-label" text-anchor="end">20°</text>
+            <text x="85" y="392" class="scene1-axis-label" text-anchor="end">40°</text>
+            
+            <!-- N/S 标识 (调整位置避免与 0° 重叠) -->
+            <text x="95" y="260" class="scene1-ns-label" text-anchor="start">N</text>
+            <text x="95" y="310" class="scene1-ns-label" text-anchor="start">S</text>
+            
+            <!-- 经线 (竖线) - 调整 y 坐标 -->
+            <line id="scene1-meridian-120E" x1="120" y1="72" x2="120" y2="392" class="scene1-meridian"/>
+            <line id="scene1-meridian-140E" x1="200" y1="72" x2="200" y2="392" class="scene1-meridian"/>
+            <line id="scene1-meridian-160E" x1="280" y1="72" x2="280" y2="392" class="scene1-meridian"/>
+            <line id="scene1-meridian-180" x1="360" y1="72" x2="360" y2="392" class="scene1-meridian-bold"/>
+            <line id="scene1-meridian-160W" x1="440" y1="72" x2="440" y2="392" class="scene1-meridian"/>
+            <line id="scene1-meridian-140W" x1="520" y1="72" x2="520" y2="392" class="scene1-meridian"/>
+            <line id="scene1-meridian-120W" x1="600" y1="72" x2="600" y2="392" class="scene1-meridian"/>
+            
+            <!-- 纬线 (横线) - 调整 y 坐标 -->
+            <line id="scene1-parallel-80N" x1="120" y1="72" x2="600" y2="72" class="scene1-parallel"/>
+            <line id="scene1-parallel-60N" x1="120" y1="125" x2="600" y2="125" class="scene1-parallel"/>
+            <line id="scene1-parallel-40N" x1="120" y1="178" x2="600" y2="178" class="scene1-parallel"/>
+            <line id="scene1-parallel-20N" x1="120" y1="232" x2="600" y2="232" class="scene1-parallel"/>
+            <line id="scene1-parallel-0" x1="120" y1="285" x2="600" y2="285" class="scene1-parallel-bold"/>
+            <line id="scene1-parallel-20S" x1="120" y1="338" x2="600" y2="338" class="scene1-parallel"/>
+            <line id="scene1-parallel-40S" x1="120" y1="392" x2="600" y2="392" class="scene1-parallel"/>
+            
+            <!-- 四个点标记 - 调整 y 坐标 -->
+            <circle id="scene1-point-A" cx="200" cy="72" r="6" class="scene1-point"/>
+            <circle id="scene1-point-B" cx="520" cy="178" r="6" class="scene1-point"/>
+            <circle id="scene1-point-C" cx="200" cy="232" r="6" class="scene1-point"/>
+            <circle id="scene1-point-D" cx="520" cy="338" r="6" class="scene1-point"/>
+            
+            <!-- 点标签 - 调整 y 坐标 -->
+            <text id="scene1-label-A" x="215" y="64" class="scene1-point-label">A</text>
+            <text id="scene1-label-B" x="535" y="170" class="scene1-point-label">B</text>
+            <text id="scene1-label-C" x="215" y="224" class="scene1-point-label">C</text>
+            <text id="scene1-label-D" x="535" y="330" class="scene1-point-label">D</text>
+            
+            <!-- 坐标显示框 (初始隐藏) -->
+            <g id="scene1-coord-A" style="opacity: 0;">
+                <rect x="650" y="80" width="130" height="40" class="scene1-coord-box"/>
+                <text x="715" y="102" class="scene1-coord-text" text-anchor="middle">A: 140°E, 80°N</text>
+            </g>
+            <g id="scene1-coord-B" style="opacity: 0;">
+                <rect x="650" y="140" width="130" height="40" class="scene1-coord-box"/>
+                <text x="715" y="162" class="scene1-coord-text" text-anchor="middle">B: 140°W, 40°N</text>
+            </g>
+            <g id="scene1-coord-C" style="opacity: 0;">
+                <rect x="650" y="200" width="130" height="40" class="scene1-coord-box"/>
+                <text x="715" y="222" class="scene1-coord-text" text-anchor="middle">C: 140°E, 20°N</text>
+            </g>
+            <g id="scene1-coord-D" style="opacity: 0;">
+                <rect x="650" y="260" width="130" height="40" class="scene1-coord-box"/>
+                <text x="715" y="282" class="scene1-coord-text" text-anchor="middle">D: 140°W, 20°S</text>
+            </g>
+            
+            <!-- 步骤指示器 (上移增加间距) -->
+            <text id="scene1-step-indicator" x="400" y="420" class="scene1-step-indicator">步骤 0/5</text>
+            
+            <!-- 上一步按钮 (上移增加间距) -->
+            <g id="scene1-btn-prev" class="scene1-btn scene1-btn-disabled">
+                <rect x="320" y="430" width="80" height="28" rx="4"/>
+                <text x="360" y="444" class="scene1-btn-text scene1-btn-text-disabled">◀ 上一步</text>
+            </g>
+            
+            <!-- 下一步按钮 (上移增加间距) -->
+            <g id="scene1-btn-next" class="scene1-btn">
+                <rect x="480" y="430" width="80" height="28" rx="4"/>
+                <text x="520" y="444" class="scene1-btn-text">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现 - 经纬网坐标读取
+        
+        // 状态定义 (0-5)
+        const states = [
+            { step: 0, highlight: null, showCoords: [] },      // 初始状态
+            { step: 1, highlight: 'A', showCoords: ['A'] },    // 高亮 A，显示 A 坐标
+            { step: 2, highlight: 'B', showCoords: ['B'] },    // 高亮 B，显示 B 坐标
+            { step: 3, highlight: 'C', showCoords: ['C'] },    // 高亮 C，显示 C 坐标
+            { step: 4, highlight: 'D', showCoords: ['D'] },    // 高亮 D，显示 D 坐标
+            { step: 5, highlight: null, showCoords: ['A', 'B', 'C', 'D'] }  // 显示全部坐标
+        ];
+        
+        let currentState = 0;
+        
+        // 获取 DOM 元素
+        const points = {
+            A: document.getElementById('scene1-point-A'),
+            B: document.getElementById('scene1-point-B'),
+            C: document.getElementById('scene1-point-C'),
+            D: document.getElementById('scene1-point-D')
+        };
+        
+        const labels = {
+            A: document.getElementById('scene1-label-A'),
+            B: document.getElementById('scene1-label-B'),
+            C: document.getElementById('scene1-label-C'),
+            D: document.getElementById('scene1-label-D')
+        };
+        
+        const coordBoxes = {
+            A: document.getElementById('scene1-coord-A'),
+            B: document.getElementById('scene1-coord-B'),
+            C: document.getElementById('scene1-coord-C'),
+            D: document.getElementById('scene1-coord-D')
+        };
+        
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // 重置所有点为默认样式
+        function resetPoints() {
+            for (const key in points) {
+                points[key].setAttribute('r', '6');
+                points[key].classList.remove('scene1-point-highlight', 'scene1-glow');
+                points[key].classList.add('scene1-point');
+                labels[key].classList.remove('scene1-point-label');
+                labels[key].classList.add('scene1-point-label');
+            }
+        }
+        
+        // 高亮指定点
+        function highlightPoint(key) {
+            if (!key) return;
+            points[key].setAttribute('r', '10');
+            points[key].classList.remove('scene1-point');
+            points[key].classList.add('scene1-point-highlight', 'scene1-glow');
+        }
+        
+        // 显示/隐藏坐标框
+        function showCoord(key, show) {
+            if (!coordBoxes[key]) return;
+            if (show) {
+                coordBoxes[key].style.opacity = '1';
+            } else {
+                coordBoxes[key].style.opacity = '0';
+            }
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            const prevText = btnPrev.querySelector('text');
+            const nextText = btnNext.querySelector('text');
+            
+            if (currentState === 0) {
+                btnPrev.classList.add('scene1-btn-disabled');
+                prevText.classList.add('scene1-btn-text-disabled');
+            } else {
+                btnPrev.classList.remove('scene1-btn-disabled');
+                prevText.classList.remove('scene1-btn-text-disabled');
+            }
+            
+            if (currentState === 5) {
+                btnNext.classList.add('scene1-btn-disabled');
+                nextText.classList.add('scene1-btn-text-disabled');
+            } else {
+                btnNext.classList.remove('scene1-btn-disabled');
+                nextText.classList.remove('scene1-btn-text-disabled');
+            }
+        }
+        
+        // 渲染当前状态
+        function renderState() {
+            const state = states[currentState];
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + state.step + '/5';
+            
+            // 重置所有点
+            resetPoints();
+            
+            // 高亮当前点
+            highlightPoint(state.highlight);
+            
+            // 隐藏所有坐标框
+            ['A', 'B', 'C', 'D'].forEach(key => showCoord(key, false));
+            
+            // 显示指定坐标框
+            state.showCoords.forEach(key => showCoord(key, true));
+            
+            // 更新按钮状态
+            updateButtons();
+        }
+        
+        // 按钮点击事件
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                renderState();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < 5) {
+                currentState++;
+                renderState();
+            }
+        });
+        
+        // 初始渲染
+        renderState();
+        
+    })();
+    </script>
+</body>
+</html>

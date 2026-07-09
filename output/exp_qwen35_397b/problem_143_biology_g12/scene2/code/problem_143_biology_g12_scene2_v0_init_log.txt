@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>干预前能量流动计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #1565c0; background: #1565c0; color: white; border-radius: 4px; }
+        .scene2-btn:disabled { background: #ccc; border-color: #ccc; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #555; margin-left: 12px; }
+        .scene2-energy-box { fill: rgba(21, 101, 192, 0.2); stroke: #1565c0; stroke-width: 2; }
+        .scene2-arrow { stroke: #000000; stroke-width: 1.5; fill: none; }
+        .scene2-arrow-dashed { stroke: #999; stroke-width: 1.5; fill: none; stroke-dasharray: 5,5; }
+        .scene2-label { fill: #333333; font-size: 14px; font-weight: bold; }
+        .scene2-energy-value { fill: #1565c0; font-size: 13px; }
+        .scene2-efficiency-label { fill: #2e7d32; font-size: 12px; font-style: italic; }
+        .scene2-calc-label { fill: #888888; font-size: 11px; }
+        .scene2-result-label { fill: #c62828; font-size: 14px; font-weight: bold; }
+        .scene2-nutrition-title { fill: #555555; font-size: 12px; }
+        .scene2-hidden { opacity: 0; }
+        .scene2-highlight { stroke: #c62828; stroke-width: 3; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000000" />
+                </marker>
+                <marker id="scene2-arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 营养级标题 -->
+            <text id="scene2-nutrition1" x="90" y="40" class="scene2-nutrition-title">营养级 1</text>
+            <text id="scene2-nutrition2" x="240" y="40" class="scene2-nutrition-title">营养级 2</text>
+            <text id="scene2-nutrition3" x="430" y="40" class="scene2-nutrition-title">营养级 3</text>
+            <text id="scene2-nutrition4" x="600" y="40" class="scene2-nutrition-title">营养级 4</text>
+            <text id="scene2-nutrition5" x="730" y="40" class="scene2-nutrition-title">营养级 5</text>
+
+            <!-- 能量框 -->
+            <!-- 草 (营养级 1) -->
+            <rect id="scene2-grass-box" x="40" y="220" width="100" height="50" rx="5" class="scene2-energy-box" />
+            <text id="scene2-grass-label" x="90" y="205" text-anchor="middle" class="scene2-label">草</text>
+            <text id="scene2-grass-energy" x="90" y="245" text-anchor="middle" class="scene2-energy-value">300 万千焦</text>
+
+            <!-- 羚羊 (营养级 2) -->
+            <rect id="scene2-antelope-box" x="190" y="80" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-antelope-label" x="240" y="65" text-anchor="middle" class="scene2-label scene2-hidden">羚羊</text>
+            <text id="scene2-antelope-energy" x="240" y="105" text-anchor="middle" class="scene2-energy-value scene2-hidden">100 万千焦</text>
+
+            <!-- 斑马 (营养级 2) -->
+            <rect id="scene2-zebra-box" x="190" y="220" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-zebra-label" x="240" y="205" text-anchor="middle" class="scene2-label scene2-hidden">斑马</text>
+            <text id="scene2-zebra-energy" x="240" y="245" text-anchor="middle" class="scene2-energy-value scene2-hidden">100 万千焦</text>
+
+            <!-- 鼠 (营养级 2) -->
+            <rect id="scene2-mouse-box" x="190" y="360" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-mouse-label" x="240" y="345" text-anchor="middle" class="scene2-label scene2-hidden">鼠</text>
+            <text id="scene2-mouse-energy" x="240" y="385" text-anchor="middle" class="scene2-energy-value scene2-hidden">100 万千焦</text>
+
+            <!-- 野狗 (营养级 3) -->
+            <rect id="scene2-wilddog-box" x="380" y="150" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-wilddog-label" x="430" y="135" text-anchor="middle" class="scene2-label scene2-hidden">野狗</text>
+            <text id="scene2-wilddog-energy" x="430" y="175" text-anchor="middle" class="scene2-energy-value scene2-hidden">5 万千焦</text>
+
+            <!-- 蛇 (营养级 3) -->
+            <rect id="scene2-snake-box" x="380" y="300" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-snake-label" x="430" y="285" text-anchor="middle" class="scene2-label scene2-hidden">蛇</text>
+            <text id="scene2-snake-energy" x="430" y="325" text-anchor="middle" class="scene2-energy-value scene2-hidden">10 万千焦</text>
+
+            <!-- 食蛇动物 (营养级 4) -->
+            <rect id="scene2-snakeater-box" x="550" y="300" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-snakeater-label" x="600" y="285" text-anchor="middle" class="scene2-label scene2-hidden">食蛇动物</text>
+            <text id="scene2-snakeater-energy" x="600" y="325" text-anchor="middle" class="scene2-energy-value scene2-hidden">1 万千焦</text>
+
+            <!-- 狮子 (营养级 5) -->
+            <rect id="scene2-lion-box" x="700" y="200" width="100" height="50" rx="5" class="scene2-energy-box scene2-hidden" />
+            <text id="scene2-lion-label" x="750" y="185" text-anchor="middle" class="scene2-label scene2-hidden">狮子</text>
+            <text id="scene2-lion-energy" x="750" y="225" text-anchor="middle" class="scene2-energy-value scene2-hidden">11.1 万千焦</text>
+
+            <!-- 汇总框 -->
+            <rect id="scene2-summary-box" x="700" y="260" width="100" height="40" rx="5" class="scene2-energy-box scene2-hidden" style="stroke: #c62828;" />
+            <text id="scene2-summary-label" x="750" y="285" text-anchor="middle" class="scene2-result-label scene2-hidden">11.1 万千焦</text>
+
+            <!-- 箭头 (草→第二营养级) -->
+            <path id="scene2-arrow-grass-antelope" d="M 140 235 L 190 105" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-grass-zebra" d="M 140 245 L 190 245" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-grass-mouse" d="M 140 255 L 190 385" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+
+            <!-- 10% 标签 -->
+            <text id="scene2-efficiency-1" x="165" y="210" class="scene2-efficiency-label scene2-hidden">10%</text>
+            <text id="scene2-efficiency-2" x="165" y="240" class="scene2-efficiency-label scene2-hidden">10%</text>
+            <text id="scene2-efficiency-3" x="165" y="280" class="scene2-efficiency-label scene2-hidden">10%</text>
+
+            <!-- 计算标注 -->
+            <text id="scene2-calc-1" x="330" y="120" class="scene2-calc-label scene2-hidden">300×10%÷3=10</text>
+            <text id="scene2-calc-2" x="330" y="260" class="scene2-calc-label scene2-hidden">300×10%÷3=10</text>
+            <text id="scene2-calc-3" x="330" y="400" class="scene2-calc-label scene2-hidden">300×10%÷3=10</text>
+
+            <!-- 箭头 (第二营养级→第三营养级) -->
+            <path id="scene2-arrow-antelope-wilddog" d="M 290 105 L 380 175" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-zebra-wilddog" d="M 290 245 L 380 185" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-mouse-snake" d="M 290 385 L 380 325" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+
+            <!-- 箭头 (第三营养级→第四营养级) -->
+            <path id="scene2-arrow-snake-snakeater" d="M 480 325 L 550 325" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+
+            <!-- 箭头 (指向狮子) -->
+            <path id="scene2-arrow-antelope-lion" d="M 290 95 Q 500 50 700 215" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-zebra-lion" d="M 290 255 Q 500 250 700 225" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-wilddog-lion" d="M 480 175 L 700 215" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+            <path id="scene2-arrow-snakeater-lion" d="M 650 315 L 700 235" class="scene2-arrow scene2-arrow-dashed" marker-end="url(#scene2-arrowhead)" />
+
+            <!-- 指向狮子的能量标注 -->
+            <text id="scene2-lion-path-1" x="500" y="80" class="scene2-calc-label scene2-hidden">3.3</text>
+            <text id="scene2-lion-path-2" x="500" y="240" class="scene2-calc-label scene2-hidden">3.3</text>
+            <text id="scene2-lion-path-3" x="590" y="165" class="scene2-calc-label scene2-hidden">2.5</text>
+            <text id="scene2-lion-path-4" x="675" y="280" class="scene2-calc-label scene2-hidden">0.1</text>
+
+            <!-- 控件栏 -->
+            <g id="scene2-controls">
+                <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+                <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+                <text id="scene2-step-indicator" x="600" y="460" class="scene2-step-indicator">步骤 0/5</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 干预前能量流动计算
+        let currentState = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 元素分组
+        const step1Elements = [
+            'antelope-box', 'antelope-label', 'antelope-energy',
+            'zebra-box', 'zebra-label', 'zebra-energy',
+            'mouse-box', 'mouse-label', 'mouse-energy',
+            'arrow-grass-antelope', 'arrow-grass-zebra', 'arrow-grass-mouse',
+            'efficiency-1', 'efficiency-2', 'efficiency-3',
+            'calc-1', 'calc-2', 'calc-3'
+        ];
+
+        const step2Elements = [
+            'wilddog-box', 'wilddog-label', 'wilddog-energy',
+            'snake-box', 'snake-label', 'snake-energy',
+            'arrow-antelope-wilddog', 'arrow-zebra-wilddog', 'arrow-mouse-snake'
+        ];
+
+        const step3Elements = [
+            'snakeater-box', 'snakeater-label', 'snakeater-energy',
+            'arrow-snake-snakeater'
+        ];
+
+        const step4Elements = [
+            'arrow-antelope-lion', 'arrow-zebra-lion', 'arrow-wilddog-lion', 'arrow-snakeater-lion',
+            'lion-path-1', 'lion-path-2', 'lion-path-3', 'lion-path-4'
+        ];
+
+        const step5Elements = [
+            'lion-box', 'lion-label', 'lion-energy',
+            'summary-box', 'summary-label'
+        ];
+
+        function showElement(id) {
+            const el = document.getElementById('scene2-' + id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.style.opacity = '1';
+                el.style.display = '';
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById('scene2-' + id);
+            if (el) {
+                el.classList.add('scene2-hidden');
+                el.style.opacity = '0';
+            }
+        }
+
+        function updateState() {
+            // 隐藏所有步骤元素
+            step1Elements.forEach(id => hideElement(id));
+            step2Elements.forEach(id => hideElement(id));
+            step3Elements.forEach(id => hideElement(id));
+            step4Elements.forEach(id => hideElement(id));
+            step5Elements.forEach(id => hideElement(id));
+
+            // 根据当前状态显示相应元素
+            if (currentState >= 1) {
+                step1Elements.forEach(id => showElement(id));
+            }
+            if (currentState >= 2) {
+                step2Elements.forEach(id => showElement(id));
+            }
+            if (currentState >= 3) {
+                step3Elements.forEach(id => showElement(id));
+            }
+            if (currentState >= 4) {
+                step4Elements.forEach(id => showElement(id));
+            }
+            if (currentState >= 5) {
+                step5Elements.forEach(id => showElement(id));
+                // 高亮狮子框
+                document.getElementById('scene2-lion-box').classList.add('scene2-highlight');
+            } else {
+                document.getElementById('scene2-lion-box').classList.remove('scene2-highlight');
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === totalSteps;
+            stepIndicator.textContent = '步骤 ' + currentState + '/' + totalSteps;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateState();
+            }
+        });
+
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

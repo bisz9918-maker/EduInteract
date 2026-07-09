@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图解析与立体图形构建</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1565c0;
+            font-weight: bold;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            border-color: #cccccc;
+            color: #cccccc;
+            cursor: not-allowed;
+        }
+        #scene1-step-display {
+            font-size: 14px;
+            color: #333333;
+            font-weight: bold;
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 定义 -->
+            <defs>
+                <filter id="scene1-shadow">
+                    <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+                </filter>
+            </defs>
+
+            <!-- 连接线（初始隐藏）- 调整连接线 2 和 3 的终点，避免穿过标签 -->
+            <line id="scene1-line1" x1="180" y1="170" x2="520" y2="200" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-line2" x1="320" y1="170" x2="520" y2="220" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene1-line3" x1="410" y1="140" x2="520" y2="170" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+
+            <!-- 正面视图框 -->
+            <rect id="scene1-view-front" x="80" y="120" width="100" height="100" fill="none" stroke="#000000" stroke-width="3"/>
+            <text id="scene1-label-front" x="130" y="245" text-anchor="middle" font-size="14" fill="#000000">正面</text>
+
+            <!-- 侧面视图框 -->
+            <rect id="scene1-view-side" x="220" y="120" width="100" height="100" fill="none" stroke="#000000" stroke-width="3"/>
+            <text id="scene1-label-side" x="270" y="245" text-anchor="middle" font-size="14" fill="#000000">侧面</text>
+
+            <!-- 上面视图框（梯形） -->
+            <polygon id="scene1-view-top" points="360,140 460,140 440,220 380,220" fill="none" stroke="#000000" stroke-width="3"/>
+            <text id="scene1-label-top" x="410" y="245" text-anchor="middle" font-size="14" fill="#000000">上面</text>
+
+            <!-- 立体图形（初始隐藏） -->
+            <path id="scene1-solid" d="M 520,180 L 600,150 L 680,180 L 600,210 Z M 520,180 L 520,300 L 600,270 L 600,150 M 680,180 L 680,300 L 600,270 M 520,300 L 600,270 M 680,300 L 600,270" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            <path id="scene1-solid-fill" d="M 520,180 L 600,150 L 680,180 L 600,210 Z M 520,180 L 520,300 L 600,270 L 600,150 M 680,180 L 680,300 L 600,270 M 520,300 L 600,270 M 680,300 L 600,270" fill="#2e7d32" fill-opacity="0.2" opacity="0"/>
+            <text id="scene1-label-solid" x="610" y="355" text-anchor="middle" font-size="14" fill="#000000" opacity="0">立体图</text>
+
+            <!-- 结论标签（初始隐藏） -->
+            <text id="scene1-label-conclusion" x="610" y="390" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold" opacity="0">底面=梯形 柱体</text>
+
+            <!-- 提示文字（初始隐藏）- y 坐标调整为 285 以增加与视图标签的间距 -->
+            <text id="scene1-hint-text" x="410" y="285" text-anchor="middle" font-size="14" fill="#c62828" opacity="0"></text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-display">步骤 1/6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 三视图解析与立体图形构建
+        // 坐标表对照：
+        // 正面视图框：rect (80,120)-(180,220) 100×100
+        // 侧面视图框：rect (220,120)-(320,220) 100×100
+        // 上面视图框：polygon (360,140)-(460,140)-(440,220)-(380,220) 梯形
+        // 立体图形：四棱柱 (520,150)-(700,320)
+        // 标签：正面 (130,245) 侧面 (270,245) 上面 (410,245) 立体图 (610,355) 结论 (610,390)
+        // 提示文字：y=285（与视图标签间距 40px）
+        // 连接线 2：终点从 (520,250) 改为 (520,220)，避免穿过"上面"标签
+        // 连接线 3：起点从 (410,220) 改为 (410,140)，终点从 (520,280) 改为 (520,170)，从梯形上方出发到立体图顶部
+
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+
+        // 获取 DOM 元素
+        const viewFront = document.getElementById('scene1-view-front');
+        const viewSide = document.getElementById('scene1-view-side');
+        const viewTop = document.getElementById('scene1-view-top');
+        const solid = document.getElementById('scene1-solid');
+        const solidFill = document.getElementById('scene1-solid-fill');
+        const line1 = document.getElementById('scene1-line1');
+        const line2 = document.getElementById('scene1-line2');
+        const line3 = document.getElementById('scene1-line3');
+        const hintText = document.getElementById('scene1-hint-text');
+        const labelConclusion = document.getElementById('scene1-label-conclusion');
+        const labelSolid = document.getElementById('scene1-label-solid');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepDisplay = document.getElementById('scene1-step-display');
+
+        // 工具函数：高亮视图
+        function highlightView(viewElement, isHighlighted) {
+            if (isHighlighted) {
+                viewElement.setAttribute('stroke', '#1565c0');
+                viewElement.setAttribute('stroke-width', '5');
+            } else {
+                viewElement.setAttribute('stroke', '#000000');
+                viewElement.setAttribute('stroke-width', '3');
+            }
+        }
+
+        // 工具函数：显示/隐藏
+        function show(el) {
+            el.style.opacity = '1';
+            el.style.display = 'block';
+        }
+
+        function hide(el) {
+            el.style.opacity = '0';
+            // 对于 SVG 元素，保持 display 但用 opacity 控制
+        }
+
+        // 更新场景状态
+        function updateScene(step) {
+            // 重置所有视图高亮
+            highlightView(viewFront, false);
+            highlightView(viewSide, false);
+            highlightView(viewTop, false);
+
+            // 隐藏连接线
+            hide(line1);
+            hide(line2);
+            hide(line3);
+
+            // 隐藏立体图形
+            hide(solid);
+            hide(solidFill);
+            hide(labelSolid);
+
+            // 隐藏结论
+            hide(labelConclusion);
+
+            // 隐藏提示文字
+            hide(hintText);
+
+            // 根据步骤更新状态
+            switch(step) {
+                case 0:
+                    // 初始状态：仅显示三个视图
+                    hintText.textContent = '观察三个视图';
+                    show(hintText);
+                    break;
+
+                case 1:
+                    // 高亮上面视图
+                    highlightView(viewTop, true);
+                    hintText.textContent = '俯视图决定底面形状';
+                    show(hintText);
+                    break;
+
+                case 2:
+                    // 高亮正面视图
+                    highlightView(viewFront, true);
+                    hintText.textContent = '正视图显示正面轮廓';
+                    show(hintText);
+                    break;
+
+                case 3:
+                    // 高亮侧面视图
+                    highlightView(viewSide, true);
+                    hintText.textContent = '侧视图显示侧面轮廓';
+                    show(hintText);
+                    break;
+
+                case 4:
+                    // 三个视图同时高亮
+                    highlightView(viewFront, true);
+                    highlightView(viewSide, true);
+                    highlightView(viewTop, true);
+                    // 显示连接线
+                    show(line1);
+                    show(line2);
+                    show(line3);
+                    hintText.textContent = '综合推断：梯形底面的柱体';
+                    show(hintText);
+                    break;
+
+                case 5:
+                    // 三个视图保持高亮
+                    highlightView(viewFront, true);
+                    highlightView(viewSide, true);
+                    highlightView(viewTop, true);
+                    // 连接线保持显示
+                    show(line1);
+                    show(line2);
+                    show(line3);
+                    // 显示立体图形
+                    show(solid);
+                    show(solidFill);
+                    show(labelSolid);
+                    // 显示结论
+                    show(labelConclusion);
+                    // 隐藏提示文字
+                    hide(hintText);
+                    break;
+            }
+
+            // 更新步骤显示
+            stepDisplay.textContent = '步骤 ' + (step + 1) + '/' + TOTAL_STEPS;
+
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === TOTAL_STEPS - 1);
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+
+        // 初始化
+        updateScene(currentStep);
+    })();
+    </script>
+</body>
+</html>

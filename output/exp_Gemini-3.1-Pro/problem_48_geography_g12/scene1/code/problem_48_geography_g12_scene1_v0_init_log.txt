@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-3d-container { position: absolute; top: 0; left: 0; width: 800px; height: 500px; z-index: 1; opacity: 0; transition: opacity 0.5s; pointer-events: auto; }
+        #scene1-svg-layer { position: absolute; top: 0; left: 0; width: 800px; height: 500px; z-index: 2; pointer-events: none; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; }
+        .scene1-text { font-size: 16px; fill: #333; }
+        .scene1-title { font-size: 20px; fill: #333; font-weight: bold; text-anchor: middle; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-3d-container"></div>
+        <svg id="scene1-svg-layer" width="800" height="500">
+            <!-- 2D Grid Elements (Step 0) -->
+            <g id="scene1-2d-group" style="transition: opacity 0.5s;">
+                <line x1="200" y1="150" x2="600" y2="150" stroke="#888" stroke-width="2" />
+                <text x="610" y="155" class="scene1-text">60°</text>
+                
+                <line x1="200" y1="350" x2="600" y2="350" stroke="#888" stroke-width="2" />
+                <text x="610" y="355" class="scene1-text">40°</text>
+                
+                <line x1="300" y1="100" x2="300" y2="400" stroke="#888" stroke-width="2" />
+                <text x="300" y="90" class="scene1-text" text-anchor="middle">80°</text>
+                
+                <line x1="500" y1="100" x2="500" y2="400" stroke="#888" stroke-width="2" />
+                <text x="500" y="90" class="scene1-text" text-anchor="middle">120°</text>
+                
+                <circle cx="300" cy="150" r="4" fill="#1565c0" />
+                <text x="310" y="170" class="scene1-text" fill="#1565c0">M</text>
+                
+                <circle cx="500" cy="150" r="4" fill="#1565c0" />
+                <text x="510" y="170" class="scene1-text" fill="#1565c0">N</text>
+                
+                <!-- Arrows -->
+                <defs>
+                    <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#888" />
+                    </marker>
+                </defs>
+                <line x1="520" y1="100" x2="580" y2="100" stroke="#888" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+                <text x="550" y="50" class="scene1-text" text-anchor="middle" font-size="14px" fill="#888">向东递增</text>
+                
+                <line x1="250" y1="300" x2="250" y2="200" stroke="#888" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+                <text x="240" y="250" class="scene1-text" text-anchor="end" font-size="14px" fill="#888">向北递增</text>
+            </g>
+
+            <!-- 3D Labels (Step 1-3) -->
+            <g id="scene1-3d-labels" style="display: none; opacity: 0; transition: opacity 0.5s;">
+                <text id="scene1-label-m" class="scene1-text" fill="#1565c0">M</text>
+                <text id="scene1-label-n" class="scene1-text" fill="#1565c0">N</text>
+                <text id="scene1-label-m-prime" class="scene1-text" fill="#1565c0" style="display: none; opacity: 0; transition: opacity 0.5s;">M'</text>
+                <text id="scene1-label-o" class="scene1-text" fill="#1565c0" style="display: none; opacity: 0; transition: opacity 0.5s;">O</text>
+                <text id="scene1-title-text" x="400" y="430" class="scene1-title" style="display: none; opacity: 0; transition: opacity 0.5s;">最短航线（大圆劣弧）：先东北，后东南</text>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        // Elements
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const group2D = document.getElementById('scene1-2d-group');
+        const container3D = document.getElementById('scene1-3d-container');
+        const labels3D = document.getElementById('scene1-3d-labels');
+        const labelM = document.getElementById('scene1-label-m');
+        const labelN = document.getElementById('scene1-label-n');
+        const labelMPrime = document.getElementById('scene1-label-m-prime');
+        const labelO = document.getElementById('scene1-label-o');
+        const titleText = document.getElementById('scene1-title-text');
+
+        // Three.js Setup
+        const width = 800;
+        const height = 500;
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(width, height);
+        container3D.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.enablePan = false;
+
+        // Earth
+        const R = 150;
+        const earthGeo = new THREE.SphereGeometry(R, 32, 32);
+        const earthMat = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.1 });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        scene.add(earth);
+
+        const wireMat = new THREE.MeshBasicMaterial({ color: 0x888888, wireframe: true, transparent: true, opacity: 0.3 });
+        const wireEarth = new THREE.Mesh(earthGeo, wireMat);
+        scene.add(wireEarth);
+
+        // Equator and Prime Meridian
+        const equatorGeo = new THREE.BufferGeometry().setFromPoints(
+            new THREE.Path().absarc(0, 0, R, 0, Math.PI * 2).getPoints(64)
+        );
+        const equatorMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+        const equator = new THREE.Line(equatorGeo, equatorMat);
+        equator.rotation.x = Math.PI / 2;
+        equator.visible = false;
+        scene.add(equator);
+
+        const primeMeridianGeo = new THREE.BufferGeometry().setFromPoints(
+            new THREE.Path().absarc(0, 0, R, 0, Math.PI * 2).getPoints(64)
+        );
+        const primeMeridian = new THREE.Line(primeMeridianGeo, equatorMat);
+        primeMeridian.rotation.y = Math.PI / 2;
+        primeMeridian.visible = false;
+        scene.add(primeMeridian);
+
+        // Coordinates to Vector3
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // Points
+        const posM = latLonToVector3(60, 80, R);
+        const posN = latLonToVector3(60, 120, R);
+        const posMPrime = latLonToVector3(-60, -100, R);
+        const posO = new THREE.Vector3(0, 0, 0);
+
+        const pointGeo = new THREE.SphereGeometry(3, 16, 16);
+        const pointMat = new THREE.MeshBasicMaterial({ color: 0x1565c0 });
+        
+        const meshM = new THREE.Mesh(pointGeo, pointMat);
+        meshM.position.copy(posM);
+        scene.add(meshM);
+
+        const meshN = new THREE.Mesh(pointGeo, pointMat);
+        meshN.position.copy(posN);
+        scene.add(meshN);
+
+        const meshMPrime = new THREE.Mesh(pointGeo, pointMat);
+        meshMPrime.position.copy(posMPrime);
+        meshMPrime.visible = false;
+        scene.add(meshMPrime);
+
+        const meshO = new THREE.Mesh(pointGeo, pointMat);
+        meshO.position.copy(posO);
+        meshO.visible = false;
+        scene.add(meshO);
+
+        // Lines
+        // Latitude Arc M-N
+        const latArcPoints = [];
+        for (let i = 80; i <= 120; i++) {
+            latArcPoints.push(latLonToVector3(60, i, R));
+        }
+        const latArcGeo = new THREE.BufferGeometry().setFromPoints(latArcPoints);
+        const latArcMat = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 5, gapSize: 3 });
+        const latArc = new THREE.Line(latArcGeo, latArcMat);
+        latArc.computeLineDistances();
+        latArc.visible = false;
+        scene.add(latArc);
+
+        // Great Circle Arc M-N
+        const gcArcPoints = [];
+        const segments = 50;
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const v = posM.clone().lerp(posN, t).normalize().multiplyScalar(R);
+            gcArcPoints.push(v);
+        }
+        const gcArcGeo = new THREE.BufferGeometry().setFromPoints(gcArcPoints);
+        const gcArcMat = new THREE.LineBasicMaterial({ color: 0xc62828, linewidth: 2 });
+        const gcArc = new THREE.Line(gcArcGeo, gcArcMat);
+        gcArc.visible = false;
+        scene.add(gcArc);
+
+        // Antipode Line M-O-M'
+        const antipodeGeo = new THREE.BufferGeometry().setFromPoints([posM, posMPrime]);
+        const antipodeMat = new THREE.LineDashedMaterial({ color: 0x2e7d32, dashSize: 5, gapSize: 3 });
+        const antipodeLine = new THREE.Line(antipodeGeo, antipodeMat);
+        antipodeLine.computeLineDistances();
+        antipodeLine.visible = false;
+        scene.add(antipodeLine);
+
+        // Airplane/Arrow
+        const arrowGeo = new THREE.ConeGeometry(4, 12, 16);
+        arrowGeo.rotateX(Math.PI / 2);
+        const arrowMat = new THREE.MeshBasicMaterial({ color: 0xc62828 });
+        const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+        arrow.visible = false;
+        scene.add(arrow);
+
+        // Camera positions
+        const camPos1 = new THREE.Vector3(400, 230, -70);
+        const camPos3 = new THREE.Vector3(-80, 0, 450);
+        camera.position.copy(camPos1);
+        camera.lookAt(0, 0, 0);
+
+        let targetCamPos = camPos1.clone();
+        
+        // Animation state
+        let arrowT = 0;
+
+        function updateLabels() {
+            const updateLabel = (mesh, label, offsetX, offsetY) => {
+                if (!mesh.visible && label.style.opacity === '0') {
+                    return;
+                }
+                const pos = mesh.position.clone();
+                pos.project(camera);
+                const x = (pos.x + 1) / 2 * width;
+                const y = -(pos.y - 1) / 2 * height;
+                
+                // Keep labels within bounds
+                const margin = 30;
+                // For M', avoid bottom controls
+                const bottomMargin = label === labelMPrime ? 60 : margin;
+                const boundedX = Math.max(margin, Math.min(width - margin, x + offsetX));
+                const boundedY = Math.max(margin, Math.min(height - bottomMargin, y + offsetY));
+                
+                label.setAttribute('x', boundedX);
+                label.setAttribute('y', boundedY);
+            };
+
+            updateLabel(meshM, labelM, -20, 20); // Changed to 20 to avoid top clipping
+            updateLabel(meshN, labelN, 20, 20); // Changed to 20 to avoid top clipping
+            updateLabel(meshMPrime, labelMPrime, -20, -20);
+            updateLabel(meshO, labelO, 15, 15);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Camera interpolation
+            camera.position.lerp(targetCamPos, 0.05);
+
+            // Arrow animation
+            if (currentStep === 2 && arrow.visible) {
+                arrowT += 0.005;
+                if (arrowT > 1) arrowT = 0;
+                
+                const t1 = arrowT;
+                const t2 = Math.min(arrowT + 0.01, 1);
+                
+                const p1 = posM.clone().lerp(posN, t1).normalize().multiplyScalar(R);
+                const p2 = posM.clone().lerp(posN, t2).normalize().multiplyScalar(R);
+                
+                arrow.position.copy(p1);
+                if (t1 < 1) {
+                    arrow.lookAt(p2);
+                }
+            }
+
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        function show(el) {
+            el.style.display = '';
+            // small delay to allow display to apply before opacity transition
+            setTimeout(() => el.style.opacity = 1, 10);
+        }
+
+        function hide(el) {
+            el.style.opacity = 0;
+            setTimeout(() => el.style.display = 'none', 500);
+        }
+
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // Step 0: 2D Grid
+            if (currentStep === 0) {
+                show(group2D);
+                hide(container3D);
+                hide(labels3D);
+            } else {
+                hide(group2D);
+                show(container3D);
+                show(labels3D);
+            }
+
+            // Step 1: 3D Earth
+            if (currentStep === 1) {
+                targetCamPos.copy(camPos1);
+                latArc.visible = false;
+                gcArc.visible = false;
+                arrow.visible = false;
+                hide(titleText);
+                
+                meshMPrime.visible = false;
+                meshO.visible = false;
+                antipodeLine.visible = false;
+                equator.visible = false;
+                primeMeridian.visible = false;
+                hide(labelMPrime);
+                hide(labelO);
+            }
+
+            // Step 2: Shortest Route
+            if (currentStep === 2) {
+                targetCamPos.copy(camPos1);
+                latArc.visible = true;
+                gcArc.visible = true;
+                arrow.visible = true;
+                show(titleText);
+                
+                meshMPrime.visible = false;
+                meshO.visible = false;
+                antipodeLine.visible = false;
+                equator.visible = false;
+                primeMeridian.visible = false;
+                hide(labelMPrime);
+                hide(labelO);
+            }
+
+            // Step 3: Antipode
+            if (currentStep === 3) {
+                targetCamPos.copy(camPos3);
+                latArc.visible = false;
+                gcArc.visible = false;
+                arrow.visible = false;
+                hide(titleText);
+                
+                meshMPrime.visible = true;
+                meshO.visible = true;
+                antipodeLine.visible = true;
+                equator.visible = true;
+                primeMeridian.visible = true;
+                show(labelMPrime);
+                show(labelO);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // Init
+        updateStep();
+    </script>
+</body>
+</html>

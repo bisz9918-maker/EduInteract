@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电化学装置 - 电极反应分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 电极样式 */
+        .scene3-electrode-zinc {
+            fill: #9e9e9e;
+            stroke: #616161;
+            stroke-width: 2;
+        }
+        .scene3-electrode-copper {
+            fill: #ffcc80;
+            stroke: #e65100;
+            stroke-width: 2;
+        }
+        .scene3-electrode-graphite {
+            fill: #424242;
+            stroke: #212121;
+            stroke-width: 2;
+        }
+        /* 高亮效果 */
+        .scene3-highlight-zinc {
+            fill: #ffd54f !important;
+            animation: scene3-flash 0.5s ease-in-out 3;
+        }
+        .scene3-highlight-copper {
+            fill: #ffcc80 !important;
+        }
+        .scene3-highlight-graphite {
+            fill: #90a4ae !important;
+        }
+        @keyframes scene3-flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        /* 导线样式 */
+        .scene3-wire {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        /* 电子流动动画 */
+        .scene3-electron {
+            fill: #ffeb3b;
+            opacity: 0;
+        }
+        .scene3-electron-flow {
+            animation: scene3-electron-move 1.5s linear infinite;
+        }
+        @keyframes scene3-electron-move {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        /* 气泡样式 */
+        .scene3-bubble {
+            fill: #bbdefb;
+            stroke: #1976d2;
+            stroke-width: 1;
+            opacity: 0;
+        }
+        .scene3-bubble-rise {
+            animation: scene3-bubble-up 2s ease-in infinite;
+        }
+        @keyframes scene3-bubble-up {
+            0% { opacity: 0; transform: translateY(0); }
+            20% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-40px); }
+        }
+        /* 酚酞红晕 */
+        .scene3-phenolphthalein {
+            opacity: 0;
+        }
+        .scene3-phenolphthalein-show {
+            opacity: 1;
+            transition: opacity 1s ease-in;
+        }
+        /* 离子移动动画 */
+        .scene3-ion {
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0;
+        }
+        .scene3-ion-move {
+            animation: scene3-ion-travel 2s linear infinite;
+        }
+        @keyframes scene3-ion-travel {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        /* 反应式文本框 */
+        .scene3-reaction-box {
+            fill: #e3f2fd;
+            stroke: #1976d2;
+            stroke-width: 2;
+            rx: 8;
+        }
+        /* 选项标记 */
+        .scene3-correct {
+            fill: #2e7d32;
+        }
+        .scene3-incorrect {
+            fill: #c62828;
+        }
+        /* 控件按钮 */
+        .scene3-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene3-btn-prev {
+            background: #9e9e9e;
+            color: white;
+        }
+        .scene3-btn-prev:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        .scene3-btn-next {
+            background: #1976d2;
+            color: white;
+        }
+        .scene3-btn-next:disabled {
+            background: #90caf9;
+            cursor: not-allowed;
+        }
+        .scene3-btn-reset {
+            background: #388e3c;
+            color: white;
+        }
+        .scene3-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        /* 步骤指示器 */
+        .scene3-step-indicator {
+            font-size: 14px;
+            fill: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义渐变和滤镜 -->
+            <defs>
+                <radialGradient id="scene3-phenolphthalein-gradient" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" style="stop-color:#ffcdd2;stop-opacity:0.8"/>
+                    <stop offset="100%" style="stop-color:#ffcdd2;stop-opacity:0"/>
+                </radialGradient>
+                <linearGradient id="scene3-wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#000000"/>
+                    <stop offset="100%" style="stop-color:#424242"/>
+                </linearGradient>
+            </defs>
+
+            <!-- ========== 左侧原电池区 ========== -->
+            <!-- 烧杯容器（梯形） -->
+            <path id="scene3-beaker" d="M 60 280 L 260 280 L 250 420 L 70 420 Z" 
+                  fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 稀硫酸液体 -->
+            <path id="scene3-sulfuric-acid" d="M 65 340 Q 100 335 135 340 T 205 340 T 245 340 L 248 415 L 72 415 Z" 
+                  fill="#bbdefb" fill-opacity="0.6" stroke="none"/>
+            <!-- 液面波浪线 -->
+            <path d="M 65 340 Q 100 335 135 340 T 205 340 T 245 340" 
+                  fill="none" stroke="#1976d2" stroke-width="1.5"/>
+
+            <!-- 锌电极 -->
+            <rect id="scene3-zinc-electrode" class="scene3-electrode-zinc" 
+                  x="85" y="200" width="35" height="180"/>
+            <text id="scene3-zinc-label" x="102.5" y="175" text-anchor="middle" 
+                  font-size="16" font-weight="bold" fill="#000000">锌</text>
+
+            <!-- 铜电极 -->
+            <rect id="scene3-copper-electrode" class="scene3-electrode-copper" 
+                  x="205" y="200" width="35" height="180"/>
+            <text id="scene3-copper-label" x="222.5" y="175" text-anchor="middle" 
+                  font-size="16" font-weight="bold" fill="#000000">铜</text>
+
+            <!-- 稀硫酸标注 -->
+            <text id="scene3-acid-label" x="285" y="385" font-size="14" fill="#333">稀硫酸</text>
+            <line x1="270" y1="375" x2="280" y2="380" stroke="#333" stroke-width="1"/>
+
+            <!-- 气泡组（步骤 2 显示） -->
+            <g id="scene3-bubble-group" opacity="0">
+                <circle class="scene3-bubble" cx="222" cy="360" r="5">
+                    <animate attributeName="cy" from="360" to="320" dur="1.5s" begin="0s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="1.5s" repeatCount="indefinite"/>
+                </circle>
+                <circle class="scene3-bubble" cx="215" cy="370" r="4">
+                    <animate attributeName="cy" from="370" to="330" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="1.8s" repeatCount="indefinite"/>
+                </circle>
+                <circle class="scene3-bubble" cx="230" cy="365" r="4.5">
+                    <animate attributeName="cy" from="365" to="325" dur="1.6s" begin="0.6s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="1.6s" repeatCount="indefinite"/>
+                </circle>
+            </g>
+
+            <!-- ========== 导线连接 ========== -->
+            <!-- 导线 1：锌 → b 电极 -->
+            <path id="scene3-wire1" class="scene3-wire" 
+                  d="M 102.5 200 L 102.5 155 L 415 155 L 415 200"/>
+            
+            <!-- 导线 2：铜 → a 电极 -->
+            <path id="scene3-wire2" class="scene3-wire" 
+                  d="M 222.5 200 L 222.5 135 L 525 135 L 525 200"/>
+
+            <!-- 电子流动动画（步骤 1 显示） -->
+            <g id="scene3-electron-group" opacity="0">
+                <circle class="scene3-electron" cx="102.5" cy="155" r="4">
+                    <animateMotion dur="2s" repeatCount="indefinite">
+                        <mpath href="#scene3-wire1-path"/>
+                    </animateMotion>
+                </circle>
+            </g>
+            <!-- 隐藏的路径用于动画 -->
+            <path id="scene3-wire1-path" d="M 102.5 200 L 102.5 155 L 415 155 L 415 200" fill="none" stroke="none"/>
+
+            <!-- ========== 右侧电解池区（滤纸） ========== -->
+            <!-- 滤纸椭圆 -->
+            <ellipse id="scene3-filter-paper" cx="470" cy="330" rx="110" ry="50" 
+                     fill="#f5f5f5" stroke="#bdbdbd" stroke-width="2"/>
+            
+            <!-- 滤纸标注 -->
+            <text id="scene3-filter-label1" x="470" y="400" text-anchor="middle" 
+                  font-size="11" fill="#666">用饱和食盐水</text>
+            <text id="scene3-filter-label2" x="470" y="415" text-anchor="middle" 
+                  font-size="11" fill="#666">浸湿的滤纸</text>
+
+            <!-- 石墨棒 a -->
+            <rect id="scene3-graphite-a" class="scene3-electrode-graphite" 
+                  x="400" y="200" width="30" height="120"/>
+            <text id="scene3-a-label" x="415" y="175" text-anchor="middle" 
+                  font-size="16" font-weight="bold" fill="#000000">a</text>
+
+            <!-- 石墨棒 b -->
+            <rect id="scene3-graphite-b" class="scene3-electrode-graphite" 
+                  x="510" y="200" width="30" height="120"/>
+            <text id="scene3-b-label" x="525" y="175" text-anchor="middle" 
+                  font-size="16" font-weight="bold" fill="#000000">b</text>
+
+            <!-- 酚酞红晕（步骤 4 显示） -->
+            <ellipse id="scene3-phenolphthalein" class="scene3-phenolphthalein" 
+                     cx="540" cy="340" rx="45" ry="35" 
+                     fill="url(#scene3-phenolphthalein-gradient)"/>
+
+            <!-- 离子移动动画（步骤 3-4） -->
+            <g id="scene3-ion-group-a" opacity="0">
+                <text class="scene3-ion" x="380" y="280" fill="#4caf50">Cl⁻</text>
+                <animateMotion dur="1.5s" repeatCount="indefinite" begin="0s">
+                    <mpath href="#scene3-ion-path-a"/>
+                </animateMotion>
+            </g>
+            <path id="scene3-ion-path-a" d="M 380 280 L 415 300" fill="none" stroke="none"/>
+
+            <g id="scene3-ion-group-b" opacity="0">
+                <text class="scene3-ion" x="560" y="280" fill="#1976d2">H⁺</text>
+                <animateMotion dur="1.5s" repeatCount="indefinite" begin="0.3s">
+                    <mpath href="#scene3-ion-path-b"/>
+                </animateMotion>
+            </g>
+            <path id="scene3-ion-path-b" d="M 560 280 L 525 300" fill="none" stroke="none"/>
+
+            <!-- ========== 右侧信息区 ========== -->
+            <!-- 反应式文本框 - 扩大并调整位置 -->
+            <rect id="scene3-reaction-box" class="scene3-reaction-box" 
+                  x="530" y="50" width="250" height="110"/>
+            <text id="scene3-reaction-title" x="655" y="75" text-anchor="middle" 
+                  font-size="14" font-weight="bold" fill="#1976d2">电极反应分析</text>
+            <text id="scene3-reaction-content1" x="545" y="100" 
+                  font-size="12" fill="#333"></text>
+            <text id="scene3-reaction-content2" x="545" y="125" 
+                  font-size="12" fill="#333"></text>
+            <text id="scene3-reaction-content3" x="545" y="150" 
+                  font-size="12" fill="#333"></text>
+
+            <!-- 选项验证区 - 调整位置和行间距 -->
+            <g id="scene3-option-panel">
+                <text id="scene3-option-a" x="545" y="195" font-size="11" fill="#666"></text>
+                <text id="scene3-option-b" x="545" y="240" font-size="11" fill="#666"></text>
+                <text id="scene3-option-c" x="545" y="285" font-size="11" fill="#666"></text>
+                <text id="scene3-option-d" x="545" y="330" font-size="11" fill="#666"></text>
+                <text id="scene3-final-answer" x="655" y="375" text-anchor="middle" 
+                      font-size="16" font-weight="bold" fill="#2e7d32" opacity="0"></text>
+            </g>
+
+            <!-- 步骤指示器 -->
+            <text id="scene3-step-indicator" x="655" y="450" text-anchor="middle" 
+                  class="scene3-step-indicator">步骤 0/4</text>
+
+            <!-- ========== 控件栏 ========== -->
+            <g id="scene3-controls">
+                <rect x="270" y="455" width="260" height="35" fill="#f5f5f5" stroke="#e0e0e0" rx="4"/>
+                <foreignObject x="280" y="460" width="240" height="30">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="display:flex;justify-content:center;gap:12px;align-items:center;">
+                        <button id="scene3-btn-prev" class="scene3-btn scene3-btn-prev" disabled>◀ 上一步</button>
+                        <button id="scene3-btn-next" class="scene3-btn scene3-btn-next">下一步 ▶</button>
+                        <button id="scene3-btn-reset" class="scene3-btn scene3-btn-reset">重置</button>
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现 - 电化学装置电极反应分析
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 每步的配置数据
+        const stepData = [
+            {
+                // 步骤 0：初始状态
+                reactionTitle: "电极反应分析",
+                reaction1: "",
+                reaction2: "",
+                reaction3: "",
+                optionA: "",
+                optionB: "",
+                optionC: "",
+                optionD: "",
+                finalAnswer: "",
+                showBubbles: false,
+                showPhenolphthalein: false,
+                showElectronFlow: false,
+                showIons: false,
+                highlightZinc: false,
+                highlightCopper: false,
+                highlightGraphiteA: false,
+                highlightGraphiteB: false
+            },
+            {
+                // 步骤 1：锌电极反应（原电池负极）
+                reactionTitle: "锌电极（负极）",
+                reaction1: "Zn - 2e⁻ → Zn²⁺",
+                reaction2: "氧化反应，锌被消耗",
+                reaction3: "",
+                optionA: "A. 锌为负极被还原 ❌",
+                optionB: "",
+                optionC: "",
+                optionD: "",
+                finalAnswer: "",
+                showBubbles: false,
+                showPhenolphthalein: false,
+                showElectronFlow: true,
+                showIons: false,
+                highlightZinc: true,
+                highlightCopper: false,
+                highlightGraphiteA: false,
+                highlightGraphiteB: false
+            },
+            {
+                // 步骤 2：铜电极反应（原电池正极）
+                reactionTitle: "铜电极（正极）",
+                reaction1: "2H⁺ + 2e⁻ → H₂↑",
+                reaction2: "还原反应，产生氢气",
+                reaction3: "",
+                optionA: "A. ❌ 锌负极发生氧化反应",
+                optionB: "B. ❌ 电子不经过电解质",
+                optionC: "C. ❌ 未说明标准状况",
+                optionD: "",
+                finalAnswer: "",
+                showBubbles: true,
+                showPhenolphthalein: false,
+                showElectronFlow: false,
+                showIons: false,
+                highlightZinc: false,
+                highlightCopper: true,
+                highlightGraphiteA: false,
+                highlightGraphiteB: false
+            },
+            {
+                // 步骤 3：a 电极反应（电解池阳极）
+                reactionTitle: "a 电极（阳极）",
+                reaction1: "2Cl⁻ - 2e⁻ → Cl₂↑",
+                reaction2: "氧化反应，产生氯气",
+                reaction3: "",
+                optionA: "A. ❌ 锌负极发生氧化反应",
+                optionB: "B. ❌ 电子不经过电解质",
+                optionC: "C. ❌ 未说明标准状况",
+                optionD: "",
+                finalAnswer: "",
+                showBubbles: false,
+                showPhenolphthalein: false,
+                showElectronFlow: false,
+                showIons: true,
+                highlightZinc: false,
+                highlightCopper: false,
+                highlightGraphiteA: true,
+                highlightGraphiteB: false
+            },
+            {
+                // 步骤 4：b 电极反应（电解池阴极）+ 酚酞变色
+                reactionTitle: "b 电极（阴极）",
+                reaction1: "2H₂O + 2e⁻ → H₂↑",
+                reaction2: "+ 2OH⁻",
+                reaction3: "OH⁻富集使酚酞变红",
+                optionA: "A. ❌ 锌负极发生氧化反应",
+                optionB: "B. ❌ 电子不经过电解质",
+                optionC: "C. ❌ 未说明标准状况",
+                optionD: "D. ✓ b 极附近酚酞变红",
+                finalAnswer: "正确答案：D",
+                showBubbles: false,
+                showPhenolphthalein: true,
+                showElectronFlow: false,
+                showIons: true,
+                highlightZinc: false,
+                highlightCopper: false,
+                highlightGraphiteA: false,
+                highlightGraphiteB: true
+            }
+        ];
+
+        // DOM 元素引用
+        const elements = {
+            zincElectrode: document.getElementById('scene3-zinc-electrode'),
+            copperElectrode: document.getElementById('scene3-copper-electrode'),
+            graphiteA: document.getElementById('scene3-graphite-a'),
+            graphiteB: document.getElementById('scene3-graphite-b'),
+            bubbleGroup: document.getElementById('scene3-bubble-group'),
+            phenolphthalein: document.getElementById('scene3-phenolphthalein'),
+            electronGroup: document.getElementById('scene3-electron-group'),
+            ionGroupA: document.getElementById('scene3-ion-group-a'),
+            ionGroupB: document.getElementById('scene3-ion-group-b'),
+            reactionTitle: document.getElementById('scene3-reaction-title'),
+            reactionContent1: document.getElementById('scene3-reaction-content1'),
+            reactionContent2: document.getElementById('scene3-reaction-content2'),
+            reactionContent3: document.getElementById('scene3-reaction-content3'),
+            optionA: document.getElementById('scene3-option-a'),
+            optionB: document.getElementById('scene3-option-b'),
+            optionC: document.getElementById('scene3-option-c'),
+            optionD: document.getElementById('scene3-option-d'),
+            finalAnswer: document.getElementById('scene3-final-answer'),
+            stepIndicator: document.getElementById('scene3-step-indicator'),
+            btnPrev: document.getElementById('scene3-btn-prev'),
+            btnNext: document.getElementById('scene3-btn-next'),
+            btnReset: document.getElementById('scene3-btn-reset')
+        };
+
+        // 更新步骤显示
+        function updateStep() {
+            const data = stepData[currentStep];
+
+            // 更新反应式文本框
+            elements.reactionTitle.textContent = data.reactionTitle;
+            elements.reactionContent1.textContent = data.reaction1;
+            elements.reactionContent2.textContent = data.reaction2;
+            elements.reactionContent3.textContent = data.reaction3;
+
+            // 更新选项验证区
+            elements.optionA.textContent = data.optionA;
+            elements.optionB.textContent = data.optionB;
+            elements.optionC.textContent = data.optionC;
+            elements.optionD.textContent = data.optionD;
+            elements.finalAnswer.textContent = data.finalAnswer;
+            elements.finalAnswer.style.opacity = data.finalAnswer ? '1' : '0';
+
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+
+            // 更新按钮状态
+            elements.btnPrev.disabled = currentStep === 0;
+            elements.btnNext.disabled = currentStep === totalSteps;
+
+            // 控制视觉元素显隐
+            // 气泡
+            elements.bubbleGroup.style.opacity = data.showBubbles ? '1' : '0';
+            
+            // 酚酞红晕
+            if (data.showPhenolphthalein) {
+                elements.phenolphthalein.classList.add('scene3-phenolphthalein-show');
+            } else {
+                elements.phenolphthalein.classList.remove('scene3-phenolphthalein-show');
+            }
+
+            // 电子流动
+            elements.electronGroup.style.opacity = data.showElectronFlow ? '1' : '0';
+
+            // 离子移动
+            elements.ionGroupA.style.opacity = data.showIons ? '1' : '0';
+            elements.ionGroupB.style.opacity = data.showIons ? '1' : '0';
+
+            // 电极高亮
+            updateElectrodeHighlight(elements.zincElectrode, data.highlightZinc, 'scene3-highlight-zinc');
+            updateElectrodeHighlight(elements.copperElectrode, data.highlightCopper, 'scene3-highlight-copper');
+            updateElectrodeHighlight(elements.graphiteA, data.highlightGraphiteA, 'scene3-highlight-graphite');
+            updateElectrodeHighlight(elements.graphiteB, data.highlightGraphiteB, 'scene3-highlight-graphite');
+
+            // 触发 MathJax 重新渲染
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        // 更新电极高亮
+        function updateElectrodeHighlight(element, shouldHighlight, highlightClass) {
+            if (shouldHighlight) {
+                element.classList.add(highlightClass);
+            } else {
+                element.classList.remove(highlightClass);
+            }
+        }
+
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+
+        // 下一步
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        }
+
+        // 重置
+        function reset() {
+            currentStep = 0;
+            // 清除所有高亮类
+            elements.zincElectrode.classList.remove('scene3-highlight-zinc');
+            elements.copperElectrode.classList.remove('scene3-highlight-copper');
+            elements.graphiteA.classList.remove('scene3-highlight-graphite');
+            elements.graphiteB.classList.remove('scene3-highlight-graphite');
+            // 清除酚酞类
+            elements.phenolphthalein.classList.remove('scene3-phenolphthalein-show');
+            updateStep();
+        }
+
+        // 绑定事件
+        elements.btnPrev.addEventListener('click', prevStep);
+        elements.btnNext.addEventListener('click', nextStep);
+        elements.btnReset.addEventListener('click', reset);
+
+        // 键盘导航支持
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                prevStep();
+            } else if (e.key === 'ArrowRight') {
+                nextStep();
+            } else if (e.key === 'r' || e.key === 'R') {
+                reset();
+            }
+        });
+
+        // 初始化
+        updateStep();
+
+    })();
+    </script>
+</body>
+</html>

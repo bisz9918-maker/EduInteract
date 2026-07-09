@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ⅱ-5 性染色体异常成因分析</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1976d2;
+            color: white;
+            transition: background 0.2s;
+        }
+        .scene2-btn:hover {
+            background: #1565c0;
+        }
+        .scene2-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #424242;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene2-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* 染色体样式 */
+        .scene2-chrom-xb { fill: #1565c0; fill-opacity: 0.8; }
+        .scene2-chrom-xb-light { fill: #1565c0; fill-opacity: 0.2; }
+        .scene2-chrom-xb-red { fill: #c62828; fill-opacity: 0.8; }
+        .scene2-chrom-xb-red-light { fill: #c62828; fill-opacity: 0.2; }
+        .scene2-chrom-y { fill: #f9a825; fill-opacity: 0.8; }
+        .scene2-chrom-y-light { fill: #f9a825; fill-opacity: 0.2; }
+        /* 细胞样式 */
+        .scene2-cell {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        /* 配子样式 */
+        .scene2-gamete-normal {
+            fill: #ffffff;
+            stroke: #2e7d32;
+            stroke-width: 2;
+        }
+        .scene2-gamete-abnormal {
+            fill: #ffffff;
+            stroke: #c62828;
+            stroke-width: 2;
+            stroke-dasharray: 4,2;
+        }
+        /* 合子样式 */
+        .scene2-zygote {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        .scene2-zygote-highlight {
+            stroke: #1976d2;
+            stroke-width: 3;
+        }
+        /* 分裂框样式 */
+        .scene2-meiosis1-box {
+            fill: none;
+            stroke: #2e7d32;
+            stroke-width: 2;
+        }
+        .scene2-meiosis2-box {
+            fill: none;
+            stroke: #c62828;
+            stroke-width: 2;
+            stroke-dasharray: 4,2;
+        }
+        /* 箭头样式 */
+        .scene2-arrow {
+            stroke: #888888;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* 文本样式 */
+        .scene2-label {
+            font-size: 14px;
+            fill: #212121;
+            text-anchor: middle;
+        }
+        .scene2-label-small {
+            font-size: 12px;
+            fill: #424242;
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#888888" />
+                </marker>
+            </defs>
+
+            <!-- ========== 顶层：父母细胞 ========== -->
+            <!-- 父方细胞 -->
+            <g id="scene2-father-group">
+                <circle id="scene2-father-cell" class="scene2-cell" cx="150" cy="80" r="35"/>
+                <!-- 父方 X^B 染色体 -->
+                <rect id="scene2-father-xb" class="scene2-chrom-xb" x="142" y="65" width="8" height="20" rx="2"/>
+                <text id="scene2-father-xb-label" class="scene2-label-small" x="138" y="78">X^B</text>
+                <!-- 父方 Y 染色体 -->
+                <rect id="scene2-father-y" class="scene2-chrom-y" x="156" y="68" width="6" height="15" rx="2"/>
+                <text id="scene2-father-y-label" class="scene2-label-small" x="168" y="78">Y</text>
+                <!-- 父方标签 -->
+                <text id="scene2-father-label" class="scene2-label" x="150" y="45">父方</text>
+            </g>
+
+            <!-- 母方细胞 -->
+            <g id="scene2-mother-group">
+                <circle id="scene2-mother-cell" class="scene2-cell" cx="350" cy="80" r="35"/>
+                <!-- 母方 X^B 染色体 -->
+                <rect id="scene2-mother-xb" class="scene2-chrom-xb" x="342" y="65" width="8" height="20" rx="2"/>
+                <text id="scene2-mother-xb-label" class="scene2-label-small" x="338" y="78">X^B</text>
+                <!-- 母方 X^b 染色体 -->
+                <rect id="scene2-mother-xb-red" class="scene2-chrom-xb-red" x="356" y="65" width="8" height="20" rx="2"/>
+                <text id="scene2-mother-xb-red-label" class="scene2-label-small" x="372" y="78">X^b</text>
+                <!-- 母方标签 -->
+                <text id="scene2-mother-label" class="scene2-label" x="350" y="45">母方</text>
+            </g>
+
+            <!-- ========== 中层：减数分裂过程 ========== -->
+            <!-- 减数第一次分裂框（正常） -->
+            <g id="scene2-meiosis1-group" class="scene2-hidden">
+                <rect id="scene2-meiosis1-box" class="scene2-meiosis1-box" x="50" y="150" width="300" height="80"/>
+                <text id="scene2-meiosis1-label" class="scene2-label" x="200" y="140">减数第一次分裂</text>
+                <!-- 正常分裂箭头 -->
+                <line id="scene2-meiosis1-arrow1" class="scene2-arrow" x1="120" y1="190" x2="150" y2="190" marker-end="url(#scene2-arrowhead)"/>
+                <line id="scene2-meiosis1-arrow2" class="scene2-arrow" x1="180" y1="190" x2="210" y2="190" marker-end="url(#scene2-arrowhead)"/>
+                <!-- 分裂后的染色体 -->
+                <rect id="scene2-meiosis1-xb" class="scene2-chrom-xb-light" x="100" y="180" width="8" height="20" rx="2"/>
+                <rect id="scene2-meiosis1-y" class="scene2-chrom-y-light" x="200" y="183" width="6" height="15" rx="2"/>
+            </g>
+
+            <!-- 减数第二次分裂框（异常） -->
+            <g id="scene2-meiosis2-group" class="scene2-hidden">
+                <rect id="scene2-meiosis2-box" class="scene2-meiosis2-box" x="400" y="150" width="350" height="80"/>
+                <text id="scene2-meiosis2-label" class="scene2-label" x="575" y="140">减数第二次分裂（异常）</text>
+                <!-- 异常分裂箭头（不分离） -->
+                <line id="scene2-meiosis2-arrow" class="scene2-arrow" x1="500" y1="190" x2="580" y2="190" marker-end="url(#scene2-arrowhead)"/>
+                <text id="scene2-meiosis2-nondisjunction" class="scene2-label-small" x="575" y="210">不分离</text>
+                <!-- 未分离的染色体 -->
+                <rect id="scene2-meiosis2-xy" class="scene2-chrom-xb-light" x="560" y="180" width="8" height="20" rx="2"/>
+                <rect id="scene2-meiosis2-y2" class="scene2-chrom-y-light" x="572" y="183" width="6" height="15" rx="2"/>
+            </g>
+
+            <!-- ========== 配子层 ========== -->
+            <!-- 正常配子组 -->
+            <g id="scene2-normal-gametes-group" class="scene2-hidden">
+                <!-- 正常配子 X -->
+                <circle id="scene2-gamete-x" class="scene2-gamete-normal" cx="100" cy="280" r="25"/>
+                <rect id="scene2-gamete-x-chrom" class="scene2-chrom-xb" x="96" y="270" width="8" height="20" rx="2"/>
+                <text id="scene2-gamete-x-label" class="scene2-label-small" x="100" y="305">X</text>
+                <!-- 正常配子 Y -->
+                <circle id="scene2-gamete-y" class="scene2-gamete-normal" cx="180" cy="280" r="25"/>
+                <rect id="scene2-gamete-y-chrom" class="scene2-chrom-y" x="177" y="273" width="6" height="15" rx="2"/>
+                <text id="scene2-gamete-y-label" class="scene2-label-small" x="180" y="305">Y</text>
+                <!-- 正常配子标签 -->
+                <text id="scene2-normal-gamete-label" class="scene2-label" x="140" y="315">正常配子</text>
+            </g>
+
+            <!-- 异常配子组 -->
+            <g id="scene2-abnormal-gametes-group" class="scene2-hidden">
+                <!-- 异常配子 XY -->
+                <circle id="scene2-gamete-xy" class="scene2-gamete-abnormal" cx="350" cy="280" r="28"/>
+                <rect id="scene2-gamete-xy-x" class="scene2-chrom-xb" x="344" y="268" width="8" height="20" rx="2"/>
+                <rect id="scene2-gamete-xy-y" class="scene2-chrom-y" x="356" y="271" width="6" height="15" rx="2"/>
+                <text id="scene2-gamete-xy-label" class="scene2-label-small" x="350" y="308">XY</text>
+                <!-- 异常配子 O（无染色体） -->
+                <circle id="scene2-gamete-o" class="scene2-gamete-abnormal" cx="430" cy="280" r="28"/>
+                <text id="scene2-gamete-o-label" class="scene2-label-small" x="430" y="285">O</text>
+                <text id="scene2-gamete-o-label2" class="scene2-label-small" x="430" y="308">（无）</text>
+                <!-- 异常配子标签 -->
+                <text id="scene2-abnormal-gamete-label" class="scene2-label" x="390" y="315">异常配子</text>
+            </g>
+
+            <!-- ========== 底层：受精结果 ========== -->
+            <!-- 母方卵细胞 -->
+            <g id="scene2-egg-group" class="scene2-hidden">
+                <circle id="scene2-egg" class="scene2-cell" cx="250" cy="360" r="25"/>
+                <rect id="scene2-egg-xb-red" class="scene2-chrom-xb-red" x="246" y="350" width="8" height="20" rx="2"/>
+                <text id="scene2-egg-label" class="scene2-label-small" x="250" y="385">X^b</text>
+            </g>
+
+            <!-- 受精箭头 -->
+            <g id="scene2-fertilization-arrows" class="scene2-hidden">
+                <line id="scene2-fert-arrow1" class="scene2-arrow" x1="400" y1="300" x2="350" y2="360" marker-end="url(#scene2-arrowhead)"/>
+                <line id="scene2-fert-arrow2" class="scene2-arrow" x1="360" y1="310" x2="430" y2="360" marker-end="url(#scene2-arrowhead)"/>
+                <line id="scene2-fert-arrow3" class="scene2-arrow" x1="370" y1="310" x2="520" y2="370" marker-end="url(#scene2-arrowhead)"/>
+            </g>
+
+            <!-- 合子组 -->
+            <g id="scene2-zygotes-group" class="scene2-hidden">
+                <!-- 合子 1 (X^b O) - Ⅱ-5 -->
+                <circle id="scene2-zygote-1" class="scene2-zygote" cx="350" cy="400" r="30"/>
+                <rect id="scene2-zygote-1-xb-red" class="scene2-chrom-xb-red" x="344" y="388" width="8" height="20" rx="2"/>
+                <text id="scene2-zygote-1-label" class="scene2-label" x="350" y="435">Ⅱ-5 (X^bO)</text>
+
+                <!-- 合子 2 (XXY) -->
+                <circle id="scene2-zygote-2" class="scene2-zygote" cx="450" cy="400" r="30"/>
+                <rect id="scene2-zygote-2-x1" class="scene2-chrom-xb" x="442" y="388" width="8" height="20" rx="2"/>
+                <rect id="scene2-zygote-2-x2" class="scene2-chrom-xb-red" x="452" y="388" width="8" height="20" rx="2"/>
+                <rect id="scene2-zygote-2-y" class="scene2-chrom-y" x="462" y="391" width="6" height="15" rx="2"/>
+                <text id="scene2-zygote-2-label" class="scene2-label" x="450" y="435">XXY</text>
+
+                <!-- 合子 3 (XYY) -->
+                <circle id="scene2-zygote-3" class="scene2-zygote" cx="550" cy="400" r="30"/>
+                <rect id="scene2-zygote-3-x" class="scene2-chrom-xb" x="544" y="388" width="8" height="20" rx="2"/>
+                <rect id="scene2-zygote-3-y1" class="scene2-chrom-y" x="554" y="391" width="6" height="15" rx="2"/>
+                <rect id="scene2-zygote-3-y2" class="scene2-chrom-y" x="562" y="391" width="6" height="15" rx="2"/>
+                <text id="scene2-zygote-3-label" class="scene2-label" x="550" y="435">XYY</text>
+            </g>
+
+            <!-- 控件栏背景（SVG 内底部） -->
+            <rect id="scene2-controls-bg" x="0" y="450" width="800" height="40" fill="#f5f5f5" opacity="0.5"/>
+        </svg>
+
+        <!-- HTML 控件栏（叠在 SVG 底部） -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: Ⅱ-5 性染色体异常成因分析
+        // 布局坐标表对照：
+        // 父方细胞(150,80) r=35 | 母方细胞(350,80) r=35
+        // 减Ⅰ框(50,150)-(350,230) | 减Ⅱ框(400,150)-(750,230)
+        // 正常配子 X(100,280) r=25 | Y(180,280) r=25
+        // 异常配子 XY(350,280) r=28 | O(430,280) r=28
+        // 卵细胞(250,360) r=25
+        // 合子 1(350,400) r=30 | 合子 2(450,400) r=30 | 合子 3(550,400) r=30
+        // 控件栏 y=450-490
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步可见元素 ID 列表
+        const stepVisibility = {
+            0: {
+                show: ['scene2-father-group', 'scene2-mother-group'],
+                hide: ['scene2-meiosis1-group', 'scene2-meiosis2-group', 
+                       'scene2-normal-gametes-group', 'scene2-abnormal-gametes-group',
+                       'scene2-egg-group', 'scene2-fertilization-arrows', 'scene2-zygotes-group']
+            },
+            1: {
+                show: ['scene2-meiosis1-group', 'scene2-normal-gametes-group'],
+                hide: ['scene2-meiosis2-group', 'scene2-abnormal-gametes-group',
+                       'scene2-egg-group', 'scene2-fertilization-arrows', 'scene2-zygotes-group']
+            },
+            2: {
+                show: ['scene2-meiosis2-group', 'scene2-abnormal-gametes-group'],
+                hide: ['scene2-egg-group', 'scene2-fertilization-arrows', 'scene2-zygotes-group']
+            },
+            3: {
+                show: ['scene2-egg-group', 'scene2-fertilization-arrows', 'scene2-zygote-1', 
+                       'scene2-zygote-1-xb-red', 'scene2-zygote-1-label'],
+                hide: ['scene2-zygote-2', 'scene2-zygote-2-x1', 'scene2-zygote-2-x2', 'scene2-zygote-2-y', 'scene2-zygote-2-label',
+                       'scene2-zygote-3', 'scene2-zygote-3-x', 'scene2-zygote-3-y1', 'scene2-zygote-3-y2', 'scene2-zygote-3-label']
+            },
+            4: {
+                show: ['scene2-zygote-2', 'scene2-zygote-2-x1', 'scene2-zygote-2-x2', 'scene2-zygote-2-y', 'scene2-zygote-2-label',
+                       'scene2-zygote-3', 'scene2-zygote-3-x', 'scene2-zygote-3-y1', 'scene2-zygote-3-y2', 'scene2-zygote-3-label'],
+                hide: []
+            },
+            5: {
+                show: [],
+                hide: [],
+                highlight: ['scene2-zygote-1', 'scene2-zygote-2', 'scene2-zygote-3']
+            }
+        };
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+                if (el.tagName === 'circle' || el.tagName === 'rect' || el.tagName === 'line' || el.tagName === 'text') {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                } else {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+                if (el.tagName === 'circle' || el.tagName === 'rect' || el.tagName === 'line' || el.tagName === 'text') {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                } else {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            }
+        }
+
+        // 更新步骤显示
+        function updateStep(step) {
+            const config = stepVisibility[step];
+            
+            // 显示指定元素
+            if (config.show) {
+                config.show.forEach(id => showElement(id));
+            }
+            
+            // 隐藏指定元素
+            if (config.hide) {
+                config.hide.forEach(id => hideElement(id));
+            }
+
+            // 处理高亮（步骤 5）
+            const allZygotes = ['scene2-zygote-1', 'scene2-zygote-2', 'scene2-zygote-3'];
+            allZygotes.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('scene2-zygote-highlight');
+                }
+            });
+            if (config.highlight) {
+                config.highlight.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.add('scene2-zygote-highlight');
+                    }
+                });
+            }
+
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${step}/${totalSteps}`;
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            prevBtn.disabled = (step === 0);
+            nextBtn.disabled = (step === totalSteps);
+            if (step === totalSteps) {
+                nextBtn.textContent = '完成';
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+            }
+
+            currentStep = step;
+        }
+
+        // 初始化：设置所有元素初始状态
+        function init() {
+            // 初始隐藏所有需要动态显示的元素
+            const initiallyHidden = [
+                'scene2-meiosis1-group', 'scene2-meiosis2-group',
+                'scene2-normal-gametes-group', 'scene2-abnormal-gametes-group',
+                'scene2-egg-group', 'scene2-fertilization-arrows', 'scene2-zygotes-group',
+                'scene2-zygote-1', 'scene2-zygote-1-xb-red', 'scene2-zygote-1-label',
+                'scene2-zygote-2', 'scene2-zygote-2-x1', 'scene2-zygote-2-x2', 'scene2-zygote-2-y', 'scene2-zygote-2-label',
+                'scene2-zygote-3', 'scene2-zygote-3-x', 'scene2-zygote-3-y1', 'scene2-zygote-3-y2', 'scene2-zygote-3-label'
+            ];
+            initiallyHidden.forEach(id => hideElement(id));
+
+            // 显示初始元素（父母细胞）
+            showElement('scene2-father-group');
+            showElement('scene2-mother-group');
+
+            // 更新按钮状态
+            document.getElementById('scene2-step-indicator').textContent = `步骤 0/${totalSteps}`;
+            document.getElementById('scene2-btn-prev').disabled = true;
+            document.getElementById('scene2-btn-next').disabled = false;
+        }
+
+        // 事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                updateStep(currentStep - 1);
+            }
+        });
+
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                updateStep(currentStep + 1);
+            }
+        });
+
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', init);
+    })();
+    </script>
+</body>
+</html>

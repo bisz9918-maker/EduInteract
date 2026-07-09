@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阶梯状多边形周长计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+        #scene1-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 8px 24px;
+            border: 1px solid #cccccc;
+            border-radius: 6px;
+            background: #f5f5f5;
+            color: #333333;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .scene1-edge { transition: stroke 0.4s ease, stroke-width 0.4s ease; }
+        .scene1-dash { transition: opacity 0.4s ease; }
+        .scene1-text-step { transition: opacity 0.4s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ===== 多边形边（8条线段） ===== -->
+            <!-- 布局坐标表（来自spec.json计划）：
+                 边a: (250,350)-(250,230)  边h: (250,230)-(350,230)
+                 边g: (350,230)-(350,280)  边f: (350,280)-(480,280)
+                 边e: (480,280)-(480,200)  边d: (480,200)-(550,200)
+                 边c: (550,200)-(550,350)  边b: (550,350)-(250,350)
+            -->
+            <line id="scene1-edge-a" class="scene1-edge" x1="250" y1="350" x2="250" y2="230" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-h" class="scene1-edge" x1="250" y1="230" x2="350" y2="230" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-g" class="scene1-edge" x1="350" y1="230" x2="350" y2="280" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-f" class="scene1-edge" x1="350" y1="280" x2="480" y2="280" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-e" class="scene1-edge" x1="480" y1="280" x2="480" y2="200" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-d" class="scene1-edge" x1="480" y1="200" x2="550" y2="200" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-c" class="scene1-edge" x1="550" y1="200" x2="550" y2="350" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+            <line id="scene1-edge-b" class="scene1-edge" x1="550" y1="350" x2="250" y2="350" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+
+            <!-- ===== 边长标签（a~h） ===== -->
+            <text id="scene1-label-a" x="230" y="290" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">a</text>
+            <text id="scene1-label-h" x="300" y="210" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">h</text>
+            <text id="scene1-label-g" x="330" y="255" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">g</text>
+            <text id="scene1-label-f" x="415" y="305" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">f</text>
+            <text id="scene1-label-e" x="460" y="240" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">e</text>
+            <text id="scene1-label-d" x="515" y="180" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">d</text>
+            <text id="scene1-label-c" x="575" y="275" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">c</text>
+            <text id="scene1-label-b" x="400" y="380" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">b</text>
+
+            <!-- ===== 步骤1：水平边虚线（蓝色 #1565c0） ===== -->
+            <g id="scene1-horz-dashes" class="scene1-dash" opacity="0">
+                <line x1="350" y1="280" x2="350" y2="350" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="4,2"/>
+                <line x1="480" y1="280" x2="480" y2="350" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="4,2"/>
+            </g>
+
+            <!-- ===== 步骤2：垂直边虚线（红色 #c62828） ===== -->
+            <g id="scene1-vert-dashes" class="scene1-dash" opacity="0">
+                <line x1="350" y1="230" x2="550" y2="230" stroke="#c62828" stroke-width="1.5" stroke-dasharray="4,2"/>
+                <line x1="480" y1="280" x2="550" y2="280" stroke="#c62828" stroke-width="1.5" stroke-dasharray="4,2"/>
+            </g>
+
+            <!-- ===== 步骤文本 ===== -->
+            <text id="scene1-text-known" class="scene1-text-step" x="400" y="420" text-anchor="middle" font-size="14" fill="#333333">已知：b=50米, c=30米, g=10米</text>
+            <text id="scene1-text-horz" class="scene1-text-step" x="400" y="420" text-anchor="middle" font-size="18" font-weight="bold" fill="#1565c0" opacity="0">h + f + d = b = 50米</text>
+            <text id="scene1-text-vert" class="scene1-text-step" x="690" y="275" text-anchor="middle" font-size="18" font-weight="bold" fill="#c62828" opacity="0">a + e = c + g = 40米</text>
+            <text id="scene1-text-perimeter" class="scene1-text-step" x="400" y="420" text-anchor="middle" font-size="18" font-weight="bold" fill="#2e7d32" opacity="0">周长 = 2(b + c + g) = 2×(50+30+10) = 180米</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() { 'use strict';
+        var currentStep = 0;
+        var maxStep = 3;
+
+        var edges = {
+            a: document.getElementById('scene1-edge-a'),
+            h: document.getElementById('scene1-edge-h'),
+            g: document.getElementById('scene1-edge-g'),
+            f: document.getElementById('scene1-edge-f'),
+            e: document.getElementById('scene1-edge-e'),
+            d: document.getElementById('scene1-edge-d'),
+            c: document.getElementById('scene1-edge-c'),
+            b: document.getElementById('scene1-edge-b')
+        };
+
+        var horzDashes = document.getElementById('scene1-horz-dashes');
+        var vertDashes = document.getElementById('scene1-vert-dashes');
+        var textKnown = document.getElementById('scene1-text-known');
+        var textHorz = document.getElementById('scene1-text-horz');
+        var textVert = document.getElementById('scene1-text-vert');
+        var textPerimeter = document.getElementById('scene1-text-perimeter');
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+
+        function resetEdges() {
+            Object.keys(edges).forEach(function(key) {
+                edges[key].setAttribute('stroke', '#000000');
+                edges[key].setAttribute('stroke-width', '2');
+            });
+        }
+
+        function hideAllText() {
+            textKnown.setAttribute('opacity', '0');
+            textHorz.setAttribute('opacity', '0');
+            textVert.setAttribute('opacity', '0');
+            textPerimeter.setAttribute('opacity', '0');
+        }
+
+        function renderStep(step) {
+            resetEdges();
+            horzDashes.setAttribute('opacity', '0');
+            vertDashes.setAttribute('opacity', '0');
+            hideAllText();
+
+            switch(step) {
+                case 0:
+                    textKnown.setAttribute('opacity', '1');
+                    break;
+                case 1:
+                    // 水平边 h, f, d, b 高亮为蓝色
+                    ['h', 'f', 'd', 'b'].forEach(function(k) {
+                        edges[k].setAttribute('stroke', '#1565c0');
+                        edges[k].setAttribute('stroke-width', '2.5');
+                    });
+                    horzDashes.setAttribute('opacity', '1');
+                    textHorz.setAttribute('opacity', '1');
+                    break;
+                case 2:
+                    // 垂直边 a, g, e, c 高亮为红色
+                    ['a', 'g', 'e', 'c'].forEach(function(k) {
+                        edges[k].setAttribute('stroke', '#c62828');
+                        edges[k].setAttribute('stroke-width', '2.5');
+                    });
+                    vertDashes.setAttribute('opacity', '1');
+                    textVert.setAttribute('opacity', '1');
+                    break;
+                case 3:
+                    // 全部边高亮为绿色
+                    Object.keys(edges).forEach(function(k) {
+                        edges[k].setAttribute('stroke', '#2e7d32');
+                        edges[k].setAttribute('stroke-width', '3');
+                    });
+                    textVert.setAttribute('opacity', '1');
+                    textPerimeter.setAttribute('opacity', '1');
+                    break;
+            }
+
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === maxStep);
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染步骤0
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形计数 - 场景 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-result { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: bold; color: #2e7d32; opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-btn { padding: 10px 20px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; transition: all 0.3s ease; }
+        .scene1-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { border-color: #ccc; color: #999; cursor: not-allowed; }
+        .scene1-highlight { stroke: #1565c0 !important; stroke-width: 3 !important; fill: rgba(21, 101, 192, 0.2) !important; transition: all 0.3s ease; }
+        .scene1-final-highlight { stroke: #c62828 !important; stroke-width: 3 !important; fill: rgba(198, 40, 40, 0.2) !important; transition: all 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+            
+            <!-- 线段层（底层） -->
+            <g id="scene1-lines">
+                <!-- 大三角形 ABC -->
+                <line id="scene1-line-ab" x1="400" y1="80" x2="200" y2="380" stroke="#000000" stroke-width="2" />
+                <line id="scene1-line-ac" x1="400" y1="80" x2="600" y2="380" stroke="#000000" stroke-width="2" />
+                <line id="scene1-line-bc" x1="200" y1="380" x2="600" y2="380" stroke="#000000" stroke-width="2" />
+                <!-- 内部线段 -->
+                <line id="scene1-line-de" x1="300" y1="230" x2="500" y2="230" stroke="#000000" stroke-width="2" />
+                <line id="scene1-line-df" x1="300" y1="230" x2="400" y2="380" stroke="#000000" stroke-width="2" />
+                <line id="scene1-line-ef" x1="500" y1="230" x2="400" y2="380" stroke="#000000" stroke-width="2" />
+            </g>
+            
+            <!-- 三角形高亮层（用于分步高亮） -->
+            <g id="scene1-highlights">
+                <!-- △ABC -->
+                <path id="scene1-tri-abc" d="M400,80 L200,380 L600,380 Z" fill="none" stroke="none" />
+                <!-- △ADE -->
+                <path id="scene1-tri-ade" d="M400,80 L300,230 L500,230 Z" fill="none" stroke="none" />
+                <!-- △BDF -->
+                <path id="scene1-tri-bdf" d="M200,380 L300,230 L400,380 Z" fill="none" stroke="none" />
+                <!-- △CEF -->
+                <path id="scene1-tri-cef" d="M600,380 L500,230 L400,380 Z" fill="none" stroke="none" />
+                <!-- △DEF -->
+                <path id="scene1-tri-def" d="M300,230 L500,230 L400,380 Z" fill="none" stroke="none" />
+            </g>
+            
+            <!-- 顶点层 -->
+            <g id="scene1-vertices">
+                <circle id="scene1-vertex-a" cx="400" cy="80" r="4" fill="#000000" />
+                <circle id="scene1-vertex-b" cx="200" cy="380" r="4" fill="#000000" />
+                <circle id="scene1-vertex-c" cx="600" cy="380" r="4" fill="#000000" />
+                <circle id="scene1-vertex-d" cx="300" cy="230" r="4" fill="#000000" />
+                <circle id="scene1-vertex-e" cx="500" cy="230" r="4" fill="#000000" />
+                <circle id="scene1-vertex-f" cx="400" cy="380" r="4" fill="#000000" />
+            </g>
+            
+            <!-- 标签层 -->
+            <g id="scene1-labels">
+                <text id="scene1-label-a" x="390" y="65" font-size="18" fill="#000000">A</text>
+                <text id="scene1-label-b" x="180" y="400" font-size="18" fill="#000000">B</text>
+                <text id="scene1-label-c" x="620" y="400" font-size="18" fill="#000000">C</text>
+                <text id="scene1-label-d" x="180" y="160" font-size="18" fill="#000000">D</text>
+                <text id="scene1-label-e" x="620" y="160" font-size="18" fill="#000000">E</text>
+                <text id="scene1-label-f" x="400" y="400" font-size="18" fill="#000000">F</text>
+            </g>
+        </svg>
+        
+        <!-- 计数结果 -->
+        <div id="scene1-result">共 5 个三角形</div>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 场景 1：三角形计数
+        // 布局坐标表：
+        // 顶点 A: (400,80) | 顶点 B: (200,380) | 顶点 C: (600,380)
+        // 点 D: (300,230) | 点 E: (500,230) | 点 F: (400,380)
+        // 标签 A: (390,65) | 标签 B: (180,400) | 标签 C: (620,400)
+        // 标签 D: (180,160) | 标签 E: (620,160) | 标签 F: (400,400)
+        
+        const currentStep = { value: 0 };
+        const maxStep = 6;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const resultText = document.getElementById('scene1-result');
+        
+        // 三角形元素
+        const triangles = {
+            abc: document.getElementById('scene1-tri-abc'),
+            ade: document.getElementById('scene1-tri-ade'),
+            bdf: document.getElementById('scene1-tri-bdf'),
+            cef: document.getElementById('scene1-tri-cef'),
+            def: document.getElementById('scene1-tri-def')
+        };
+        
+        // 清除所有高亮
+        function clearHighlights() {
+            Object.values(triangles).forEach(tri => {
+                tri.classList.remove('scene1-highlight', 'scene1-final-highlight');
+            });
+        }
+        
+        // 高亮单个三角形
+        function highlightTriangle(triName) {
+            clearHighlights();
+            if (triangles[triName]) {
+                triangles[triName].classList.add('scene1-highlight');
+            }
+        }
+        
+        // 高亮所有三角形（最终状态）
+        function highlightAllTriangles() {
+            clearHighlights();
+            Object.values(triangles).forEach(tri => {
+                tri.classList.add('scene1-final-highlight');
+            });
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            const step = currentStep.value;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            if (step === maxStep) {
+                btnNext.textContent = '完成';
+                btnNext.disabled = true;
+            } else {
+                btnNext.textContent = '下一步 ▶';
+                btnNext.disabled = false;
+            }
+            
+            // 根据步骤更新高亮
+            clearHighlights();
+            
+            switch(step) {
+                case 1:
+                    highlightTriangle('abc');
+                    break;
+                case 2:
+                    highlightTriangle('ade');
+                    break;
+                case 3:
+                    highlightTriangle('bdf');
+                    break;
+                case 4:
+                    highlightTriangle('cef');
+                    break;
+                case 5:
+                    highlightTriangle('def');
+                    break;
+                case 6:
+                    highlightAllTriangles();
+                    resultText.style.opacity = '1';
+                    break;
+                default:
+                    resultText.style.opacity = '0';
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', () => {
+            if (currentStep.value > 0) {
+                currentStep.value--;
+                updateDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep.value < maxStep) {
+                currentStep.value++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

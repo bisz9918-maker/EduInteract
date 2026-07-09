@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路动态分析与电磁相互作用</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; color: #ffffff; background: #1565c0;
+            border: none; border-radius: 4px; cursor: pointer; min-width: 90px; height: 30px;
+            transition: background 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #0d47a1; }
+        #scene1-controls button:disabled { background: #90a4ae; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 12px; color: #333; min-width: 70px; text-align: center; }
+
+        /* 步骤专属元素的显隐控制 */
+        .scene1-step-el { opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+        .scene1-step-el.active { opacity: 1; pointer-events: auto; }
+
+        /* 动画过渡 */
+        .scene1-needle { transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .scene1-slider { transition: transform 0.5s ease-out; }
+        .scene1-spring-needle { transition: transform 0.5s ease-out; }
+
+        /* 电流路径流动动画 */
+        @keyframes scene1-flow {
+            to { stroke-dashoffset: -30; }
+        }
+        .scene1-flow-anim { animation: scene1-flow 1s linear infinite; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ==================== 基础导线（始终可见） ==================== -->
+            <!-- 导线-上左：电池正极到变阻器左端 (100,200)→(100,120)→(150,120) -->
+            <polyline points="100,200 100,120 150,120" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 导线-上右：变阻器右端到螺线管上端 (270,120)→(400,120)→(400,220)→(560,220) -->
+            <polyline points="270,120 400,120 400,220 560,220" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 导线-下右：螺线管下端到电流表下端 (560,360)→(560,380)→(320,380)→(320,335) -->
+            <polyline points="560,360 560,380 320,380 320,335" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 导线-下中：电流表到R₀到S (305,320)→(195,320) -->
+            <line x1="305" y1="320" x2="195" y2="320" stroke="#000000" stroke-width="2"/>
+            <!-- 导线-下左：S到电池负极 (130,320)→(100,320)→(100,240) -->
+            <polyline points="130,320 100,320 100,240" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 电压表引线：并联在变阻器两端 -->
+            <polyline points="150,120 150,180" fill="none" stroke="#000000" stroke-width="1"/>
+            <polyline points="270,120 270,180" fill="none" stroke="#000000" stroke-width="1"/>
+
+            <!-- ==================== 电池 ==================== -->
+            <!-- 正极长线 -->
+            <line x1="95" y1="200" x2="95" y2="220" stroke="#000000" stroke-width="2"/>
+            <!-- 负极短线 -->
+            <line x1="105" y1="205" x2="105" y2="220" stroke="#000000" stroke-width="2"/>
+            <!-- 电池竖线 -->
+            <line x1="100" y1="200" x2="100" y2="205" stroke="#000000" stroke-width="2"/>
+            <line x1="100" y1="220" x2="100" y2="240" stroke="#000000" stroke-width="2"/>
+
+            <!-- ==================== 开关S ==================== -->
+            <circle cx="130" cy="320" r="2" fill="#000000"/>
+            <circle cx="150" cy="320" r="2" fill="#000000"/>
+            <line x1="130" y1="320" x2="148" y2="312" stroke="#000000" stroke-width="2"/>
+
+            <!-- ==================== 定值电阻R₀ ==================== -->
+            <rect x="195" y="310" width="50" height="20" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+
+            <!-- ==================== 电流表A ==================== -->
+            <circle cx="320" cy="320" r="15" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <!-- 电流表指针（初始指向左180°） -->
+            <g id="scene1-ammeter-needle" class="scene1-needle" transform="rotate(180,320,320)">
+                <line x1="320" y1="320" x2="308" y2="320" stroke="#c62828" stroke-width="1.5"/>
+            </g>
+
+            <!-- ==================== 滑动变阻器R ==================== -->
+            <!-- 电阻丝 -->
+            <line x1="150" y1="120" x2="270" y2="120" stroke="#000000" stroke-width="2"/>
+            <!-- 上方金属杆 -->
+            <line x1="150" y1="110" x2="270" y2="110" stroke="#000000" stroke-width="2"/>
+            <!-- 竖直短接线连接电阻丝和金属杆 -->
+            <line x1="150" y1="110" x2="150" y2="120" stroke="#000000" stroke-width="1"/>
+            <line x1="270" y1="110" x2="270" y2="120" stroke="#000000" stroke-width="1"/>
+            <!-- 滑片P（初始x=190） -->
+            <g id="scene1-rheostat-slider" class="scene1-slider" transform="translate(0,0)">
+                <line x1="190" y1="110" x2="190" y2="120" stroke="#000000" stroke-width="2"/>
+                <polygon points="190,110 186,102 194,102" fill="#000000"/>
+            </g>
+
+            <!-- ==================== 电压表V ==================== -->
+            <circle cx="210" cy="180" r="15" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <!-- 电压表指针（初始指向右0°） -->
+            <g id="scene1-voltmeter-needle" class="scene1-needle" transform="rotate(0,210,180)">
+                <line x1="210" y1="180" x2="222" y2="180" stroke="#c62828" stroke-width="1.5"/>
+            </g>
+
+            <!-- ==================== 螺线管B ==================== -->
+            <rect x="560" y="220" width="40" height="140" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 6匝线圈（正面从左下向右上倾斜） -->
+            <line x1="560" y1="240" x2="600" y2="230" stroke="#000000" stroke-width="1.5"/>
+            <line x1="560" y1="260" x2="600" y2="250" stroke="#000000" stroke-width="1.5"/>
+            <line x1="560" y1="280" x2="600" y2="270" stroke="#000000" stroke-width="1.5"/>
+            <line x1="560" y1="300" x2="600" y2="290" stroke="#000000" stroke-width="1.5"/>
+            <line x1="560" y1="320" x2="600" y2="310" stroke="#000000" stroke-width="1.5"/>
+            <line x1="560" y1="340" x2="600" y2="330" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- ==================== 弹簧测力计 ==================== -->
+            <!-- 顶部挂钩固定于天花板 -->
+            <line x1="590" y1="40" x2="610" y2="40" stroke="#000000" stroke-width="2"/>
+            <line x1="600" y1="40" x2="600" y2="50" stroke="#000000" stroke-width="2"/>
+            <!-- 弹簧锯齿线 -->
+            <polyline points="600,50 595,55 605,60 595,65 605,70 595,75 605,80 600,85" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- 矩形外壳 -->
+            <rect x="585" y="80" width="30" height="40" fill="none" stroke="#000000" stroke-width="1.5"/>
+            <!-- 刻度线 -->
+            <line x1="590" y1="85" x2="595" y2="85" stroke="#000000" stroke-width="1"/>
+            <line x1="590" y1="95" x2="595" y2="95" stroke="#000000" stroke-width="1"/>
+            <line x1="590" y1="105" x2="595" y2="105" stroke="#000000" stroke-width="1"/>
+            <line x1="590" y1="115" x2="595" y2="115" stroke="#000000" stroke-width="1"/>
+            <!-- 弹簧测力计指针 -->
+            <g id="scene1-spring-needle" class="scene1-spring-needle" transform="translate(0,0)">
+                <line x1="600" y1="100" x2="610" y2="95" stroke="#c62828" stroke-width="1.5"/>
+            </g>
+
+            <!-- ==================== 条形磁铁A ==================== -->
+            <!-- 上半S极（浅绿填充） -->
+            <rect x="585" y="130" width="20" height="45" fill="#2e7d32" fill-opacity="0.15" stroke="#000000" stroke-width="1.5"/>
+            <!-- 下半N极（浅红填充） -->
+            <rect x="585" y="175" width="20" height="45" fill="#c62828" fill-opacity="0.15" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- ==================== 基础标签（始终可见） ==================== -->
+            <!-- 开关S标签 -->
+            <text x="140" y="305" text-anchor="middle" font-size="12" fill="#000000">S</text>
+            <!-- 定值电阻R₀标签 -->
+            <text x="220" y="300" text-anchor="middle" font-size="12" fill="#000000">R₀</text>
+            <!-- 电流表A标签（在圆圈上方，避免与圆重叠） -->
+            <text x="320" y="300" text-anchor="middle" font-size="12" fill="#000000">A</text>
+            <!-- 螺线管B标签 -->
+            <text x="615" y="290" text-anchor="start" font-size="12" fill="#000000">B</text>
+            <!-- 变阻器R标签 -->
+            <text x="210" y="105" text-anchor="middle" font-size="12" fill="#000000">R</text>
+            <!-- 电压表V标签（在圆圈下方，避免与圆重叠） -->
+            <text x="210" y="205" text-anchor="middle" font-size="12" fill="#000000">V</text>
+            <!-- 滑片P标签 -->
+            <text x="190" y="85" text-anchor="middle" font-size="12" fill="#000000">P</text>
+            <!-- 磁铁A标签 -->
+            <text x="575" y="175" text-anchor="end" font-size="12" fill="#000000">A</text>
+            <!-- 磁铁N极标签 -->
+            <text x="615" y="197" text-anchor="start" font-size="12" fill="#000000">N</text>
+            <!-- 磁铁S极标签 -->
+            <text x="615" y="152" text-anchor="start" font-size="12" fill="#000000">S</text>
+
+            <!-- ==================== 步骤1元素 ==================== -->
+            <!-- 电流路径高亮（蓝色半透明粗线） -->
+            <g id="scene1-step1-current-path" class="scene1-step-el">
+                <polyline points="100,200 100,120 150,120" fill="none" stroke="#1565c0" stroke-width="4" stroke-opacity="0.4" stroke-linecap="round" stroke-linejoin="round" class="scene1-flow-anim" stroke-dasharray="10 5"/>
+                <polyline points="270,120 400,120 400,220 560,220" fill="none" stroke="#1565c0" stroke-width="4" stroke-opacity="0.4" stroke-linecap="round" stroke-linejoin="round" class="scene1-flow-anim" stroke-dasharray="10 5"/>
+                <polyline points="560,360 560,380 320,380 320,335" fill="none" stroke="#1565c0" stroke-width="4" stroke-opacity="0.4" stroke-linecap="round" stroke-linejoin="round" class="scene1-flow-anim" stroke-dasharray="10 5"/>
+                <line x1="305" y1="320" x2="195" y2="320" stroke="#1565c0" stroke-width="4" stroke-opacity="0.4" stroke-linecap="round" class="scene1-flow-anim" stroke-dasharray="10 5"/>
+                <polyline points="130,320 100,320 100,240" fill="none" stroke="#1565c0" stroke-width="4" stroke-opacity="0.4" stroke-linecap="round" stroke-linejoin="round" class="scene1-flow-anim" stroke-dasharray="10 5"/>
+                <!-- 变阻器已接入左段高亮 -->
+                <line x1="150" y1="120" x2="230" y2="120" stroke="#2e7d32" stroke-width="4" stroke-opacity="0.6"/>
+                <!-- 标签R↓ -->
+                <text x="290" y="105" text-anchor="start" font-size="14" fill="#2e7d32" font-weight="bold">R↓</text>
+            </g>
+
+            <!-- ==================== 步骤2元素 ==================== -->
+            <g id="scene1-step2-formulas" class="scene1-step-el">
+                <!-- 公式文本放在左上角空白区 -->
+                <text x="40" y="60" font-size="14" fill="#1565c0">I = U总 / R总</text>
+                <text x="40" y="80" font-size="14" fill="#1565c0">UR = U总 − UR0</text>
+                <!-- I↑标签 -->
+                <text x="350" y="295" text-anchor="start" font-size="14" fill="#1565c0" font-weight="bold">I↑</text>
+                <!-- U↓标签 -->
+                <text x="250" y="205" text-anchor="start" font-size="14" fill="#1565c0" font-weight="bold">U↓</text>
+            </g>
+
+            <!-- ==================== 步骤3元素 ==================== -->
+            <g id="scene1-step3-right-hand" class="scene1-step-el">
+                <!-- 半透明右手轮廓（简化） -->
+                <path d="M 630,260 Q 640,240 650,250 Q 660,260 665,270 Q 670,280 665,290 Q 660,300 650,310 Q 640,320 630,310 Q 620,300 625,280 Z" fill="#ffdbac" fill-opacity="0.3" stroke="#888888" stroke-width="1" stroke-dasharray="4 2"/>
+                <!-- 四指弯曲方向蓝色箭头 -->
+                <path d="M 645,255 Q 655,265 645,275" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue)"/>
+                <!-- 大拇指向上红色箭头 -->
+                <line x1="650" y1="250" x2="650" y2="230" stroke="#c62828" stroke-width="2" marker-end="url(#arrow-red)"/>
+                <!-- 螺线管上端N极 -->
+                <text x="615" y="230" text-anchor="start" font-size="14" fill="#c62828" font-weight="bold">N</text>
+                <!-- 螺线管下端S极 -->
+                <text x="615" y="350" text-anchor="start" font-size="14" fill="#2e7d32" font-weight="bold">S</text>
+            </g>
+
+            <!-- ==================== 步骤4元素 ==================== -->
+            <g id="scene1-step4-repulsion" class="scene1-step-el">
+                <!-- 红色双向箭头（磁铁下端N极与螺线管上端N极之间） -->
+                <line x1="620" y1="210" x2="620" y2="240" stroke="#c62828" stroke-width="2" marker-end="url(#arrow-red-up)" marker-start="url(#arrow-red-down)"/>
+                <text x="645" y="235" text-anchor="start" font-size="13" fill="#c62828">同名磁极相互排斥</text>
+            </g>
+
+            <!-- ==================== 步骤5元素 ==================== -->
+            <g id="scene1-step5-force-diagram" class="scene1-step-el">
+                <!-- 受力分析：G向下红色箭头（下移避免与步骤4文字重叠） -->
+                <line x1="725" y1="220" x2="725" y2="265" stroke="#c62828" stroke-width="2" marker-end="url(#arrow-red-down)"/>
+                <text x="735" y="260" font-size="13" fill="#c62828">G</text>
+                <!-- F_斥向上红色箭头 -->
+                <line x1="725" y1="220" x2="725" y2="185" stroke="#c62828" stroke-width="2" marker-end="url(#arrow-red-up)"/>
+                <text x="735" y="195" font-size="13" fill="#c62828">F斥</text>
+                <!-- F_拉向上绿色箭头（左移避免超出画布） -->
+                <line x1="755" y1="220" x2="755" y2="200" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrow-green-up)"/>
+                <text x="765" y="200" font-size="13" fill="#2e7d32">F拉</text>
+            </g>
+
+            <!-- ==================== 步骤6元素 ==================== -->
+            <g id="scene1-step6-options" class="scene1-step-el">
+                <!-- 选项A -->
+                <text x="150" y="388" font-size="13" fill="#888888">A. 电压表示数变大，电流表示数也变大</text>
+                <!-- 选项B -->
+                <text x="150" y="406" font-size="13" fill="#888888">B. 电压表示数变小，电流表示数也变小</text>
+                <!-- 选项C（高亮） -->
+                <text x="150" y="424" font-size="13" fill="#2e7d32" font-weight="bold">C. 螺线管上端是N极，弹簧测力计示数变小 ✓</text>
+                <!-- 选项D -->
+                <text x="150" y="442" font-size="13" fill="#888888">D. 螺线管上端是S极，弹簧测力计示数变大</text>
+                <!-- 结论文字 -->
+                <text x="630" y="400" font-size="14" fill="#2e7d32" font-weight="bold">螺线管上端为N极</text>
+                <text x="630" y="418" font-size="14" fill="#2e7d32" font-weight="bold">弹簧测力计示数变小</text>
+            </g>
+
+            <!-- ==================== 箭头标记定义 ==================== -->
+            <defs>
+                <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="arrow-red" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#c62828"/>
+                </marker>
+                <marker id="arrow-red-up" markerWidth="8" markerHeight="8" refX="4" refY="2" orient="auto">
+                    <path d="M0,8 L4,0 L8,8 L4,5 Z" fill="#c62828"/>
+                </marker>
+                <marker id="arrow-red-down" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto">
+                    <path d="M0,0 L4,8 L8,0 L4,3 Z" fill="#c62828"/>
+                </marker>
+                <marker id="arrow-green-up" markerWidth="8" markerHeight="8" refX="4" refY="2" orient="auto">
+                    <path d="M0,8 L4,0 L8,8 L4,5 Z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0 / 6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var maxStep = 6;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var indicator = document.getElementById('scene1-step-indicator');
+        var ammeterNeedle = document.getElementById('scene1-ammeter-needle');
+        var voltmeterNeedle = document.getElementById('scene1-voltmeter-needle');
+        var rheostatSlider = document.getElementById('scene1-rheostat-slider');
+        var springNeedle = document.getElementById('scene1-spring-needle');
+
+        // 步骤元素映射
+        var stepElements = {
+            1: ['scene1-step1-current-path'],
+            2: ['scene1-step2-formulas'],
+            3: ['scene1-step3-right-hand'],
+            4: ['scene1-step4-repulsion'],
+            5: ['scene1-step5-force-diagram'],
+            6: ['scene1-step6-options']
+        };
+
+        function updateUI() {
+            indicator.textContent = '步骤 ' + currentStep + ' / ' + maxStep;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+
+        function showElement(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                el.classList.add('active');
+            }
+        }
+
+        function hideElement(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('active');
+                setTimeout(function() {
+                    if (!el.classList.contains('active')) {
+                        el.style.display = 'none';
+                    }
+                }, 400);
+            }
+        }
+
+        function hideAllStepElements() {
+            for (var step in stepElements) {
+                stepElements[step].forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el) {
+                        el.classList.remove('active');
+                        el.style.display = 'none';
+                    }
+                });
+            }
+        }
+
+        function applyStepAnimations(step) {
+            // 滑片位置：步骤1+时移到x=230（从190右移40px）
+            if (step >= 1) {
+                rheostatSlider.setAttribute('transform', 'translate(40,0)');
+            } else {
+                rheostatSlider.setAttribute('transform', 'translate(0,0)');
+            }
+
+            // 电流表指针：步骤2+时旋转到约150°（从180°逆时针转30°，示数增大）
+            if (step >= 2) {
+                ammeterNeedle.setAttribute('transform', 'rotate(150,320,320)');
+            } else {
+                ammeterNeedle.setAttribute('transform', 'rotate(180,320,320)');
+            }
+
+            // 电压表指针：步骤2+时旋转到约330°（从0°顺时针转30°，示数减小）
+            if (step >= 2) {
+                voltmeterNeedle.setAttribute('transform', 'rotate(330,210,180)');
+            } else {
+                voltmeterNeedle.setAttribute('transform', 'rotate(0,210,180)');
+            }
+
+            // 弹簧测力计指针：步骤5+时向下移动约8px（示数减小）
+            if (step >= 5) {
+                springNeedle.setAttribute('transform', 'translate(0,8)');
+            } else {
+                springNeedle.setAttribute('transform', 'translate(0,0)');
+            }
+        }
+
+        function goToStep(step) {
+            if (step < 0 || step > maxStep) return;
+            currentStep = step;
+
+            hideAllStepElements();
+
+            // 显示当前步骤及之前的所有步骤元素
+            for (var s = 1; s <= currentStep; s++) {
+                if (stepElements[s]) {
+                    stepElements[s].forEach(function(id) {
+                        showElement(id);
+                    });
+                }
+            }
+
+            applyStepAnimations(currentStep);
+            updateUI();
+        }
+
+        btnPrev.addEventListener('click', function() {
+            goToStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', function() {
+            goToStep(currentStep + 1);
+        });
+
+        // 初始化
+        hideAllStepElements();
+        updateUI();
+
+        // 暴露接口
+        window.scene1 = { goToStep: goToStep };
+    })();
+    </script>
+</body>
+</html>

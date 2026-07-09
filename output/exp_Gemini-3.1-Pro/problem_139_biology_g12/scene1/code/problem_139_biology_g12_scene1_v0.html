@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #f8f9fa;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        button:hover { background: #e9ecef; }
+        button.active { background: #007bff; color: white; border-color: #007bff; }
+
+        svg { width: 800px; height: 500px; display: block; }
+        
+        text { font-size: 16px; text-anchor: middle; dominant-baseline: middle; fill: #000; }
+        .title-text { font-size: 20px; font-weight: bold; }
+        .small-text { font-size: 14px; }
+        
+        .path-line { stroke: #000; stroke-width: 2; fill: none; }
+        .path-arrow { fill: #000; }
+        
+        /* States */
+        .state-inactive { stroke: #888; stroke-dasharray: 5,5; }
+        .state-inactive-text { fill: #888; }
+        .state-inactive-arrow { fill: #888; }
+        
+        .state-purple { stroke: #800080; }
+        .state-purple-text { fill: #800080; font-weight: bold; }
+        .state-purple-arrow { fill: #800080; }
+        
+        .state-blue { stroke: #1565c0; }
+        .state-blue-text { fill: #1565c0; font-weight: bold; }
+        .state-blue-arrow { fill: #1565c0; }
+        
+        .cross { stroke: #c62828; stroke-width: 3; stroke-linecap: round; opacity: 0; transition: opacity 0.3s; }
+        .highlight-box { stroke: #c62828; stroke-width: 2; stroke-dasharray: 6,4; fill: none; opacity: 0; transition: opacity 0.3s; }
+        
+        .show { opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <marker id="arrow-black" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />
+                </marker>
+                <marker id="arrow-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#888" />
+                </marker>
+                <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#800080" />
+                </marker>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- Phenotype Indicator -->
+            <text id="scene1-phenotype" x="400" y="40" class="title-text">请选择基因型</text>
+
+            <!-- Highlight Box (Using lines to avoid bounding box overlap with text) -->
+            <g id="scene1-hl-box" class="highlight-box">
+                <line x1="270" y1="165" x2="530" y2="165" />
+                <line x1="530" y1="165" x2="530" y2="275" />
+                <line x1="530" y1="275" x2="270" y2="275" />
+                <line x1="270" y1="275" x2="270" y2="165" />
+            </g>
+
+            <!-- Nodes -->
+            <text id="scene1-geneB" x="250" y="80">基因B</text>
+            <text id="scene1-geneA" x="550" y="80">基因A</text>
+            
+            <text id="scene1-mRNA-L" x="250" y="160">mRNA</text>
+            <text id="scene1-mRNA-R" x="550" y="160">mRNA</text>
+            
+            <text id="scene1-enzB" x="250" y="260">酶B</text>
+            <text id="scene1-enzA" x="550" y="260">酶A</text>
+            
+            <text id="scene1-white" x="400" y="350">白色前体物质</text>
+            <text id="scene1-blue" x="150" y="350">蓝色色素</text>
+            <text id="scene1-purple" x="650" y="350">紫色色素</text>
+
+            <!-- Center Text -->
+            <text id="scene1-center-text1" x="400" y="210" class="small-text">A、B基因同时存在</text>
+            <text id="scene1-center-text2" x="400" y="230" class="small-text">时，两种mRNA结合</text>
+            <text id="scene1-center-text3" x="400" y="250" class="small-text">使酶A、酶B不能合成</text>
+
+            <!-- Labels -->
+            <text id="scene1-label1-L" x="230" y="120" class="small-text">①</text>
+            <text id="scene1-label1-R" x="570" y="120" class="small-text">①</text>
+            <text id="scene1-label2-L" x="230" y="210" class="small-text">②</text>
+            <text id="scene1-label2-R" x="570" y="210" class="small-text">②</text>
+
+            <!-- Paths -->
+            <!-- Left Path -->
+            <line id="scene1-path-gB-m" x1="250" y1="95" x2="250" y2="140" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-m-eB" x1="250" y1="175" x2="250" y2="240" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-eB-b" x1="250" y1="275" x2="250" y2="350" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-w-b" x1="330" y1="350" x2="210" y2="350" class="path-line" marker-end="url(#arrow-black)" />
+
+            <!-- Right Path -->
+            <line id="scene1-path-gA-m" x1="550" y1="95" x2="550" y2="140" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-m-eA" x1="550" y1="175" x2="550" y2="240" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-eA-p" x1="550" y1="275" x2="550" y2="350" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-w-p" x1="470" y1="350" x2="590" y2="350" class="path-line" marker-end="url(#arrow-black)" />
+
+            <!-- Center Paths -->
+            <line id="scene1-path-m-cL" x1="280" y1="170" x2="340" y2="200" class="path-line" marker-end="url(#arrow-black)" />
+            <line id="scene1-path-m-cR" x1="520" y1="170" x2="460" y2="200" class="path-line" marker-end="url(#arrow-black)" />
+
+            <!-- Crosses -->
+            <g id="scene1-cross1" class="cross">
+                <line x1="240" y1="107" x2="260" y2="127" />
+                <line x1="260" y1="107" x2="240" y2="127" />
+            </g>
+            <g id="scene1-cross2" class="cross">
+                <line x1="540" y1="107" x2="560" y2="127" />
+                <line x1="560" y1="107" x2="540" y2="127" />
+            </g>
+            <g id="scene1-cross3" class="cross">
+                <line x1="240" y1="197" x2="260" y2="217" />
+                <line x1="260" y1="197" x2="240" y2="217" />
+            </g>
+            <g id="scene1-cross4" class="cross">
+                <line x1="540" y1="197" x2="560" y2="217" />
+                <line x1="560" y1="197" x2="540" y2="217" />
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-Abb">A_bb 紫花</button>
+            <button id="scene1-btn-aaB">aaB_ 蓝花</button>
+            <button id="scene1-btn-AB">A_B_ 白花</button>
+            <button id="scene1-btn-aabb">aabb 白花</button>
+            <button id="scene1-btn-reset">重置</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Elements
+        const els = {
+            phenotype: document.getElementById('scene1-phenotype'),
+            geneB: document.getElementById('scene1-geneB'),
+            geneA: document.getElementById('scene1-geneA'),
+            mRNAL: document.getElementById('scene1-mRNA-L'),
+            mRNAR: document.getElementById('scene1-mRNA-R'),
+            enzB: document.getElementById('scene1-enzB'),
+            enzA: document.getElementById('scene1-enzA'),
+            white: document.getElementById('scene1-white'),
+            blue: document.getElementById('scene1-blue'),
+            purple: document.getElementById('scene1-purple'),
+            
+            path_gB_m: document.getElementById('scene1-path-gB-m'),
+            path_m_eB: document.getElementById('scene1-path-m-eB'),
+            path_eB_b: document.getElementById('scene1-path-eB-b'),
+            path_w_b: document.getElementById('scene1-path-w-b'),
+            
+            path_gA_m: document.getElementById('scene1-path-gA-m'),
+            path_m_eA: document.getElementById('scene1-path-m-eA'),
+            path_eA_p: document.getElementById('scene1-path-eA-p'),
+            path_w_p: document.getElementById('scene1-path-w-p'),
+            
+            path_m_cL: document.getElementById('scene1-path-m-cL'),
+            path_m_cR: document.getElementById('scene1-path-m-cR'),
+            
+            hl_box: document.getElementById('scene1-hl-box'),
+            
+            cross1: document.getElementById('scene1-cross1'),
+            cross2: document.getElementById('scene1-cross2'),
+            cross3: document.getElementById('scene1-cross3'),
+            cross4: document.getElementById('scene1-cross4'),
+            
+            btnAbb: document.getElementById('scene1-btn-Abb'),
+            btnaaB: document.getElementById('scene1-btn-aaB'),
+            btnAB: document.getElementById('scene1-btn-AB'),
+            btnaabb: document.getElementById('scene1-btn-aabb'),
+            btnReset: document.getElementById('scene1-btn-reset')
+        };
+
+        const allPaths = [
+            els.path_gB_m, els.path_m_eB, els.path_eB_b, els.path_w_b,
+            els.path_gA_m, els.path_m_eA, els.path_eA_p, els.path_w_p,
+            els.path_m_cL, els.path_m_cR
+        ];
+        
+        const allTexts = [
+            els.geneB, els.geneA, els.mRNAL, els.mRNAR, els.enzB, els.enzA,
+            els.white, els.blue, els.purple
+        ];
+
+        function resetState() {
+            els.phenotype.textContent = "请选择基因型";
+            els.phenotype.className = "title-text";
+            
+            allPaths.forEach(p => {
+                p.className.baseVal = "path-line";
+                p.setAttribute("marker-end", "url(#arrow-black)");
+            });
+            
+            allTexts.forEach(t => {
+                t.className.baseVal = "";
+            });
+            
+            els.hl_box.classList.remove('show');
+            els.cross1.classList.remove('show');
+            els.cross2.classList.remove('show');
+            els.cross3.classList.remove('show');
+            els.cross4.classList.remove('show');
+            
+            [els.btnAbb, els.btnaaB, els.btnAB, els.btnaabb].forEach(b => b.classList.remove('active'));
+        }
+
+        function setPathState(path, state) {
+            if (state === 'inactive') {
+                path.className.baseVal = "path-line state-inactive";
+                path.setAttribute("marker-end", "url(#arrow-gray)");
+            } else if (state === 'purple') {
+                path.className.baseVal = "path-line state-purple";
+                path.setAttribute("marker-end", "url(#arrow-purple)");
+            } else if (state === 'blue') {
+                path.className.baseVal = "path-line state-blue";
+                path.setAttribute("marker-end", "url(#arrow-blue)");
+            } else {
+                path.className.baseVal = "path-line";
+                path.setAttribute("marker-end", "url(#arrow-black)");
+            }
+        }
+
+        function setTextState(text, state) {
+            if (state === 'inactive') {
+                text.className.baseVal = "state-inactive-text";
+            } else if (state === 'purple') {
+                text.className.baseVal = "state-purple-text";
+            } else if (state === 'blue') {
+                text.className.baseVal = "state-blue-text";
+            } else {
+                text.className.baseVal = "";
+            }
+        }
+
+        els.btnAbb.addEventListener('click', () => {
+            resetState();
+            els.btnAbb.classList.add('active');
+            els.phenotype.textContent = "当前表型：紫花";
+            els.phenotype.className = "title-text state-purple-text";
+            
+            // Right path active (purple)
+            setTextState(els.geneA, 'purple');
+            setTextState(els.mRNAR, 'purple');
+            setTextState(els.enzA, 'purple');
+            setTextState(els.white, 'purple');
+            setTextState(els.purple, 'purple');
+            
+            setPathState(els.path_gA_m, 'purple');
+            setPathState(els.path_m_eA, 'purple');
+            setPathState(els.path_eA_p, 'purple');
+            setPathState(els.path_w_p, 'purple');
+            
+            // Left path inactive
+            setTextState(els.geneB, 'inactive');
+            setTextState(els.mRNAL, 'inactive');
+            setTextState(els.enzB, 'inactive');
+            setTextState(els.blue, 'inactive');
+            
+            setPathState(els.path_gB_m, 'inactive');
+            setPathState(els.path_m_eB, 'inactive');
+            setPathState(els.path_eB_b, 'inactive');
+            setPathState(els.path_w_b, 'inactive');
+            
+            // Center inactive
+            setPathState(els.path_m_cL, 'inactive');
+            setPathState(els.path_m_cR, 'inactive');
+            
+            els.cross1.classList.add('show');
+        });
+
+        els.btnaaB.addEventListener('click', () => {
+            resetState();
+            els.btnaaB.classList.add('active');
+            els.phenotype.textContent = "当前表型：蓝花";
+            els.phenotype.className = "title-text state-blue-text";
+            
+            // Left path active (blue)
+            setTextState(els.geneB, 'blue');
+            setTextState(els.mRNAL, 'blue');
+            setTextState(els.enzB, 'blue');
+            setTextState(els.white, 'blue');
+            setTextState(els.blue, 'blue');
+            
+            setPathState(els.path_gB_m, 'blue');
+            setPathState(els.path_m_eB, 'blue');
+            setPathState(els.path_eB_b, 'blue');
+            setPathState(els.path_w_b, 'blue');
+            
+            // Right path inactive
+            setTextState(els.geneA, 'inactive');
+            setTextState(els.mRNAR, 'inactive');
+            setTextState(els.enzA, 'inactive');
+            setTextState(els.purple, 'inactive');
+            
+            setPathState(els.path_gA_m, 'inactive');
+            setPathState(els.path_m_eA, 'inactive');
+            setPathState(els.path_eA_p, 'inactive');
+            setPathState(els.path_w_p, 'inactive');
+            
+            // Center inactive
+            setPathState(els.path_m_cL, 'inactive');
+            setPathState(els.path_m_cR, 'inactive');
+            
+            els.cross2.classList.add('show');
+        });
+
+        els.btnAB.addEventListener('click', () => {
+            resetState();
+            els.btnAB.classList.add('active');
+            els.phenotype.textContent = "当前表型：白花";
+            els.phenotype.className = "title-text state-inactive-text";
+            
+            // Top part active (black)
+            // Bottom part inactive
+            setTextState(els.enzB, 'inactive');
+            setTextState(els.enzA, 'inactive');
+            setTextState(els.blue, 'inactive');
+            setTextState(els.purple, 'inactive');
+            
+            setPathState(els.path_m_eB, 'inactive');
+            setPathState(els.path_eB_b, 'inactive');
+            setPathState(els.path_w_b, 'inactive');
+            
+            setPathState(els.path_m_eA, 'inactive');
+            setPathState(els.path_eA_p, 'inactive');
+            setPathState(els.path_w_p, 'inactive');
+            
+            els.hl_box.classList.add('show');
+            els.cross3.classList.add('show');
+            els.cross4.classList.add('show');
+        });
+
+        els.btnaabb.addEventListener('click', () => {
+            resetState();
+            els.btnaabb.classList.add('active');
+            els.phenotype.textContent = "当前表型：白花";
+            els.phenotype.className = "title-text state-inactive-text";
+            
+            // All inactive except genes
+            setTextState(els.mRNAL, 'inactive');
+            setTextState(els.mRNAR, 'inactive');
+            setTextState(els.enzB, 'inactive');
+            setTextState(els.enzA, 'inactive');
+            setTextState(els.blue, 'inactive');
+            setTextState(els.purple, 'inactive');
+            
+            allPaths.forEach(p => setPathState(p, 'inactive'));
+            
+            els.cross1.classList.add('show');
+            els.cross2.classList.add('show');
+        });
+
+        els.btnReset.addEventListener('click', resetState);
+
+    })();
+    </script>
+</body>
+</html>

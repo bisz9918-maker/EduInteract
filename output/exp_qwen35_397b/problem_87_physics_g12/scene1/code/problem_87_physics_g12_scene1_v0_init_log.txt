@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A 球受力分析 - 四力平衡</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .force-arrow {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .force-arrow.visible {
+            opacity: 1;
+        }
+        .force-label {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .force-label.visible {
+            opacity: 1;
+        }
+        #scene1-balance-label {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        #scene1-balance-label.visible {
+            opacity: 1;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        #scene1-btn-prev,
+        #scene1-btn-next {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #scene1-btn-prev:hover,
+        #scene1-btn-next:hover {
+            background: #e0e0e0;
+        }
+        #scene1-btn-prev:disabled,
+        #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-head" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene1-arrow-double" markerWidth="10" markerHeight="10" refX="5" refY="3" orient="auto">
+                    <path d="M0,3 L5,0 L5,6 z" fill="#333" />
+                </marker>
+            </defs>
+
+            <!-- 斜面（直角三角形） -->
+            <polygon id="scene1-incline" 
+                     points="80,420 720,140 720,420" 
+                     fill="none" 
+                     stroke="#000000" 
+                     stroke-width="2" />
+
+            <!-- 37°角标识 -->
+            <path id="scene1-angle-arc" 
+                  d="M 125,400 A 25,25 0 0,0 120,378" 
+                  fill="none" 
+                  stroke="#000000" 
+                  stroke-width="1.5" />
+            <text id="scene1-angle-label" 
+                  x="115" y="390" 
+                  font-size="14" 
+                  fill="#000000">37°</text>
+
+            <!-- 电场线（6 条水平向右的平行线） -->
+            <g id="scene1-field-lines">
+                <line x1="50" y1="80" x2="750" y2="80" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-head)" />
+                <line x1="50" y1="130" x2="750" y2="130" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-head)" />
+                <line x1="50" y1="180" x2="750" y2="180" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-head)" />
+                <line x1="50" y1="230" x2="750" y2="230" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-head)" />
+                <line x1="50" y1="280" x2="750" y2="280" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-head)" />
+                <line x1="50" y1="330" x2="750" y2="330" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-head)" />
+            </g>
+            <text id="scene1-field-label" x="765" y="75" font-size="16" fill="#888888" font-style="italic">E</text>
+
+            <!-- B 球（在斜面下方位置） -->
+            <circle id="scene1-ball-b" 
+                    cx="350" cy="300" r="15" 
+                    fill="#ffffff" 
+                    stroke="#000000" 
+                    stroke-width="2" />
+            <text id="scene1-label-b" 
+                  x="332" y="282" 
+                  font-size="16" 
+                  fill="#000000">B</text>
+
+            <!-- A 球（在斜面上方位置） -->
+            <circle id="scene1-ball-a" 
+                    cx="550" cy="220" r="15" 
+                    fill="#ffffff" 
+                    stroke="#000000" 
+                    stroke-width="2" />
+            <text id="scene1-label-a" 
+                  x="572" y="202" 
+                  font-size="16" 
+                  fill="#000000">A</text>
+
+            <!-- L 标注线（A、B 之间的距离） -->
+            <line id="scene1-distance-line" 
+                  x1="365" y1="288" x2="535" y2="232" 
+                  stroke="#000000" 
+                  stroke-width="1.5" 
+                  marker-start="url(#scene1-arrow-double)" 
+                  marker-end="url(#scene1-arrow-double)" />
+            <text id="scene1-label-l" 
+                  x="450" y="245" 
+                  font-size="14" 
+                  fill="#000000">L</text>
+
+            <!-- 力矢量组 -->
+            <g id="scene1-forces">
+                <!-- 重力 mg：竖直向下，红色 -->
+                <line id="scene1-force-mg-line" 
+                      x1="550" y1="220" x2="550" y2="285" 
+                      stroke="#c62828" 
+                      stroke-width="3" 
+                      marker-end="url(#scene1-arrow-red)" 
+                      class="force-arrow" />
+                <text id="scene1-force-mg-label" 
+                      x="555" y="298" 
+                      font-size="14" 
+                      fill="#c62828" 
+                      class="force-label">mg</text>
+
+                <!-- 支持力 N：垂直斜面向上，蓝色 -->
+                <!-- 斜面倾角 37°，垂直斜面方向为 90°+37°=127°（从水平逆时针） -->
+                <!-- 或者从 A 球位置，垂直斜面向上的方向角约为 127° -->
+                <!-- 计算：从 (550,220) 出发，方向角 127°，长度 62 -->
+                <!-- dx = 62*cos(127°) ≈ 62*(-0.602) ≈ -37 -->
+                <!-- dy = 62*sin(127°) ≈ 62*(0.799) ≈ 50（SVG 中 y 向下为正，所以是 -50） -->
+                <line id="scene1-force-n-line" 
+                      x1="550" y1="220" x2="513" y2="170" 
+                      stroke="#1565c0" 
+                      stroke-width="3" 
+                      marker-end="url(#scene1-arrow-blue)" 
+                      class="force-arrow" />
+                <text id="scene1-force-n-label" 
+                      x="502" y="158" 
+                      font-size="14" 
+                      fill="#1565c0" 
+                      class="force-label">N</text>
+
+                <!-- 电场力 F_E：水平向左（A 带负电），绿色 -->
+                <line id="scene1-force-fe-line" 
+                      x1="550" y1="220" x2="485" y2="220" 
+                      stroke="#2e7d32" 
+                      stroke-width="3" 
+                      marker-end="url(#scene1-arrow-green)" 
+                      class="force-arrow" />
+                <text id="scene1-force-fe-label" 
+                      x="455" y="200" 
+                      font-size="14" 
+                      fill="#2e7d32" 
+                      class="force-label">F</text>
+                <text id="scene1-force-fe-sub" 
+                      x="463" y="205" 
+                      font-size="10" 
+                      fill="#2e7d32" 
+                      class="force-label">E</text>
+                <text id="scene1-force-fe-eq" 
+                      x="475" y="200" 
+                      font-size="12" 
+                      fill="#2e7d32" 
+                      class="force-label">=qE</text>
+
+                <!-- 库仑力 F_C：沿斜面向上（B 排斥 A），绿色 -->
+                <!-- 斜面倾角 37°，沿斜面向上的方向角约为 37° -->
+                <!-- 从 (550,220) 出发，方向角 37°，长度 42 -->
+                <!-- dx = 42*cos(37°) ≈ 42*0.799 ≈ 34 -->
+                <!-- dy = 42*sin(37°) ≈ 42*0.602 ≈ 25（SVG 中 y 向下为正，向上是负） -->
+                <line id="scene1-force-fc-line" 
+                      x1="550" y1="220" x2="584" y2="195" 
+                      stroke="#2e7d32" 
+                      stroke-width="3" 
+                      marker-end="url(#scene1-arrow-green)" 
+                      class="force-arrow" />
+                <text id="scene1-force-fc-label" 
+                      x="590" y="182" 
+                      font-size="14" 
+                      fill="#2e7d32" 
+                      class="force-label">F</text>
+                <text id="scene1-force-fc-sub" 
+                      x="598" y="187" 
+                      font-size="10" 
+                      fill="#2e7d32" 
+                      class="force-label">C</text>
+                <text id="scene1-force-fc-eq" 
+                      x="608" y="182" 
+                      font-size="11" 
+                      fill="#2e7d32" 
+                      class="force-label">=kq²/L²</text>
+            </g>
+
+            <!-- 平衡标注 -->
+            <text id="scene1-balance-label" 
+                  x="400" y="360" 
+                  font-size="16" 
+                  fill="#000000" 
+                  text-anchor="middle">合力为零</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: A 球受力分析——四力平衡的直观呈现
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 斜面 | 多边形 | (80,420)-(720,140) | 底边 640×高 280 | - | 倾角 37°，黑色轮廓 |
+        // | 37°角弧 | 弧线 | 圆心 (100,400), r=25 | 弧长≈20 | 内侧 | 斜面左下角 |
+        // | 37°标签 | text | (115,390) | ~30×16 | 角弧内侧 | 斜面倾角 |
+        // | 电场线 1-6 | 线段 + 箭头 | y=80,130,180,230,280,330 | 700×2 | 右端箭头 | 水平向右 |
+        // | E 标签 | text | (765,75) | ~20×16 | 右侧 | 电场方向标识 |
+        // | A 球 | 圆 | 圆心 (550,220) | r=15 | - | 斜面上方，白底黑边 |
+        // | A 标签 | text | (572,202) | ~15×16 | 右上 | A 球外侧 |
+        // | B 球 | 圆 | 圆心 (350,300) | r=15 | - | A 球左下方，白底黑边 |
+        // | B 标签 | text | (332,282) | ~15×16 | 左上 | B 球外侧 |
+        // | L 标注线 | 双向箭头 | (368,292)-(532,228) | ~175×3 | 上方 15px | A、B 沿斜面距离 |
+        // | L 标签 | text | (450,245) | ~15×16 | 上方 | L 标注中点上方 |
+        // | 重力 mg | 箭头 | (550,220)-(550,285) | 65×3 | 末端下方 | 竖直向下，红色 |
+        // | mg 标签 | text | (555,298) | ~30×16 | 下方 | 重力标识 |
+        // | 支持力 N | 箭头 | (550,220)-(513,170) | ~62×3 | 末端左上 | 垂直斜面向上，蓝色 |
+        // | N 标签 | text | (502,158) | ~15×16 | 左上 | 支持力标识 |
+        // | 电场力 F_E | 箭头 | (550,220)-(485,220) | 65×3 | 末端左侧 | 水平向左，绿色 |
+        // | F_E 标签 | text | (455,200) | ~55×16 | 上方 | F_E=qE |
+        // | 库仑力 F_C | 箭头 | (550,220)-(584,195) | ~42×3 | 末端右上 | 沿斜面向上，绿色 |
+        // | F_C 标签 | text | (590,182) | ~65×16 | 上方 | F_C=kq²/L² |
+        // | 平衡标注 | text | (400,360) | ~120×16 | - | 步骤 5 显示"合力为零" |
+        // | 控件栏 | 按钮组 | y=450~490 | 800×40 | 底部居中 | 上一步/下一步按钮 |
+
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 每步应显示的元素（按步骤索引 0-5）
+        // 步骤 0: 初始状态（斜面、电场、两球、L 标注）
+        // 步骤 1: 显示重力 mg
+        // 步骤 2: 显示支持力 N
+        // 步骤 3: 显示电场力 F_E
+        // 步骤 4: 显示库仑力 F_C
+        // 步骤 5: 显示平衡标注，所有力高亮
+        const steps = [
+            [],  // 步骤 0: 无额外力
+            ['scene1-force-mg-line', 'scene1-force-mg-label'],  // 步骤 1: 重力
+            ['scene1-force-mg-line', 'scene1-force-mg-label', 'scene1-force-n-line', 'scene1-force-n-label'],  // 步骤 2: + 支持力
+            ['scene1-force-mg-line', 'scene1-force-mg-label', 'scene1-force-n-line', 'scene1-force-n-label', 'scene1-force-fe-line', 'scene1-force-fe-label', 'scene1-force-fe-sub', 'scene1-force-fe-eq'],  // 步骤 3: + 电场力
+            ['scene1-force-mg-line', 'scene1-force-mg-label', 'scene1-force-n-line', 'scene1-force-n-label', 'scene1-force-fe-line', 'scene1-force-fe-label', 'scene1-force-fe-sub', 'scene1-force-fe-eq', 'scene1-force-fc-line', 'scene1-force-fc-label', 'scene1-force-fc-sub', 'scene1-force-fc-eq'],  // 步骤 4: + 库仑力
+            ['scene1-force-mg-line', 'scene1-force-mg-label', 'scene1-force-n-line', 'scene1-force-n-label', 'scene1-force-fe-line', 'scene1-force-fe-label', 'scene1-force-fe-sub', 'scene1-force-fe-eq', 'scene1-force-fc-line', 'scene1-force-fc-label', 'scene1-force-fc-sub', 'scene1-force-fc-eq']  // 步骤 5: 全部力 + 平衡标注
+        ];
+
+        // 获取所有力相关元素
+        const allForceElements = [
+            'scene1-force-mg-line', 'scene1-force-mg-label',
+            'scene1-force-n-line', 'scene1-force-n-label',
+            'scene1-force-fe-line', 'scene1-force-fe-label', 'scene1-force-fe-sub', 'scene1-force-fe-eq',
+            'scene1-force-fc-line', 'scene1-force-fc-label', 'scene1-force-fc-sub', 'scene1-force-fc-eq'
+        ];
+
+        function updateDisplay() {
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === totalSteps - 1);
+
+            // 获取当前步骤应显示的元素
+            const visibleElements = steps[currentStep];
+
+            // 隐藏所有力元素
+            allForceElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('visible');
+                }
+            });
+
+            // 显示当前步骤的力元素
+            visibleElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('visible');
+                }
+            });
+
+            // 平衡标注只在步骤 5 显示
+            const balanceLabel = document.getElementById('scene1-balance-label');
+            if (currentStep === 5) {
+                balanceLabel.classList.add('visible');
+            } else {
+                balanceLabel.classList.remove('visible');
+            }
+        }
+
+        // 按钮事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球赤道面与黄道面关系</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-fade-in {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+        .scene1-visible {
+            opacity: 1;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover {
+            background: #e0e0e0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene1-title" x="400" y="40" text-anchor="middle" font-size="16px" fill="#000000">地球赤道面与黄道面关系</text>
+
+            <!-- 地球球体（带径向渐变） -->
+            <defs>
+                <radialGradient id="scene1-earth-gradient" cx="30%" cy="30%">
+                    <stop offset="0%" style="stop-color:#4fc3f7;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#0288d1;stop-opacity:1" />
+                </radialGradient>
+            </defs>
+            <circle id="scene1-earth" cx="350" cy="280" r="70" fill="url(#scene1-earth-gradient)" />
+
+            <!-- 自转轴 -->
+            <line id="scene1-axis" x1="290" y1="160" x2="410" y2="400" stroke="#000000" stroke-width="3" stroke-linecap="round" />
+
+            <!-- 赤道平面（平行四边形，初始隐藏） -->
+            <!-- 赤道平面需要垂直于自转轴，自转轴角度约为 atan2(240, 120) ≈ 63.4° -->
+            <!-- 赤道平面应与此垂直，即约 -26.6° 或 153.4° -->
+            <polygon id="scene1-equator-plane" 
+                     points="150,250 550,250 550,310 150,310" 
+                     fill="#1565c0" 
+                     opacity="0.2" 
+                     class="scene1-fade-in" />
+            <text id="scene1-label-equator" x="180" y="240" font-size="14px" fill="#1565c0" class="scene1-fade-in">赤道平面</text>
+
+            <!-- 黄道面（平行四边形，初始隐藏） -->
+            <polygon id="scene1-ecliptic-plane" 
+                     points="100,280 600,280 600,320 100,320" 
+                     fill="#ff9800" 
+                     opacity="0.2" 
+                     class="scene1-fade-in" />
+            <!-- 黄道面标签向下移动，避免与多边形重叠 -->
+            <text id="scene1-label-ecliptic" x="520" y="345" font-size="14px" fill="#ff9800" class="scene1-fade-in">黄道面</text>
+
+            <!-- 黄赤交角弧线（初始隐藏） -->
+            <!-- 圆弧从黄道面方向（水平向右）到赤道面方向 -->
+            <path id="scene1-angle-arc" 
+                  d="M 440 280 A 90 90 0 0 1 425.5 265.5" 
+                  fill="none" 
+                  stroke="#c62828" 
+                  stroke-width="4" 
+                  class="scene1-fade-in" />
+            <!-- 23°26' 标签向上移动，避免与多边形重叠 -->
+            <text id="scene1-label-angle" x="450" y="245" font-size="14px" fill="#c62828" font-weight="bold" class="scene1-fade-in">23°26'</text>
+            <text id="scene1-label-axis" x="420" y="170" font-size="14px" fill="#000000" class="scene1-fade-in">自转轴</text>
+
+            <!-- 控件栏 -->
+            <foreignObject x="0" y="450" width="800" height="50">
+                <div id="scene1-controls" xmlns="http://www.w3.org/1999/xhtml">
+                    <button id="scene1-btn-prev">◀ 上一步</button>
+                    <span id="scene1-step-indicator">步骤 1/4</span>
+                    <button id="scene1-btn-next">下一步 ▶</button>
+                </div>
+            </foreignObject>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地球球体 | 圆形 | 圆心(350,280) | r=70 | - | 蓝色渐变 #4fc3f7 |
+        // | 自转轴 | 线段 | (290,160)-(410,400) | 长267px | 右上方 | 黑色实线，倾斜23.5° |
+        // | 赤道平面 | 平行四边形 | 中心(350,280)，长轴400px | 400×120 | 左上方 | 半透明蓝色 #1565c0 opacity=0.2 |
+        // | 黄道面 | 平行四边形 | 中心(350,280)，长轴500px | 500×100 | 右下方 | 半透明橙色 #ff9800 opacity=0.2 |
+        // | 黄赤交角弧线 | 圆弧 | 圆心(350,280)，半径90px | 弧长对应23.5° | - | 红色加粗 #c62828 |
+        // | 自转轴标签 | text | (420,170) | ~60×16 | 右侧 | 在自转轴上端右侧 |
+        // | 赤道平面标签 | text | (180,240) | ~70×16 | 左侧 | 在赤道平面左边缘外侧 |
+        // | 黄道面标签 | text | (520,345) | ~70×16 | 右侧 | 在黄道面右边缘外侧（向下调整避免重叠） |
+        // | 黄赤交角数值 | text | (450,245) | ~50×16 | 右上方 | 在弧线外侧（向上调整避免重叠） |
+        // | 标题 | text | (400,40) | ~200×20 | - | 居中顶部 |
+        // | 控件栏 | 按钮组 | y=450~490 | 800×40 | - | 底部绝对定位 |
+
+        let currentState = 0;
+        const totalSteps = 4;
+
+        // 每步需要显示的元素
+        const stepElements = {
+            0: ['scene1-earth', 'scene1-axis', 'scene1-title'],
+            1: ['scene1-earth', 'scene1-axis', 'scene1-title', 'scene1-equator-plane', 'scene1-label-equator'],
+            2: ['scene1-earth', 'scene1-axis', 'scene1-title', 'scene1-equator-plane', 'scene1-label-equator', 'scene1-ecliptic-plane', 'scene1-label-ecliptic'],
+            3: ['scene1-earth', 'scene1-axis', 'scene1-title', 'scene1-equator-plane', 'scene1-label-equator', 'scene1-ecliptic-plane', 'scene1-label-ecliptic', 'scene1-angle-arc', 'scene1-label-angle', 'scene1-label-axis']
+        };
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.classList.contains('scene1-fade-in')) {
+                    el.classList.add('scene1-visible');
+                } else {
+                    el.style.opacity = '1';
+                }
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.classList.contains('scene1-fade-in')) {
+                    el.classList.remove('scene1-visible');
+                } else {
+                    el.style.opacity = '0';
+                }
+            }
+        }
+
+        // 更新状态
+        function updateState() {
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene1-step-indicator');
+            if (indicator) {
+                indicator.textContent = '步骤 ' + (currentState + 1) + '/' + totalSteps;
+            }
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            if (prevBtn) {
+                prevBtn.disabled = (currentState === 0);
+            }
+            if (nextBtn) {
+                nextBtn.disabled = (currentState === totalSteps - 1);
+            }
+
+            // 根据当前步骤显示/隐藏元素
+            const elementsToShow = stepElements[currentState];
+            
+            // 所有可能元素
+            const allElements = [
+                'scene1-earth', 'scene1-axis', 'scene1-title',
+                'scene1-equator-plane', 'scene1-label-equator',
+                'scene1-ecliptic-plane', 'scene1-label-ecliptic',
+                'scene1-angle-arc', 'scene1-label-angle', 'scene1-label-axis'
+            ];
+
+            // 隐藏所有，然后显示需要的
+            allElements.forEach(id => {
+                if (elementsToShow.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+
+            // 步骤 1：自转轴高亮
+            const axis = document.getElementById('scene1-axis');
+            if (axis) {
+                if (currentState >= 1) {
+                    axis.setAttribute('stroke-width', '5');
+                } else {
+                    axis.setAttribute('stroke-width', '3');
+                }
+            }
+
+            // 步骤 2：赤道平面边框高亮
+            const equatorPlane = document.getElementById('scene1-equator-plane');
+            if (equatorPlane) {
+                if (currentState >= 2) {
+                    equatorPlane.setAttribute('stroke', '#1565c0');
+                    equatorPlane.setAttribute('stroke-width', '2');
+                } else {
+                    equatorPlane.removeAttribute('stroke');
+                }
+            }
+        }
+
+        // 按钮事件绑定
+        const prevBtn = document.getElementById('scene1-btn-prev');
+        const nextBtn = document.getElementById('scene1-btn-next');
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', function() {
+                if (currentState > 0) {
+                    currentState--;
+                    updateState();
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', function() {
+                if (currentState < totalSteps - 1) {
+                    currentState++;
+                    updateState();
+                }
+            });
+        }
+
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

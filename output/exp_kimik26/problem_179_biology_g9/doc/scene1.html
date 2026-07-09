@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>比较吸入气与呼出气成分</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; padding: 6px 16px; }
+        .scene1-btn-disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 绿色箭头标记 -->
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <!-- 红色箭头标记 -->
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+            </defs>
+            
+            <!-- 试管1外轮廓 -->
+            <path id="scene1-tube1-outline" d="M 170 130 L 170 360 A 30 30 0 0 1 230 360 L 230 130" fill="none" stroke="#000000" stroke-width="2" />
+            <!-- 试管1玻璃填充 -->
+            <path d="M 170 130 L 170 360 A 30 30 0 0 1 230 360 L 230 130" fill="#e3f2fd" opacity="0.2" />
+            
+            <!-- 试管2外轮廓 -->
+            <path id="scene1-tube2-outline" d="M 570 130 L 570 360 A 30 30 0 0 1 630 360 L 630 130" fill="none" stroke="#000000" stroke-width="2" />
+            <!-- 试管2玻璃填充 -->
+            <path d="M 570 130 L 570 360 A 30 30 0 0 1 630 360 L 630 130" fill="#e3f2fd" opacity="0.2" />
+            
+            <!-- 试管1石灰水（澄清） -->
+            <path id="scene1-lime1" d="M 175 260 L 175 365 A 25 25 0 0 1 225 365 L 225 260 Z" fill="#1565c0" opacity="0.3" />
+            
+            <!-- 试管2石灰水 -->
+            <path id="scene1-lime2" d="M 575 260 L 575 365 A 25 25 0 0 1 625 365 L 625 260 Z" fill="#1565c0" opacity="0.3" />
+            
+            <!-- 沉淀颗粒组（步骤2显示） -->
+            <g id="scene1-precipitate-group" style="display: none;"></g>
+            
+            <!-- M管水平段 -->
+            <line id="scene1-m-pipe" x1="200" y1="95" x2="600" y2="95" stroke="#000000" stroke-width="8" />
+            <!-- M接口竖管 -->
+            <line id="scene1-m-connector" x1="400" y1="95" x2="400" y2="75" stroke="#000000" stroke-width="6" />
+            
+            <!-- 左侧导管 -->
+            <line id="scene1-left-pipe-h" x1="80" y1="120" x2="185" y2="120" stroke="#000000" stroke-width="6" />
+            <line id="scene1-left-pipe-v" x1="185" y1="120" x2="185" y2="360" stroke="#000000" stroke-width="6" />
+            
+            <!-- 右侧导管 -->
+            <line id="scene1-right-pipe-h" x1="615" y1="120" x2="720" y2="120" stroke="#000000" stroke-width="6" />
+            <line id="scene1-right-pipe-v" x1="615" y1="120" x2="615" y2="360" stroke="#000000" stroke-width="6" />
+            
+            <!-- 夹子X -->
+            <rect id="scene1-clip-x" x="248" y="89" width="24" height="12" rx="3" fill="#888888" />
+            <!-- 夹子Y -->
+            <rect id="scene1-clip-y" x="528" y="89" width="24" height="12" rx="3" fill="#888888" />
+            
+            <!-- 气泡组 -->
+            <g id="scene1-bubble-group" style="display: none;"></g>
+            
+            <!-- 气体流向箭头 -->
+            <!-- 吸气左箭头：空气流入左侧导管 -->
+            <line id="scene1-arrow-in-left" x1="90" y1="120" x2="175" y2="120" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene1-arrow-green)" style="display: none;" />
+            <!-- 吸气M箭头：从试管1方向指向M接口 -->
+            <line id="scene1-arrow-in-m" x1="210" y1="95" x2="380" y2="95" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene1-arrow-green)" style="display: none;" />
+            <!-- 呼气M箭头：从M接口指向试管2 -->
+            <line id="scene1-arrow-out-m" x1="420" y1="95" x2="590" y2="95" stroke="#c62828" stroke-width="2.5" marker-end="url(#scene1-arrow-red)" style="display: none;" />
+            <!-- 呼气右箭头：呼出气从右侧导管排出 -->
+            <line id="scene1-arrow-out-right" x1="625" y1="120" x2="710" y2="120" stroke="#c62828" stroke-width="2.5" marker-end="url(#scene1-arrow-red)" style="display: none;" />
+            
+            <!-- 虚线标注线（步骤0显示） -->
+            <g id="scene1-dashed-lines">
+                <line x1="200" y1="405" x2="200" y2="390" stroke="#888888" stroke-dasharray="3,3" />
+                <line x1="600" y1="405" x2="600" y2="390" stroke="#888888" stroke-dasharray="3,3" />
+                <line x1="400" y1="315" x2="400" y2="260" stroke="#888888" stroke-dasharray="3,3" />
+                <line x1="400" y1="78" x2="400" y2="75" stroke="#888888" stroke-dasharray="3,3" />
+                <line x1="260" y1="80" x2="260" y2="101" stroke="#888888" stroke-dasharray="3,3" />
+                <line x1="540" y1="80" x2="540" y2="101" stroke="#888888" stroke-dasharray="3,3" />
+            </g>
+            
+            <!-- 静态标签 -->
+            <text id="scene1-label-tube1" x="200" y="415" text-anchor="middle" font-size="14" fill="#000000">试管1</text>
+            <text id="scene1-label-tube2" x="600" y="415" text-anchor="middle" font-size="14" fill="#000000">试管2</text>
+            <text id="scene1-label-lime" x="400" y="325" text-anchor="middle" font-size="14" fill="#000000">石灰水</text>
+            <text id="scene1-label-m" x="400" y="68" text-anchor="middle" font-size="14" fill="#000000">M</text>
+            <text id="scene1-label-clip-x" x="260" y="70" text-anchor="middle" font-size="14" fill="#000000">夹子X</text>
+            <text id="scene1-label-clip-y" x="540" y="70" text-anchor="middle" font-size="14" fill="#000000">夹子Y</text>
+            
+            <!-- 动态标签 -->
+            <text id="scene1-label-air" x="120" y="105" text-anchor="middle" font-size="14" fill="#000000" style="display: none;">空气</text>
+            <text id="scene1-label-exhale" x="670" y="105" text-anchor="middle" font-size="14" fill="#000000" style="display: none;">呼出气</text>
+            <text id="scene1-label-clear" x="245" y="220" text-anchor="middle" font-size="14" fill="#2e7d32" style="display: none;">澄清</text>
+            <text id="scene1-label-turbid" x="555" y="220" text-anchor="middle" font-size="14" fill="#c62828" style="display: none;">浑浊</text>
+            
+            <!-- 结论文字 -->
+            <text id="scene1-conclusion" x="400" y="60" text-anchor="middle" font-size="16" font-weight="bold" fill="#1565c0" style="display: none;">呼出气中CO₂含量 &gt; 吸入气中CO₂含量</text>
+            <text id="scene1-option-c" x="400" y="38" text-anchor="middle" font-size="14" font-weight="bold" fill="#c62828" style="display: none;">C．X关闭，Y开启，试管1澄清，试管2浑浊</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-disabled">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：比较吸入气与呼出气成分实验装置演示
+        
+        let currentStep = 0;
+        let bubbleAnimationId = null;
+        let turbidityAnimationId = null;
+        const bubbles = [];
+        const maxBubblesPerTube = 6;
+        
+        // 元素引用
+        const clipX = document.getElementById('scene1-clip-x');
+        const clipY = document.getElementById('scene1-clip-y');
+        const lime2 = document.getElementById('scene1-lime2');
+        const bubbleGroup = document.getElementById('scene1-bubble-group');
+        const precipitateGroup = document.getElementById('scene1-precipitate-group');
+        const dashedLines = document.getElementById('scene1-dashed-lines');
+        
+        const arrowInLeft = document.getElementById('scene1-arrow-in-left');
+        const arrowInM = document.getElementById('scene1-arrow-in-m');
+        const arrowOutM = document.getElementById('scene1-arrow-out-m');
+        const arrowOutRight = document.getElementById('scene1-arrow-out-right');
+        
+        const labelAir = document.getElementById('scene1-label-air');
+        const labelExhale = document.getElementById('scene1-label-exhale');
+        const labelClear = document.getElementById('scene1-label-clear');
+        const labelTurbid = document.getElementById('scene1-label-turbid');
+        const conclusion = document.getElementById('scene1-conclusion');
+        const optionC = document.getElementById('scene1-option-c');
+        
+        // 顶部标签引用（步骤3需要隐藏以避免重叠）
+        const labelM = document.getElementById('scene1-label-m');
+        const labelClipX = document.getElementById('scene1-label-clip-x');
+        const labelClipY = document.getElementById('scene1-label-clip-y');
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // 生成沉淀颗粒（CaCO₃沉淀）
+        function generatePrecipitate() {
+            precipitateGroup.innerHTML = '';
+            for (let i = 0; i < 18; i++) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                let cx, cy;
+                if (Math.random() < 0.7) {
+                    // 上部矩形区域
+                    cx = 580 + Math.random() * 40;
+                    cy = 270 + Math.random() * 90;
+                } else {
+                    // 底部圆弧附近
+                    const angle = Math.PI + Math.random() * Math.PI;
+                    const r = Math.random() * 20;
+                    cx = 600 + r * Math.cos(angle);
+                    cy = 365 + r * Math.sin(angle);
+                }
+                const radius = 2 + Math.random() * 2;
+                circle.setAttribute('cx', cx);
+                circle.setAttribute('cy', cy);
+                circle.setAttribute('r', radius);
+                circle.setAttribute('fill', '#ffffff');
+                circle.setAttribute('opacity', '0');
+                precipitateGroup.appendChild(circle);
+            }
+        }
+        
+        generatePrecipitate();
+        
+        // 显示/隐藏工具函数
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 创建气泡
+        function createBubble(tube) {
+            const bubble = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            const cx = tube === 1 ? 185 + (Math.random() - 0.5) * 10 : 615 + (Math.random() - 0.5) * 10;
+            const r = 3 + Math.random() * 2;
+            const fill = tube === 1 ? '#2e7d32' : '#c62828';
+            bubble.setAttribute('cx', cx);
+            bubble.setAttribute('cy', 350);
+            bubble.setAttribute('r', r);
+            bubble.setAttribute('fill', fill);
+            bubble.setAttribute('opacity', '0.25');
+            bubbleGroup.appendChild(bubble);
+            return {
+                el: bubble,
+                x: cx,
+                y: 350,
+                r: r,
+                speed: 0.5 + Math.random() * 0.8,
+                tube: tube
+            };
+        }
+        
+        // 气泡动画循环
+        function animateBubbles() {
+            // 补充气泡
+            const tube1Count = bubbles.filter(b => b.tube === 1).length;
+            const tube2Count = bubbles.filter(b => b.tube === 2).length;
+            
+            if (currentStep === 1 && tube1Count < maxBubblesPerTube) {
+                bubbles.push(createBubble(1));
+            } else if (currentStep === 2 && tube2Count < maxBubblesPerTube) {
+                bubbles.push(createBubble(2));
+            }
+            
+            // 更新气泡位置
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                const b = bubbles[i];
+                b.y -= b.speed;
+                b.el.setAttribute('cy', b.y);
+                
+                // 到达液面或步骤不匹配时移除
+                if (b.y < 260 || (currentStep === 1 && b.tube === 2) || (currentStep === 2 && b.tube === 1)) {
+                    if (b.el.parentNode) {
+                        b.el.parentNode.removeChild(b.el);
+                    }
+                    bubbles.splice(i, 1);
+                }
+            }
+            
+            bubbleAnimationId = requestAnimationFrame(animateBubbles);
+        }
+        
+        // 浑浊度渐变动画
+        function animateTurbidity() {
+            const startColor = { r: 21, g: 101, b: 192 };
+            const endColor = { r: 176, g: 144, b: 144 };
+            const duration = 1500;
+            const startTime = performance.now();
+            
+            function step(now) {
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / duration, 1);
+                
+                const r = Math.round(startColor.r + (endColor.r - startColor.r) * t);
+                const g = Math.round(startColor.g + (endColor.g - startColor.g) * t);
+                const b = Math.round(startColor.b + (endColor.b - startColor.b) * t);
+                
+                lime2.setAttribute('fill', 'rgb(' + r + ',' + g + ',' + b + ')');
+                lime2.setAttribute('opacity', (0.3 + 0.1 * t).toFixed(2));
+                
+                // 沉淀颗粒逐渐显现
+                const particles = precipitateGroup.children;
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].setAttribute('opacity', (t * 0.6).toFixed(2));
+                }
+                
+                if (t < 1) {
+                    turbidityAnimationId = requestAnimationFrame(step);
+                }
+            }
+            
+            turbidityAnimationId = requestAnimationFrame(step);
+        }
+        
+        // 重置浑浊度为澄清状态
+        function resetTurbidity() {
+            lime2.setAttribute('fill', '#1565c0');
+            lime2.setAttribute('opacity', '0.3');
+            const particles = precipitateGroup.children;
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].setAttribute('opacity', '0');
+            }
+        }
+        
+        // 渲染指定步骤
+        function renderStep() {
+            // 停止所有动画
+            if (bubbleAnimationId) {
+                cancelAnimationFrame(bubbleAnimationId);
+                bubbleAnimationId = null;
+            }
+            if (turbidityAnimationId) {
+                cancelAnimationFrame(turbidityAnimationId);
+                turbidityAnimationId = null;
+            }
+            
+            // 清除气泡
+            bubbleGroup.innerHTML = '';
+            bubbles.length = 0;
+            
+            // 更新按钮状态
+            if (currentStep === 0) {
+                btnPrev.classList.add('scene1-btn-disabled');
+                btnPrev.disabled = true;
+            } else {
+                btnPrev.classList.remove('scene1-btn-disabled');
+                btnPrev.disabled = false;
+            }
+            
+            if (currentStep === 3) {
+                btnNext.textContent = '重新开始';
+            } else {
+                btnNext.textContent = '下一步 ▶';
+            }
+            
+            // 根据步骤显示/隐藏元素
+            if (currentStep === 0) {
+                // 步骤0：装置结构认知
+                show(dashedLines);
+                clipX.setAttribute('fill', '#888888');
+                clipY.setAttribute('fill', '#888888');
+                hide(arrowInLeft);
+                hide(arrowInM);
+                hide(arrowOutM);
+                hide(arrowOutRight);
+                hide(labelAir);
+                hide(labelExhale);
+                hide(labelClear);
+                hide(labelTurbid);
+                hide(conclusion);
+                hide(optionC);
+                hide(bubbleGroup);
+                hide(precipitateGroup);
+                show(labelM);
+                show(labelClipX);
+                show(labelClipY);
+                resetTurbidity();
+            } else if (currentStep === 1) {
+                // 步骤1：吸气过程（X开启，Y关闭）
+                hide(dashedLines);
+                clipX.setAttribute('fill', '#2e7d32'); // 绿色=开启
+                clipY.setAttribute('fill', '#c62828'); // 红色=关闭
+                show(arrowInLeft);
+                show(arrowInM);
+                hide(arrowOutM);
+                hide(arrowOutRight);
+                show(labelAir);
+                hide(labelExhale);
+                hide(labelClear);
+                hide(labelTurbid);
+                hide(conclusion);
+                hide(optionC);
+                show(bubbleGroup);
+                hide(precipitateGroup);
+                show(labelM);
+                show(labelClipX);
+                show(labelClipY);
+                resetTurbidity();
+                
+                // 启动绿色气泡动画
+                animateBubbles();
+            } else if (currentStep === 2) {
+                // 步骤2：呼气过程（X关闭，Y开启）
+                hide(dashedLines);
+                clipX.setAttribute('fill', '#c62828'); // 红色=关闭
+                clipY.setAttribute('fill', '#2e7d32'); // 绿色=开启
+                hide(arrowInLeft);
+                hide(arrowInM);
+                show(arrowOutM);
+                show(arrowOutRight);
+                hide(labelAir);
+                show(labelExhale);
+                hide(labelClear);
+                hide(labelTurbid);
+                hide(conclusion);
+                hide(optionC);
+                show(bubbleGroup);
+                show(precipitateGroup);
+                show(labelM);
+                show(labelClipX);
+                show(labelClipY);
+                
+                // 只有在需要时才启动浑浊动画（避免从步骤3回退时重复动画）
+                const firstParticle = precipitateGroup.children[0];
+                if (firstParticle && parseFloat(firstParticle.getAttribute('opacity')) < 0.1) {
+                    animateTurbidity();
+                }
+                // 启动红色气泡动画
+                animateBubbles();
+            } else if (currentStep === 3) {
+                // 步骤3：现象对比与结论
+                hide(dashedLines);
+                clipX.setAttribute('fill', '#c62828'); // 关闭
+                clipY.setAttribute('fill', '#2e7d32'); // 开启
+                hide(arrowInLeft);
+                hide(arrowInM);
+                show(arrowOutM);
+                show(arrowOutRight);
+                hide(labelAir);
+                show(labelExhale);
+                show(labelClear);
+                show(labelTurbid);
+                show(conclusion);
+                show(optionC);
+                hide(bubbleGroup);
+                show(precipitateGroup);
+                // 步骤3隐藏顶部标签，避免与结论文字重叠
+                hide(labelM);
+                hide(labelClipX);
+                hide(labelClipY);
+                
+                // 保持浑浊最终状态
+                lime2.setAttribute('fill', '#b09090');
+                lime2.setAttribute('opacity', '0.4');
+                const particles = precipitateGroup.children;
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].setAttribute('opacity', '0.6');
+                }
+            }
+        }
+        
+        // 上一步按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        // 下一步按钮事件
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 3) {
+                currentStep++;
+                renderStep();
+            } else {
+                // 重新开始
+                currentStep = 0;
+                renderStep();
+            }
+        });
+        
+        // 初始化显示步骤0
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

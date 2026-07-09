@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        
+        #scene1-data-panel {
+            position: absolute;
+            top: 80px;
+            left: 600px;
+            width: 180px;
+            height: 160px;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            font-size: 14px;
+            z-index: 5;
+        }
+        .status-static { color: #2e7d32; font-weight: bold; }
+        .status-critical { color: #ef6c00; font-weight: bold; }
+        .status-sliding { color: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <!-- Arrow markers -->
+                <marker id="scene1-arrow-F" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-f" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                
+                <!-- Ground pattern -->
+                <pattern id="scene1-ground-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="20" x2="20" y2="0" stroke="#000" stroke-width="1" />
+                </pattern>
+            </defs>
+
+            <!-- Ground -->
+            <rect x="50" y="350" width="700" height="20" fill="url(#scene1-ground-pattern)" />
+            <line x1="50" y1="350" x2="750" y2="350" stroke="#000" stroke-width="2" />
+
+            <!-- Length L -->
+            <line x1="100" y1="370" x2="500" y2="370" stroke="#888" stroke-width="1" stroke-dasharray="4,4" />
+            <line x1="100" y1="365" x2="100" y2="375" stroke="#888" stroke-width="1" />
+            <line x1="500" y1="365" x2="500" y2="375" stroke="#888" stroke-width="1" />
+            <text x="300" y="390" fill="#888" font-size="16" text-anchor="middle">L</text>
+
+            <!-- Board M -->
+            <rect x="100" y="290" width="400" height="60" fill="#1565c0" fill-opacity="0.1" stroke="#000" stroke-width="2" />
+            <text x="80" y="325" font-size="20" text-anchor="middle">M</text>
+
+            <!-- Block m -->
+            <rect x="440" y="230" width="60" height="60" fill="#c62828" fill-opacity="0.1" stroke="#000" stroke-width="2" />
+            <text x="470" y="220" font-size="20" text-anchor="middle">m</text>
+
+            <!-- Force F -->
+            <line id="scene1-line-F" x1="500" y1="320" x2="500" y2="320" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-F)" opacity="0" />
+            <text id="scene1-label-F" x="515" y="325" fill="#1565c0" font-size="16" opacity="0">F</text>
+
+            <!-- Friction f (on m) -->
+            <line id="scene1-line-f" x1="470" y1="280" x2="470" y2="280" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-f)" opacity="0" />
+            <text id="scene1-label-f" x="515" y="285" fill="#c62828" font-size="16" opacity="0">f</text>
+
+            <!-- Friction f' (on M) -->
+            <line id="scene1-line-f-prime" x1="470" y1="300" x2="470" y2="300" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-f)" opacity="0" />
+            <text id="scene1-label-f-prime" x="430" y="285" fill="#c62828" font-size="16" text-anchor="end" opacity="0">f'</text>
+        </svg>
+
+        <!-- HTML Data Panel -->
+        <div id="scene1-data-panel">
+            <div>拉力 F = <span id="scene1-val-F">0.0</span> N</div>
+            <div>摩擦力 f = <span id="scene1-val-f">0.00</span> N</div>
+            <div>a_m = <span id="scene1-val-am">0.00</span> m/s²</div>
+            <div>a_M = <span id="scene1-val-aM">0.00</span> m/s²</div>
+            <div>状态: <span id="scene1-val-status" class="status-static">相对静止</span></div>
+        </div>
+
+        <div id="scene1-controls">
+            <label for="scene1-slider-F" style="font-size: 16px;">拉力 F (N):</label>
+            <input type="range" id="scene1-slider-F" min="0" max="10" step="0.1" value="0" style="width: 400px;">
+            <span id="scene1-slider-val" style="font-size: 16px; width: 40px;">0.0</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const sliderF = document.getElementById('scene1-slider-F');
+        const sliderVal = document.getElementById('scene1-slider-val');
+        
+        const lineF = document.getElementById('scene1-line-F');
+        const labelF = document.getElementById('scene1-label-F');
+        
+        const linef = document.getElementById('scene1-line-f');
+        const labelf = document.getElementById('scene1-label-f');
+        
+        const linefPrime = document.getElementById('scene1-line-f-prime');
+        const labelfPrime = document.getElementById('scene1-label-f-prime');
+        
+        const valF = document.getElementById('scene1-val-F');
+        const valf = document.getElementById('scene1-val-f');
+        const valam = document.getElementById('scene1-val-am');
+        const valaM = document.getElementById('scene1-val-aM');
+        const valStatus = document.getElementById('scene1-val-status');
+
+        function updateScene() {
+            const F = parseFloat(sliderF.value);
+            sliderVal.textContent = F.toFixed(1);
+            valF.textContent = F.toFixed(1);
+
+            let f, am, aM, status, statusClass;
+
+            if (F === 0) {
+                f = 0;
+                am = 0;
+                aM = 0;
+                status = "相对静止";
+                statusClass = "status-static";
+            } else if (F <= 4) {
+                f = F / 4;
+                am = F / 4;
+                aM = F / 4;
+                if (F === 4) {
+                    status = "临界状态";
+                    statusClass = "status-critical";
+                } else {
+                    status = "相对静止";
+                    statusClass = "status-static";
+                }
+            } else {
+                f = 1;
+                am = 1;
+                aM = (F - 1) / 3;
+                status = "相对滑动";
+                statusClass = "status-sliding";
+            }
+
+            valf.textContent = f.toFixed(2);
+            valam.textContent = am.toFixed(2);
+            valaM.textContent = aM.toFixed(2);
+            
+            valStatus.textContent = status;
+            valStatus.className = statusClass;
+
+            // Update F arrow
+            if (F > 0) {
+                lineF.setAttribute('opacity', '1');
+                labelF.setAttribute('opacity', '1');
+                const lenF = F * 15;
+                lineF.setAttribute('x2', 500 + lenF);
+                labelF.setAttribute('x', 500 + lenF + 15);
+            } else {
+                lineF.setAttribute('opacity', '0');
+                labelF.setAttribute('opacity', '0');
+            }
+
+            // Update f and f' arrows
+            if (f > 0) {
+                linef.setAttribute('opacity', '1');
+                labelf.setAttribute('opacity', '1');
+                linefPrime.setAttribute('opacity', '1');
+                labelfPrime.setAttribute('opacity', '1');
+                
+                const lenf = f * 40;
+                linef.setAttribute('x2', 470 + lenf);
+                labelf.setAttribute('x', Math.max(515, 470 + lenf + 10));
+                
+                linefPrime.setAttribute('x2', 470 - lenf);
+                labelfPrime.setAttribute('x', Math.min(430, 470 - lenf - 10));
+            } else {
+                linef.setAttribute('opacity', '0');
+                labelf.setAttribute('opacity', '0');
+                linefPrime.setAttribute('opacity', '0');
+                labelfPrime.setAttribute('opacity', '0');
+            }
+        }
+
+        sliderF.addEventListener('input', updateScene);
+        updateScene(); // Initial call
+    })();
+    </script>
+</body>
+</html>

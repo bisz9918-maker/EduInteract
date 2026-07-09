@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图动态投影对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-canvas-container { position: absolute; top: 0; left: 0; width: 800px; height: 450px; }
+        #scene1-svg-overlay { position: absolute; top: 0; left: 0; width: 800px; height: 500px; pointer-events: none; z-index: 5; }
+        
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .ctrl-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #f9f9f9;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .ctrl-btn:hover { background: #e0e0e0; }
+        .ctrl-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
+        
+        .title-text { position: absolute; top: 20px; font-size: 18px; font-weight: bold; color: #333; z-index: 5; }
+        #scene1-title1 { left: 180px; }
+        #scene1-title2 { left: 580px; }
+        
+        @keyframes flashRed {
+            0% { stroke: #c62828; stroke-width: 4px; }
+            50% { stroke: #ff5252; stroke-width: 8px; }
+            100% { stroke: #c62828; stroke-width: 4px; }
+        }
+        .flashRed { animation: flashRed 1s infinite; }
+        .svg-highlight { fill: none; stroke: #c62828; stroke-width: 4px; opacity: 0; transition: opacity 0.3s; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-title1" class="title-text">图1</div>
+        <div id="scene1-title2" class="title-text">图2</div>
+        
+        <div id="scene1-canvas-container"></div>
+        
+        <svg id="scene1-svg-overlay" width="800" height="500">
+            <!-- 图1 前面高亮 -->
+            <path class="svg-highlight show-front" d="M 87.5 150 L 237.5 150 L 237.5 225 L 312.5 225 L 312.5 300 L 87.5 300 Z"></path>
+            <!-- 图2 前面高亮 -->
+            <path class="svg-highlight show-front" d="M 487.5 150 L 562.5 150 L 562.5 225 L 637.5 225 L 637.5 150 L 712.5 150 L 712.5 300 L 487.5 300 Z"></path>
+            
+            <!-- 图1 上面高亮 -->
+            <path class="svg-highlight show-top" d="M 87.5 150 L 312.5 150 L 312.5 300 L 237.5 300 L 237.5 225 L 162.5 225 L 162.5 300 L 87.5 300 Z"></path>
+            <!-- 图2 上面高亮 -->
+            <path class="svg-highlight show-top" d="M 487.5 187.5 L 712.5 187.5 L 712.5 262.5 L 487.5 262.5 Z"></path>
+            
+            <!-- 图1 左面高亮 -->
+            <path class="svg-highlight show-left" d="M 125 150 L 275 150 L 275 300 L 125 300 Z"></path>
+            <!-- 图2 左面高亮 -->
+            <path class="svg-highlight show-left" d="M 562.5 150 L 637.5 150 L 637.5 300 L 562.5 300 Z"></path>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button class="ctrl-btn active" id="scene1-btn-reset">复原</button>
+            <button class="ctrl-btn" id="scene1-btn-front">从前面看</button>
+            <button class="ctrl-btn" id="scene1-btn-top">从上面看</button>
+            <button class="ctrl-btn" id="scene1-btn-left">从左面看</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const scene1 = new THREE.Scene();
+        const scene2 = new THREE.Scene();
+
+        const aspect = 400 / 450;
+        const frustumSize = 6;
+        const camera1 = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2, frustumSize * aspect / 2,
+            frustumSize / 2, frustumSize / -2, 0.1, 100
+        );
+        const camera2 = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2, frustumSize * aspect / 2,
+            frustumSize / 2, frustumSize / -2, 0.1, 100
+        );
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(800, 450);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.autoClear = false;
+        document.getElementById('scene1-canvas-container').appendChild(renderer.domElement);
+
+        function createBlocks(positions, color) {
+            const group = new THREE.Group();
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.7,
+                polygonOffset: true,
+                polygonOffsetFactor: 1,
+                polygonOffsetUnits: 1
+            });
+            const edgesGeo = new THREE.EdgesGeometry(geometry);
+            const edgesMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1.5 });
+
+            positions.forEach(pos => {
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(pos[0], pos[1], pos[2]);
+                const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+                mesh.add(edges);
+                group.add(mesh);
+            });
+            return group;
+        }
+
+        const pos1 = [
+            [-1, -0.5, -0.5],
+            [0, -0.5, -0.5], [0, 0.5, -0.5],
+            [1, -0.5, -0.5],
+            [-1, -0.5, 0.5], [-1, 0.5, 0.5],
+            [1, -0.5, 0.5]
+        ];
+        const group1 = createBlocks(pos1, 0x1565c0);
+        scene1.add(group1);
+
+        const pos2 = [
+            [-1, -0.5, 0], [-1, 0.5, 0],
+            [0, -0.5, 0],
+            [1, -0.5, 0], [1, 0.5, 0]
+        ];
+        const group2 = createBlocks(pos2, 0x2e7d32);
+        scene2.add(group2);
+
+        function createBackdrop() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+            
+            const planeXY = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), mat);
+            planeXY.position.set(0, 0, -3);
+            const gridXY = new THREE.GridHelper(6, 6, 0x888888, 0x888888);
+            gridXY.rotation.x = Math.PI / 2;
+            gridXY.position.set(0, 0, -3);
+            
+            const planeXZ = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), mat);
+            planeXZ.rotation.x = Math.PI / 2;
+            planeXZ.position.set(0, -3, 0);
+            const gridXZ = new THREE.GridHelper(6, 6, 0x888888, 0x888888);
+            gridXZ.position.set(0, -3, 0);
+            
+            const planeYZ = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), mat);
+            planeYZ.rotation.y = Math.PI / 2;
+            planeYZ.position.set(3, 0, 0);
+            const gridYZ = new THREE.GridHelper(6, 6, 0x888888, 0x888888);
+            gridYZ.rotation.z = Math.PI / 2;
+            gridYZ.position.set(3, 0, 0);
+            
+            group.add(planeXY, gridXY, planeXZ, gridXZ, planeYZ, gridYZ);
+            return group;
+        }
+        scene1.add(createBackdrop());
+        scene2.add(createBackdrop());
+
+        function computeQuaternion(pos, up) {
+            const dummyCam = new THREE.OrthographicCamera();
+            dummyCam.position.copy(pos);
+            dummyCam.up.copy(up);
+            dummyCam.lookAt(0, 0, 0);
+            return dummyCam.quaternion.clone();
+        }
+
+        const states = [
+            { // 0: Initial
+                camPos: new THREE.Vector3(4, 3, 5),
+                camUp: new THREE.Vector3(0, 1, 0),
+                scale: new THREE.Vector3(1, 1, 1),
+                svgClass: ''
+            },
+            { // 1: Front
+                camPos: new THREE.Vector3(0, 0, 6),
+                camUp: new THREE.Vector3(0, 1, 0),
+                scale: new THREE.Vector3(1, 1, 0.01),
+                svgClass: 'show-front'
+            },
+            { // 2: Top
+                camPos: new THREE.Vector3(0, 6, 0),
+                camUp: new THREE.Vector3(0, 0, -1),
+                scale: new THREE.Vector3(1, 0.01, 1),
+                svgClass: 'show-top'
+            },
+            { // 3: Left
+                camPos: new THREE.Vector3(-6, 0, 0),
+                camUp: new THREE.Vector3(0, 1, 0),
+                scale: new THREE.Vector3(0.01, 1, 1),
+                svgClass: 'show-left'
+            }
+        ];
+
+        states.forEach(s => {
+            s.camQuat = computeQuaternion(s.camPos, s.camUp);
+        });
+
+        // Initialize cameras
+        camera1.position.copy(states[0].camPos);
+        camera1.quaternion.copy(states[0].camQuat);
+        camera2.position.copy(states[0].camPos);
+        camera2.quaternion.copy(states[0].camQuat);
+
+        let currentStep = 0;
+        let isAnimating = false;
+        let animDuration = 1000;
+        let animStartTime = 0;
+        let startState = {};
+        let endState = {};
+
+        function getCameraState(camera) {
+            return { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+        }
+        function getGroupState(group) {
+            return { scale: group.scale.clone() };
+        }
+
+        function goToStep(step) {
+            if (isAnimating || step === currentStep) return;
+            
+            document.querySelectorAll('.svg-highlight').forEach(el => {
+                el.style.opacity = '0';
+                el.classList.remove('flashRed');
+            });
+            
+            startState = {
+                cam1: getCameraState(camera1),
+                cam2: getCameraState(camera2),
+                grp1: getGroupState(group1),
+                grp2: getGroupState(group2)
+            };
+            
+            endState = states[step];
+            currentStep = step;
+            
+            isAnimating = true;
+            animStartTime = performance.now();
+            requestAnimationFrame(animateTransition);
+            
+            const btns = [
+                document.getElementById('scene1-btn-reset'),
+                document.getElementById('scene1-btn-front'),
+                document.getElementById('scene1-btn-top'),
+                document.getElementById('scene1-btn-left')
+            ];
+            btns.forEach((btn, idx) => {
+                if (idx === step) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        }
+
+        function animateTransition(time) {
+            let progress = (time - animStartTime) / animDuration;
+            if (progress > 1) progress = 1;
+            
+            const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+            
+            camera1.position.lerpVectors(startState.cam1.position, endState.camPos, ease);
+            camera1.quaternion.slerpQuaternions(startState.cam1.quaternion, endState.camQuat, ease);
+            
+            camera2.position.lerpVectors(startState.cam2.position, endState.camPos, ease);
+            camera2.quaternion.slerpQuaternions(startState.cam2.quaternion, endState.camQuat, ease);
+            
+            group1.scale.lerpVectors(startState.grp1.scale, endState.scale, ease);
+            group2.scale.lerpVectors(startState.grp2.scale, endState.scale, ease);
+            
+            if (progress < 1) {
+                requestAnimationFrame(animateTransition);
+            } else {
+                isAnimating = false;
+                if (endState.svgClass) {
+                    document.querySelectorAll('.' + endState.svgClass).forEach(el => {
+                        el.style.opacity = '1';
+                        void el.offsetWidth;
+                        el.classList.add('flashRed');
+                    });
+                }
+            }
+        }
+
+        document.getElementById('scene1-btn-reset').addEventListener('click', () => goToStep(0));
+        document.getElementById('scene1-btn-front').addEventListener('click', () => goToStep(1));
+        document.getElementById('scene1-btn-top').addEventListener('click', () => goToStep(2));
+        document.getElementById('scene1-btn-left').addEventListener('click', () => goToStep(3));
+
+        function render() {
+            requestAnimationFrame(render);
+            
+            renderer.clear();
+            
+            // Render Scene 1 (Left)
+            renderer.setViewport(0, 0, 400, 450);
+            renderer.render(scene1, camera1);
+            
+            // Render Scene 2 (Right)
+            renderer.setViewport(400, 0, 400, 450);
+            renderer.render(scene2, camera2);
+        }
+        render();
+    </script>
+</body>
+</html>

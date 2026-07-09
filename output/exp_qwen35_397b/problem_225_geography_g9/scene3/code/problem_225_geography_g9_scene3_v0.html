@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网方向判断 - Scene 3</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-controls {
+            position: absolute;
+            bottom: 8px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene3-btn {
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        .scene3-btn.active {
+            background: #1565c0;
+            color: white;
+            border-color: #1565c0;
+        }
+        .scene3-state-group {
+            display: none;
+        }
+        .scene3-state-group.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 箭头 marker 定义 -->
+            <defs>
+                <marker id="scene3-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 经纬网背景 (缩小，给标签留空间) -->
+            <rect id="scene3-bg" x="100" y="60" width="540" height="240" fill="#f5f5f5" />
+
+            <!-- 经线 -->
+            <line x1="100" y1="60" x2="100" y2="300" stroke="#888888" stroke-width="1" />
+            <line x1="190" y1="60" x2="190" y2="300" stroke="#888888" stroke-width="1" />
+            <line x1="280" y1="60" x2="280" y2="300" stroke="#888888" stroke-width="1" />
+            <line x1="370" y1="60" x2="370" y2="300" stroke="#888888" stroke-width="1" />
+            <line x1="460" y1="60" x2="460" y2="300" stroke="#888888" stroke-width="1" />
+            <line x1="550" y1="60" x2="550" y2="300" stroke="#888888" stroke-width="1" />
+            <line x1="640" y1="60" x2="640" y2="300" stroke="#888888" stroke-width="1" />
+
+            <!-- 纬线 -->
+            <line x1="100" y1="60" x2="640" y2="60" stroke="#888888" stroke-width="1" />
+            <line x1="100" y1="100" x2="640" y2="100" stroke="#888888" stroke-width="1" />
+            <line x1="100" y1="140" x2="640" y2="140" stroke="#888888" stroke-width="1" />
+            <line x1="100" y1="180" x2="640" y2="180" stroke="#888888" stroke-width="1" />
+            <line x1="100" y1="220" x2="640" y2="220" stroke="#888888" stroke-width="1" />
+            <line x1="100" y1="260" x2="640" y2="260" stroke="#888888" stroke-width="1" />
+            <line x1="100" y1="300" x2="640" y2="300" stroke="#888888" stroke-width="1" />
+
+            <!-- 经度标签 (底部 y=330) -->
+            <text x="100" y="330" text-anchor="middle" font-size="12" fill="#333">120°E</text>
+            <text x="190" y="330" text-anchor="middle" font-size="12" fill="#333">140°E</text>
+            <text x="280" y="330" text-anchor="middle" font-size="12" fill="#333">160°E</text>
+            <text x="370" y="330" text-anchor="middle" font-size="12" fill="#333">180°</text>
+            <text x="460" y="330" text-anchor="middle" font-size="12" fill="#333">160°W</text>
+            <text x="550" y="330" text-anchor="middle" font-size="12" fill="#333">140°W</text>
+            <text x="640" y="330" text-anchor="middle" font-size="12" fill="#333">120°W</text>
+
+            <!-- 纬度标签 (左侧 x=85, 右对齐) -->
+            <text x="85" y="65" text-anchor="end" font-size="12" fill="#333">80°</text>
+            <text x="85" y="105" text-anchor="end" font-size="12" fill="#333">60°</text>
+            <text x="85" y="145" text-anchor="end" font-size="12" fill="#333">40°</text>
+            <text x="85" y="185" text-anchor="end" font-size="12" fill="#333">20°</text>
+            <text x="85" y="225" text-anchor="end" font-size="12" fill="#333">0°</text>
+            <text x="85" y="265" text-anchor="end" font-size="12" fill="#333">20°</text>
+            <text x="85" y="305" text-anchor="end" font-size="12" fill="#333">40°</text>
+
+            <!-- 四个点 (默认蓝色) - 根据原图坐标调整 -->
+            <!-- A: 140°E, 80°N → (190, 60) -->
+            <circle id="scene3-point-a" cx="190" cy="60" r="6" fill="#1565c0" />
+            <!-- B: 140°W, 40°N → (550, 140) -->
+            <circle id="scene3-point-b" cx="550" cy="140" r="6" fill="#1565c0" />
+            <!-- C: 140°E, 20°N → (190, 180) -->
+            <circle id="scene3-point-c" cx="190" cy="180" r="6" fill="#1565c0" />
+            <!-- D: 140°W, 20°S → (550, 260) -->
+            <circle id="scene3-point-d" cx="550" cy="260" r="6" fill="#1565c0" />
+
+            <!-- 点标签 (放在背景矩形外部) -->
+            <!-- A: 上方外部 -->
+            <text id="scene3-label-a" x="190" y="48" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">A</text>
+            <!-- B: 右侧外部 -->
+            <text id="scene3-label-b" x="660" y="145" font-size="14" fill="#1565c0" font-weight="bold">B</text>
+            <!-- C: 下方外部 (远离矩形) -->
+            <text id="scene3-label-c" x="190" y="220" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">C</text>
+            <!-- D: 右侧外部 -->
+            <text id="scene3-label-d" x="660" y="275" font-size="14" fill="#1565c0" font-weight="bold">D</text>
+
+            <!-- 状态 1 元素组：A→C 正北方向 -->
+            <g id="scene3-state1-group" class="scene3-state-group">
+                <!-- 箭头 C→A (沿经线向上) -->
+                <line x1="190" y1="180" x2="190" y2="60" stroke="#c62828" stroke-width="2" marker-end="url(#scene3-arrow-red)" />
+                <!-- 方向标签 (移到网格上方外部) -->
+                <text x="240" y="45" font-size="16" fill="#c62828" font-weight="bold">正北</text>
+                <!-- 说明文字 (移到网格上方外部) -->
+                <text x="240" y="25" font-size="13" fill="#c62828">同经度，A 纬度更高</text>
+            </g>
+
+            <!-- 状态 2 元素组：B→C 东北方向 -->
+            <g id="scene3-state2-group" class="scene3-state-group">
+                <!-- 箭头 C→B (斜向东北) -->
+                <line x1="190" y1="180" x2="550" y2="140" stroke="#c62828" stroke-width="2" marker-end="url(#scene3-arrow-red)" />
+                <!-- 分解箭头：向东分量 (水平虚线) -->
+                <line x1="190" y1="180" x2="550" y2="180" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" />
+                <!-- 分解箭头：向北分量 (垂直虚线) -->
+                <line x1="550" y1="180" x2="550" y2="140" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" />
+                <!-- 分量标签 (移到网格下方外部) -->
+                <text x="370" y="320" text-anchor="middle" font-size="13" fill="#2e7d32">向东</text>
+                <text x="565" y="165" font-size="13" fill="#2e7d32">向北</text>
+                <!-- 方向标签 (移到网格上方外部) -->
+                <text x="370" y="45" text-anchor="middle" font-size="16" fill="#c62828" font-weight="bold">东北</text>
+                <!-- 说明文字 (移到网格上方外部) -->
+                <text x="370" y="25" text-anchor="middle" font-size="13" fill="#c62828">B 在 C 的东北方向</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-base" class="scene3-btn active">基础图</button>
+            <button id="scene3-btn-ac" class="scene3-btn">A→C 方向</button>
+            <button id="scene3-btn-cb" class="scene3-btn">B→C 方向</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现：经纬网方向判断
+
+        // 状态变量
+        let currentState = 0; // 0=基础图, 1=A→C 方向, 2=B→C 方向
+
+        // 获取 DOM 元素
+        const pointA = document.getElementById('scene3-point-a');
+        const pointB = document.getElementById('scene3-point-b');
+        const pointC = document.getElementById('scene3-point-c');
+        const pointD = document.getElementById('scene3-point-d');
+        const labelA = document.getElementById('scene3-label-a');
+        const labelB = document.getElementById('scene3-label-b');
+        const labelC = document.getElementById('scene3-label-c');
+        const labelD = document.getElementById('scene3-label-d');
+        const state1Group = document.getElementById('scene3-state1-group');
+        const state2Group = document.getElementById('scene3-state2-group');
+        const btnBase = document.getElementById('scene3-btn-base');
+        const btnAc = document.getElementById('scene3-btn-ac');
+        const btnCb = document.getElementById('scene3-btn-cb');
+
+        // 重置所有点到默认状态
+        function resetPoints() {
+            pointA.setAttribute('r', '6');
+            pointA.setAttribute('fill', '#1565c0');
+            pointB.setAttribute('r', '6');
+            pointB.setAttribute('fill', '#1565c0');
+            pointC.setAttribute('r', '6');
+            pointC.setAttribute('fill', '#1565c0');
+            pointD.setAttribute('r', '6');
+            pointD.setAttribute('fill', '#1565c0');
+
+            labelA.setAttribute('fill', '#1565c0');
+            labelB.setAttribute('fill', '#1565c0');
+            labelC.setAttribute('fill', '#1565c0');
+            labelD.setAttribute('fill', '#1565c0');
+        }
+
+        // 重置按钮状态
+        function resetButtons() {
+            btnBase.classList.remove('active');
+            btnAc.classList.remove('active');
+            btnCb.classList.remove('active');
+        }
+
+        // 隐藏所有状态组
+        function hideAllStates() {
+            state1Group.classList.remove('visible');
+            state2Group.classList.remove('visible');
+        }
+
+        // 切换状态
+        function switchState(state) {
+            currentState = state;
+            resetPoints();
+            hideAllStates();
+            resetButtons();
+
+            if (state === 0) {
+                // 基础图状态
+                btnBase.classList.add('active');
+            } else if (state === 1) {
+                // A→C 方向状态
+                btnAc.classList.add('active');
+                // A 和 C 变为红色，半径放大
+                pointA.setAttribute('r', '8');
+                pointA.setAttribute('fill', '#c62828');
+                pointC.setAttribute('r', '8');
+                pointC.setAttribute('fill', '#c62828');
+                labelA.setAttribute('fill', '#c62828');
+                labelC.setAttribute('fill', '#c62828');
+                // 显示状态 1 元素
+                state1Group.classList.add('visible');
+            } else if (state === 2) {
+                // B→C 方向状态
+                btnCb.classList.add('active');
+                // B 和 C 变为红色，半径放大
+                pointB.setAttribute('r', '8');
+                pointB.setAttribute('fill', '#c62828');
+                pointC.setAttribute('r', '8');
+                pointC.setAttribute('fill', '#c62828');
+                labelB.setAttribute('fill', '#c62828');
+                labelC.setAttribute('fill', '#c62828');
+                // 显示状态 2 元素
+                state2Group.classList.add('visible');
+            }
+        }
+
+        // 绑定按钮事件
+        btnBase.addEventListener('click', function() {
+            switchState(0);
+        });
+
+        btnAc.addEventListener('click', function() {
+            switchState(1);
+        });
+
+        btnCb.addEventListener('click', function() {
+            switchState(2);
+        });
+
+        // 初始化：基础图状态
+        switchState(0);
+    })();
+    </script>
+</body>
+</html>

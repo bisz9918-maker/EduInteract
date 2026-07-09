@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:hover { background: #e9e9e9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .step-element {
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+        }
+        
+        .step-element.visible {
+            opacity: 1;
+        }
+        
+        /* 文本样式 */
+        .label-bold { font-weight: bold; font-size: 18px; }
+        .text-red { fill: #c62828; }
+        .text-blue { fill: #1565c0; }
+        .text-green { fill: #2e7d32; }
+        .text-black { fill: #000000; }
+        .text-normal { font-size: 16px; }
+        
+        /* 线条样式 */
+        .line-dashed { stroke: #888888; stroke-width: 1.5; stroke-dasharray: 4,4; fill: none; }
+        .line-solid { stroke: #888888; stroke-width: 1.5; fill: none; }
+        
+        /* 比例框样式 */
+        .ratio-box { stroke: #000000; stroke-width: 2; fill: #f5f5f5; rx: 8; ry: 8; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500">
+            <!-- 
+            [布局坐标表]
+            | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+            |------|------|-----------|------|-------------|------|
+            | P 标签 | text | (80, 50) | 20x20 | - | 居中对齐，加粗 |
+            | P 小翅♀ | text | (250, 50) | 140x20 | - | 居中对齐，红色 |
+            | P 杂交符号 | text | (400, 50) | 20x20 | - | 居中对齐 |
+            | P 残翅♂ | text | (550, 50) | 140x20 | - | 居中对齐，绿色 |
+            | P到F1连线 | path | (400, 65)-(400, 85)-(250, 85)-(250, 100) 及 (550, 85)-(550, 100) | - | - | 辅助线，灰色虚线 |
+            | F1 标签 | text | (80, 120) | 20x20 | - | 居中对齐，加粗 |
+            | F1 长翅♀ | text | (250, 120) | 140x20 | - | 居中对齐，蓝色 |
+            | F1 杂交符号 | text | (400, 120) | 20x20 | - | 居中对齐 |
+            | F1 小翅♂ | text | (550, 120) | 140x20 | - | 居中对齐，红色 |
+            | F2 标签 | text | (80, 240) | 20x20 | - | 居中对齐，加粗 |
+            | 常染色体 3/4 A_ | text | (220, 200) | 80x20 | - | 居中对齐 |
+            | 常染色体 1/4 aa | text | (220, 300) | 80x20 | - | 居中对齐 |
+            | 分支线 A_ | line | (140, 245)-(180, 200) | - | - | 辅助线，灰色实线 |
+            | 分支线 aa | line | (140, 255)-(180, 300) | - | - | 辅助线，灰色实线 |
+            | 性染色体 1/2 Xᴮ_ | text | (440, 170) | 160x20 | - | 居中对齐，内容"1/2 Xᴮ_ (长翅相关)" |
+            | 性染色体 1/2 Xᵇ_ | text | (440, 230) | 160x20 | - | 居中对齐，内容"1/2 Xᵇ_ (小翅相关)" |
+            | 性染色体 1 | text | (440, 300) | 160x20 | - | 居中对齐，内容"1 (任何性染色体)" |
+            | 分支线 Xᴮ_ | line | (260, 195)-(350, 170) | - | - | 辅助线，灰色实线 |
+            | 分支线 Xᵇ_ | line | (260, 205)-(350, 230) | - | - | 辅助线，灰色实线 |
+            | 分支线 1 | line | (260, 300)-(350, 300) | - | - | 辅助线，灰色实线 |
+            | 结果 长翅 | text | (680, 170) | 100x20 | - | 居中对齐，蓝色，内容"长翅 (3/8)" |
+            | 结果 小翅 | text | (680, 230) | 100x20 | - | 居中对齐，红色，内容"小翅 (3/8)" |
+            | 结果 残翅 | text | (680, 300) | 100x20 | - | 居中对齐，绿色，内容"残翅 (1/4)" |
+            | 结果连线 1 | line | (530, 170)-(620, 170) | - | - | 辅助线，灰色实线 |
+            | 结果连线 2 | line | (530, 230)-(620, 230) | - | - | 辅助线，灰色实线 |
+            | 结果连线 3 | line | (530, 300)-(620, 300) | - | - | 辅助线，灰色实线 |
+            | 最终比例框 | rect | (250, 360)-(550, 400) | 300x40 | - | 居中，带边框，圆角 |
+            | 最终比例文本 | text | (400, 380) | 280x20 | - | 居中对齐，内容"长翅 : 小翅 : 残翅 = 3 : 3 : 2" |
+            -->
+
+            <!-- Step 0: P 世代 -->
+            <g id="scene3-step0" class="step-element visible">
+                <text x="80" y="50" text-anchor="middle" class="label-bold text-black">P</text>
+                <text x="250" y="50" text-anchor="middle" class="text-normal text-red">小翅♀ (AAX<tspan dy="-5" font-size="12">b</tspan><tspan dy="5">X</tspan><tspan dy="-5" font-size="12">b</tspan><tspan dy="5">)</tspan></text>
+                <text x="400" y="50" text-anchor="middle" class="text-normal text-black">×</text>
+                <text x="550" y="50" text-anchor="middle" class="text-normal text-green">残翅♂ (aaX<tspan dy="-5" font-size="12">B</tspan><tspan dy="5">Y)</tspan></text>
+            </g>
+
+            <!-- Step 1: F1 世代 -->
+            <g id="scene3-step1" class="step-element">
+                <path d="M 400 65 L 400 85 L 250 85 L 250 100 M 400 85 L 550 85 L 550 100" class="line-dashed" />
+                <text x="80" y="120" text-anchor="middle" class="label-bold text-black">F₁</text>
+                <text x="250" y="120" text-anchor="middle" class="text-normal text-blue">长翅♀ (AaX<tspan dy="-5" font-size="12">B</tspan><tspan dy="5">X</tspan><tspan dy="-5" font-size="12">b</tspan><tspan dy="5">)</tspan></text>
+                <text x="400" y="120" text-anchor="middle" class="text-normal text-black">×</text>
+                <text x="550" y="120" text-anchor="middle" class="text-normal text-red">小翅♂ (AaX<tspan dy="-5" font-size="12">b</tspan><tspan dy="5">Y)</tspan></text>
+            </g>
+
+            <!-- Step 2: F2 常染色体 -->
+            <g id="scene3-step2" class="step-element">
+                <text x="80" y="240" text-anchor="middle" class="label-bold text-black">F₂</text>
+                <line x1="140" y1="245" x2="180" y2="200" class="line-solid" />
+                <line x1="140" y1="255" x2="180" y2="300" class="line-solid" />
+                <text x="220" y="200" text-anchor="middle" class="text-normal text-black">3/4 A_</text>
+                <text x="220" y="300" text-anchor="middle" class="text-normal text-black">1/4 aa</text>
+            </g>
+
+            <!-- Step 3: F2 性染色体 -->
+            <g id="scene3-step3" class="step-element">
+                <line x1="260" y1="195" x2="350" y2="170" class="line-solid" />
+                <line x1="260" y1="205" x2="350" y2="230" class="line-solid" />
+                <line x1="260" y1="300" x2="350" y2="300" class="line-solid" />
+                
+                <text x="440" y="170" text-anchor="middle" class="text-normal text-black">1/2 X<tspan dy="-5" font-size="12">B</tspan><tspan dy="5">_ (长翅相关)</tspan></text>
+                <text x="440" y="230" text-anchor="middle" class="text-normal text-black">1/2 X<tspan dy="-5" font-size="12">b</tspan><tspan dy="5">_ (小翅相关)</tspan></text>
+                <text x="440" y="300" text-anchor="middle" class="text-normal text-black">1 (任何性染色体)</text>
+            </g>
+
+            <!-- Step 4: 结果与比例 -->
+            <g id="scene3-step4" class="step-element">
+                <line x1="530" y1="170" x2="620" y2="170" class="line-solid" />
+                <line x1="530" y1="230" x2="620" y2="230" class="line-solid" />
+                <line x1="530" y1="300" x2="620" y2="300" class="line-solid" />
+                
+                <text x="680" y="170" text-anchor="middle" class="text-normal text-blue">长翅 (3/8)</text>
+                <text x="680" y="230" text-anchor="middle" class="text-normal text-red">小翅 (3/8)</text>
+                <text x="680" y="300" text-anchor="middle" class="text-normal text-green">残翅 (1/4)</text>
+                
+                
+                
+            </g>
+        </svg>
+        <div id="scene3-step4-div" class="step-element" style="position: absolute; left: 250px; top: 360px; width: 300px; height: 40px; border: 2px solid #000; border-radius: 8px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; color: #000; box-sizing: border-box;">长翅 : 小翅 : 残翅 = 3 : 3 : 2</div>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        
+        function updateSteps() {
+            for (let i = 0; i <= maxStep; i++) {
+                const el = document.getElementById(`scene3-step${i}`);
+                const elDiv = document.getElementById(`scene3-step${i}-div`);
+                if (elDiv) {
+                    if (i <= currentStep) {
+                        elDiv.classList.add('visible');
+                        elDiv.style.display = '';
+                    } else {
+                        elDiv.classList.remove('visible');
+                        setTimeout(() => {
+                            if (!elDiv.classList.contains('visible')) {
+                                elDiv.style.display = 'none';
+                            }
+                        }, 400);
+                    }
+                }
+                if (el) {
+                    if (i <= currentStep) {
+                        el.classList.add('visible');
+                        // 确保 display 和 opacity 同步，虽然这里只用 opacity 也能工作，但为了严谨
+                        el.style.display = '';
+                    } else {
+                        el.classList.remove('visible');
+                        // 延迟隐藏以允许过渡动画完成
+                        setTimeout(() => {
+                            if (!el.classList.contains('visible')) {
+                                el.style.display = 'none';
+                            }
+                        }, 400);
+                    }
+                }
+            }
+            
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateSteps();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateSteps();
+            }
+        });
+        
+        // 初始化
+        updateSteps();
+    })();
+    </script>
+</body>
+</html>

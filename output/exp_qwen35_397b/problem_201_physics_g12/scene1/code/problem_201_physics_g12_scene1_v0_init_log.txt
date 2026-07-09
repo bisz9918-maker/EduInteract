@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电粒子在复合场中的运动轨迹</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .scene1-visible {
+            opacity: 1;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover {
+            background: #e0e0e0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-head" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- 电场线 (5 条) -->
+            <g id="scene1-field-lines">
+                <line id="scene1-field-line-1" x1="50" y1="80" x2="750" y2="80" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-head)" />
+                <line id="scene1-field-line-2" x1="50" y1="160" x2="750" y2="160" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-head)" />
+                <line id="scene1-field-line-3" x1="50" y1="240" x2="750" y2="240" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-head)" />
+                <line id="scene1-field-line-4" x1="50" y1="320" x2="750" y2="320" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-head)" />
+                <line id="scene1-field-line-5" x1="50" y1="400" x2="750" y2="400" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-head)" />
+            </g>
+
+            <!-- 电场强度标签 E -->
+            <text id="scene1-label-e" x="720" y="65" font-size="14px" fill="#000000" font-family="sans-serif">E</text>
+
+            <!-- A 点和 B 点 -->
+            <circle id="scene1-point-a" cx="250" cy="350" r="3" fill="#000000" />
+            <circle id="scene1-point-b" cx="550" cy="120" r="3" fill="#000000" />
+
+            <!-- 标签 A 和 B -->
+            <text id="scene1-label-a" x="235" y="365" font-size="14px" fill="#000000" font-family="sans-serif">A</text>
+            <text id="scene1-label-b" x="565" y="135" font-size="14px" fill="#000000" font-family="sans-serif">B</text>
+
+            <!-- 运动轨迹 (贝塞尔曲线) -->
+            <path id="scene1-trajectory" class="scene1-fade-in" d="M250,350 Q300,250 550,120" stroke="#1565c0" stroke-width="2.5" fill="none" marker-end="url(#scene1-arrow-blue)" />
+
+            <!-- v₀ 速度矢量 (竖直向上) -->
+            <g id="scene1-velocity-v0" class="scene1-fade-in">
+                <line x1="250" y1="350" x2="250" y2="290" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)" />
+                <text x="230" y="315" font-size="14px" fill="#c62828" font-family="sans-serif">v₀</text>
+            </g>
+
+            <!-- v_B 速度矢量 (水平向右) -->
+            <g id="scene1-velocity-vb" class="scene1-fade-in">
+                <line x1="550" y1="120" x2="650" y2="120" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)" />
+                <text x="570" y="100" font-size="14px" fill="#c62828" font-family="sans-serif">v_B=2v₀</text>
+            </g>
+
+            <!-- 坐标系 (x 轴和 y 轴) -->
+            <g id="scene1-coordinates" class="scene1-fade-in">
+                <!-- x 轴 -->
+                <line x1="250" y1="350" x2="700" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+                <text x="690" y="365" font-size="14px" fill="#888888" font-family="sans-serif">x</text>
+                <!-- y 轴 -->
+                <line x1="250" y1="350" x2="250" y2="100" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+                <text x="265" y="110" font-size="14px" fill="#888888" font-family="sans-serif">y</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：带电粒子在复合场中的运动轨迹
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步应显示的元素配置
+        // 步骤 0: 电场线 + A 点 + B 点 + 标签 A/B/E
+        // 步骤 1: + 轨迹
+        // 步骤 2: + v₀ 矢量
+        // 步骤 3: + v_B 矢量
+        // 步骤 4: + 坐标系
+        const stepElements = {
+            0: ['scene1-field-lines', 'scene1-label-e', 'scene1-point-a', 'scene1-point-b', 'scene1-label-a', 'scene1-label-b'],
+            1: ['scene1-trajectory'],
+            2: ['scene1-velocity-v0'],
+            3: ['scene1-velocity-vb'],
+            4: ['scene1-coordinates']
+        };
+
+        // 获取元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 显示元素函数
+        function showElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                if (el.classList.contains('scene1-fade-in')) {
+                    el.classList.add('scene1-visible');
+                } else {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            }
+        }
+
+        // 隐藏元素函数
+        function hideElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                if (el.classList.contains('scene1-fade-in')) {
+                    el.classList.remove('scene1-visible');
+                } else {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 根据当前步骤显示/隐藏元素
+            for (let step = 0; step < totalSteps; step++) {
+                const elements = stepElements[step];
+                if (step <= currentStep) {
+                    elements.forEach(id => showElement(id));
+                } else {
+                    elements.forEach(id => hideElement(id));
+                }
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+        }
+
+        // 上一步按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        // 下一步按钮事件
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

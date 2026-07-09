@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        /* 按钮样式 */
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #f8f9fa;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .scene2-btn:hover { background: #e9ecef; }
+        .scene2-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        /* 计算面板样式 */
+        #scene2-panel-calc {
+            position: absolute;
+            left: 100px;
+            top: 280px;
+            width: 600px;
+            height: 160px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333;
+            transition: opacity 0.3s;
+        }
+
+        /* SVG 元素过渡效果 */
+        #scene2-rect-remain {
+            transition: fill 0.3s, fill-opacity 0.3s;
+        }
+    </style>
+    <!-- 引入 MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500">
+            <!-- 
+            [布局坐标表]
+            消耗区标注线: (100,130)-(500,130)
+            消耗区标注文本: (300,120)
+            剩余区标注线: (500,130)-(700,130)
+            剩余区标注文本: (600,120)
+            H2消耗色块: (100,150) 266.67×80
+            H2消耗标签: (233.33,195)
+            O2消耗色块: (366.67,150) 133.33×80
+            O2消耗标签: (433.33,195)
+            剩余气体色块: (500,150) 200×80
+            剩余气体标签: (600,195)
+            -->
+
+            <!-- 标注线与文本 -->
+            <!-- 消耗区 -->
+            <line x1="100" y1="130" x2="500" y2="130" stroke="#000" stroke-width="2" />
+            <line x1="100" y1="125" x2="100" y2="135" stroke="#000" stroke-width="2" />
+            <line x1="500" y1="125" x2="500" y2="135" stroke="#000" stroke-width="2" />
+            <text x="300" y="120" text-anchor="middle" font-size="14" fill="#000">反应消耗 (2份)</text>
+
+            <!-- 剩余区 -->
+            <line x1="500" y1="130" x2="700" y2="130" stroke="#000" stroke-width="2" />
+            <line x1="700" y1="125" x2="700" y2="135" stroke="#000" stroke-width="2" />
+            <text x="600" y="120" text-anchor="middle" font-size="14" fill="#000">剩余气体 (1份)</text>
+
+            <!-- 色块与标签 -->
+            <!-- H2消耗 -->
+            <rect x="100" y="150" width="266.67" height="80" fill="#1565c0" fill-opacity="0.5" stroke="#000" stroke-width="1" />
+            <text x="233.33" y="240" text-anchor="middle" dominant-baseline="middle" font-size="16" fill="#000">H₂ (4/3)</text>
+
+            <!-- O2消耗 -->
+            <rect x="366.67" y="150" width="133.33" height="80" fill="#c62828" fill-opacity="0.5" stroke="#000" stroke-width="1" />
+            <text x="433.33" y="240" text-anchor="middle" dominant-baseline="middle" font-size="16" fill="#000">O₂ (2/3)</text>
+
+            <!-- 剩余气体 -->
+            <rect id="scene2-rect-remain" x="500" y="150" width="200" height="80" fill="#888888" fill-opacity="0.2" stroke="#000" stroke-width="1" />
+            <text id="scene2-text-remain" x="600" y="240" text-anchor="middle" dominant-baseline="middle" font-size="16" fill="#000">未知 (1)</text>
+        </svg>
+
+        <!-- 计算过程面板 -->
+        <div id="scene2-panel-calc">
+            <!-- 内容由 JS 动态填充 -->
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-state1" class="scene2-btn active">反应消耗</button>
+            <button id="scene2-btn-state2" class="scene2-btn">情况一：H₂过量</button>
+            <button id="scene2-btn-state3" class="scene2-btn">情况二：O₂过量</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 获取 DOM 元素
+        const rectRemain = document.getElementById('scene2-rect-remain');
+        const textRemain = document.getElementById('scene2-text-remain');
+        const panelCalc = document.getElementById('scene2-panel-calc');
+        const btnState1 = document.getElementById('scene2-btn-state1');
+        const btnState2 = document.getElementById('scene2-btn-state2');
+        const btnState3 = document.getElementById('scene2-btn-state3');
+        const buttons = [btnState1, btnState2, btnState3];
+
+        // 状态数据
+        const states = {
+            1: {
+                rectFill: '#888888',
+                rectOpacity: '0.2',
+                text: '未知 (1)',
+                calcHtml: '反应消耗了 2 份体积的混合气体。<br>根据 \(2H_2 + O_2 = 2H_2O\)，消耗的 \(H_2\) 为 \(4/3\)，\(O_2\) 为 \(2/3\)。<br>剩余 1 份体积的气体，可能是 \(H_2\) 或 \(O_2\)。'
+            },
+            2: {
+                rectFill: '#1565c0',
+                rectOpacity: '1',
+                text: 'H₂ (1)',
+                calcHtml: '假设剩余气体为 \(H_2\)。<br>\(H_2\) 总量 = \(4/3\) (消耗) + 1 (剩余) = \(7/3\)<br>\(O_2\) 总量 = \(2/3\) (消耗)<br>初始体积比 \(H_2 : O_2 = 7/3 : 2/3 = 7 : 2\)'
+            },
+            3: {
+                rectFill: '#c62828',
+                rectOpacity: '1',
+                text: 'O₂ (1)',
+                calcHtml: '假设剩余气体为 \(O_2\)。<br>\(H_2\) 总量 = \(4/3\) (消耗)<br>\(O_2\) 总量 = \(2/3\) (消耗) + 1 (剩余) = \(5/3\)<br>初始体积比 \(H_2 : O_2 = 4/3 : 5/3 = 4 : 5\)'
+            }
+        };
+
+        // 切换状态函数
+        function setState(stateIndex) {
+            // 更新按钮样式
+            buttons.forEach((btn, index) => {
+                if (index + 1 === stateIndex) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // 更新 SVG 元素
+            const stateData = states[stateIndex];
+            rectRemain.setAttribute('fill', stateData.rectFill);
+            rectRemain.setAttribute('fill-opacity', stateData.rectOpacity);
+            textRemain.textContent = stateData.text;
+
+            // 更新计算面板并重新渲染 MathJax
+            panelCalc.innerHTML = stateData.calcHtml;
+            if (window.MathJax) {
+                MathJax.typesetPromise([panelCalc]).catch(function (err) {
+                    console.error('MathJax error:', err.message);
+                });
+            }
+        }
+
+        // 绑定事件
+        btnState1.addEventListener('click', () => setState(1));
+        btnState2.addEventListener('click', () => setState(2));
+        btnState3.addEventListener('click', () => setState(3));
+
+        // 初始化
+        setState(1);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualSolver Scene</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-canvas-container { position: absolute; top: 0; left: 0; width: 800px; height: 440px; }
+        #scene2-controls { position: absolute; bottom: 0; left: 0; width: 800px; height: 60px; background: #f8f9fa; border-top: 1px solid #ddd; }
+        .scene2-label { position: absolute; width: 120px; text-align: center; transform: translateX(-50%); font-size: 16px; font-weight: bold; color: #333; pointer-events: none; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene2-container">
+        <div id="scene2-canvas-container"></div>
+        
+        <div id="scene2-label-orig" class="scene2-label" style="left: 188px; top: 380px;">题目原图</div>
+        <div id="scene2-label-net" class="scene2-label" style="left: 520px; top: 380px;">选项A展开图</div>
+        
+        <div id="scene2-controls">
+            <div style="position: absolute; left: 350px; top: 5px; width: 100px; text-align: center; font-size: 14px; color: #333;">折叠进度: <span id="scene2-progress">0</span>%</div>
+            <input type="range" id="scene2-slider" min="0" max="100" value="0" style="position: absolute; left: 250px; top: 25px; width: 300px; cursor: pointer;">
+            <div id="scene2-success" style="position: absolute; left: 300px; top: 42px; width: 200px; text-align: center; font-size: 14px; color: #2e7d32; font-weight: bold; opacity: 0; transition: opacity 0.3s;">视角匹配成功！</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const container = document.getElementById('scene2-canvas-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(800, 440);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+
+        const aspect = 800 / 440;
+        const d = 250;
+        const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+        camera.position.set(0, 0, 500);
+        camera.lookAt(0, 0, 0);
+
+        function createTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 256, 256);
+            
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 8;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            
+            if (type === 'heart') {
+                ctx.beginPath();
+                const topY = 60;
+                ctx.moveTo(128, topY + 30);
+                ctx.bezierCurveTo(128, topY, 88, topY - 20, 58, topY + 10);
+                ctx.bezierCurveTo(28, topY + 40, 68, topY + 90, 128, topY + 130);
+                ctx.bezierCurveTo(188, topY + 90, 228, topY + 40, 198, topY + 10);
+                ctx.bezierCurveTo(168, topY - 20, 128, topY, 128, topY + 30);
+                ctx.stroke();
+            } else if (type === 'smiley') {
+                ctx.beginPath();
+                ctx.arc(128, 128, 70, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(103, 108, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(153, 108, 8, 0, Math.PI * 2); ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(128, 128, 40, 0.1 * Math.PI, 0.9 * Math.PI);
+                ctx.stroke();
+            } else if (type === 'star') {
+                ctx.beginPath();
+                for (let i = 0; i < 10; i++) {
+                    const r = i % 2 === 0 ? 70 : 30;
+                    const a = i * Math.PI / 5 - Math.PI / 2;
+                    ctx.lineTo(128 + r * Math.cos(a), 128 + r * Math.sin(a));
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return texture;
+        }
+
+        const heartMat = new THREE.MeshBasicMaterial({ map: createTexture('heart'), side: THREE.DoubleSide });
+        const smileyMat = new THREE.MeshBasicMaterial({ map: createTexture('smiley'), side: THREE.DoubleSide });
+        const starMat = new THREE.MeshBasicMaterial({ map: createTexture('star'), side: THREE.DoubleSide });
+
+        const size = 80;
+        const geometry = new THREE.PlaneGeometry(size, size);
+
+        function createFace(material, name) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = name;
+            
+            const edges = new THREE.EdgesGeometry(geometry);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            line.name = name + '_edge';
+            mesh.add(line);
+            
+            const boldLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x2e7d32 }));
+            boldLine.scale.set(1.05, 1.05, 1.05);
+            boldLine.visible = false;
+            boldLine.name = name + '_boldEdge';
+            mesh.add(boldLine);
+            
+            return mesh;
+        }
+
+        const dashMaterial = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 4, gapSize: 4 });
+
+        function createFoldLine(length, isVertical) {
+            const points = [];
+            if (isVertical) {
+                points.push(new THREE.Vector3(0, -length / 2, 0));
+                points.push(new THREE.Vector3(0, length / 2, 0));
+            } else {
+                points.push(new THREE.Vector3(-length / 2, 0, 0));
+                points.push(new THREE.Vector3(length / 2, 0, 0));
+            }
+            const geom = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(geom, dashMaterial);
+            line.computeLineDistances();
+            line.position.z = 0.5;
+            return line;
+        }
+
+        function createNet() {
+            const group = new THREE.Group();
+            
+            const fFront = createFace(heartMat, 'front');
+            group.add(fFront);
+            
+            const hFrontRight = new THREE.Group(); hFrontRight.position.set(size / 2, 0, 0);
+            fFront.add(hFrontRight);
+            const fRight = createFace(smileyMat, 'right'); fRight.position.set(size / 2, 0, 0);
+            hFrontRight.add(fRight);
+            hFrontRight.add(createFoldLine(size, true));
+            
+            const hRightBack = new THREE.Group(); hRightBack.position.set(size / 2, 0, 0);
+            fRight.add(hRightBack);
+            const fBack = createFace(heartMat, 'back'); fBack.position.set(size / 2, 0, 0);
+            hRightBack.add(fBack);
+            hRightBack.add(createFoldLine(size, true));
+            
+            const hBackLeft = new THREE.Group(); hBackLeft.position.set(size / 2, 0, 0);
+            fBack.add(hBackLeft);
+            const fLeft = createFace(smileyMat, 'left'); fLeft.position.set(size / 2, 0, 0);
+            hBackLeft.add(fLeft);
+            hBackLeft.add(createFoldLine(size, true));
+            
+            const hRightTop = new THREE.Group(); hRightTop.position.set(0, size / 2, 0);
+            fRight.add(hRightTop);
+            const fTop = createFace(starMat, 'top'); fTop.position.set(0, size / 2, 0);
+            hRightTop.add(fTop);
+            hRightTop.add(createFoldLine(size, false));
+            
+            const hFrontBottom = new THREE.Group(); hFrontBottom.position.set(0, -size / 2, 0);
+            fFront.add(hFrontBottom);
+            const fBottom = createFace(starMat, 'bottom'); fBottom.position.set(0, -size / 2, 0);
+            hFrontBottom.add(fBottom);
+            hFrontBottom.add(createFoldLine(size, false));
+            
+            return {
+                group,
+                hinges: { hFrontRight, hRightBack, hBackLeft, hRightTop, hFrontBottom },
+                faces: { fFront, fRight, fBack, fLeft, fTop, fBottom }
+            };
+        }
+
+        const netRight = createNet();
+        netRight.group.position.set(170, 0, 0);
+
+        const netLeft = createNet();
+        netLeft.hinges.hFrontRight.rotation.y = -Math.PI / 2;
+        netLeft.hinges.hRightBack.rotation.y = -Math.PI / 2;
+        netLeft.hinges.hBackLeft.rotation.y = -Math.PI / 2;
+        netLeft.hinges.hRightTop.rotation.x = -Math.PI / 2;
+        netLeft.hinges.hFrontBottom.rotation.x = Math.PI / 2;
+        netLeft.group.position.set(-300, 0, 40);
+
+        const sceneGroup = new THREE.Group();
+        sceneGroup.add(netLeft.group);
+        sceneGroup.add(netRight.group);
+        sceneGroup.rotation.set(Math.PI / 6, -Math.PI / 4, 0);
+        scene.add(sceneGroup);
+
+        function setHighlight(face, isHighlighted) {
+            const line = face.children.find(c => c.name === face.name + '_edge');
+            const boldLine = face.children.find(c => c.name === face.name + '_boldEdge');
+            if (line && boldLine) {
+                line.visible = !isHighlighted;
+                boldLine.visible = isHighlighted;
+            }
+        }
+
+        const slider = document.getElementById('scene2-slider');
+        const progressText = document.getElementById('scene2-progress');
+        const successText = document.getElementById('scene2-success');
+
+        function updateScene() {
+            const val = parseInt(slider.value);
+            progressText.innerText = val;
+            
+            const angle = (val / 100) * (Math.PI / 2);
+            
+            netRight.hinges.hFrontRight.rotation.y = -angle;
+            netRight.hinges.hRightBack.rotation.y = -angle;
+            netRight.hinges.hBackLeft.rotation.y = -angle;
+            netRight.hinges.hRightTop.rotation.x = -angle;
+            netRight.hinges.hFrontBottom.rotation.x = angle;
+            
+            if (val === 100) {
+                setHighlight(netRight.faces.fFront, true);
+                setHighlight(netRight.faces.fRight, true);
+                setHighlight(netRight.faces.fTop, true);
+                setHighlight(netLeft.faces.fFront, true);
+                setHighlight(netLeft.faces.fRight, true);
+                setHighlight(netLeft.faces.fTop, true);
+                successText.style.opacity = 1;
+            } else {
+                setHighlight(netRight.faces.fFront, false);
+                setHighlight(netRight.faces.fRight, false);
+                setHighlight(netRight.faces.fTop, false);
+                setHighlight(netLeft.faces.fFront, false);
+                setHighlight(netLeft.faces.fRight, false);
+                setHighlight(netLeft.faces.fTop, false);
+                successText.style.opacity = 0;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        slider.addEventListener('input', updateScene);
+
+        // Initial render
+        updateScene();
+    </script>
+</body>
+</html>

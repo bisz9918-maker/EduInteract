@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网图与半球划分判读</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-step-indicator { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #1565c0; border-radius: 4px; background: #fff; color: #1565c0; }
+        .scene1-btn:hover { background: #e3f2fd; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-hidden { display: none !important; }
+        .scene1-fade-in { animation: scene1-fadeIn 0.3s ease-in; }
+        @keyframes scene1-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×440px，留出 60px 给控件 -->
+        <svg width="800" height="440" id="scene1-svg">
+            <!-- 定义 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 东半球区域填充（步骤 2） -->
+            <path id="scene1-east-hemisphere" class="scene1-hidden" d="M 100,60 L 650,60 L 650,400 L 100,400 Z" fill="#1565c0" opacity="0.15"/>
+
+            <!-- 西半球区域填充（步骤 2） -->
+            <path id="scene1-west-hemisphere" class="scene1-hidden" d="M 650,60 L 720,60 L 720,400 L 650,400 Z" fill="#c62828" opacity="0.15"/>
+
+            <!-- 经线组（3 条黑色弧线）- 使用直线简化 -->
+            <!-- 经线 170°E -->
+            <line id="scene1-meridian-170e" x1="150" y1="380" x2="180" y2="100" stroke="#000000" stroke-width="2"/>
+            <!-- 经线 180° -->
+            <line id="scene1-meridian-180" x1="380" y1="380" x2="400" y2="80" stroke="#000000" stroke-width="2"/>
+            <!-- 经线 170°W -->
+            <line id="scene1-meridian-170w" x1="580" y1="380" x2="570" y2="100" stroke="#000000" stroke-width="2"/>
+
+            <!-- 纬线组（3 条水平线） -->
+            <!-- 纬线 20°N -->
+            <line id="scene1-latitude-20n" x1="120" y1="380" x2="680" y2="380" stroke="#000000" stroke-width="2"/>
+            <!-- 纬线 30°N -->
+            <line id="scene1-latitude-30n" x1="150" y1="260" x2="650" y2="260" stroke="#000000" stroke-width="2"/>
+            <!-- 纬线 40°N -->
+            <line id="scene1-latitude-40n" x1="180" y1="140" x2="620" y2="140" stroke="#000000" stroke-width="2"/>
+
+            <!-- B-D 虚线路径（步骤 3） -->
+            <path id="scene1-path-bd" class="scene1-hidden" d="M 175,380 Q 400,340 575,380" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" fill="none"/>
+
+            <!-- 赤道示意线（步骤 1） -->
+            <line id="scene1-equator" class="scene1-hidden" x1="100" y1="410" x2="700" y2="410" stroke="#c62828" stroke-width="2" stroke-dasharray="8,4"/>
+
+            <!-- 东西半球分界线（步骤 2） -->
+            <!-- 160°E 分界线 -->
+            <line id="scene1-boundary-160e" class="scene1-hidden" x1="100" y1="60" x2="100" y2="410" stroke="#c62828" stroke-width="2" stroke-dasharray="8,4"/>
+            <!-- 20°W 分界线 -->
+            <line id="scene1-boundary-20w" class="scene1-hidden" x1="650" y1="60" x2="650" y2="410" stroke="#c62828" stroke-width="2" stroke-dasharray="8,4"/>
+
+            <!-- ABCD 四点（蓝色实心圆） -->
+            <circle id="scene1-point-a" cx="180" cy="200" r="6" fill="#1565c0"/>
+            <circle id="scene1-point-b" cx="175" cy="380" r="6" fill="#1565c0"/>
+            <circle id="scene1-point-c" cx="570" cy="200" r="6" fill="#1565c0"/>
+            <circle id="scene1-point-d" cx="575" cy="380" r="6" fill="#1565c0"/>
+
+            <!-- 方向箭头（步骤 3） -->
+            <path id="scene1-direction-arrow" class="scene1-hidden" d="M 390,350 L 410,360 L 405,355 L 415,365" stroke="#2e7d32" stroke-width="2" fill="none"/>
+
+            <!-- 标签文字 - 全部移到网格外部 -->
+            <!-- 经度标注 - 放在经线下方，远离 B/D 点 -->
+            <text id="scene1-label-lon-170e" x="165" y="420" font-size="14" fill="#000000" text-anchor="middle">170°E</text>
+            <text id="scene1-label-lon-180" x="390" y="420" font-size="14" fill="#000000" text-anchor="middle">180°</text>
+            <text id="scene1-label-lon-170w" x="575" y="420" font-size="14" fill="#000000" text-anchor="middle">170°W</text>
+
+            <!-- 纬度标注 - 放在纬线右侧 -->
+            <text id="scene1-label-lat-20n" x="700" y="385" font-size="14" fill="#000000" text-anchor="middle">20°N</text>
+            <text id="scene1-label-lat-30n" x="700" y="265" font-size="14" fill="#000000" text-anchor="middle">30°N</text>
+            <text id="scene1-label-lat-40n" x="700" y="145" font-size="14" fill="#000000" text-anchor="middle">40°N</text>
+
+            <!-- 点标签 - 放在点旁边，远离经纬线 -->
+            <text id="scene1-label-a" x="195" y="195" font-size="14" fill="#000000">A</text>
+            <text id="scene1-label-b" x="155" y="395" font-size="14" fill="#000000">B</text>
+            <text id="scene1-label-c" x="555" y="195" font-size="14" fill="#000000">C</text>
+            <text id="scene1-label-d" x="595" y="395" font-size="14" fill="#000000">D</text>
+
+            <!-- 半球标注（步骤 1-2） -->
+            <text id="scene1-label-north-hemisphere" class="scene1-hidden" x="400" y="45" font-size="16" fill="#000000" text-anchor="middle">北半球</text>
+            <text id="scene1-label-south-hemisphere" class="scene1-hidden" x="400" y="430" font-size="14" fill="#000000" text-anchor="middle">南半球</text>
+
+            <!-- 赤道标注（步骤 1） -->
+            <text id="scene1-label-equator" class="scene1-hidden" x="400" y="428" font-size="14" fill="#c62828" text-anchor="middle">赤道 0°</text>
+
+            <!-- 半球分界线标注（步骤 2） -->
+            <text id="scene1-label-160e" class="scene1-hidden" x="80" y="230" font-size="14" fill="#c62828" text-anchor="middle">160°E</text>
+            <text id="scene1-label-20w" class="scene1-hidden" x="670" y="230" font-size="14" fill="#c62828" text-anchor="middle">20°W</text>
+
+            <!-- 东西半球标注（步骤 2） -->
+            <text id="scene1-label-east-hemisphere" class="scene1-hidden" x="375" y="50" font-size="14" fill="#1565c0" text-anchor="middle">东半球</text>
+            <text id="scene1-label-west-hemisphere" class="scene1-hidden" x="685" y="50" font-size="14" fill="#c62828" text-anchor="middle">西半球</text>
+
+            <!-- 路径说明文字（步骤 3） -->
+            <text id="scene1-label-path-desc" class="scene1-hidden" x="400" y="320" font-size="14" fill="#2e7d32" text-anchor="middle">先向东北，再向东南</text>
+
+            <!-- 结论总结框（步骤 4） -->
+            <rect id="scene1-conclusion-box" class="scene1-hidden" x="150" y="100" width="500" height="180" fill="#fff9c4" stroke="#f57f17" stroke-width="2" rx="8"/>
+            <text id="scene1-conclusion-title" class="scene1-hidden" x="400" y="135" font-size="16" fill="#000000" text-anchor="middle" font-weight="bold">答案总结</text>
+            <text id="scene1-conclusion-q1" class="scene1-hidden" x="400" y="170" font-size="14" fill="#000000" text-anchor="middle">小题 1：×（错误）—— C、D 位于西半球</text>
+            <text id="scene1-conclusion-q2" class="scene1-hidden" x="400" y="200" font-size="14" fill="#000000" text-anchor="middle">小题 2：√（正确）—— 先东北后东南</text>
+            <text id="scene1-conclusion-note" class="scene1-hidden" x="400" y="260" font-size="12" fill="#666" text-anchor="middle">东西半球分界线：20°W 和 160°E</text>
+        </svg>
+
+        <!-- 步骤指示器 -->
+        <div id="scene1-step-indicator">步骤 0/4</div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 坐标表对照：
+        // 经线 170°E: (150,380)-(180,100)
+        // 经线 180°: (380,380)-(400,80)
+        // 经线 170°W: (580,380)-(570,100)
+        // 纬线 20°N: (120,380)-(680,380)
+        // 纬线 30°N: (150,260)-(650,260)
+        // 纬线 40°N: (180,140)-(620,140)
+        // B 点：(175,380), D 点：(575,380)
+        // A 点：(180,200), C 点：(570,200)
+
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 4,
+
+            // 元素 ID 映射
+            elements: {
+                // 步骤 1 元素（南北半球）
+                equator: 'scene1-equator',
+                labelEquator: 'scene1-label-equator',
+                labelNorthHemisphere: 'scene1-label-north-hemisphere',
+                labelSouthHemisphere: 'scene1-label-south-hemisphere',
+
+                // 步骤 2 元素（东西半球）
+                boundary160e: 'scene1-boundary-160e',
+                boundary20w: 'scene1-boundary-20w',
+                eastHemisphere: 'scene1-east-hemisphere',
+                westHemisphere: 'scene1-west-hemisphere',
+                label160e: 'scene1-label-160e',
+                label20w: 'scene1-label-20w',
+                labelEastHemisphere: 'scene1-label-east-hemisphere',
+                labelWestHemisphere: 'scene1-label-west-hemisphere',
+
+                // 步骤 3 元素（B-D 路径）
+                pathBd: 'scene1-path-bd',
+                directionArrow: 'scene1-direction-arrow',
+                labelPathDesc: 'scene1-label-path-desc',
+
+                // 步骤 4 元素（结论）
+                conclusionBox: 'scene1-conclusion-box',
+                conclusionTitle: 'scene1-conclusion-title',
+                conclusionQ1: 'scene1-conclusion-q1',
+                conclusionQ2: 'scene1-conclusion-q2',
+                conclusionNote: 'scene1-conclusion-note'
+            },
+
+            // 初始化
+            init: function() {
+                this.updateDisplay();
+                this.bindEvents();
+            },
+
+            // 绑定事件
+            bindEvents: function() {
+                const prevBtn = document.getElementById('scene1-btn-prev');
+                const nextBtn = document.getElementById('scene1-btn-next');
+
+                prevBtn.addEventListener('click', () => {
+                    if (this.currentStep > 0) {
+                        this.currentStep--;
+                        this.updateDisplay();
+                    }
+                });
+
+                nextBtn.addEventListener('click', () => {
+                    if (this.currentStep < this.totalSteps) {
+                        this.currentStep++;
+                        this.updateDisplay();
+                    }
+                });
+            },
+
+            // 更新显示
+            updateDisplay: function() {
+                // 更新步骤指示器
+                document.getElementById('scene1-step-indicator').textContent = '步骤 ' + this.currentStep + '/' + this.totalSteps;
+
+                // 更新按钮状态
+                document.getElementById('scene1-btn-prev').disabled = (this.currentStep === 0);
+                document.getElementById('scene1-btn-next').disabled = (this.currentStep === this.totalSteps);
+
+                // 根据步骤显示/隐藏元素
+                this.setStepElements();
+            },
+
+            // 设置步骤元素显示状态
+            setStepElements: function() {
+                const el = this.elements;
+
+                // 步骤 0：初始状态 - 只显示基础经纬网和四点（已默认显示）
+                // 隐藏所有步骤元素
+                this.hideAll();
+
+                if (this.currentStep >= 1) {
+                    // 步骤 1：南北半球划分
+                    this.show(el.equator);
+                    this.show(el.labelEquator);
+                    this.show(el.labelNorthHemisphere);
+                    this.show(el.labelSouthHemisphere);
+                }
+
+                if (this.currentStep >= 2) {
+                    // 步骤 2：东西半球划分
+                    this.show(el.boundary160e);
+                    this.show(el.boundary20w);
+                    this.show(el.eastHemisphere);
+                    this.show(el.westHemisphere);
+                    this.show(el.label160e);
+                    this.show(el.label20w);
+                    this.show(el.labelEastHemisphere);
+                    this.show(el.labelWestHemisphere);
+                }
+
+                if (this.currentStep >= 3) {
+                    // 步骤 3：B-D 路径方向
+                    this.show(el.pathBd);
+                    this.show(el.directionArrow);
+                    this.show(el.labelPathDesc);
+                }
+
+                if (this.currentStep >= 4) {
+                    // 步骤 4：结论总结
+                    this.show(el.conclusionBox);
+                    this.show(el.conclusionTitle);
+                    this.show(el.conclusionQ1);
+                    this.show(el.conclusionQ2);
+                    this.show(el.conclusionNote);
+                }
+            },
+
+            // 显示元素
+            show: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('scene1-hidden');
+                    el.classList.add('scene1-fade-in');
+                }
+            },
+
+            // 隐藏元素
+            hide: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('scene1-hidden');
+                    el.classList.remove('scene1-fade-in');
+                }
+            },
+
+            // 隐藏所有步骤元素
+            hideAll: function() {
+                Object.values(this.elements).forEach(id => this.hide(id));
+            }
+        };
+
+        // 初始化场景
+        scene1.init();
+    })();
+    </script>
+</body>
+</html>

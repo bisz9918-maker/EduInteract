@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; overflow: hidden; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-canvas-container { width: 800px; height: 440px; position: absolute; top: 0; left: 0; }
+        #scene2-controls { position: absolute; bottom: 0; left: 0; width: 800px; height: 60px; display: flex; justify-content: center; align-items: center; gap: 20px; background: #f8f9fa; border-top: 1px solid #e9ecef; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-text { font-size: 16px; font-weight: bold; min-width: 60px; text-align: center; }
+        
+        .scene2-label { position: absolute; color: #000; font-size: 14px; pointer-events: none; white-space: nowrap; opacity: 0; transition: opacity 0.3s; }
+        .scene2-label.visible { opacity: 1; }
+        .scene2-label-math { font-size: 16px; }
+        .scene2-label-formula { font-size: 18px; font-weight: bold; color: #c62828; background: rgba(255,255,255,0.8); padding: 4px; border-radius: 4px; }
+        .scene2-label-coordination { font-size: 18px; font-weight: bold; color: #1565c0; background: rgba(255,255,255,0.8); padding: 4px; border-radius: 4px; }
+        
+        /* Specific label offsets */
+        #scene2-label-tl { transform: translate(-110%, -110%); }
+        #scene2-label-c { transform: translate(20%, 20%); }
+        #scene2-label-d1 { transform: translate(20%, -100%); }
+        #scene2-label-d2 { transform: translate(20%, -100%); }
+        #scene2-label-a2-left { transform: translate(-150%, -50%); }
+        #scene2-label-a2-bottom { transform: translate(-50%, 100%); }
+        #scene2-label-formula-box { transform: translate(-50%, -50%); }
+        #scene2-label-coord-box { transform: translate(0, 0); top: 20px !important; right: 20px !important; left: auto !important; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene2-container">
+        <div id="scene2-canvas-container"></div>
+        
+        <!-- CSS2D Labels will be injected here by CSS2DRenderer, but we can define them as HTML elements and wrap them in CSS2DObject -->
+        <div id="scene2-labels" style="display: none;">
+            <div id="scene2-label-tl" class="scene2-label">顶角原子</div>
+            <div id="scene2-label-c" class="scene2-label">面心原子</div>
+            <div id="scene2-label-d1" class="scene2-label scene2-label-math">\(d\)</div>
+            <div id="scene2-label-d2" class="scene2-label scene2-label-math">\(d\)</div>
+            <div id="scene2-label-a2-left" class="scene2-label scene2-label-math">\(a_2\)</div>
+            <div id="scene2-label-a2-bottom" class="scene2-label scene2-label-math">\(a_2\)</div>
+            <div id="scene2-label-formula-box" class="scene2-label scene2-label-formula">\(\sqrt{2}a_2 = 2d\)</div>
+            <div id="scene2-label-coord-box" class="scene2-label scene2-label-coordination">配位数 = 12</div>
+        </div>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <div id="scene2-step-text">1 / 4</div>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        (function() {
+            let currentStep = 0;
+            const totalSteps = 4;
+            
+            // DOM Elements
+            const container = document.getElementById('scene2-canvas-container');
+            const btnPrev = document.getElementById('scene2-btn-prev');
+            const btnNext = document.getElementById('scene2-btn-next');
+            const stepText = document.getElementById('scene2-step-text');
+            
+            // Three.js setup
+            const width = 800;
+            const height = 440;
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+            
+            const camera = new THREE.OrthographicCamera(-width/2, width/2, height/2, -height/2, 0.1, 2000);
+            camera.position.set(300, 300, 400);
+            camera.lookAt(0, 0, 0);
+            
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(width, height);
+            container.appendChild(renderer.domElement);
+            
+            const labelRenderer = new CSS2DRenderer();
+            labelRenderer.setSize(width, height);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'none';
+            container.appendChild(labelRenderer.domElement);
+            
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 0, 0);
+            
+            // Materials
+            const matWireframe = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const matWireframeDashed = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 10, gapSize: 5 });
+            const matAtomGray = new THREE.MeshBasicMaterial({ color: 0x888888 });
+            const matAtomRed = new THREE.MeshBasicMaterial({ color: 0xc62828 });
+            const matAtomBlue = new THREE.MeshBasicMaterial({ color: 0x1565c0 });
+            const matLineBlue = new THREE.LineBasicMaterial({ color: 0x1565c0 });
+            const matFaceFill = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+            const matHighlightLine = new THREE.LineBasicMaterial({ color: 0xc62828, linewidth: 3 }); // WebGL linewidth might not work, but we try
+            
+            // Geometry
+            const atomGeo = new THREE.SphereGeometry(15, 32, 32);
+            
+            // Groups
+            const groupMainCell = new THREE.Group();
+            const groupAuxCell = new THREE.Group();
+            const groupStep2 = new THREE.Group();
+            const groupStep3 = new THREE.Group();
+            scene.add(groupMainCell);
+            scene.add(groupAuxCell);
+            scene.add(groupStep2);
+            scene.add(groupStep3);
+            
+            // 1. Main Cell Wireframe
+            const boxGeo = new THREE.BoxGeometry(240, 240, 240);
+            const edgesGeo = new THREE.EdgesGeometry(boxGeo);
+            const mainWireframe = new THREE.LineSegments(edgesGeo, matWireframe);
+            groupMainCell.add(mainWireframe);
+            
+            // 2. Aux Cell Wireframe
+            const auxWireframe = new THREE.LineSegments(edgesGeo, matWireframeDashed);
+            auxWireframe.position.set(0, 0, 240);
+            auxWireframe.computeLineDistances(); // Required for dashed lines
+            groupAuxCell.add(auxWireframe);
+            
+            // Atoms data
+            const a = 120;
+            const mainAtomsPos = [
+                // Corners
+                [a,a,a], [a,a,-a], [a,-a,a], [a,-a,-a], [-a,a,a], [-a,a,-a], [-a,-a,a], [-a,-a,-a],
+                // Face centers
+                [a,0,0], [-a,0,0], [0,a,0], [0,-a,0], [0,0,a], [0,0,-a]
+            ];
+            
+            const auxAtomsPos = [
+                // Corners (z from 120 to 360, center at 240)
+                [a,a,3*a], [a,a,a], [a,-a,3*a], [a,-a,a], [-a,a,3*a], [-a,a,a], [-a,-a,3*a], [-a,-a,a],
+                // Face centers
+                [a,0,2*a], [-a,0,2*a], [0,a,2*a], [0,-a,2*a], [0,0,3*a], [0,0,a]
+            ];
+            
+            // Create atoms
+            const allAtoms = [];
+            
+            function createAtom(pos, group) {
+                const mesh = new THREE.Mesh(atomGeo, matAtomGray);
+                mesh.position.set(pos[0], pos[1], pos[2]);
+                group.add(mesh);
+                allAtoms.push({ mesh, pos });
+                return mesh;
+            }
+            
+            // Add main atoms
+            mainAtomsPos.forEach(pos => createAtom(pos, groupMainCell));
+            
+            // Add aux atoms (avoid duplicates)
+            auxAtomsPos.forEach(pos => {
+                const isDuplicate = mainAtomsPos.some(mp => mp[0]===pos[0] && mp[1]===pos[1] && mp[2]===pos[2]);
+                if (!isDuplicate) {
+                    createAtom(pos, groupAuxCell);
+                }
+            });
+            
+            // Target atom is at (0,0,120)
+            const targetAtom = allAtoms.find(a => a.pos[0]===0 && a.pos[1]===0 && a.pos[2]===120).mesh;
+            
+            // 12 Neighbors
+            const neighborPositions = [
+                [a,a,a], [a,-a,a], [-a,a,a], [-a,-a,a],
+                [a,0,0], [-a,0,0], [0,a,0], [0,-a,0],
+                [a,0,2*a], [-a,0,2*a], [0,a,2*a], [0,-a,2*a]
+            ];
+            
+            const neighborAtoms = [];
+            neighborPositions.forEach(pos => {
+                const atom = allAtoms.find(a => a.pos[0]===pos[0] && a.pos[1]===pos[1] && a.pos[2]===pos[2]);
+                if (atom) neighborAtoms.push(atom.mesh);
+            });
+            
+            // Coordination lines
+            const coordLines = new THREE.Group();
+            neighborPositions.forEach(pos => {
+                const points = [new THREE.Vector3(0,0,120), new THREE.Vector3(pos[0], pos[1], pos[2])];
+                const geo = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geo, matLineBlue);
+                coordLines.add(line);
+            });
+            groupAuxCell.add(coordLines);
+            
+            // Step 2 Elements
+            // Z=120 face fill
+            const faceFillGeo = new THREE.PlaneGeometry(240, 240);
+            const faceFill = new THREE.Mesh(faceFillGeo, matFaceFill);
+            faceFill.position.set(0, 0, 120);
+            groupStep2.add(faceFill);
+            
+            // Z=120 face wireframe
+            const faceEdgesGeo = new THREE.EdgesGeometry(faceFillGeo);
+            const faceWireframe = new THREE.LineSegments(faceEdgesGeo, matWireframe);
+            faceWireframe.position.set(0, 0, 120);
+            groupStep2.add(faceWireframe);
+            
+            // Face diagonal
+            const diagPoints = [new THREE.Vector3(-a, a, 120), new THREE.Vector3(a, -a, 120)];
+            const diagGeo = new THREE.BufferGeometry().setFromPoints(diagPoints);
+            const diagLine = new THREE.Line(diagGeo, matWireframe);
+            groupStep2.add(diagLine);
+            
+            // Step 3 Elements
+            // Highlight triangle
+            const triPoints = [
+                new THREE.Vector3(-a, a, 120),
+                new THREE.Vector3(-a, -a, 120),
+                new THREE.Vector3(a, -a, 120),
+                new THREE.Vector3(-a, a, 120)
+            ];
+            const triGeo = new THREE.BufferGeometry().setFromPoints(triPoints);
+            const triLine = new THREE.Line(triGeo, matHighlightLine);
+            groupStep3.add(triLine);
+            
+            // Labels
+            function createLabel(id, position, group) {
+                const el = document.getElementById(id);
+                const label = new CSS2DObject(el);
+                label.position.copy(position);
+                group.add(label);
+                return el;
+            }
+            
+            const lblTL = createLabel('scene2-label-tl', new THREE.Vector3(-a, a, 120), groupStep2);
+            const lblC = createLabel('scene2-label-c', new THREE.Vector3(0, 0, 120), groupStep2);
+            const lblD1 = createLabel('scene2-label-d1', new THREE.Vector3(-a/2, a/2, 120), groupStep2);
+            const lblD2 = createLabel('scene2-label-d2', new THREE.Vector3(a/2, -a/2, 120), groupStep2);
+            
+            const lblA2Left = createLabel('scene2-label-a2-left', new THREE.Vector3(-a, 0, 120), groupStep3);
+            const lblA2Bottom = createLabel('scene2-label-a2-bottom', new THREE.Vector3(0, -a, 120), groupStep3);
+            const lblFormula = createLabel('scene2-label-formula-box', new THREE.Vector3(-a/2, -a/2, 120), groupStep3);
+            
+            // Coordination label is fixed to screen, not 3D
+            const lblCoord = document.getElementById('scene2-label-coord-box');
+            document.getElementById('scene2-container').appendChild(lblCoord);
+            
+            // Animation state
+            let isAnimating = false;
+            let animProgress = 0;
+            let startCamPos = new THREE.Vector3();
+            let endCamPos = new THREE.Vector3();
+            let startTarget = new THREE.Vector3();
+            let endTarget = new THREE.Vector3();
+            
+            function updateState() {
+                // Reset all
+                groupMainCell.visible = true;
+                groupAuxCell.visible = false;
+                groupStep2.visible = false;
+                groupStep3.visible = false;
+                lblCoord.classList.remove('visible');
+                
+                allAtoms.forEach(a => {
+                    a.mesh.visible = true;
+                    a.mesh.material = matAtomGray;
+                });
+                mainWireframe.visible = true;
+                
+                if (currentStep === 0) {
+                    // Step 0: Initial
+                    allAtoms.forEach(a => {
+                        // Only show main cell atoms
+                        const isMain = mainAtomsPos.some(mp => mp[0]===a.pos[0] && mp[1]===a.pos[1] && mp[2]===a.pos[2]);
+                        a.mesh.visible = isMain;
+                    });
+                } else if (currentStep === 1) {
+                    // Step 1: Coordination
+                    groupAuxCell.visible = true;
+                    targetAtom.material = matAtomRed;
+                    neighborAtoms.forEach(mesh => mesh.material = matAtomBlue);
+                    lblCoord.classList.add('visible');
+                } else if (currentStep >= 2) {
+                    // Step 2 & 3: 2D View
+                    groupMainCell.visible = false;
+                    groupAuxCell.visible = false;
+                    groupStep2.visible = true;
+                    
+                    // Only show 5 atoms on Z=120
+                    allAtoms.forEach(a => {
+                        if (a.pos[2] === 120 && Math.abs(a.pos[0]) <= 120 && Math.abs(a.pos[1]) <= 120) {
+                            a.mesh.visible = true;
+                            a.mesh.material = (a.pos[0]===0 && a.pos[1]===0) ? matAtomRed : matAtomGray;
+                        } else {
+                            a.mesh.visible = false;
+                        }
+                    });
+                    
+                    lblTL.classList.add('visible');
+                    lblC.classList.add('visible');
+                    lblD1.classList.add('visible');
+                    lblD2.classList.add('visible');
+                    
+                    if (currentStep === 3) {
+                        groupStep3.visible = true;
+                        lblA2Left.classList.add('visible');
+                        lblA2Bottom.classList.add('visible');
+                        lblFormula.classList.add('visible');
+                    } else {
+                        lblA2Left.classList.remove('visible');
+                        lblA2Bottom.classList.remove('visible');
+                        lblFormula.classList.remove('visible');
+                    }
+                }
+                
+                // Camera animation trigger
+                if (currentStep === 2 && !isAnimating) {
+                    // Animate to front view
+                    startCamPos.copy(camera.position);
+                    endCamPos.set(0, 0, 500);
+                    startTarget.copy(controls.target);
+                    endTarget.set(0, 0, 120);
+                    isAnimating = true;
+                    animProgress = 0;
+                } else if (currentStep < 2 && !isAnimating) {
+                    // Animate back to iso view
+                    startCamPos.copy(camera.position);
+                    endCamPos.set(300, 300, 400);
+                    startTarget.copy(controls.target);
+                    endTarget.set(0, 0, 0);
+                    isAnimating = true;
+                    animProgress = 0;
+                }
+                
+                // Update UI
+                stepText.innerText = `${currentStep + 1} / ${totalSteps}`;
+                btnPrev.disabled = currentStep === 0;
+                btnNext.disabled = currentStep === totalSteps - 1;
+            }
+            
+            btnPrev.addEventListener('click', () => {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateState();
+                }
+            });
+            
+            btnNext.addEventListener('click', () => {
+                if (currentStep < totalSteps - 1) {
+                    currentStep++;
+                    updateState();
+                }
+            });
+            
+            // Animation loop
+            const clock = new THREE.Clock();
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                const delta = clock.getDelta();
+                
+                if (isAnimating) {
+                    animProgress += delta * 1.5; // 1.5 speed
+                    if (animProgress >= 1) {
+                        animProgress = 1;
+                        isAnimating = false;
+                    }
+                    
+                    // Ease in out
+                    const t = animProgress < 0.5 ? 2 * animProgress * animProgress : -1 + (4 - 2 * animProgress) * animProgress;
+                    
+                    camera.position.lerpVectors(startCamPos, endCamPos, t);
+                    controls.target.lerpVectors(startTarget, endTarget, t);
+                    camera.lookAt(controls.target);
+                    camera.updateProjectionMatrix();
+                }
+                
+                controls.update();
+                renderer.render(scene, camera);
+                labelRenderer.render(scene, camera);
+            }
+            
+            // Init
+            updateState();
+            animate();
+            
+        })();
+    </script>
+</body>
+</html>

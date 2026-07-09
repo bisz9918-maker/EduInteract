@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>碳链成键分析 - 场景2</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        .scene2-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 键型标注区样式 */
+        #scene2-bond-label {
+            font-size: 16px;
+            fill: #2e7d32;
+            font-weight: bold;
+        }
+        /* 推导说明区样式 */
+        #scene2-explanation {
+            font-size: 14px;
+            fill: #333;
+        }
+        /* 原子编号样式 */
+        .scene2-atom-number {
+            font-size: 12px;
+            fill: #888888;
+        }
+        /* ①②③标注样式 */
+        .scene2-marker {
+            font-size: 16px;
+            fill: #000000;
+            font-weight: bold;
+        }
+        /* 高亮当前碳原子的圆圈 */
+        .scene2-highlight {
+            fill: none;
+            stroke: #1565c0;
+            stroke-width: 3;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .scene2-highlight.active {
+            opacity: 1;
+        }
+        /* 已确定的键 */
+        .scene2-bond-confirmed {
+            stroke: #2e7d32;
+        }
+        /* 当前推导的键 */
+        .scene2-bond-current {
+            stroke: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义斜线填充图案用于X原子 -->
+            <defs>
+                <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="4" stroke="#000000" stroke-width="1"/>
+                </pattern>
+            </defs>
+
+            <!-- 键型标注区 -->
+            <text id="scene2-bond-label" x="400" y="180" text-anchor="middle"></text>
+
+            <!-- 化学键（10个键：H-C1, C1-C2, C2-C3, ..., C8-C9, C9-X） -->
+            <!-- 初始状态全部用单线表示 -->
+            <g id="scene2-bonds">
+                <!-- H-C1 键 (索引0) -->
+                <line id="scene2-bond-0" x1="92" y1="250" x2="118" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C1-C2 键 (索引1) -->
+                <line id="scene2-bond-1" x1="142" y1="250" x2="168" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C2-C3 键 (索引2) -->
+                <line id="scene2-bond-2" x1="192" y1="250" x2="218" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C3-C4 键 (索引3) -->
+                <line id="scene2-bond-3" x1="242" y1="250" x2="268" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C4-C5 键 (索引4) -->
+                <line id="scene2-bond-4" x1="292" y1="250" x2="318" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C5-C6 键 (索引5) -->
+                <line id="scene2-bond-5" x1="342" y1="250" x2="368" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C6-C7 键 (索引6) - ①处 -->
+                <line id="scene2-bond-6" x1="392" y1="250" x2="418" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C7-C8 键 (索引7) -->
+                <line id="scene2-bond-7" x1="442" y1="250" x2="468" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C8-C9 键 (索引8) - ②处 -->
+                <line id="scene2-bond-8" x1="492" y1="250" x2="518" y2="250" stroke="#000000" stroke-width="2"/>
+                <!-- C9-X 键 (索引9) -->
+                <line id="scene2-bond-9" x1="542" y1="250" x2="568" y2="250" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- 原子 -->
+            <g id="scene2-atoms">
+                <!-- H原子 (空心圆) -->
+                <circle id="scene2-atom-h" cx="80" cy="250" r="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+                <!-- C1-C9 碳原子 (实心圆) -->
+                <circle id="scene2-atom-c1" cx="130" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c2" cx="180" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c3" cx="230" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c4" cx="280" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c5" cx="330" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c6" cx="380" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c7" cx="430" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c8" cx="480" cy="250" r="12" fill="#000000"/>
+                <circle id="scene2-atom-c9" cx="530" cy="250" r="12" fill="#000000"/>
+                <!-- X原子 (斜线填充) -->
+                <circle id="scene2-atom-x" cx="580" cy="250" r="12" fill="url(#scene2-hatch)" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- 高亮圆圈（用于当前推导的碳原子） -->
+            <g id="scene2-highlights">
+                <circle id="scene2-highlight-c1" class="scene2-highlight" cx="130" cy="250" r="18"/>
+                <circle id="scene2-highlight-c2" class="scene2-highlight" cx="180" cy="250" r="18"/>
+                <circle id="scene2-highlight-c3" class="scene2-highlight" cx="230" cy="250" r="18"/>
+                <circle id="scene2-highlight-c4" class="scene2-highlight" cx="280" cy="250" r="18"/>
+                <circle id="scene2-highlight-c5" class="scene2-highlight" cx="330" cy="250" r="18"/>
+                <circle id="scene2-highlight-c6" class="scene2-highlight" cx="380" cy="250" r="18"/>
+                <circle id="scene2-highlight-c7" class="scene2-highlight" cx="430" cy="250" r="18"/>
+                <circle id="scene2-highlight-c8" class="scene2-highlight" cx="480" cy="250" r="18"/>
+                <circle id="scene2-highlight-c9" class="scene2-highlight" cx="530" cy="250" r="18"/>
+            </g>
+
+            <!-- 原子编号 -->
+            <g id="scene2-atom-numbers">
+                <text id="scene2-num-c1" class="scene2-atom-number" x="130" y="230" text-anchor="middle">C1</text>
+                <text id="scene2-num-c2" class="scene2-atom-number" x="180" y="230" text-anchor="middle">C2</text>
+                <text id="scene2-num-c3" class="scene2-atom-number" x="230" y="230" text-anchor="middle">C3</text>
+                <text id="scene2-num-c4" class="scene2-atom-number" x="280" y="230" text-anchor="middle">C4</text>
+                <text id="scene2-num-c5" class="scene2-atom-number" x="330" y="230" text-anchor="middle">C5</text>
+                <text id="scene2-num-c6" class="scene2-atom-number" x="380" y="230" text-anchor="middle">C6</text>
+                <text id="scene2-num-c7" class="scene2-atom-number" x="430" y="230" text-anchor="middle">C7</text>
+                <text id="scene2-num-c8" class="scene2-atom-number" x="480" y="230" text-anchor="middle">C8</text>
+                <text id="scene2-num-c9" class="scene2-atom-number" x="530" y="230" text-anchor="middle">C9</text>
+            </g>
+
+            <!-- ①②③标注 -->
+            <g id="scene2-markers">
+                <text id="scene2-marker-1" class="scene2-marker" x="405" y="220" text-anchor="middle">①</text>
+                <text id="scene2-marker-2" class="scene2-marker" x="505" y="220" text-anchor="middle">②</text>
+                <text id="scene2-marker-3" class="scene2-marker" x="580" y="285" text-anchor="middle">③</text>
+            </g>
+
+            <!-- 原子类型标签 -->
+            <g id="scene2-atom-labels">
+                <text id="scene2-label-h" x="80" y="285" text-anchor="middle" font-size="14">氢原子</text>
+                <text id="scene2-label-c" x="180" y="285" text-anchor="middle" font-size="14">碳原子</text>
+            </g>
+
+            <!-- 推导说明区 -->
+            <text id="scene2-explanation" x="400" y="350" text-anchor="middle"></text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/9</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 场景2：碳链成键分析
+        // 布局坐标表（实现对照依据）：
+        // H原子: (80,250) r=12 | C1-C9: (130~530,250) r=12 | X原子: (580,250) r=12
+        // 原子间距: 50px | 键长: 约26px (圆边缘到边缘)
+        // ①标注: (405,220) | ②标注: (505,220) | ③标注: (580,285)
+        // 键型标注区: y=180 | 推导说明区: y=350 | 控件栏: y=440~490
+
+        // 键型数组：'单' 或 '三'，对应10个键
+        // 键索引: 0=H-C1, 1=C1-C2, 2=C2-C3, 3=C3-C4, 4=C4-C5, 5=C5-C6, 6=C6-C7(①), 7=C7-C8, 8=C8-C9(②), 9=C9-X
+        const bondTypes = ['单', '三', '单', '三', '单', '三', '单', '三', '单', '三'];
+
+        // 分步序列配置
+        // 每个步骤：{ highlightAtom: 高亮的碳原子编号(1-9) 或 null, confirmedBonds: 已确定的键索引数组, explanation: 说明文字, bondLabel: 键型标注 }
+        const steps = [
+            {
+                highlightAtom: 1,
+                confirmedBonds: [],
+                currentBond: 1,
+                explanation: 'C1：与H形成单键(1价)，需与C2形成三键(3价)，共4价',
+                bondLabel: 'C1-C2: 三键'
+            },
+            {
+                highlightAtom: 2,
+                confirmedBonds: [1],
+                currentBond: 2,
+                explanation: 'C2：与C1三键(3价)，需与C3形成单键(1价)，共4价',
+                bondLabel: 'C2-C3: 单键'
+            },
+            {
+                highlightAtom: 3,
+                confirmedBonds: [1, 2],
+                currentBond: 3,
+                explanation: 'C3：与C2单键(1价)，需与C4形成三键(3价)，共4价',
+                bondLabel: 'C3-C4: 三键'
+            },
+            {
+                highlightAtom: 4,
+                confirmedBonds: [1, 2, 3],
+                currentBond: 4,
+                explanation: 'C4：与C3三键(3价)，需与C5形成单键(1价)，共4价',
+                bondLabel: 'C4-C5: 单键'
+            },
+            {
+                highlightAtom: 5,
+                confirmedBonds: [1, 2, 3, 4],
+                currentBond: 5,
+                explanation: 'C5：与C4单键(1价)，需与C6形成三键(3价)，共4价',
+                bondLabel: 'C5-C6: 三键'
+            },
+            {
+                highlightAtom: 6,
+                confirmedBonds: [1, 2, 3, 4, 5],
+                currentBond: 6,
+                explanation: 'C6：与C5三键(3价)，需与C7形成单键(1价)，共4价',
+                bondLabel: 'C6-C7: 单键 (①处)'
+            },
+            {
+                highlightAtom: 7,
+                confirmedBonds: [1, 2, 3, 4, 5, 6],
+                currentBond: 7,
+                explanation: 'C7：与C6单键(1价)，需与C8形成三键(3价)，共4价',
+                bondLabel: 'C7-C8: 三键'
+            },
+            {
+                highlightAtom: 8,
+                confirmedBonds: [1, 2, 3, 4, 5, 6, 7],
+                currentBond: 8,
+                explanation: 'C8：与C7三键(3价)，需与C9形成单键(1价)，共4价',
+                bondLabel: 'C8-C9: 单键 (②处)'
+            },
+            {
+                highlightAtom: 9,
+                confirmedBonds: [1, 2, 3, 4, 5, 6, 7, 8],
+                currentBond: 9,
+                explanation: 'C9：与C8单键(1价)，需与X形成三键(3价)，共4价',
+                bondLabel: 'C9-X: 三键'
+            },
+            {
+                highlightAtom: null,
+                confirmedBonds: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                currentBond: null,
+                explanation: '完整键型：单-三-单-三-单-三-单-三-单-三\n①处为单键，②处为单键 → 正确答案：C',
+                bondLabel: '推导完成'
+            }
+        ];
+
+        let currentStep = 0;
+
+        // 获取DOM元素
+        const bondLabelEl = document.getElementById('scene2-bond-label');
+        const explanationEl = document.getElementById('scene2-explanation');
+        const stepIndicatorEl = document.getElementById('scene2-step-indicator');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+
+        // 获取所有键元素
+        const bonds = [];
+        for (let i = 0; i < 10; i++) {
+            bonds.push(document.getElementById(`scene2-bond-${i}`));
+        }
+
+        // 获取所有高亮圆圈
+        const highlights = [];
+        for (let i = 1; i <= 9; i++) {
+            highlights.push(document.getElementById(`scene2-highlight-c${i}`));
+        }
+
+        // 获取①②标注元素
+        const marker1 = document.getElementById('scene2-marker-1');
+        const marker2 = document.getElementById('scene2-marker-2');
+
+        // 绘制键（单键或三键）
+        function drawBond(bondIndex, bondType, isConfirmed, isCurrent) {
+            const bond = bonds[bondIndex];
+            if (!bond) return;
+
+            const baseX1 = parseFloat(bond.getAttribute('x1'));
+            const baseX2 = parseFloat(bond.getAttribute('x2'));
+            const y = parseFloat(bond.getAttribute('y1'));
+
+            // 确定颜色
+            let strokeColor = '#000000';
+            if (isConfirmed) {
+                strokeColor = '#2e7d32'; // 绿色 - 已确定
+            } else if (isCurrent) {
+                strokeColor = '#1565c0'; // 蓝色 - 当前推导
+            }
+
+            if (bondType === '三') {
+                // 三键：绘制三条平行线
+                // 先移除可能存在的额外线条
+                removeExtraBondLines(bondIndex);
+
+                bond.setAttribute('stroke', strokeColor);
+                bond.setAttribute('stroke-width', '2');
+
+                // 创建两条额外的平行线
+                const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line2.setAttribute('id', `scene2-bond-${bondIndex}-line2`);
+                line2.setAttribute('x1', baseX1);
+                line2.setAttribute('y1', y - 3);
+                line2.setAttribute('x2', baseX2);
+                line2.setAttribute('y2', y - 3);
+                line2.setAttribute('stroke', strokeColor);
+                line2.setAttribute('stroke-width', '2');
+
+                const line3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line3.setAttribute('id', `scene2-bond-${bondIndex}-line3`);
+                line3.setAttribute('x1', baseX1);
+                line3.setAttribute('y1', y + 3);
+                line3.setAttribute('x2', baseX2);
+                line3.setAttribute('y2', y + 3);
+                line3.setAttribute('stroke', strokeColor);
+                line3.setAttribute('stroke-width', '2');
+
+                bond.parentNode.appendChild(line2);
+                bond.parentNode.appendChild(line3);
+            } else {
+                // 单键：只保留主线
+                removeExtraBondLines(bondIndex);
+                bond.setAttribute('stroke', strokeColor);
+                bond.setAttribute('stroke-width', '3');
+            }
+        }
+
+        // 移除额外的键线
+        function removeExtraBondLines(bondIndex) {
+            const line2 = document.getElementById(`scene2-bond-${bondIndex}-line2`);
+            const line3 = document.getElementById(`scene2-bond-${bondIndex}-line3`);
+            if (line2) line2.remove();
+            if (line3) line3.remove();
+        }
+
+        // 更新高亮
+        function updateHighlights(highlightAtomIndex) {
+            highlights.forEach((hl, idx) => {
+                if (idx + 1 === highlightAtomIndex) {
+                    hl.classList.add('active');
+                } else {
+                    hl.classList.remove('active');
+                }
+            });
+        }
+
+        // 更新①②高亮
+        function updateMarkers(step) {
+            // 步骤6高亮①，步骤8高亮②
+            if (step === 6) {
+                marker1.setAttribute('fill', '#1565c0');
+                marker2.setAttribute('fill', '#000000');
+            } else if (step === 8) {
+                marker1.setAttribute('fill', '#000000');
+                marker2.setAttribute('fill', '#1565c0');
+            } else {
+                marker1.setAttribute('fill', '#000000');
+                marker2.setAttribute('fill', '#000000');
+            }
+        }
+
+        // 更新视图
+        function updateView() {
+            const stepData = steps[currentStep];
+
+            // 更新步骤指示器
+            stepIndicatorEl.textContent = `步骤 ${currentStep}/9`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === 9;
+
+            // 更新高亮
+            updateHighlights(stepData.highlightAtom);
+
+            // 更新①②高亮
+            updateMarkers(currentStep);
+
+            // 更新键型标注
+            bondLabelEl.textContent = stepData.bondLabel;
+
+            // 更新推导说明
+            explanationEl.textContent = stepData.explanation;
+
+            // 重绘所有键
+            for (let i = 0; i < 10; i++) {
+                const isConfirmed = stepData.confirmedBonds.includes(i);
+                const isCurrent = stepData.currentBond === i;
+                drawBond(i, bondTypes[i], isConfirmed, isCurrent);
+            }
+        }
+
+        // 事件监听
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < 9) {
+                currentStep++;
+                updateView();
+            }
+        });
+
+        // 初始化视图
+        updateView();
+    })();
+    </script>
+</body>
+</html>

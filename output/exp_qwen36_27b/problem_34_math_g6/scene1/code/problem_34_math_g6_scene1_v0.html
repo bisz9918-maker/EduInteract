@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>剪去正方形后的周长计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+
+        /* 标签淡入动画 */
+        .scene1-label { opacity: 0; transition: opacity 0.3s ease; }
+        .scene1-label.visible { opacity: 1; }
+
+        /* 凹字形各边线段 */
+        .scene1-edge {
+            stroke: #000000;
+            stroke-width: 2;
+            transition: stroke 0.5s ease, stroke-width 0.5s ease;
+        }
+        .scene1-edge.highlighted {
+            stroke: #c62828;
+            stroke-width: 3;
+        }
+
+        /* 按钮样式 */
+        .scene1-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            color: #333;
+            background: #f5f5f5;
+            border: 1px solid #999;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        #scene1-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            z-index: 10;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #888;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 凹字形轮廓：8条独立线段 -->
+            <!-- V1(250,150)→V2(550,150)→V3(550,200)→V4(450,200)→V5(450,300)→V6(550,300)→V7(550,350)→V8(250,350)→闭合 -->
+            <line id="scene1-edge-top" class="scene1-edge" x1="250" y1="150" x2="550" y2="150" />
+            <line id="scene1-edge-tr" class="scene1-edge" x1="550" y1="150" x2="550" y2="200" />
+            <line id="scene1-edge-cut-top" class="scene1-edge" x1="550" y1="200" x2="450" y2="200" />
+            <line id="scene1-edge-cut-left" class="scene1-edge" x1="450" y1="200" x2="450" y2="300" />
+            <line id="scene1-edge-cut-bottom" class="scene1-edge" x1="450" y1="300" x2="550" y2="300" />
+            <line id="scene1-edge-br" class="scene1-edge" x1="550" y1="300" x2="550" y2="350" />
+            <line id="scene1-edge-bottom" class="scene1-edge" x1="550" y1="350" x2="250" y2="350" />
+            <line id="scene1-edge-left" class="scene1-edge" x1="250" y1="350" x2="250" y2="150" />
+
+            <!-- ===== 步骤0：已知条件标注（蓝色） ===== -->
+            <!-- 左边 "4" -->
+            <text id="scene1-label-left" class="scene1-label" x="225" y="258" fill="#1565c0" font-size="18" font-weight="bold" text-anchor="middle">4</text>
+            <!-- 下边 "6" -->
+            <text id="scene1-label-bottom" class="scene1-label" x="400" y="380" fill="#1565c0" font-size="18" font-weight="bold" text-anchor="middle">6</text>
+            <!-- 凹内 "2" -->
+            <text id="scene1-label-inner" class="scene1-label" x="500" y="258" fill="#1565c0" font-size="18" font-weight="bold" text-anchor="middle">2</text>
+
+            <!-- ===== 步骤1：推导标注（绿色） ===== -->
+            <!-- 上边 "6" -->
+            <text id="scene1-label-top" class="scene1-label" x="400" y="128" fill="#2e7d32" font-size="16" text-anchor="middle">6</text>
+            <!-- 右上竖边 "1" -->
+            <text id="scene1-label-tr" class="scene1-label" x="575" y="178" fill="#2e7d32" font-size="16" text-anchor="middle">1</text>
+            <!-- 右下竖边 "1" -->
+            <text id="scene1-label-br" class="scene1-label" x="575" y="328" fill="#2e7d32" font-size="16" text-anchor="middle">1</text>
+
+            <!-- ===== 步骤2：凹进去三条边标注（绿色） ===== -->
+            <!-- 凹上横 "2" -->
+            <text id="scene1-label-cut-top" class="scene1-label" x="500" y="188" fill="#2e7d32" font-size="16" text-anchor="middle">2</text>
+            <!-- 凹左竖 "2" -->
+            <text id="scene1-label-cut-left" class="scene1-label" x="425" y="258" fill="#2e7d32" font-size="16" text-anchor="middle">2</text>
+            <!-- 凹下横 "2" -->
+            <text id="scene1-label-cut-bottom" class="scene1-label" x="500" y="318" fill="#2e7d32" font-size="16" text-anchor="middle">2</text>
+
+            <!-- ===== 步骤3：周长计算式（红色） ===== -->
+            <text id="scene1-perimeter" class="scene1-label" x="400" y="425" fill="#c62828" font-size="20" font-weight="bold" text-anchor="middle">4 + 6 + 1 + 2 + 2 + 2 + 1 + 6 = 24</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-next-btn" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // ===== 状态变量 =====
+        var currentStep = 0;
+        var totalSteps = 4; // 0~3
+
+        // ===== DOM 元素引用 =====
+        var prevBtn = document.getElementById("scene1-prev-btn");
+        var nextBtn = document.getElementById("scene1-next-btn");
+        var stepIndicator = document.getElementById("scene1-step-indicator");
+
+        // 所有边线段
+        var edges = [
+            document.getElementById("scene1-edge-top"),
+            document.getElementById("scene1-edge-tr"),
+            document.getElementById("scene1-edge-cut-top"),
+            document.getElementById("scene1-edge-cut-left"),
+            document.getElementById("scene1-edge-cut-bottom"),
+            document.getElementById("scene1-edge-br"),
+            document.getElementById("scene1-edge-bottom"),
+            document.getElementById("scene1-edge-left")
+        ];
+
+        // 所有标签元素
+        var labels = {
+            step0: [
+                document.getElementById("scene1-label-left"),
+                document.getElementById("scene1-label-bottom"),
+                document.getElementById("scene1-label-inner")
+            ],
+            step1: [
+                document.getElementById("scene1-label-top"),
+                document.getElementById("scene1-label-tr"),
+                document.getElementById("scene1-label-br")
+            ],
+            step2: [
+                document.getElementById("scene1-label-cut-top"),
+                document.getElementById("scene1-label-cut-left"),
+                document.getElementById("scene1-label-cut-bottom")
+            ],
+            step3: [
+                document.getElementById("scene1-perimeter")
+            ]
+        };
+
+        // ===== 工具函数：显示/隐藏元素 =====
+        function showEl(el) {
+            el.style.display = "";
+            el.style.opacity = "1";
+            el.classList.add("visible");
+        }
+        function hideEl(el) {
+            el.style.display = "none";
+            el.style.opacity = "0";
+            el.classList.remove("visible");
+        }
+
+        // ===== 更新步骤显示 =====
+        function updateStep() {
+            // 更新步骤指示文字
+            stepIndicator.textContent = "步骤 " + (currentStep + 1) + "/4";
+
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps - 1);
+
+            // 步骤0标签
+            labels.step0.forEach(function(el) {
+                if (currentStep >= 0) showEl(el); else hideEl(el);
+            });
+
+            // 步骤1标签
+            labels.step1.forEach(function(el) {
+                if (currentStep >= 1) showEl(el); else hideEl(el);
+            });
+
+            // 步骤2标签
+            labels.step2.forEach(function(el) {
+                if (currentStep >= 2) showEl(el); else hideEl(el);
+            });
+
+            // 步骤3：计算式 + 轮廓高亮
+            labels.step3.forEach(function(el) {
+                if (currentStep >= 3) showEl(el); else hideEl(el);
+            });
+
+            // 边高亮
+            edges.forEach(function(edge) {
+                if (currentStep >= 3) {
+                    edge.classList.add("highlighted");
+                } else {
+                    edge.classList.remove("highlighted");
+                }
+            });
+        }
+
+        // ===== 事件绑定 =====
+        prevBtn.addEventListener("click", function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        nextBtn.addEventListener("click", function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // ===== 初始化：显示步骤0 =====
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

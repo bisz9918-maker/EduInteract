@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 弹簧压缩到最短时的能量转化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 6px; background: #f5f5f5; transition: all 0.2s; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 地面 -->
+            <rect id="scene2-ground" x="50" y="350" width="700" height="30" fill="#e0e0e0"/>
+            <!-- 地面斜线阴影 -->
+            <defs>
+                <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#999" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect id="scene2-ground-hatch" x="50" y="350" width="700" height="30" fill="url(#scene2-hatch)"/>
+
+            <!-- 小车底板 -->
+            <rect id="scene2-cart-base" x="100" y="280" width="400" height="70" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <!-- 小车左挡板 -->
+            <rect id="scene2-cart-left" x="100" y="220" width="20" height="60" fill="#1565c0" stroke="#1565c0" stroke-width="2"/>
+            <!-- 小车右挡板 -->
+            <rect id="scene2-cart-right" x="480" y="280" width="20" height="20" fill="#1565c0" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 左轮 -->
+            <circle id="scene2-wheel-left" cx="150" cy="350" r="20" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 右轮 -->
+            <circle id="scene2-wheel-right" cx="450" cy="350" r="20" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- 滑块 -->
+            <rect id="scene2-block" x="350" y="220" width="120" height="60" fill="#2e7d32" fill-opacity="0.2" stroke="#2e7d32" stroke-width="2"/>
+            <!-- 子弹标记 -->
+            <circle id="scene2-bullet" cx="420" cy="250" r="8" fill="#c62828"/>
+
+            <!-- 弹簧（原长）- 步骤 0-1 显示 -->
+            <polyline id="scene2-spring-original" points="120,250 130,240 140,260 150,240 160,260 170,240 180,260 190,240 200,260 210,240 220,260 230,240 240,260 250,240 260,260 270,240 280,260 290,240 300,260 310,240 320,260 330,240 340,260 350,250"
+                      fill="none" stroke="#000" stroke-width="2" opacity="1"/>
+
+            <!-- 弹簧（压缩）- 步骤 2-3 显示 -->
+            <polyline id="scene2-spring-compressed" points="120,250 130,240 140,260 150,240 160,260 170,240 180,260 190,240 200,260 210,240 220,260 230,240 240,260 250,240 260,260 270,240 280,260 290,240 300,250"
+                      fill="none" stroke="#c62828" stroke-width="2" opacity="0"/>
+
+            <!-- v₁箭头（蓝色，小车上方）- 步骤 0-1 显示 -->
+            <g id="scene2-v1-group" opacity="1">
+                <line id="scene2-v1-line" x1="250" y1="180" x2="300" y2="180" stroke="#1565c0" stroke-width="3" marker-end="url(#scene2-arrowhead-blue)"/>
+                <text id="scene2-v1-label" x="275" y="165" font-size="14" fill="#1565c0" text-anchor="middle">v₁=10m/s</text>
+            </g>
+
+            <!-- v₂箭头（绿色，滑块上方）- 步骤 0-1 显示 -->
+            <g id="scene2-v2-group" opacity="1">
+                <line id="scene2-v2-line" x1="400" y1="160" x2="450" y2="160" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene2-arrowhead-green)"/>
+                <text id="scene2-v2-label" x="425" y="145" font-size="14" fill="#2e7d32" text-anchor="middle">v₂=4m/s</text>
+            </g>
+
+            <!-- v₃箭头（紫色，待求共速）- 步骤 1-3 显示 -->
+            <g id="scene2-v3-group" opacity="0">
+                <line id="scene2-v3-line" x1="300" y1="140" x2="350" y2="140" stroke="#7b1fa2" stroke-width="3" marker-end="url(#scene2-arrowhead-purple)"/>
+                <text id="scene2-v3-label" x="325" y="125" font-size="14" fill="#7b1fa2" text-anchor="middle">v₃=?</text>
+            </g>
+
+            <!-- M 标签 - 调整 x 坐标到 80 以避免边缘裁剪 -->
+            <text id="scene2-m-label" x="80" y="260" font-size="16" fill="#000" text-anchor="end">M=2kg</text>
+
+            <!-- m+m₀标签 -->
+            <text id="scene2-mm0-label" x="480" y="240" font-size="16" fill="#000" text-anchor="start">m+m₀=2.0kg</text>
+
+            <!-- d 标注线（虚线双向箭头）- 步骤 2-3 显示 -->
+            <g id="scene2-d-group" opacity="0">
+                <line id="scene2-d-line" x1="120" y1="300" x2="350" y2="300" stroke="#888" stroke-width="2" stroke-dasharray="5,5"/>
+                <line id="scene2-d-arrow-left" x1="120" y1="295" x2="120" y2="305" stroke="#888" stroke-width="2"/>
+                <line id="scene2-d-arrow-right" x1="350" y1="295" x2="350" y2="305" stroke="#888" stroke-width="2"/>
+                <!-- d 标签下移到 y=340 以避免与小车底板重叠 -->
+                <text id="scene2-d-label" x="235" y="340" font-size="14" fill="#000" text-anchor="middle">d=0.50m</text>
+            </g>
+
+            <!-- 能量框图区 - 步骤 3 显示 -->
+            <g id="scene2-energy-group" opacity="0">
+                <!-- 能量框标题 -->
+                <text id="scene2-energy-title" x="660" y="80" font-size="16" fill="#000" text-anchor="middle" font-weight="bold">能量转化分析</text>
+
+                <!-- E_k初框 -->
+                <rect id="scene2-ek-initial" x="560" y="120" width="200" height="40" fill="none" stroke="#000" stroke-width="2"/>
+                <text id="scene2-ek-initial-text" x="660" y="145" font-size="14" fill="#000" text-anchor="middle" dominant-baseline="middle">E_k初（初始动能）</text>
+
+                <!-- E_k末框 -->
+                <rect id="scene2-ek-final" x="560" y="180" width="200" height="40" fill="none" stroke="#000" stroke-width="2"/>
+                <text id="scene2-ek-final-text" x="660" y="205" font-size="14" fill="#000" text-anchor="middle" dominant-baseline="middle">E_k末（末动能）</text>
+
+                <!-- Q_摩擦框 -->
+                <rect id="scene2-q-friction" x="560" y="240" width="200" height="40" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+                <text id="scene2-q-friction-text" x="660" y="265" font-size="14" fill="#000" text-anchor="middle" dominant-baseline="middle">Q_摩擦（摩擦生热）</text>
+
+                <!-- E_p弹框 -->
+                <rect id="scene2-ep-spring" x="560" y="300" width="200" height="40" fill="#ffebee" stroke="#c62828" stroke-width="2"/>
+                <text id="scene2-ep-spring-text" x="660" y="325" font-size="14" fill="#000" text-anchor="middle" dominant-baseline="middle">E_p弹（弹性势能）</text>
+
+                <!-- 能量守恒式 - 下移到 y=400 以避免与能量框重叠 -->
+                <text id="scene2-energy-equation" x="660" y="400" font-size="16" fill="#000" text-anchor="middle" font-weight="bold">E_k初 = E_k末 + Q + E_p</text>
+            </g>
+
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene2-arrowhead-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#7b1fa2"/>
+                </marker>
+            </defs>
+        </svg>
+
+        <div id="scene2-step-indicator">步骤 0/4</div>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表对照：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 地面 | (50,350)-(750,380) | 带阴影斜线 |
+        // | 小车底板 | (100,280)-(500,350) | 蓝色填充 |
+        // | 小车左挡板 | (100,220)-(120,280) | 与底板连接 |
+        // | 小车右挡板 | (480,280)-(500,300) | 矮挡板 |
+        // | 左轮 | (150,350) r=20 | 黑色描边 |
+        // | 右轮 | (450,350) r=20 | 黑色描边 |
+        // | 滑块 | (350,220)-(470,280) | 绿色填充，内含子弹标记 |
+        // | 子弹标记 | (420,250) r=8 | 红色填充 |
+        // | 弹簧（原长） | (120,250)-(350,250) | 步骤 0-1 显示 |
+        // | 弹簧（压缩） | (120,250)-(300,250) | 步骤 2-3 显示 |
+        // | v₁箭头 | (250,180)-(300,180) | 蓝色，标注 v₁=10m/s |
+        // | v₂箭头 | (400,160)-(450,160) | 绿色，标注 v₂=4m/s |
+        // | v₃箭头 | (300,140)-(350,140) | 紫色，标注 v₃=? |
+        // | M 标签 | (80,260) | M=2kg（调整 x 坐标避免边缘裁剪） |
+        // | m+m₀标签 | (480,240) | m+m₀=2.0kg |
+        // | d 标注线 | (120,300)-(350,300) | 虚线，步骤 2-3 显示 |
+        // | d 标签 | (235,340) | d=0.50m（调整 y 坐标避免与小车重叠） |
+        // | 能量框 | (560,120)-(760,340) | 步骤 3 显示 |
+
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                if (el.setAttribute) {
+                    el.setAttribute('opacity', '1');
+                }
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+                if (el.setAttribute) {
+                    el.setAttribute('opacity', '0');
+                }
+            }
+        }
+
+        // 获取元素
+        function getEl(id) {
+            return document.getElementById(id);
+        }
+
+        // 更新步骤显示
+        function renderStep(step) {
+            // 步骤 0：初始状态（子弹射入后，滑块 v₂=4m/s，小车 v₁=10m/s，弹簧原长）
+            // 步骤 1：弹簧开始压缩
+            // 步骤 2：弹簧压缩到最短，三者共速
+            // 步骤 3：能量转化关系
+
+            // 重置所有元素
+            const springOriginal = getEl('scene2-spring-original');
+            const springCompressed = getEl('scene2-spring-compressed');
+            const v1Group = getEl('scene2-v1-group');
+            const v2Group = getEl('scene2-v2-group');
+            const v3Group = getEl('scene2-v3-group');
+            const dGroup = getEl('scene2-d-group');
+            const energyGroup = getEl('scene2-energy-group');
+            const block = getEl('scene2-block');
+            const bullet = getEl('scene2-bullet');
+
+            // 默认状态
+            show(springOriginal);
+            hide(springCompressed);
+            show(v1Group);
+            show(v2Group);
+            hide(v3Group);
+            hide(dGroup);
+            hide(energyGroup);
+
+            // 滑块和子弹初始位置
+            block.setAttribute('x', '350');
+            block.setAttribute('width', '120');
+            bullet.setAttribute('cx', '420');
+
+            if (step === 0) {
+                // 步骤 0：初始状态
+                getEl('scene2-v3-label').textContent = 'v₃=?';
+                getEl('scene2-step-indicator').textContent = '步骤 0/4';
+            } else if (step === 1) {
+                // 步骤 1：弹簧开始压缩，显示 v₃
+                show(v3Group);
+                getEl('scene2-v3-label').textContent = 'v₃=?';
+                getEl('scene2-step-indicator').textContent = '步骤 1/4';
+            } else if (step === 2) {
+                // 步骤 2：弹簧压缩到最短，三者共速
+                hide(springOriginal);
+                show(springCompressed);
+                hide(v1Group);
+                hide(v2Group);
+                show(v3Group);
+                show(dGroup);
+                getEl('scene2-v3-label').textContent = 'v₃=共速';
+                // 滑块左移
+                block.setAttribute('x', '300');
+                block.setAttribute('width', '120');
+                bullet.setAttribute('cx', '370');
+                getEl('scene2-step-indicator').textContent = '步骤 2/4';
+            } else if (step === 3) {
+                // 步骤 3：能量转化关系
+                hide(springOriginal);
+                show(springCompressed);
+                hide(v1Group);
+                hide(v2Group);
+                show(v3Group);
+                show(dGroup);
+                show(energyGroup);
+                getEl('scene2-v3-label').textContent = 'v₃=共速';
+                // 滑块左移
+                block.setAttribute('x', '300');
+                block.setAttribute('width', '120');
+                bullet.setAttribute('cx', '370');
+                getEl('scene2-step-indicator').textContent = '步骤 3/4';
+            }
+
+            // 更新按钮状态
+            const btnPrev = getEl('scene2-btn-prev');
+            const btnNext = getEl('scene2-btn-next');
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === TOTAL_STEPS - 1);
+        }
+
+        // 事件绑定
+        getEl('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        getEl('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始化
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

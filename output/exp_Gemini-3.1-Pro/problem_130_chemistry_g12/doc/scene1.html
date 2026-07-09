@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .bond { stroke: #000; stroke-width: 2; transition: all 0.5s; }
+        .frag-group { transition: transform 0.5s; }
+        .label-text { font-size: 12px; fill: #666; text-anchor: middle; transition: opacity 0.5s; }
+        .struct-group { transition: opacity 0.5s; }
+        .struct-text { font-size: 12px; font-family: monospace; text-anchor: middle; fill: #000; }
+        
+        /* ForeignObject div styles */
+        .frag-box {
+            width: 100%; height: 100%; box-sizing: border-box;
+            border: 2px solid; border-radius: 4px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 14px; font-family: monospace; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- Bonds -->
+            <g id="scene1-bonds"></g>
+            
+            <!-- Fragments -->
+            <g id="scene1-fragments"></g>
+            
+            <!-- Labels -->
+            <text id="scene1-label-core" class="label-text" x="400" y="90" opacity="0">&gt;CH- (核心)</text>
+            <text id="scene1-label-sym1" class="label-text" x="240" y="110" opacity="0">对称分支</text>
+            <text id="scene1-label-sym2" class="label-text" x="560" y="110" opacity="0">对称分支</text>
+            
+            <!-- Divider -->
+            <line x1="50" y1="350" x2="750" y2="350" stroke="#888" stroke-dasharray="5,5" stroke-width="1" />
+            
+            <!-- Collection Area -->
+            <g id="scene1-struct1" class="struct-group" opacity="0" transform="translate(100, 400)">
+                <text class="label-text" x="0" y="30">2-氯戊烷</text>
+                <text class="struct-text" x="0" y="0">CH3-CH(Cl)-CH2-CH2-CH3</text>
+            </g>
+            <g id="scene1-struct2" class="struct-group" opacity="0" transform="translate(300, 400)">
+                <text class="label-text" x="0" y="30">3-氯戊烷</text>
+                <text class="struct-text" x="0" y="0">CH3-CH2-CH(Cl)-CH2-CH3</text>
+            </g>
+            <g id="scene1-struct3" class="struct-group" opacity="0" transform="translate(500, 400)">
+                <text class="label-text" x="0" y="30">1-氯-2-甲基丁烷</text>
+                <text class="struct-text" x="0" y="0">CH2(Cl)-CH(CH3)-CH2-CH3</text>
+            </g>
+            <g id="scene1-struct4" class="struct-group" opacity="0" transform="translate(690, 400)">
+                <text class="label-text" x="0" y="30">1-氯-3-甲基丁烷</text>
+                <text class="struct-text" x="0" y="0">CH2(Cl)-CH2-CH(CH3)-CH3</text>
+            </g>
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-text" style="font-size: 14px; font-family: sans-serif;">步骤 0 / 6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const fragmentsData = [
+            { id: 0, text: "-CH3", type: "CH3", color: "#1565c0", bg: "#e3f2fd", bonds: 1 },
+            { id: 1, text: "-CH3", type: "CH3", color: "#1565c0", bg: "#e3f2fd", bonds: 1 },
+            { id: 2, text: "-CH2-", type: "CH2", color: "#2e7d32", bg: "#e8f5e9", bonds: 2 },
+            { id: 3, text: "-CH2-", type: "CH2", color: "#2e7d32", bg: "#e8f5e9", bonds: 2 },
+            { id: 4, text: ">CH-", type: "CH", color: "#c62828", bg: "#ffebee", bonds: 3 },
+            { id: 5, text: "-Cl", type: "Cl", color: "#6a1b9a", bg: "#f3e5f5", bonds: 1 }
+        ];
+
+        const states = [
+            { // 0
+                pos: [[125,50], [235,50], [345,50], [455,50], [565,50], [675,50]],
+                bonds: [],
+                labels: { core: 0, sym1: 0, sym2: 0 },
+                structs: [0, 0, 0, 0]
+            },
+            { // 1
+                pos: [[125,50], [235,50], [345,50], [455,50], [400,140], [675,50]],
+                bonds: [],
+                labels: { core: 1, sym1: 0, sym2: 0 },
+                structs: [0, 0, 0, 0]
+            },
+            { // 2
+                pos: [[160,140], [640,140], [345,50], [455,50], [400,140], [400,320]],
+                bonds: [[4,0,'dashed'], [4,1,'dashed'], [4,5,'dashed']],
+                labels: { core: 1, sym1: 1, sym2: 1 },
+                structs: [0, 0, 0, 0]
+            },
+            { // 3
+                pos: [[160,140], [480,140], [320,140], [240,140], [400,140], [400,200]],
+                bonds: [[4,2,'solid'], [2,3,'solid'], [3,0,'solid'], [4,1,'solid'], [4,5,'solid']],
+                labels: { core: 1, sym1: 0, sym2: 0 },
+                structs: [1, 0, 0, 0]
+            },
+            { // 4
+                pos: [[240,140], [560,140], [320,140], [480,140], [400,140], [400,200]],
+                bonds: [[4,2,'solid'], [2,0,'solid'], [4,3,'solid'], [3,1,'solid'], [4,5,'solid']],
+                labels: { core: 1, sym1: 0, sym2: 0 },
+                structs: [1, 1, 0, 0]
+            },
+            { // 5
+                pos: [[240,140], [480,140], [320,140], [400,200], [400,140], [400,260]],
+                bonds: [[4,2,'solid'], [2,0,'solid'], [4,1,'solid'], [4,3,'solid'], [3,5,'solid']],
+                labels: { core: 1, sym1: 0, sym2: 0 },
+                structs: [1, 1, 1, 0]
+            },
+            { // 6
+                pos: [[320,140], [480,140], [400,200], [400,260], [400,140], [400,320]],
+                bonds: [[4,0,'solid'], [4,1,'solid'], [4,2,'solid'], [2,3,'solid'], [3,5,'solid']],
+                labels: { core: 1, sym1: 0, sym2: 0 },
+                structs: [1, 1, 1, 1]
+            }
+        ];
+
+        let currentStep = 0;
+        const svgFragments = document.getElementById('scene1-fragments');
+        const svgBonds = document.getElementById('scene1-bonds');
+        
+        // Initialize fragments
+        fragmentsData.forEach((f, i) => {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('id', `scene1-frag-${i}`);
+            g.setAttribute('class', 'frag-group');
+            
+            const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+            fo.setAttribute('x', '-23');
+            fo.setAttribute('y', '-13');
+            fo.setAttribute('width', '46');
+            fo.setAttribute('height', '26');
+            
+            const div = document.createElement('div');
+            div.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+            div.className = 'frag-box';
+            div.style.borderColor = f.color;
+            div.style.backgroundColor = f.bg;
+            div.style.color = f.color;
+            div.textContent = f.text;
+            
+            fo.appendChild(div);
+            
+            const bondLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            bondLabel.setAttribute('class', 'label-text');
+            bondLabel.setAttribute('y', '30'); // Moved down to avoid CROWDED
+            bondLabel.setAttribute('id', `scene1-bondlabel-${i}`);
+            bondLabel.textContent = `${f.bonds}键`;
+            
+            g.appendChild(fo);
+            g.appendChild(bondLabel);
+            svgFragments.appendChild(g);
+        });
+
+        // Initialize bonds (max 5)
+        for(let i=0; i<5; i++) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('id', `scene1-bond-${i}`);
+            line.setAttribute('class', 'bond');
+            line.setAttribute('opacity', '0');
+            svgBonds.appendChild(line);
+        }
+
+        function updateScene() {
+            const state = states[currentStep];
+            
+            // Update fragments
+            state.pos.forEach((p, i) => {
+                const g = document.getElementById(`scene1-frag-${i}`);
+                g.style.transform = `translate(${p[0]}px, ${p[1]}px)`;
+                
+                // Hide bond label if not in step 0 or 1
+                const bondLabel = document.getElementById(`scene1-bondlabel-${i}`);
+                bondLabel.style.opacity = currentStep <= 1 ? '1' : '0';
+            });
+            
+            // Update bonds
+            for(let i=0; i<5; i++) {
+                const line = document.getElementById(`scene1-bond-${i}`);
+                if (i < state.bonds.length) {
+                    const b = state.bonds[i];
+                    const p1 = state.pos[b[0]];
+                    const p2 = state.pos[b[1]];
+                    line.setAttribute('x1', p1[0]);
+                    line.setAttribute('y1', p1[1]);
+                    line.setAttribute('x2', p2[0]);
+                    line.setAttribute('y2', p2[1]);
+                    line.setAttribute('stroke-dasharray', b[2] === 'dashed' ? '5,5' : 'none');
+                    line.setAttribute('opacity', '1');
+                } else {
+                    line.setAttribute('opacity', '0');
+                }
+            }
+            
+            // Update labels
+            document.getElementById('scene1-label-core').style.opacity = state.labels.core;
+            document.getElementById('scene1-label-sym1').style.opacity = state.labels.sym1;
+            document.getElementById('scene1-label-sym2').style.opacity = state.labels.sym2;
+            
+            // Update structs
+            state.structs.forEach((s, i) => {
+                document.getElementById(`scene1-struct${i+1}`).style.opacity = s;
+            });
+            
+            // Update controls
+            document.getElementById('scene1-btn-prev').disabled = currentStep === 0;
+            document.getElementById('scene1-btn-next').disabled = currentStep === states.length - 1;
+            document.getElementById('scene1-step-text').textContent = `步骤 ${currentStep} / 6`;
+        }
+
+        document.getElementById('scene1-btn-prev').addEventListener('click', () => {
+            if (currentStep > 0) { currentStep--; updateScene(); }
+        });
+        document.getElementById('scene1-btn-next').addEventListener('click', () => {
+            if (currentStep < states.length - 1) { currentStep++; updateScene(); }
+        });
+
+        // Initial render
+        setTimeout(updateScene, 50);
+    })();
+    </script>
+</body>
+</html>

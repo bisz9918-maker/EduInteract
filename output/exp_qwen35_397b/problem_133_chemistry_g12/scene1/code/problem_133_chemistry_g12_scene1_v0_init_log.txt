@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活塞位置变化与气体体积关系</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene1-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene1-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* SVG 元素显隐 */
+        .scene1-svg-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene1-svg-visible {
+            display: block;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- 
+        布局坐标表（实现对照依据）：
+        | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        |------|------|-----------|------|-------------|------|
+        | 容器外框 | 矩形 | (80,150)-(720,350) | 640×200 | - | 黑色实线2px |
+        | 活塞-初始 | 竖直线 | x=240, y=150~350 | 4×200 | - | 黑色实线3px，步骤0-1显示 |
+        | 活塞-最终 | 竖直线 | x=400, y=150~350 | 4×200 | - | 黑色实线3px，步骤3显示 |
+        | 左区填充 | 矩形 | (82,152)-(238,348) | 156×196 | - | 浅蓝色#bbdefb 30%透明 |
+        | 右区填充 | 矩形 | (242,152)-(718,348) | 476×196 | - | 浅红色#ffcdd2 30%透明 |
+        | 空气标签 | text | (160,240) | ~60×20 | 居中 | 蓝色#1565c0 |
+        | 混合气标签 | text | (480,200) | ~120×20 | 居中 | 红色#c62828 |
+        | 体积"1" | text | (160,370) | ~15×20 | 容器下方 | 黑色 |
+        | 体积"3" | text | (480,370) | ~15×20 | 容器下方 | 黑色 |
+        | 活塞标签 | text | (240,395) | ~30×16 | 活塞正下方 | 黑色 |
+        | 底部标尺 | 线段 | (80,410)-(720,410) | 640×2 | - | 灰色虚线#888888 |
+        | 刻度线1 | 线段 | (80,405)-(80,415) | 2×10 | - | 灰色 |
+        | 刻度线2 | 线段 | (240,405)-(240,415) | 2×10 | - | 灰色，初始活塞位 |
+        | 刻度线3 | 线段 | (400,405)-(400,415) | 2×10 | - | 灰色，最终活塞位 |
+        | 刻度线4 | 线段 | (720,405)-(720,415) | 2×10 | - | 灰色 |
+        | 反应方程式 | text | (400,110) | ~180×20 | 容器上方居中 | 红色#c62828 |
+        | 左弹箭头 | 箭头 | (240,280)→(180,280) | 60×8 | 活塞左侧 | 绿色#2e7d32，步骤1显示 |
+        | 右滑箭头 | 箭头 | (240,310)→(400,310) | 160×8 | 活塞下方 | 绿色#2e7d32，步骤2显示 |
+        | 中央标签 | text | (400,395) | ~30×16 | 最终活塞下方 | 黑色，步骤3显示 |
+        -->
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 反应方程式（步骤1显示） -->
+            <text id="scene1-reaction" x="400" y="110" text-anchor="middle" font-size="16" fill="#c62828" class="scene1-svg-hidden" style="font-weight: bold;">
+                2H₂ + O₂ → 2H₂O(l)
+            </text>
+
+            <!-- 容器外框 -->
+            <rect id="scene1-container-box" x="80" y="150" width="640" height="200" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 左区填充（空气） -->
+            <rect id="scene1-left-zone" x="82" y="152" width="156" height="196" fill="#bbdefb" fill-opacity="0.3" stroke="none"/>
+
+            <!-- 右区填充（混合气/剩余气体） -->
+            <rect id="scene1-right-zone" x="242" y="152" width="476" height="196" fill="#ffcdd2" fill-opacity="0.3" stroke="none"/>
+
+            <!-- 活塞-初始位置（步骤0-1） -->
+            <g id="scene1-piston-initial">
+                <line x1="240" y1="150" x2="240" y2="350" stroke="#000000" stroke-width="3"/>
+            </g>
+
+            <!-- 活塞-最终位置（步骤3） -->
+            <g id="scene1-piston-final" class="scene1-svg-hidden">
+                <line x1="400" y1="150" x2="400" y2="350" stroke="#000000" stroke-width="3"/>
+            </g>
+
+            <!-- 左弹箭头（步骤1） -->
+            <g id="scene1-left-arrow" class="scene1-svg-hidden">
+                <defs>
+                    <marker id="scene1-arrowhead-left" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <line x1="240" y1="280" x2="180" y2="280" stroke="#2e7d32" stroke-width="4" marker-end="url(#scene1-arrowhead-left)"/>
+                <text x="210" y="270" text-anchor="middle" font-size="12" fill="#2e7d32">左弹</text>
+            </g>
+
+            <!-- 右滑箭头（步骤2） -->
+            <g id="scene1-right-arrow" class="scene1-svg-hidden">
+                <defs>
+                    <marker id="scene1-arrowhead-right" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <line x1="240" y1="310" x2="400" y2="310" stroke="#2e7d32" stroke-width="4" marker-end="url(#scene1-arrowhead-right)"/>
+                <text x="320" y="300" text-anchor="middle" font-size="12" fill="#2e7d32">右滑</text>
+            </g>
+
+            <!-- 空气标签 -->
+            <text id="scene1-air-label" x="160" y="240" text-anchor="middle" font-size="16" fill="#1565c0" style="font-weight: bold;">空气</text>
+
+            <!-- 混合气标签（步骤0-2） -->
+            <text id="scene1-mix-label" x="480" y="200" text-anchor="middle" font-size="14" fill="#c62828">H₂+O₂混合气</text>
+
+            <!-- 剩余气体标签（步骤3） -->
+            <text id="scene1-remaining-label" x="400" y="200" text-anchor="middle" font-size="14" fill="#1565c0" class="scene1-svg-hidden">剩余气体</text>
+
+            <!-- 体积标注"1" -->
+            <text id="scene1-vol-1" x="160" y="370" text-anchor="middle" font-size="14" fill="#000000">1</text>
+
+            <!-- 体积标注"3"（步骤0-2） -->
+            <text id="scene1-vol-3" x="480" y="370" text-anchor="middle" font-size="14" fill="#000000">3</text>
+
+            <!-- 体积标注"2"（步骤3，左右各一个） -->
+            <text id="scene1-vol-2-left" x="160" y="370" text-anchor="middle" font-size="14" fill="#000000" class="scene1-svg-hidden">2</text>
+            <text id="scene1-vol-2-right" x="560" y="370" text-anchor="middle" font-size="14" fill="#000000" class="scene1-svg-hidden">2</text>
+
+            <!-- 活塞标签（步骤0-2） -->
+            <text id="scene1-piston-label" x="240" y="395" text-anchor="middle" font-size="13" fill="#000000">活塞</text>
+
+            <!-- 中央标签（步骤3） -->
+            <text id="scene1-center-label" x="400" y="395" text-anchor="middle" font-size="13" fill="#000000" class="scene1-svg-hidden">中央</text>
+
+            <!-- 底部标尺 -->
+            <line id="scene1-ruler" x1="80" y1="410" x2="720" y2="410" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+
+            <!-- 刻度线 -->
+            <line x1="80" y1="405" x2="80" y2="415" stroke="#888888" stroke-width="2"/>
+            <line x1="240" y1="405" x2="240" y2="415" stroke="#888888" stroke-width="2"/>
+            <line x1="400" y1="405" x2="400" y2="415" stroke="#888888" stroke-width="2"/>
+            <line x1="720" y1="405" x2="720" y2="415" stroke="#888888" stroke-width="2"/>
+
+            <!-- 刻度值 -->
+            <text x="80" y="430" text-anchor="middle" font-size="12" fill="#666">0</text>
+            <text x="240" y="430" text-anchor="middle" font-size="12" fill="#666">2</text>
+            <text x="400" y="430" text-anchor="middle" font-size="12" fill="#666">4</text>
+            <text x="720" y="430" text-anchor="middle" font-size="12" fill="#666">8</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：活塞位置变化与气体体积关系
+
+        // 状态管理
+        let currentState = 0;
+        const totalStates = 4;
+
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // SVG 元素引用
+        const reactionText = document.getElementById('scene1-reaction');
+        const pistonInitial = document.getElementById('scene1-piston-initial');
+        const pistonFinal = document.getElementById('scene1-piston-final');
+        const leftArrow = document.getElementById('scene1-left-arrow');
+        const rightArrow = document.getElementById('scene1-right-arrow');
+        const mixLabel = document.getElementById('scene1-mix-label');
+        const remainingLabel = document.getElementById('scene1-remaining-label');
+        const vol1 = document.getElementById('scene1-vol-1');
+        const vol3 = document.getElementById('scene1-vol-3');
+        const vol2Left = document.getElementById('scene1-vol-2-left');
+        const vol2Right = document.getElementById('scene1-vol-2-right');
+        const pistonLabel = document.getElementById('scene1-piston-label');
+        const centerLabel = document.getElementById('scene1-center-label');
+        const rightZone = document.getElementById('scene1-right-zone');
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene1-svg-hidden');
+                el.classList.remove('scene1-hidden');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.add('scene1-svg-hidden');
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新状态显示
+        function updateState() {
+            // 隐藏所有动态元素
+            hide(reactionText);
+            hide(leftArrow);
+            hide(rightArrow);
+            hide(pistonFinal);
+            hide(remainingLabel);
+            hide(vol2Left);
+            hide(vol2Right);
+            hide(centerLabel);
+            show(pistonInitial);
+            show(mixLabel);
+            show(vol1);
+            show(vol3);
+            show(pistonLabel);
+
+            // 右区填充恢复红色
+            rightZone.setAttribute('fill', '#ffcdd2');
+
+            // 根据当前状态显示相应元素
+            switch (currentState) {
+                case 0:
+                    // 初始状态：只显示基础元素
+                    break;
+
+                case 1:
+                    // 点燃瞬间：显示反应方程式和左弹箭头
+                    show(reactionText);
+                    show(leftArrow);
+                    break;
+
+                case 2:
+                    // 恢复温度：显示右滑箭头，右区变蓝色
+                    show(reactionText);
+                    show(rightArrow);
+                    rightZone.setAttribute('fill', '#bbdefb');
+                    break;
+
+                case 3:
+                    // 最终状态：活塞在中央，左右体积相等
+                    hide(pistonInitial);
+                    show(pistonFinal);
+                    hide(mixLabel);
+                    show(remainingLabel);
+                    hide(vol1);
+                    hide(vol3);
+                    show(vol2Left);
+                    show(vol2Right);
+                    hide(pistonLabel);
+                    show(centerLabel);
+                    rightZone.setAttribute('fill', '#bbdefb');
+                    // 调整右区位置（从 x=242 移到 x=402）
+                    rightZone.setAttribute('x', '402');
+                    rightZone.setAttribute('width', '316');
+                    break;
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalStates - 1);
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${totalStates}`;
+        }
+
+        // 事件处理：上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+
+        // 事件处理：下一步
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalStates - 1) {
+                currentState++;
+                updateState();
+            }
+        });
+
+        // 初始化
+        updateState();
+
+    })();
+    </script>
+</body>
+</html>

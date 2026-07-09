@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 水平滑轮组结构与受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 4px; background: #ffffff; color: #1565c0; transition: all 0.3s; }
+        .scene1-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { border-color: #cccccc; color: #cccccc; cursor: not-allowed; }
+        .scene1-step-indicator { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 16px; font-weight: bold; color: #333333; }
+        .scene1-fade-in { animation: scene1-fadeIn 0.3s ease-in-out; }
+        @keyframes scene1-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 已知条件标签（始终显示） -->
+            <text id="scene1-label-eta" x="100" y="120" font-size="14" fill="#000000">η=80%</text>
+            <text id="scene1-label-v" x="200" y="120" font-size="14" fill="#000000">v=1m/s</text>
+            <text id="scene1-label-G" x="575" y="165" font-size="14" fill="#000000">G=50N</text>
+            
+            <!-- 左侧墙壁 -->
+            <rect id="scene1-wall" x="20" y="150" width="30" height="200" fill="#888888"/>
+            <!-- 墙壁斜线填充 -->
+            <defs>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#666666" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect id="scene1-wall-hatch" x="20" y="150" width="30" height="200" fill="url(#scene1-hatch)"/>
+            
+            <!-- 定滑轮 -->
+            <circle id="scene1-pulley-fixed" cx="100" cy="250" r="40" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 动滑轮 -->
+            <circle id="scene1-pulley-movable" cx="400" cy="250" r="40" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 物体 A -->
+            <rect id="scene1-obj-A" x="500" y="180" width="150" height="140" fill="#e3f2fd" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-A" x="575" y="250" font-size="24" fill="#000000" text-anchor="middle">A</text>
+            
+            <!-- 地面 -->
+            <line id="scene1-ground" x1="0" y1="350" x2="800" y2="350" stroke="#000000" stroke-width="2"/>
+            <!-- 地面斜线阴影 -->
+            <defs>
+                <pattern id="scene1-ground-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(-45)">
+                    <line x1="0" y1="0" x2="10" y2="0" stroke="#cccccc" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect id="scene1-ground-fill" x="0" y="350" width="800" height="10" fill="url(#scene1-ground-hatch)"/>
+            
+            <!-- 绳子段（步骤 1 高亮） -->
+            <line id="scene1-rope-1" x1="60" y1="250" x2="360" y2="250" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-rope-2" x1="60" y1="210" x2="360" y2="290" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-rope-3" x1="360" y1="250" x2="60" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 绳子编号（步骤 1 显示） -->
+            <text id="scene1-rope-num-1" x="210" y="270" font-size="14" fill="#1565c0" opacity="0">1</text>
+            <text id="scene1-rope-num-2" x="180" y="240" font-size="14" fill="#1565c0" opacity="0">2</text>
+            <text id="scene1-rope-num-3" x="180" y="220" font-size="14" fill="#1565c0" opacity="0">3</text>
+            <text id="scene1-label-n3" x="200" y="290" font-size="14" fill="#1565c0" opacity="0">n=3</text>
+            
+            <!-- 拉力 F 箭头（步骤 2 显示） -->
+            <line id="scene1-arrow-F-line" x1="340" y1="230" x2="280" y2="230" stroke="#1565c0" stroke-width="3" opacity="0"/>
+            <polygon id="scene1-arrow-F-head" points="280,230 290,225 290,235" fill="#1565c0" opacity="0"/>
+            <text id="scene1-label-F" x="310" y="215" font-size="14" fill="#1565c0" opacity="0">F=5N</text>
+            
+            <!-- 摩擦力 f 箭头（步骤 2 显示） -->
+            <line id="scene1-arrow-f-line" x1="575" y1="330" x2="635" y2="330" stroke="#c62828" stroke-width="3" opacity="0"/>
+            <polygon id="scene1-arrow-f-head" points="635,330 625,325 625,335" fill="#c62828" opacity="0"/>
+            <text id="scene1-label-f" x="605" y="345" font-size="14" fill="#c62828" opacity="0">f</text>
+            
+            <!-- 受力分析框（步骤 3 显示） -->
+            <rect id="scene1-force-box" x="450" y="100" width="200" height="60" fill="#ffffff" stroke="#2e7d32" stroke-width="2" rx="5" opacity="0"/>
+            <text id="scene1-force-text1" x="550" y="125" font-size="14" fill="#2e7d32" text-anchor="middle" opacity="0">匀速运动→合力=0</text>
+            <text id="scene1-force-text2" x="550" y="145" font-size="14" fill="#2e7d32" text-anchor="middle" opacity="0">F_拉 = f</text>
+            
+            <!-- 结论框（步骤 4 显示） -->
+            <rect id="scene1-conclusion-box" x="200" y="100" width="400" height="100" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="5" opacity="0"/>
+            <text id="scene1-conclusion-text1" x="400" y="130" font-size="14" fill="#2e7d32" text-anchor="middle" opacity="0">✓ 匀速直线运动 → 合力为 0</text>
+            <text id="scene1-conclusion-text2" x="400" y="155" font-size="14" fill="#2e7d32" text-anchor="middle" opacity="0">✓ 选项 D 正确：10s 内有用功 = 500J</text>
+            <text id="scene1-conclusion-text3" x="400" y="180" font-size="12" fill="#666666" text-anchor="middle" opacity="0">A 错：合力应为 0 | B 错：f=15N | C 错：P=15W</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+        <div id="scene1-step-indicator" class="scene1-step-indicator">步骤 1 / 5</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // | 左侧墙壁 | 矩形 | (20,150)-(50,350) | 30×200 | - | 固定端，带斜线填充 |
+        // | 定滑轮 | 圆 | 圆心 (100,250) | r=40 | - | 固定在墙上 |
+        // | 动滑轮 | 圆 | 圆心 (400,250) | r=40 | - | 可移动 |
+        // | 物体 A | 矩形 | (500,180)-(650,320) | 150×140 | - | 右侧，带透明度填充 |
+        // | 地面 | 线段 + 阴影 | (0,350)-(800,350) | 800×2 | - | 带斜线阴影表示粗糙面 |
+        // | 绳子段 1 | 线段 | (60,250)-(360,250) | 300×2 | - | 下段水平绳 |
+        // | 绳子段 2 | 线段 | (60,210)-(360,290) | 斜线 | - | 斜向绳 |
+        // | 绳子段 3 | 线段 | (360,250)-(60,250) | 300×2 | - | 上段水平绳（拉力端）|
+        // | 拉力 F 箭头 | 箭头 | (340,230)-(280,230) | 60×4 | 上方 | 蓝色，向左 |
+        // | 摩擦力 f 箭头 | 箭头 | (575,330)-(635,330) | 60×4 | 下方 | 红色，向右 |
+        // | 标签"A" | text | (575,250) | 24×24 | - | 物体中心 |
+        // | 标签"F=5N" | text | (310,215) | 60×16 | 上方 | 蓝色 |
+        // | 标签"f" | text | (605,345) | 20×16 | 下方 | 红色 |
+        // | 标签"n=3" | text | (200,270) | 40×16 | 下方 | 蓝色，步骤 1 显示 |
+        // | 标签"η=80%" | text | (100,120) | 60×16 | - | 顶部已知条件 |
+        // | 标签"v=1m/s" | text | (200,120) | 70×16 | - | 顶部已知条件 |
+        // | 标签"G=50N" | text | (575,165) | 60×16 | 上方 | 物体重力 |
+        
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                el.classList.add('scene1-fade-in');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            const indicator = document.getElementById('scene1-step-indicator');
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            
+            // 更新步骤指示器
+            indicator.textContent = '步骤 ' + (currentStep + 1) + ' / ' + TOTAL_STEPS;
+            
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 步骤 0：初始状态（只显示基础结构）
+            // 步骤 1：显示 n=3
+            // 步骤 2：显示 F 和 f
+            // 步骤 3：显示受力分析框
+            // 步骤 4：显示结论框
+            
+            // 步骤 1：显示绳子编号和 n=3
+            if (currentStep >= 1) {
+                show(document.getElementById('scene1-rope-num-1'));
+                show(document.getElementById('scene1-rope-num-2'));
+                show(document.getElementById('scene1-rope-num-3'));
+                show(document.getElementById('scene1-label-n3'));
+            } else {
+                hide(document.getElementById('scene1-rope-num-1'));
+                hide(document.getElementById('scene1-rope-num-2'));
+                hide(document.getElementById('scene1-rope-num-3'));
+                hide(document.getElementById('scene1-label-n3'));
+            }
+            
+            // 步骤 2：显示拉力 F 和摩擦力 f
+            if (currentStep >= 2) {
+                show(document.getElementById('scene1-arrow-F-line'));
+                show(document.getElementById('scene1-arrow-F-head'));
+                show(document.getElementById('scene1-label-F'));
+                show(document.getElementById('scene1-arrow-f-line'));
+                show(document.getElementById('scene1-arrow-f-head'));
+                show(document.getElementById('scene1-label-f'));
+            } else {
+                hide(document.getElementById('scene1-arrow-F-line'));
+                hide(document.getElementById('scene1-arrow-F-head'));
+                hide(document.getElementById('scene1-label-F'));
+                hide(document.getElementById('scene1-arrow-f-line'));
+                hide(document.getElementById('scene1-arrow-f-head'));
+                hide(document.getElementById('scene1-label-f'));
+            }
+            
+            // 步骤 3：显示受力分析框
+            if (currentStep >= 3) {
+                show(document.getElementById('scene1-force-box'));
+                show(document.getElementById('scene1-force-text1'));
+                show(document.getElementById('scene1-force-text2'));
+            } else {
+                hide(document.getElementById('scene1-force-box'));
+                hide(document.getElementById('scene1-force-text1'));
+                hide(document.getElementById('scene1-force-text2'));
+            }
+            
+            // 步骤 4：显示结论框
+            if (currentStep >= 4) {
+                show(document.getElementById('scene1-conclusion-box'));
+                show(document.getElementById('scene1-conclusion-text1'));
+                show(document.getElementById('scene1-conclusion-text2'));
+                show(document.getElementById('scene1-conclusion-text3'));
+            } else {
+                hide(document.getElementById('scene1-conclusion-box'));
+                hide(document.getElementById('scene1-conclusion-text1'));
+                hide(document.getElementById('scene1-conclusion-text2'));
+                hide(document.getElementById('scene1-conclusion-text3'));
+            }
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

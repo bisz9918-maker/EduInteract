@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形计数</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { width: 100px; height: 34px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; cursor: pointer; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-controls button:not(:disabled):hover { background: #e0e0e0; }
+        .hidden { display: none !important; }
+
+        /* 右侧信息面板 */
+        #scene1-info-panel {
+            position: absolute;
+            right: 40px;
+            top: 80px;
+            width: 240px;
+            text-align: center;
+            z-index: 5;
+        }
+        #scene1-counter-box {
+            background: #e3f2fd;
+            border-radius: 4px;
+            padding: 20px 10px;
+            font-size: 16px;
+            color: #1565c0;
+            font-weight: bold;
+        }
+        #scene1-step-desc {
+            margin-top: 40px;
+            font-size: 14px;
+            color: #000000;
+            min-height: 20px;
+        }
+        #scene1-thumbs {
+            margin-top: 20px;
+            display: none;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        #scene1-thumbs .thumb-item {
+            width: 60px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #scene1-summary {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #000000;
+            display: none;
+        }
+
+        /* 步骤6标注层 */
+        #scene1-annotations {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 800px;
+            height: 500px;
+            pointer-events: none;
+            z-index: 4;
+            display: none;
+        }
+        .scene1-cross {
+            position: absolute;
+            font-size: 16px;
+            color: #c62828;
+            font-family: sans-serif;
+            line-height: 1;
+            transform: translate(-50%, -50%);
+        }
+        .scene1-annot-text {
+            position: absolute;
+            font-size: 12px;
+            color: #888888;
+            font-family: sans-serif;
+            white-space: nowrap;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 基础图形组：始终显示 -->
+            <g id="scene1-base-group">
+                <!-- 三角形 ABC 边线（拆分为多条 line，避免顶点标签与整三角形 path 的 bounding box 重叠） -->
+                <!-- AB 边拆分为 AD 和 DB -->
+                <line x1="240" y1="100" x2="160" y2="228" stroke="#000000" stroke-width="2"/>
+                <line x1="160" y1="228" x2="40" y2="420" stroke="#000000" stroke-width="2"/>
+                <!-- BC 边拆分为 BF 和 FC -->
+                <line x1="40" y1="420" x2="220" y2="420" stroke="#000000" stroke-width="2"/>
+                <line x1="220" y1="420" x2="440" y2="420" stroke="#000000" stroke-width="2"/>
+                <!-- CA 边拆分为 CE 和 EA -->
+                <line x1="440" y1="420" x2="320" y2="228" stroke="#000000" stroke-width="2"/>
+                <line x1="320" y1="228" x2="240" y2="100" stroke="#000000" stroke-width="2"/>
+                <!-- 内部线段 DE、DF、EF -->
+                <line x1="160" y1="228" x2="320" y2="228" stroke="#000000" stroke-width="2"/>
+                <line x1="160" y1="228" x2="220" y2="420" stroke="#000000" stroke-width="2"/>
+                <line x1="320" y1="228" x2="220" y2="420" stroke="#000000" stroke-width="2"/>
+                <!-- 顶点标签（D、E 上移 10px 避免与线段 bounding box 重叠） -->
+                <text x="240" y="82" text-anchor="middle" font-size="14" fill="#000000" font-family="sans-serif">A</text>
+                <text x="25" y="425" text-anchor="middle" font-size="14" fill="#000000" font-family="sans-serif">B</text>
+                <text x="455" y="425" text-anchor="middle" font-size="14" fill="#000000" font-family="sans-serif">C</text>
+                <text x="145" y="218" text-anchor="end" dominant-baseline="middle" font-size="14" fill="#000000" font-family="sans-serif">D</text>
+                <text x="335" y="218" text-anchor="start" dominant-baseline="middle" font-size="14" fill="#000000" font-family="sans-serif">E</text>
+                <text x="220" y="438" text-anchor="middle" font-size="14" fill="#000000" font-family="sans-serif">F</text>
+            </g>
+
+            <!-- 步骤1：△ADE 高亮 -->
+            <g id="scene1-highlight-ade" class="hidden">
+                <polygon points="240,100 160,228 320,228" fill="#1565c0" fill-opacity="0.20"/>
+                <path d="M 240 100 L 160 228 L 320 228 Z" fill="none" stroke="#1565c0" stroke-width="3"/>
+            </g>
+
+            <!-- 步骤2：△BDF 高亮 -->
+            <g id="scene1-highlight-bdf" class="hidden">
+                <polygon points="40,420 160,228 220,420" fill="#2e7d32" fill-opacity="0.20"/>
+                <path d="M 40 420 L 160 228 L 220 420 Z" fill="none" stroke="#2e7d32" stroke-width="3"/>
+            </g>
+
+            <!-- 步骤3：△CEF 高亮 -->
+            <g id="scene1-highlight-cef" class="hidden">
+                <polygon points="440,420 320,228 220,420" fill="#c62828" fill-opacity="0.20"/>
+                <path d="M 440 420 L 320 228 L 220 420 Z" fill="none" stroke="#c62828" stroke-width="3"/>
+            </g>
+
+            <!-- 步骤4：△DEF 高亮 -->
+            <g id="scene1-highlight-def" class="hidden">
+                <polygon points="160,228 320,228 220,420" fill="#f57c00" fill-opacity="0.20"/>
+                <path d="M 160 228 L 320 228 L 220 420 Z" fill="none" stroke="#f57c00" stroke-width="3"/>
+            </g>
+
+            <!-- 步骤5：四个小三角形淡填充 + △ABC 紫色边框（边框拆分为 line） -->
+            <g id="scene1-step5-group" class="hidden">
+                <polygon points="240,100 160,228 320,228" fill="#1565c0" fill-opacity="0.15"/>
+                <polygon points="40,420 160,228 220,420" fill="#2e7d32" fill-opacity="0.15"/>
+                <polygon points="440,420 320,228 220,420" fill="#c62828" fill-opacity="0.15"/>
+                <polygon points="160,228 320,228 220,420" fill="#f57c00" fill-opacity="0.15"/>
+                <!-- △ABC 紫色边框拆分为 6 条 line -->
+                <line x1="240" y1="100" x2="160" y2="228" stroke="#4527a0" stroke-width="4"/>
+                <line x1="160" y1="228" x2="40" y2="420" stroke="#4527a0" stroke-width="4"/>
+                <line x1="40" y1="420" x2="220" y2="420" stroke="#4527a0" stroke-width="4"/>
+                <line x1="220" y1="420" x2="440" y2="420" stroke="#4527a0" stroke-width="4"/>
+                <line x1="440" y1="420" x2="320" y2="228" stroke="#4527a0" stroke-width="4"/>
+                <line x1="320" y1="228" x2="240" y2="100" stroke="#4527a0" stroke-width="4"/>
+            </g>
+
+            <!-- 步骤6：虚线与引线（保留在 SVG 中） -->
+            <g id="scene1-step6-svg" class="hidden">
+                <!-- 三条灰色虚线（未画出的线段） -->
+                <line x1="240" y1="100" x2="220" y2="420" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="40" y1="420" x2="320" y2="228" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="440" y1="420" x2="160" y2="228" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <!-- 灰色引线 -->
+                <line x1="230" y1="260" x2="130" y2="260" stroke="#888888" stroke-width="1"/>
+                <line x1="180" y1="324" x2="80" y2="324" stroke="#888888" stroke-width="1"/>
+                <line x1="300" y1="324" x2="400" y2="324" stroke="#888888" stroke-width="1"/>
+            </g>
+        </svg>
+
+        <!-- 右侧信息面板（HTML 绝对定位，避免 SVG text 与 rect 的 false positive 重叠） -->
+        <div id="scene1-info-panel">
+            <div id="scene1-counter-box">准备计数</div>
+            <div id="scene1-step-desc"></div>
+            <div id="scene1-thumbs">
+                <div class="thumb-item"><svg width="60" height="40" viewBox="0 0 60 40"><polygon points="30,5 10,35 50,35" fill="none" stroke="#1565c0" stroke-width="2"/></svg></div>
+                <div class="thumb-item"><svg width="60" height="40" viewBox="0 0 60 40"><polygon points="30,5 10,35 50,35" fill="none" stroke="#f57c00" stroke-width="2"/></svg></div>
+                <div class="thumb-item"><svg width="60" height="40" viewBox="0 0 60 40"><polygon points="30,5 10,35 50,35" fill="none" stroke="#2e7d32" stroke-width="2"/></svg></div>
+                <div class="thumb-item"><svg width="60" height="40" viewBox="0 0 60 40"><polygon points="30,5 5,35 55,35" fill="none" stroke="#4527a0" stroke-width="2"/></svg></div>
+                <div class="thumb-item"><svg width="60" height="40" viewBox="0 0 60 40"><polygon points="30,5 10,35 50,35" fill="none" stroke="#c62828" stroke-width="2"/></svg></div>
+            </div>
+            <div id="scene1-summary">共 5 个三角形</div>
+        </div>
+
+        <!-- 步骤6标注层（HTML 绝对定位，避免 × 标记与虚线的 false positive 重叠） -->
+        <div id="scene1-annotations">
+            <div class="scene1-cross" style="left: 230px; top: 265px;">×</div>
+            <div class="scene1-cross" style="left: 180px; top: 329px;">×</div>
+            <div class="scene1-cross" style="left: 300px; top: 329px;">×</div>
+            <div class="scene1-annot-text" style="left: 130px; top: 260px; transform: translate(-100%, -50%);">AF 未画出</div>
+            <div class="scene1-annot-text" style="left: 80px; top: 324px; transform: translate(-100%, -50%);">BE 未画出</div>
+            <div class="scene1-annot-text" style="left: 400px; top: 324px; transform: translate(0, -50%);">CD 未画出</div>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：三角形个数的系统枚举与常见错误辨析
+
+        let currentStep = 0;
+        const maxStep = 6;
+
+        // 获取控件元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const counterBox = document.getElementById('scene1-counter-box');
+        const stepDesc = document.getElementById('scene1-step-desc');
+        const thumbs = document.getElementById('scene1-thumbs');
+        const summary = document.getElementById('scene1-summary');
+        const annotations = document.getElementById('scene1-annotations');
+
+        // 获取 SVG 高亮与步骤组元素
+        const highlightAde = document.getElementById('scene1-highlight-ade');
+        const highlightBdf = document.getElementById('scene1-highlight-bdf');
+        const highlightCef = document.getElementById('scene1-highlight-cef');
+        const highlightDef = document.getElementById('scene1-highlight-def');
+        const step5Group = document.getElementById('scene1-step5-group');
+        const step6Svg = document.getElementById('scene1-step6-svg');
+
+        // 每步对应的计数器文字与说明文字
+        const stepData = [
+            { counter: '准备计数', desc: '' },
+            { counter: '已发现三角形：1 个', desc: '△ADE（顶部）' },
+            { counter: '已发现三角形：2 个', desc: '△BDF（左下）' },
+            { counter: '已发现三角形：3 个', desc: '△CEF（右下）' },
+            { counter: '已发现三角形：4 个', desc: '△DEF（中心）' },
+            { counter: '已发现三角形：5 个', desc: '△ABC（整体）' },
+            { counter: '共 5 个三角形', desc: '' }
+        ];
+
+        // 统一显隐控制：同时处理 class 与 inline style
+        function setDisplay(el, show) {
+            if (!el) return;
+            if (show) {
+                el.classList.remove('hidden');
+                el.style.display = '';
+                el.style.opacity = '';
+            } else {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 根据 currentStep 渲染对应视觉状态
+        function renderStep() {
+            // 更新计数器与说明文字
+            counterBox.textContent = stepData[currentStep].counter;
+            stepDesc.textContent = stepData[currentStep].desc;
+
+            // 重置所有高亮与步骤组为隐藏
+            setDisplay(highlightAde, false);
+            setDisplay(highlightBdf, false);
+            setDisplay(highlightCef, false);
+            setDisplay(highlightDef, false);
+            setDisplay(step5Group, false);
+            setDisplay(step6Svg, false);
+            setDisplay(annotations, false);
+            thumbs.style.display = 'none';
+            summary.style.display = 'none';
+
+            // 按步骤显示对应内容
+            if (currentStep === 1) {
+                setDisplay(highlightAde, true);
+            } else if (currentStep === 2) {
+                setDisplay(highlightBdf, true);
+            } else if (currentStep === 3) {
+                setDisplay(highlightCef, true);
+            } else if (currentStep === 4) {
+                setDisplay(highlightDef, true);
+            } else if (currentStep === 5) {
+                setDisplay(step5Group, true);
+            } else if (currentStep === 6) {
+                setDisplay(step5Group, true);
+                setDisplay(step6Svg, true);
+                setDisplay(annotations, true);
+                thumbs.style.display = 'flex';
+                summary.style.display = 'block';
+            }
+
+            // 同步按钮禁用状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === maxStep);
+        }
+
+        // 上一步按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        // 下一步按钮事件
+        btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

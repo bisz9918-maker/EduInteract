@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 经纬网上方向判断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { padding: 8px 16px; font-size: 14px; line-height: 1.5; }
+        svg { display: block; }
+        .scene2-grid-line { stroke: #888888; stroke-width: 1; stroke-dasharray: 4,4; }
+        .scene2-meridian { stroke: #000000; stroke-width: 1; }
+        .scene2-parallel { stroke: #000000; stroke-width: 1; }
+        .scene2-point { fill: #2e7d32; }
+        .scene2-path { stroke: #2e7d32; stroke-width: 2; stroke-dasharray: 5,5; fill: none; }
+        .scene2-arrow { stroke: #2e7d32; stroke-width: 3; fill: none; }
+        .scene2-arrow-head { fill: #2e7d32; }
+        .scene2-label { font-size: 14px; }
+        .scene2-meridian-label { fill: #1565c0; font-size: 14px; }
+        .scene2-parallel-label { fill: #c62828; font-size: 14px; }
+        .scene2-direction-label { fill: #2e7d32; font-size: 14px; font-weight: bold; }
+        .scene2-conclusion { fill: #000000; font-size: 16px; font-weight: bold; }
+        .scene2-fade { transition: opacity 0.3s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- 背景网格 -->
+            <g id="scene2-grid">
+                <!-- 经线 -->
+                <line class="scene2-grid-line" x1="100" y1="80" x2="100" y2="400"/>
+                <line class="scene2-grid-line" x1="225" y1="80" x2="225" y2="400"/>
+                <line class="scene2-grid-line" x1="350" y1="80" x2="350" y2="400"/>
+                <line class="scene2-grid-line" x1="475" y1="80" x2="475" y2="400"/>
+                <line class="scene2-grid-line" x1="600" y1="80" x2="600" y2="400"/>
+                <line class="scene2-grid-line" x1="700" y1="80" x2="700" y2="400"/>
+                <!-- 纬线 -->
+                <line class="scene2-grid-line" x1="100" y1="100" x2="700" y2="100"/>
+                <line class="scene2-grid-line" x1="100" y1="160" x2="700" y2="160"/>
+                <line class="scene2-grid-line" x1="100" y1="200" x2="700" y2="200"/>
+                <line class="scene2-grid-line" x1="100" y1="260" x2="700" y2="260"/>
+                <line class="scene2-grid-line" x1="100" y1="320" x2="700" y2="320"/>
+                <line class="scene2-grid-line" x1="100" y1="360" x2="700" y2="360"/>
+                <line class="scene2-grid-line" x1="100" y1="400" x2="700" y2="400"/>
+            </g>
+
+            <!-- 经线 -->
+            <line id="scene2-meridian-170e" class="scene2-meridian" x1="150" y1="80" x2="150" y2="400"/>
+            <line id="scene2-meridian-180" class="scene2-meridian" x1="400" y1="80" x2="400" y2="400"/>
+            <line id="scene2-meridian-170w" class="scene2-meridian" x1="650" y1="80" x2="650" y2="400"/>
+
+            <!-- 纬线 -->
+            <line id="scene2-parallel-20n" class="scene2-parallel" x1="100" y1="320" x2="700" y2="320"/>
+            <line id="scene2-parallel-30n" class="scene2-parallel" x1="100" y1="200" x2="700" y2="200"/>
+            <line id="scene2-parallel-40n" class="scene2-parallel" x1="100" y1="100" x2="700" y2="100"/>
+
+            <!-- B 点和 D 点 -->
+            <circle id="scene2-point-B" class="scene2-point scene2-fade" cx="150" cy="320" r="8" opacity="1"/>
+            <circle id="scene2-point-D" class="scene2-point scene2-fade" cx="650" cy="320" r="8" opacity="1"/>
+
+            <!-- B 到 D 虚线路径 -->
+            <path id="scene2-path-BD" class="scene2-path scene2-fade" d="M 150 320 Q 400 220 650 320" opacity="0"/>
+
+            <!-- 路径最高点标记 -->
+            <circle id="scene2-path-peak" class="scene2-point scene2-fade" cx="400" cy="220" r="4" opacity="0"/>
+
+            <!-- 东北方向箭头 -->
+            <g id="scene2-arrow-northeast" class="scene2-fade" opacity="0">
+                <line class="scene2-arrow" x1="225" y1="290" x2="300" y2="260"/>
+                <polygon class="scene2-arrow-head" points="300,260 290,270 295,255"/>
+            </g>
+
+            <!-- 东南方向箭头 -->
+            <g id="scene2-arrow-southeast" class="scene2-fade" opacity="0">
+                <line class="scene2-arrow" x1="500" y1="260" x2="575" y2="290"/>
+                <polygon class="scene2-arrow-head" points="575,290 565,280 570,295"/>
+            </g>
+
+            <!-- 标签 -->
+            <text id="scene2-label-B" class="scene2-label scene2-fade" x="130" y="335" opacity="1">B</text>
+            <text id="scene2-label-D" class="scene2-label scene2-fade" x="660" y="335" opacity="1">D</text>
+
+            <text id="scene2-label-170e" class="scene2-meridian-label scene2-fade" x="140" y="420" opacity="1">170°E</text>
+            <text id="scene2-label-180" class="scene2-meridian-label scene2-fade" x="385" y="420" opacity="1">180°</text>
+            <text id="scene2-label-170w" class="scene2-meridian-label scene2-fade" x="635" y="420" opacity="1">170°W</text>
+
+            <text id="scene2-label-20n" class="scene2-parallel-label scene2-fade" x="720" y="325" opacity="1">20°N</text>
+            <text id="scene2-label-30n" class="scene2-parallel-label scene2-fade" x="720" y="205" opacity="1">30°N</text>
+            <text id="scene2-label-40n" class="scene2-parallel-label scene2-fade" x="720" y="105" opacity="1">40°N</text>
+
+            <text id="scene2-label-northeast" class="scene2-direction-label scene2-fade" x="260" y="245" opacity="0">东北</text>
+            <text id="scene2-label-southeast" class="scene2-direction-label scene2-fade" x="535" y="245" opacity="0">东南</text>
+
+            <text id="scene2-label-latitude-change" class="scene2-parallel-label scene2-fade" x="320" y="195" opacity="0">20°N→30°N→20°N</text>
+            <text id="scene2-label-longitude-change" class="scene2-meridian-label scene2-fade" x="300" y="280" opacity="0">170°E→180°→170°W</text>
+
+            <text id="scene2-conclusion" class="scene2-conclusion scene2-fade" x="200" y="460" opacity="0">方向变化：先向东北，再向东南</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表：
+        // | 元素 | 位置 | 备注 |
+        // | 背景网格 | (100,80)-(700,400) | 600×320 |
+        // | 经线 170°E | (150,80)-(150,400) | 实线 |
+        // | 经线 180° | (400,80)-(400,400) | 实线 |
+        // | 经线 170°W | (650,80)-(650,400) | 实线 |
+        // | 纬线 20°N | (100,320)-(700,320) | 实线 |
+        // | 纬线 30°N | (100,200)-(700,200) | 实线 |
+        // | 纬线 40°N | (100,100)-(700,100) | 实线 |
+        // | B 点 | (150,320) | r=8, 绿色 |
+        // | D 点 | (650,320) | r=8, 绿色 |
+        // | B 到 D 路径 | (150,320)→(400,220)→(650,320) | 贝塞尔曲线 |
+        // | 东北箭头 | (225,290)-(300,260) | 路径前半段 |
+        // | 东南箭头 | (500,260)-(575,290) | 路径后半段 |
+
+        const TOTAL_STEPS = 6;
+        let currentStep = 1;
+
+        // 元素显示控制
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el) el.style.display = 'none';
+                }, 300);
+            }
+        }
+
+        function showElements(ids) {
+            ids.forEach(id => showElement(id));
+        }
+
+        function hideElements(ids) {
+            ids.forEach(id => hideElement(id));
+        }
+
+        // 步骤元素集合
+        const stepElements = {
+            1: [], // 初始状态：B、D 点及所有经纬度标签已显示
+            2: ['scene2-path-BD', 'scene2-path-peak', 'scene2-label-longitude-change'],
+            3: ['scene2-arrow-northeast', 'scene2-label-northeast'],
+            4: ['scene2-arrow-southeast', 'scene2-label-southeast'],
+            5: ['scene2-label-latitude-change'],
+            6: ['scene2-conclusion']
+        };
+
+        // 更新场景显示
+        function updateScene() {
+            // 隐藏步骤 2-6 的所有元素
+            for (let step = 2; step <= TOTAL_STEPS; step++) {
+                hideElements(stepElements[step]);
+            }
+
+            // 显示当前步骤及之前的所有元素
+            for (let step = 1; step <= currentStep; step++) {
+                showElements(stepElements[step]);
+            }
+
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep}/${TOTAL_STEPS}`;
+
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 1);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === TOTAL_STEPS);
+        }
+
+        // 事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

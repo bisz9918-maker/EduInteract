@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - v-t 图像与碰撞规律</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5;
+            transition: opacity 0.2s;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrow-x" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000"/>
+                </marker>
+                <marker id="scene2-arrow-y" markerWidth="10" markerHeight="10" refX="3" refY="9" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,9 L6,9 L3,0 z" fill="#000"/>
+                </marker>
+            </defs>
+
+            <!-- 坐标系 -->
+            <!-- 横轴 t -->
+            <line id="scene2-axis-x" x1="100" y1="420" x2="550" y2="420" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrow-x)"/>
+            <!-- 纵轴 v -->
+            <line id="scene2-axis-y" x1="100" y1="420" x2="100" y2="80" stroke="#000" stroke-width="2" marker-end="url(#scene2-arrow-y)"/>
+
+            <!-- 网格线（虚线） -->
+            <!-- 水平网格线 v₁ -->
+            <line id="scene2-grid-h1" x1="100" y1="310" x2="550" y2="310" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <!-- 水平网格线 2v₁ -->
+            <line id="scene2-grid-h2" x1="100" y1="200" x2="550" y2="200" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <!-- 垂直网格线 t₁ -->
+            <line id="scene2-grid-v1" x1="190" y1="80" x2="190" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            <!-- 垂直网格线 3t₁ -->
+            <line id="scene2-grid-v2" x1="370" y1="80" x2="370" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+
+            <!-- A球 v-t 曲线 -->
+            <!-- A第一段斜线: (100,420) → (190,310) -->
+            <line id="scene2-curve-a-seg1" x1="100" y1="420" x2="190" y2="310" stroke="#1565c0" stroke-width="2.5" opacity="0"/>
+            <!-- A突降线1: (190,310) → (190,420) -->
+            <line id="scene2-jump-a-1" x1="190" y1="310" x2="190" y2="420" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <!-- A第二段斜线: (190,420) → (370,200) -->
+            <line id="scene2-curve-a-seg2" x1="190" y1="420" x2="370" y2="200" stroke="#1565c0" stroke-width="2.5" opacity="0"/>
+            <!-- A突降线2: (370,200) → (370,310) -->
+            <line id="scene2-jump-a-2" x1="370" y1="200" x2="370" y2="310" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <!-- A第三段斜线: (370,310) → (550,90) -->
+            <line id="scene2-curve-a-seg3" x1="370" y1="310" x2="550" y2="90" stroke="#1565c0" stroke-width="2.5" opacity="0"/>
+
+            <!-- B球 v-t 曲线 -->
+            <!-- B突升线1: (190,420) → (190,310) -->
+            <line id="scene2-jump-b-1" x1="190" y1="420" x2="190" y2="310" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <!-- B第一段水平线: (190,310) → (370,310) -->
+            <line id="scene2-curve-b-seg1" x1="190" y1="310" x2="370" y2="310" stroke="#c62828" stroke-width="2.5" opacity="0"/>
+            <!-- B突升线2: (370,310) → (370,200) -->
+            <line id="scene2-jump-b-2" x1="370" y1="310" x2="370" y2="200" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <!-- B第二段水平线: (370,200) → (550,200) -->
+            <line id="scene2-curve-b-seg2" x1="370" y1="200" x2="550" y2="200" stroke="#c62828" stroke-width="2.5" opacity="0"/>
+
+            <!-- 碰撞垂线（绿色虚线） -->
+            <line id="scene2-collision-line-1" x1="190" y1="80" x2="190" y2="430" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene2-collision-line-2" x1="370" y1="80" x2="370" y2="430" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            <line id="scene2-collision-line-3" x1="550" y1="80" x2="550" y2="430" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+
+            <!-- 斜率三角形 -->
+            <line id="scene2-slope-tri-h" x1="140" y1="390" x2="170" y2="390" stroke="#000" stroke-width="1.5" opacity="0"/>
+            <line id="scene2-slope-tri-v" x1="170" y1="390" x2="170" y2="360" stroke="#000" stroke-width="1.5" opacity="0"/>
+
+            <!-- 轴标签和刻度 -->
+            <text id="scene2-label-t" x="575" y="425" font-size="16" fill="#000" font-family="serif" font-style="italic">t</text>
+            <text id="scene2-label-v" x="85" y="75" font-size="16" fill="#000" font-family="serif" font-style="italic">v</text>
+            <text id="scene2-label-0" x="85" y="440" font-size="14" fill="#000" text-anchor="end">0</text>
+            <text id="scene2-label-t1" x="190" y="455" font-size="14" fill="#000" text-anchor="middle">t₁</text>
+            <text id="scene2-label-3t1" x="370" y="455" font-size="14" fill="#000" text-anchor="middle">3t₁</text>
+            <text id="scene2-label-5t1" x="550" y="455" font-size="14" fill="#000" text-anchor="middle">5t₁</text>
+            <text id="scene2-label-v1" x="70" y="315" font-size="14" fill="#000" text-anchor="end">v₁</text>
+            <text id="scene2-label-2v1" x="65" y="205" font-size="14" fill="#000" text-anchor="end">2v₁</text>
+            <text id="scene2-label-3v1" x="65" y="95" font-size="14" fill="#000" text-anchor="end">3v₁</text>
+
+            <!-- 斜率标注：放在斜率三角形左上方，远离所有曲线 -->
+            <text id="scene2-slope-label" x="120" y="280" font-size="14" fill="#2e7d32" opacity="0">a = qE/m</text>
+
+            <!-- 右侧图例区 -->
+            <text id="scene2-legend-title" x="660" y="72" font-size="16" fill="#000" font-weight="bold" text-anchor="middle">图例</text>
+            <line id="scene2-legend-line-a" x1="600" y1="100" x2="630" y2="100" stroke="#1565c0" stroke-width="2.5"/>
+            <text id="scene2-legend-text-a" x="640" y="105" font-size="14" fill="#000">A球</text>
+            <line id="scene2-legend-line-b" x1="600" y1="140" x2="630" y2="140" stroke="#c62828" stroke-width="2.5"/>
+            <text id="scene2-legend-text-b" x="640" y="145" font-size="14" fill="#000">B球</text>
+            <line id="scene2-legend-line-c" x1="600" y1="180" x2="630" y2="180" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,5"/>
+            <text id="scene2-legend-text-c" x="640" y="185" font-size="14" fill="#000">碰撞时刻</text>
+
+            <!-- 右侧规律区（步骤5显示） -->
+            <text id="scene2-rule-title" x="660" y="230" font-size="16" fill="#000" font-weight="bold" text-anchor="middle" opacity="0">时间规律</text>
+            <text id="scene2-rule-dt1" x="610" y="275" font-size="14" fill="#000" opacity="0">Δt₁ = t₁</text>
+            <text id="scene2-rule-dt2" x="610" y="310" font-size="14" fill="#000" opacity="0">Δt₂ = 2t₁</text>
+            <text id="scene2-rule-dt3" x="610" y="345" font-size="14" fill="#000" opacity="0">Δt₃ = 2t₁</text>
+            <text id="scene2-rule-formula" x="620" y="390" font-size="16" fill="#2e7d32" font-weight="bold" opacity="0">tₙ = (2n−1)t₁</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 每步应显示的元素ID列表
+        const stepVisibility = [
+            // 步骤0: 坐标系 + 网格 + 刻度 + 图例
+            ['scene2-axis-x','scene2-axis-y','scene2-grid-h1','scene2-grid-h2','scene2-grid-v1','scene2-grid-v2',
+             'scene2-label-t','scene2-label-v','scene2-label-0','scene2-label-t1','scene2-label-3t1','scene2-label-5t1',
+             'scene2-label-v1','scene2-label-2v1','scene2-label-3v1',
+             'scene2-legend-title','scene2-legend-line-a','scene2-legend-text-a','scene2-legend-line-b','scene2-legend-text-b',
+             'scene2-legend-line-c','scene2-legend-text-c'],
+            // 步骤1: + A第一段斜线 + 斜率三角形 + 斜率标注
+            ['scene2-axis-x','scene2-axis-y','scene2-grid-h1','scene2-grid-h2','scene2-grid-v1','scene2-grid-v2',
+             'scene2-label-t','scene2-label-v','scene2-label-0','scene2-label-t1','scene2-label-3t1','scene2-label-5t1',
+             'scene2-label-v1','scene2-label-2v1','scene2-label-3v1',
+             'scene2-legend-title','scene2-legend-line-a','scene2-legend-text-a','scene2-legend-line-b','scene2-legend-text-b',
+             'scene2-legend-line-c','scene2-legend-text-c',
+             'scene2-curve-a-seg1','scene2-slope-tri-h','scene2-slope-tri-v','scene2-slope-label'],
+            // 步骤2: + 碰撞垂线1 + A突降线1 + B突升线1 + B第一段水平线
+            ['scene2-axis-x','scene2-axis-y','scene2-grid-h1','scene2-grid-h2','scene2-grid-v1','scene2-grid-v2',
+             'scene2-label-t','scene2-label-v','scene2-label-0','scene2-label-t1','scene2-label-3t1','scene2-label-5t1',
+             'scene2-label-v1','scene2-label-2v1','scene2-label-3v1',
+             'scene2-legend-title','scene2-legend-line-a','scene2-legend-text-a','scene2-legend-line-b','scene2-legend-text-b',
+             'scene2-legend-line-c','scene2-legend-text-c',
+             'scene2-curve-a-seg1','scene2-slope-tri-h','scene2-slope-tri-v','scene2-slope-label',
+             'scene2-collision-line-1','scene2-jump-a-1','scene2-jump-b-1','scene2-curve-b-seg1'],
+            // 步骤3: + A第二段斜线
+            ['scene2-axis-x','scene2-axis-y','scene2-grid-h1','scene2-grid-h2','scene2-grid-v1','scene2-grid-v2',
+             'scene2-label-t','scene2-label-v','scene2-label-0','scene2-label-t1','scene2-label-3t1','scene2-label-5t1',
+             'scene2-label-v1','scene2-label-2v1','scene2-label-3v1',
+             'scene2-legend-title','scene2-legend-line-a','scene2-legend-text-a','scene2-legend-line-b','scene2-legend-text-b',
+             'scene2-legend-line-c','scene2-legend-text-c',
+             'scene2-curve-a-seg1','scene2-slope-tri-h','scene2-slope-tri-v','scene2-slope-label',
+             'scene2-collision-line-1','scene2-jump-a-1','scene2-jump-b-1','scene2-curve-b-seg1',
+             'scene2-curve-a-seg2'],
+            // 步骤4: + 碰撞垂线2 + A突降线2 + B突升线2 + B第二段水平线
+            ['scene2-axis-x','scene2-axis-y','scene2-grid-h1','scene2-grid-h2','scene2-grid-v1','scene2-grid-v2',
+             'scene2-label-t','scene2-label-v','scene2-label-0','scene2-label-t1','scene2-label-3t1','scene2-label-5t1',
+             'scene2-label-v1','scene2-label-2v1','scene2-label-3v1',
+             'scene2-legend-title','scene2-legend-line-a','scene2-legend-text-a','scene2-legend-line-b','scene2-legend-text-b',
+             'scene2-legend-line-c','scene2-legend-text-c',
+             'scene2-curve-a-seg1','scene2-slope-tri-h','scene2-slope-tri-v','scene2-slope-label',
+             'scene2-collision-line-1','scene2-jump-a-1','scene2-jump-b-1','scene2-curve-b-seg1',
+             'scene2-curve-a-seg2',
+             'scene2-collision-line-2','scene2-jump-a-2','scene2-jump-b-2','scene2-curve-b-seg2'],
+            // 步骤5: + A第三段斜线 + 碰撞垂线3 + 规律区
+            ['scene2-axis-x','scene2-axis-y','scene2-grid-h1','scene2-grid-h2','scene2-grid-v1','scene2-grid-v2',
+             'scene2-label-t','scene2-label-v','scene2-label-0','scene2-label-t1','scene2-label-3t1','scene2-label-5t1',
+             'scene2-label-v1','scene2-label-2v1','scene2-label-3v1',
+             'scene2-legend-title','scene2-legend-line-a','scene2-legend-text-a','scene2-legend-line-b','scene2-legend-text-b',
+             'scene2-legend-line-c','scene2-legend-text-c',
+             'scene2-curve-a-seg1','scene2-slope-tri-h','scene2-slope-tri-v','scene2-slope-label',
+             'scene2-collision-line-1','scene2-jump-a-1','scene2-jump-b-1','scene2-curve-b-seg1',
+             'scene2-curve-a-seg2',
+             'scene2-collision-line-2','scene2-jump-a-2','scene2-jump-b-2','scene2-curve-b-seg2',
+             'scene2-curve-a-seg3','scene2-collision-line-3',
+             'scene2-rule-title','scene2-rule-dt1','scene2-rule-dt2','scene2-rule-dt3','scene2-rule-formula']
+        ];
+
+        // 所有可能动态显示的元素ID
+        const allDynamicIds = [
+            'scene2-curve-a-seg1','scene2-jump-a-1','scene2-curve-a-seg2','scene2-jump-a-2','scene2-curve-a-seg3',
+            'scene2-jump-b-1','scene2-curve-b-seg1','scene2-jump-b-2','scene2-curve-b-seg2',
+            'scene2-collision-line-1','scene2-collision-line-2','scene2-collision-line-3',
+            'scene2-slope-tri-h','scene2-slope-tri-v','scene2-slope-label',
+            'scene2-rule-title','scene2-rule-dt1','scene2-rule-dt2','scene2-rule-dt3','scene2-rule-formula'
+        ];
+
+        function updateView() {
+            // 隐藏所有动态元素
+            allDynamicIds.forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) {
+                    el.style.opacity = '0';
+                    el.style.transition = 'opacity 0.3s ease-in';
+                }
+            });
+
+            // 显示当前步骤应有的元素
+            var visibleIds = stepVisibility[currentStep] || [];
+            visibleIds.forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) {
+                    el.style.opacity = '1';
+                    el.style.transition = 'opacity 0.3s ease-in';
+                }
+            });
+
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === totalSteps - 1);
+            document.getElementById('scene2-step-indicator').textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+        }
+
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateView();
+            }
+        });
+
+        // 初始显示
+        updateView();
+    })();
+    </script>
+</body>
+</html>

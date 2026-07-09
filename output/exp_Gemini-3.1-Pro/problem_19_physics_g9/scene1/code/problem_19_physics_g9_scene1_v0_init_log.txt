@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        /* 步骤控制样式 */
+        .step-group { transition: opacity 0.5s ease; opacity: 0; pointer-events: none; display: none; }
+        .step-group.active { opacity: 1; pointer-events: auto; display: inline; }
+        
+        /* 按钮样式 */
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:hover { background: #e9ecef; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* 滑块样式 */
+        #scene1-slider-container { position: absolute; top: 110px; left: 500px; width: 200px; display: none; align-items: center; gap: 10px; }
+        #scene1-slider-p { width: 150px; }
+        
+        /* SVG 样式 */
+        svg text { font-family: sans-serif; font-size: 14px; }
+        .wire { stroke: #000; stroke-width: 2; fill: none; }
+        .wire-red { stroke: #c62828; stroke-width: 2; fill: none; }
+        .wire-blue { stroke: #1565c0; stroke-width: 2; fill: none; }
+        .pencil-core { stroke: #555; stroke-width: 6; stroke-linecap: round; }
+        .meter { fill: #fff; stroke: #000; stroke-width: 2; }
+        .resistor { fill: #fff; stroke: #000; stroke-width: 2; }
+        .bar-red { fill: #c62828; }
+        .bar-blue { fill: #1565c0; }
+        .arrow { fill: #000; }
+        .arrow-red { fill: #c62828; }
+        .arrow-blue { fill: #1565c0; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="arrow-black" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="arrow" />
+                </marker>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-red" />
+                </marker>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-blue" />
+                </marker>
+            </defs>
+
+            <!-- ================= 原始电路 (Step 0-1) ================= -->
+            <g id="scene1-group-original" class="step-group active">
+                <!-- 导线 -->
+                <path d="M 150 100 L 350 100" class="wire" />
+                <path d="M 150 100 L 150 260" class="wire" id="scene1-wire-left" />
+                <path d="M 350 100 L 350 260" class="wire" id="scene1-wire-right" />
+                <path d="M 150 260 L 180 260" class="wire" />
+                <path d="M 320 260 L 350 260" class="wire" />
+                <path d="M 250 100 L 250 220" class="wire" />
+                
+                <!-- 铅笔芯 -->
+                <line x1="180" y1="260" x2="320" y2="260" class="pencil-core" />
+                
+                <!-- 电源 (250, 140) -->
+                <g transform="translate(250, 140)">
+                    <line x1="-15" y1="-5" x2="15" y2="-5" stroke="#000" stroke-width="2" />
+                    <line x1="-8" y1="5" x2="8" y2="5" stroke="#000" stroke-width="4" />
+                    <line x1="0" y1="-15" x2="0" y2="-5" stroke="#000" stroke-width="2" />
+                    <line x1="0" y1="5" x2="0" y2="15" stroke="#000" stroke-width="2" />
+                </g>
+                
+                <!-- 开关 (250, 200) -->
+                <g transform="translate(250, 200)">
+                    <circle cx="-10" cy="0" r="2" fill="#000" />
+                    <circle cx="10" cy="0" r="2" fill="#000" />
+                    <line x1="-10" y1="0" x2="8" y2="-8" stroke="#000" stroke-width="2" />
+                    <line x1="-10" y1="-15" x2="-10" y2="-2" stroke="#000" stroke-width="2" />
+                    <line x1="10" y1="2" x2="10" y2="15" stroke="#000" stroke-width="2" />
+                </g>
+                
+                <!-- 电流表 A1, A2 -->
+                <circle cx="150" cy="180" r="15" class="meter" />
+                <text x="125" y="185" text-anchor="end">A1</text>
+                
+                <circle cx="350" cy="180" r="15" class="meter" />
+                <text x="375" y="185" text-anchor="start">A2</text>
+                
+                <!-- 滑片 P -->
+                <g id="scene1-slider-path" transform="translate(250, 220)">
+                    <path d="M 0 0 L 0 35" stroke="#000" stroke-width="2" marker-end="url(#arrow-black)" />
+                    <text x="15" y="15">P</text>
+                </g>
+                
+                <!-- 标签 -->
+                <text x="180" y="285" text-anchor="middle">A</text>
+                <text x="320" y="285" text-anchor="middle">B</text>
+                <text x="220" y="285" text-anchor="middle">c</text>
+                <text x="280" y="285" text-anchor="middle">d</text>
+
+                <!-- 动态电流箭头 (Step 1 显示) -->
+                <g id="scene1-current-arrows" style="opacity: 0; display: none;">
+                    <!-- 主干路 -->
+                    <path d="M 250 125 L 250 100" stroke="none" fill="none" visibility="hidden" id="path-main-1" />
+                    <circle r="4" fill="#000">
+                        <animateMotion dur="2s" repeatCount="indefinite">
+                            <mpath href="#path-main-1" />
+                        </animateMotion>
+                    </circle>
+                    
+                    <!-- 左支路 -->
+                    <path d="M 250 100 L 150 100 L 150 260 L 250 260" stroke="none" fill="none" visibility="hidden" id="path-left" />
+                    <circle r="4" fill="#c62828">
+                        <animateMotion dur="4s" repeatCount="indefinite">
+                            <mpath href="#path-left" />
+                        </animateMotion>
+                    </circle>
+                    
+                    <!-- 右支路 -->
+                    <path d="M 250 100 L 350 100 L 350 260 L 250 260" stroke="none" fill="none" visibility="hidden" id="path-right" />
+                    <circle r="4" fill="#1565c0">
+                        <animateMotion dur="4s" repeatCount="indefinite">
+                            <mpath href="#path-right" />
+                        </animateMotion>
+                    </circle>
+                    
+                    <!-- 汇合后 -->
+                    <path d="M 250 260 L 250 220" stroke="none" fill="none" visibility="hidden" id="path-main-2" />
+                    <circle r="4" fill="#000">
+                        <animateMotion dur="2s" repeatCount="indefinite">
+                            <mpath href="#path-main-2" />
+                        </animateMotion>
+                    </circle>
+                </g>
+            </g>
+
+            <!-- ================= 等效电路 (Step 2-3) ================= -->
+            <g id="scene1-group-equiv" class="step-group">
+                <!-- 导线 -->
+                <path d="M 100 260 L 100 100" class="wire" />
+                <path d="M 100 100 L 350 100" class="wire" />
+                <path d="M 100 260 L 350 260" class="wire" />
+                <path d="M 200 100 L 200 260" class="wire" />
+                <path d="M 350 100 L 350 260" class="wire" />
+                
+                <!-- 电源 (100, 140) -->
+                <g transform="translate(100, 140)">
+                    <line x1="-15" y1="-5" x2="15" y2="-5" stroke="#000" stroke-width="2" />
+                    <line x1="-8" y1="5" x2="8" y2="5" stroke="#000" stroke-width="4" />
+                    <line x1="0" y1="-15" x2="0" y2="-5" stroke="#000" stroke-width="2" />
+                    <line x1="0" y1="5" x2="0" y2="15" stroke="#000" stroke-width="2" />
+                </g>
+                
+                <!-- 开关 (100, 220) 闭合 -->
+                <g transform="translate(100, 220)">
+                    <circle cx="-10" cy="0" r="2" fill="#000" />
+                    <circle cx="10" cy="0" r="2" fill="#000" />
+                    <line x1="-10" y1="0" x2="10" y2="0" stroke="#000" stroke-width="2" />
+                    <line x1="-10" y1="-15" x2="-10" y2="-2" stroke="#000" stroke-width="2" />
+                    <line x1="10" y1="2" x2="10" y2="15" stroke="#000" stroke-width="2" />
+                </g>
+                
+                <!-- 电流表 A1, A2 -->
+                <circle cx="200" cy="140" r="15" class="meter" />
+                <text x="175" y="145" text-anchor="end">A1</text>
+                
+                <circle cx="350" cy="140" r="15" class="meter" />
+                <text x="375" y="145" text-anchor="start">A2</text>
+                
+                <!-- 电阻 -->
+                <rect x="190" y="190" width="20" height="40" class="resistor" />
+                <text x="165" y="215" text-anchor="end">R_AP</text>
+                
+                <rect x="340" y="190" width="20" height="40" class="resistor" />
+                <text x="385" y="215" text-anchor="start">R_BP</text>
+            </g>
+
+            <!-- ================= 右侧图表区 (Step 3) ================= -->
+            <g id="scene1-group-chart" class="step-group">
+                <!-- 坐标轴 -->
+                <line x1="520" y1="240" x2="700" y2="240" stroke="#000" stroke-width="1" />
+                <text x="510" y="245" text-anchor="end">R</text>
+                
+                <line x1="520" y1="380" x2="700" y2="380" stroke="#000" stroke-width="1" />
+                <text x="510" y="385" text-anchor="end">I</text>
+                
+                <!-- 柱状图 -->
+                <rect id="scene1-rect-rap" x="540" y="180" width="30" height="60" class="bar-red" />
+                <text x="555" y="260" text-anchor="middle">R_AP</text>
+                
+                <rect id="scene1-rect-rbp" x="640" y="180" width="30" height="60" class="bar-blue" />
+                <text x="655" y="260" text-anchor="middle">R_BP</text>
+                
+                <rect id="scene1-rect-i1" x="540" y="320" width="30" height="60" class="bar-red" />
+                <text x="555" y="400" text-anchor="middle">I_1</text>
+                
+                <rect id="scene1-rect-i2" x="640" y="320" width="30" height="60" class="bar-blue" />
+                <text x="655" y="400" text-anchor="middle">I_2</text>
+            </g>
+        </svg>
+
+        <!-- HTML 滑块控件 -->
+        <div id="scene1-slider-container">
+            <span>A</span>
+            <input type="range" id="scene1-slider-p" min="10" max="90" value="50">
+            <span>B</span>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const groupOriginal = document.getElementById('scene1-group-original');
+        const groupEquiv = document.getElementById('scene1-group-equiv');
+        const groupChart = document.getElementById('scene1-group-chart');
+        
+        const currentArrows = document.getElementById('scene1-current-arrows');
+        const wireLeft = document.getElementById('scene1-wire-left');
+        const wireRight = document.getElementById('scene1-wire-right');
+        
+        const sliderContainer = document.getElementById('scene1-slider-container');
+        const sliderP = document.getElementById('scene1-slider-p');
+        const sliderPath = document.getElementById('scene1-slider-path');
+        
+        const rectRap = document.getElementById('scene1-rect-rap');
+        const rectRbp = document.getElementById('scene1-rect-rbp');
+        const rectI1 = document.getElementById('scene1-rect-i1');
+        const rectI2 = document.getElementById('scene1-rect-i2');
+
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Step 0: 原始电路
+            if (currentStep === 0) {
+                groupOriginal.classList.add('active');
+                groupEquiv.classList.remove('active');
+                groupChart.classList.remove('active');
+                
+                currentArrows.style.opacity = '0';
+                currentArrows.style.display = 'none';
+                wireLeft.classList.remove('wire-red');
+                wireLeft.classList.add('wire');
+                wireRight.classList.remove('wire-blue');
+                wireRight.classList.add('wire');
+                
+                sliderContainer.style.display = 'none';
+            }
+            // Step 1: 原始电路 + 电流动画
+            else if (currentStep === 1) {
+                groupOriginal.classList.add('active');
+                groupEquiv.classList.remove('active');
+                groupChart.classList.remove('active');
+                
+                currentArrows.style.opacity = '1';
+                currentArrows.style.display = 'inline';
+                wireLeft.classList.remove('wire');
+                wireLeft.classList.add('wire-red');
+                wireRight.classList.remove('wire');
+                wireRight.classList.add('wire-blue');
+                
+                sliderContainer.style.display = 'none';
+            }
+            // Step 2: 等效电路
+            else if (currentStep === 2) {
+                groupOriginal.classList.remove('active');
+                groupEquiv.classList.add('active');
+                groupChart.classList.remove('active');
+                
+                sliderContainer.style.display = 'none';
+            }
+            // Step 3: 等效电路 + 图表 + 滑块
+            else if (currentStep === 3) {
+                groupOriginal.classList.remove('active');
+                groupEquiv.classList.add('active');
+                groupChart.classList.add('active');
+                
+                sliderContainer.style.display = 'flex';
+                updateChart();
+            }
+        }
+
+        function updateChart() {
+            const val = parseInt(sliderP.value); // 10 to 90
+            
+            // 更新原始电路中 P 的位置 (仅作逻辑同步，虽然此时不可见)
+            // 铅笔芯范围: 180 到 320, 长度 140
+            // val 10-90 映射到 180-320
+            const px = 180 + (val / 100) * 140;
+            sliderPath.setAttribute('transform', `translate(${px}, 220)`);
+            
+            // 计算电阻和电流高度
+            // 假设总电阻 R = 100, Rap = val, Rbp = 100 - val
+            const rap = val;
+            const rbp = 100 - val;
+            
+            // 高度映射: R 最大 100 -> 高度 100
+            const hRap = rap;
+            const hRbp = rbp;
+            
+            rectRap.setAttribute('height', hRap);
+            rectRap.setAttribute('y', 240 - hRap);
+            
+            rectRbp.setAttribute('height', hRbp);
+            rectRbp.setAttribute('y', 240 - hRbp);
+            
+            // 电流 I = U / R, 假设 U = 1000
+            // I1 = 1000 / rap, I2 = 1000 / rbp
+            // 限制最大高度 120
+            const i1 = Math.min(120, 1000 / rap);
+            const i2 = Math.min(120, 1000 / rbp);
+            
+            rectI1.setAttribute('height', i1);
+            rectI1.setAttribute('y', 380 - i1);
+            
+            rectI2.setAttribute('height', i2);
+            rectI2.setAttribute('y', 380 - i2);
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        sliderP.addEventListener('input', updateChart);
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

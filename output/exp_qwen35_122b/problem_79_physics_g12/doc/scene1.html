@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>木板 - 物块系统受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene1-btn { padding: 8px 20px; font-size: 14px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+        .scene1-step-indicator { font-size: 14px; color: #424242; }
+        svg text { font-family: 'Times New Roman', serif; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 定义斜线填充图案 -->
+            <defs>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#666" stroke-width="1"/>
+                </pattern>
+            </defs>
+
+            <!-- 地面 -->
+            <rect id="scene1-ground" x="160" y="340" width="480" height="40" fill="url(#scene1-hatch)" stroke="#333" stroke-width="2"/>
+
+            <!-- 木板 M -->
+            <rect id="scene1-rect-board" x="160" y="280" width="480" height="60" fill="#e0e0e0" stroke="#333" stroke-width="2" opacity="0.8"/>
+
+            <!-- 物块 m -->
+            <rect id="scene1-rect-block" x="540" y="200" width="80" height="80" fill="#e0e0e0" stroke="#333" stroke-width="2" opacity="0.8"/>
+
+            <!-- 尺寸标注线（虚线）- 移到地面下方更远处 -->
+            <g id="scene1-group-dimensions" style="display: none;">
+                <line x1="160" y1="410" x2="640" y2="410" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="160" y1="405" x2="160" y2="415" stroke="#888" stroke-width="1"/>
+                <line x1="640" y1="405" x2="640" y2="415" stroke="#888" stroke-width="1"/>
+                <text id="scene1-label-L" x="400" y="435" text-anchor="middle" font-size="14" fill="#333">L=1.6m</text>
+            </g>
+
+            <!-- 标签组 - 标签移到图形上方，避免重叠 -->
+            <g id="scene1-group-labels" style="display: none;">
+                <text id="scene1-label-M" x="400" y="265" text-anchor="middle" font-size="16" fill="#333">M=3kg</text>
+                <text id="scene1-label-m" x="580" y="185" text-anchor="middle" font-size="16" fill="#333">m=1kg</text>
+                <text id="scene1-label-mu" x="590" y="165" text-anchor="middle" font-size="14" fill="#333">μ=0.1</text>
+            </g>
+
+            <!-- 受力分析箭头组 -->
+            <g id="scene1-group-forces" style="display: none;">
+                <!-- 拉力 F（蓝色） -->
+                <line id="scene1-arrow-F" x1="640" y1="310" x2="730" y2="310" stroke="#1565c0" stroke-width="4"/>
+                <polygon id="scene1-arrowhead-F" points="730,310 720,305 720,315" fill="#1565c0"/>
+                <text id="scene1-label-F" x="735" y="305" font-size="16" fill="#1565c0">F</text>
+
+                <!-- 物块重力 G_m（绿色）- 标签移到右侧避免重叠 -->
+                <line id="scene1-arrow-Gm" x1="580" y1="280" x2="580" y2="330" stroke="#2e7d32" stroke-width="3"/>
+                <polygon id="scene1-arrowhead-Gm" points="580,330 575,320 585,320" fill="#2e7d32"/>
+                <text id="scene1-label-Gm" x="595" y="350" font-size="14" fill="#2e7d32">G</text>
+
+                <!-- 物块支持力 N_m（绿色）- 标签移到右侧 -->
+                <line id="scene1-arrow-Nm" x1="580" y1="280" x2="580" y2="230" stroke="#2e7d32" stroke-width="3"/>
+                <polygon id="scene1-arrowhead-Nm" points="580,230 575,240 585,240" fill="#2e7d32"/>
+                <text id="scene1-label-Nm" x="595" y="220" font-size="14" fill="#2e7d32">N</text>
+
+                <!-- 木板重力 G_M（绿色）- 标签移到右侧 -->
+                <line id="scene1-arrow-GM" x1="400" y1="340" x2="400" y2="390" stroke="#2e7d32" stroke-width="3"/>
+                <polygon id="scene1-arrowhead-GM" points="400,390 395,380 405,380" fill="#2e7d32"/>
+                <text id="scene1-label-GM" x="415" y="405" font-size="14" fill="#2e7d32">G</text>
+
+                <!-- 木板支持力 N_M（绿色）- 标签移到右侧 -->
+                <line id="scene1-arrow-NM" x1="400" y1="280" x2="400" y2="230" stroke="#2e7d32" stroke-width="3"/>
+                <polygon id="scene1-arrowhead-NM" points="400,230 395,240 405,240" fill="#2e7d32"/>
+                <text id="scene1-label-NM" x="415" y="220" font-size="14" fill="#2e7d32">N</text>
+            </g>
+
+            <!-- 摩擦力箭头组 -->
+            <g id="scene1-group-friction" style="display: none;">
+                <!-- 物块摩擦力 f_m（红色，向右）- 标签移到上方 -->
+                <line id="scene1-arrow-fm" x1="580" y1="280" x2="630" y2="280" stroke="#c62828" stroke-width="3"/>
+                <polygon id="scene1-arrowhead-fm" points="630,280 620,275 620,285" fill="#c62828"/>
+                <text id="scene1-label-fm" x="605" y="265" text-anchor="middle" font-size="14" fill="#c62828">f</text>
+
+                <!-- 木板摩擦力 f_M（红色，向左）- 标签移到下方更远处 -->
+                <line id="scene1-arrow-fM" x1="580" y1="280" x2="530" y2="280" stroke="#c62828" stroke-width="3"/>
+                <polygon id="scene1-arrowhead-fM" points="530,280 540,275 540,285" fill="#c62828"/>
+                <text id="scene1-label-fM" x="525" y="310" text-anchor="middle" font-size="14" fill="#c62828">f</text>
+
+                <!-- 摩擦力公式标签 -->
+                <text id="scene1-label-f-formula" x="650" y="265" font-size="14" fill="#c62828">f=μmg</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（参考）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地面 | 矩形 + 斜线 | (160,340)-(640,380) | 480×40 | - | 底部带斜线填充 |
+        // | 木板 M | 矩形 | (160,280)-(640,340) | 480×60 | - | 水平居中，透明度 20% 填充 |
+        // | 物块 m | 矩形 | (540,200)-(620,280) | 80×80 | - | 木板右端顶部，透明度 20% 填充 |
+        // | 拉力 F 箭头 | 箭头 | (640,310)-(730,310) | 90×4 | 右侧 | 蓝色，作用在木板右侧中点 |
+        // | M=3kg 标签 | text | (400,265) | ~70×18 | 上方 | 木板上方中央 |
+        // | m=1kg 标签 | text | (580,185) | ~70×18 | 上方 | 物块上方中央 |
+        // | L=1.6m 标注 | text+ 虚线 | (400,435) | ~80×18 | 下方 | 地面下方更远处 |
+        // | μ=0.1 标签 | text | (590,165) | ~70×18 | 上方 | 物块上方，表示接触面摩擦系数 |
+
+        const currentStepMax = 3;
+        let currentStep = 0;
+
+        // 元素分组映射
+        const stepGroups = {
+            0: [],  // 初始状态：只显示地面、木板、物块
+            1: ['scene1-group-dimensions', 'scene1-group-labels'],  // 标注已知条件
+            2: ['scene1-group-forces'],  // 显示受力分析
+            3: ['scene1-group-friction']  // 显示摩擦力方向
+        };
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${currentStep + 1}/4`;
+
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === currentStepMax);
+
+            // 显示当前步骤及之前步骤的所有元素
+            for (let step = 0; step <= currentStep; step++) {
+                const groups = stepGroups[step];
+                groups.forEach(groupId => {
+                    const el = document.getElementById(groupId);
+                    if (el) {
+                        el.style.display = 'block';
+                        el.style.opacity = '1';
+                    }
+                });
+            }
+
+            // 隐藏后续步骤的元素
+            for (let step = currentStep + 1; step <= currentStepMax; step++) {
+                const groups = stepGroups[step];
+                groups.forEach(groupId => {
+                    const el = document.getElementById(groupId);
+                    if (el) {
+                        el.style.display = 'none';
+                        el.style.opacity = '0';
+                    }
+                });
+            }
+        }
+
+        // 绑定按钮事件
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

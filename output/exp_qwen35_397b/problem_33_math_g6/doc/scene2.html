@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>周长计算验证 - 逐边计数法</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: none; border-radius: 4px; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-btn-prev { background: #757575; color: white; }
+        .scene2-btn-next { background: #1565c0; color: white; }
+        .scene2-step-indicator { font-size: 14px; color: #333; padding: 8px 16px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 定义斜线填充图案 -->
+            <defs>
+                <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#999" stroke-width="2"/>
+                </pattern>
+            </defs>
+
+            <!-- 网格背景：8列×4行，每格50px，区域(200,50)-(600,250) -->
+            <g id="scene2-grid">
+                <!-- 垂直线 -->
+                <line x1="200" y1="50" x2="200" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="250" y1="50" x2="250" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="300" y1="50" x2="300" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="350" y1="50" x2="350" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="400" y1="50" x2="400" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="450" y1="50" x2="450" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="500" y1="50" x2="500" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="550" y1="50" x2="550" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="600" y1="50" x2="600" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <!-- 水平线 -->
+                <line x1="200" y1="50" x2="600" y2="50" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="200" y1="100" x2="600" y2="100" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="200" y1="150" x2="600" y2="150" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="200" y1="200" x2="600" y2="200" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+                <line x1="200" y1="250" x2="600" y2="250" stroke="#cccccc" stroke-width="1" stroke-dasharray="4,4"/>
+            </g>
+
+            <!-- 甲图形：凹形，根据图片调整坐标 -->
+            <!-- 甲图形路径：从(200,50)开始，左竖3格，底横6格，右竖3格，上右2格，凹槽右竖1格，凹槽底2格，凹槽左竖1格，上左2格 -->
+            <path id="scene2-jia-shape" d="M200,50 L200,200 L350,200 L350,100 L300,100 L300,150 L250,150 L250,50 Z" 
+                  fill="url(#scene2-hatch)" stroke="#000000" stroke-width="2" opacity="1"/>
+            <text id="scene2-jia-label" x="275" y="140" font-size="20" font-weight="bold" text-anchor="middle" fill="#000000">甲</text>
+
+            <!-- 乙图形：阶梯形 -->
+            <!-- 乙图形路径：从(400,100)开始，左竖1格，左台阶横1格，左台阶竖1格，顶横4格，右台阶竖1格，右台阶横1格，右竖1格，底横6格 -->
+            <path id="scene2-yi-shape" d="M400,100 L400,150 L450,150 L450,100 L550,100 L550,150 L600,150 L600,200 L400,200 Z" 
+                  fill="url(#scene2-hatch)" stroke="#000000" stroke-width="2" opacity="0.5"/>
+            <text id="scene2-yi-label" x="500" y="165" font-size="20" font-weight="bold" text-anchor="middle" fill="#000000">乙</text>
+
+            <!-- 高亮边线组（红色，3px粗） -->
+            <g id="scene2-highlights">
+                <!-- 甲图形8条边 -->
+                <line id="scene2-jia-edge1" x1="200" y1="50" x2="200" y2="200" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge2" x1="200" y1="200" x2="350" y2="200" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge3" x1="350" y1="200" x2="350" y2="100" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge4" x1="350" y1="100" x2="300" y2="100" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge5" x1="300" y1="100" x2="300" y2="150" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge6" x1="300" y1="150" x2="250" y2="150" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge7" x1="250" y1="150" x2="250" y2="50" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-jia-edge8" x1="250" y1="50" x2="200" y2="50" stroke="#c62828" stroke-width="3" display="none"/>
+
+                <!-- 乙图形8条边 -->
+                <line id="scene2-yi-edge1" x1="400" y1="100" x2="400" y2="150" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge2" x1="400" y1="150" x2="450" y2="150" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge3" x1="450" y1="150" x2="450" y2="100" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge4" x1="450" y1="100" x2="550" y2="100" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge5" x1="550" y1="100" x2="550" y2="150" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge6" x1="550" y1="150" x2="600" y2="150" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge7" x1="600" y1="150" x2="600" y2="200" stroke="#c62828" stroke-width="3" display="none"/>
+                <line id="scene2-yi-edge8" x1="600" y1="200" x2="400" y2="200" stroke="#c62828" stroke-width="3" display="none"/>
+            </g>
+
+            <!-- 甲图形边长数值标签 -->
+            <g id="scene2-jia-labels" opacity="0">
+                <text id="scene2-jia-val1" x="185" y="130" font-size="14" fill="#000000" text-anchor="middle">3</text>
+                <text id="scene2-jia-val2" x="275" y="220" font-size="14" fill="#000000" text-anchor="middle">6</text>
+                <text id="scene2-jia-val3" x="365" y="155" font-size="14" fill="#000000" text-anchor="middle">3</text>
+                <text id="scene2-jia-val4" x="325" y="90" font-size="14" fill="#000000" text-anchor="middle">2</text>
+                <text id="scene2-jia-val5" x="310" y="130" font-size="14" fill="#000000" text-anchor="middle">1</text>
+                <text id="scene2-jia-val6" x="275" y="165" font-size="14" fill="#000000" text-anchor="middle">2</text>
+                <text id="scene2-jia-val7" x="240" y="130" font-size="14" fill="#000000" text-anchor="middle">1</text>
+                <text id="scene2-jia-val8" x="225" y="40" font-size="14" fill="#000000" text-anchor="middle">2</text>
+            </g>
+
+            <!-- 乙图形边长数值标签 -->
+            <g id="scene2-yi-labels" opacity="0">
+                <text id="scene2-yi-val1" x="385" y="130" font-size="14" fill="#000000" text-anchor="middle">1</text>
+                <text id="scene2-yi-val2" x="425" y="165" font-size="14" fill="#000000" text-anchor="middle">2</text>
+                <text id="scene2-yi-val3" x="460" y="130" font-size="14" fill="#000000" text-anchor="middle">1</text>
+                <text id="scene2-yi-val4" x="500" y="90" font-size="14" fill="#000000" text-anchor="middle">4</text>
+                <text id="scene2-yi-val5" x="560" y="130" font-size="14" fill="#000000" text-anchor="middle">1</text>
+                <text id="scene2-yi-val6" x="575" y="165" font-size="14" fill="#000000" text-anchor="middle">2</text>
+                <text id="scene2-yi-val7" x="615" y="180" font-size="14" fill="#000000" text-anchor="middle">1</text>
+                <text id="scene2-yi-val8" x="500" y="220" font-size="14" fill="#000000" text-anchor="middle">6</text>
+            </g>
+
+            <!-- 甲求和框 -->
+            <g id="scene2-sum-jia" opacity="0">
+                <rect x="220" y="270" width="140" height="40" fill="#1565c0" stroke="#ffffff" stroke-width="2"/>
+                <text id="scene2-sum-jia-text" x="290" y="295" font-size="16" fill="#ffffff" text-anchor="middle">甲：3</text>
+            </g>
+
+            <!-- 乙求和框 -->
+            <g id="scene2-sum-yi" opacity="0">
+                <rect x="440" y="270" width="140" height="40" fill="#1565c0" stroke="#ffffff" stroke-width="2"/>
+                <text id="scene2-sum-yi-text" x="510" y="295" font-size="16" fill="#ffffff" text-anchor="middle">乙：2</text>
+            </g>
+
+            <!-- 结论框 -->
+            <g id="scene2-conclusion" opacity="0">
+                <rect x="280" y="330" width="240" height="50" fill="#2e7d32" stroke="#ffffff" stroke-width="2"/>
+                <text id="scene2-conclusion-text" x="400" y="355" font-size="16" fill="#ffffff" text-anchor="middle">甲周长=乙周长=16，结论：相等</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 0/17</span>
+            <button id="scene2-btn-next" class="scene2-btn scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 周长计算逐边计数法
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 17;
+
+        // 每步配置：显示的高亮边、数值、求和文本
+        const steps = [
+            // 步骤 0：初始状态
+            { jiaEdges: [], yiEdges: [], jiaLabels: [], yiLabels: [], sumJia: null, sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            // 步骤 1-8：甲图形逐边计数
+            { jiaEdges: ['edge1'], yiEdges: [], jiaLabels: ['val1'], yiLabels: [], sumJia: '甲：3', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2'], yiEdges: [], jiaLabels: ['val1', 'val2'], yiLabels: [], sumJia: '甲：3+6=9', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3'], yiEdges: [], jiaLabels: ['val1', 'val2', 'val3'], yiLabels: [], sumJia: '甲：9+3=12', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4'], yiEdges: [], jiaLabels: ['val1', 'val2', 'val3', 'val4'], yiLabels: [], sumJia: '甲：12+2=14', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5'], yiEdges: [], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5'], yiLabels: [], sumJia: '甲：14+1=15', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6'], yiEdges: [], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6'], yiLabels: [], sumJia: '甲：15+2=17', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7'], yiEdges: [], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7'], yiLabels: [], sumJia: '甲：17+1=18', sumYi: null, conclusion: null, yiOpacity: 0.5 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: [], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: [], sumJia: '甲周长=16', sumYi: null, conclusion: null, yiOpacity: 1 },
+            // 步骤 9-16：乙图形逐边计数
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1'], sumJia: '甲周长=16', sumYi: '乙：1', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2'], sumJia: '甲周长=16', sumYi: '乙：1+2=3', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3'], sumJia: '甲周长=16', sumYi: '乙：3+1=4', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3', 'edge4'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3', 'val4'], sumJia: '甲周长=16', sumYi: '乙：4+4=8', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3', 'val4', 'val5'], sumJia: '甲周长=16', sumYi: '乙：8+1=9', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6'], sumJia: '甲周长=16', sumYi: '乙：9+2=11', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7'], sumJia: '甲周长=16', sumYi: '乙：11+1=12', conclusion: null, yiOpacity: 1 },
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], sumJia: '甲周长=16', sumYi: '乙周长=16', conclusion: null, yiOpacity: 1 },
+            // 步骤 17：结论
+            { jiaEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], yiEdges: ['edge1', 'edge2', 'edge3', 'edge4', 'edge5', 'edge6', 'edge7', 'edge8'], jiaLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], yiLabels: ['val1', 'val2', 'val3', 'val4', 'val5', 'val6', 'val7', 'val8'], sumJia: '甲周长=16', sumYi: '乙周长=16', conclusion: '甲周长=乙周长=16，结论：相等', yiOpacity: 1 }
+        ];
+
+        // 获取元素辅助函数
+        function getEl(id) { return document.getElementById('scene2-' + id); }
+
+        // 显示/隐藏元素
+        function show(el) { if (el) { el.style.display = 'block'; el.style.opacity = '1'; } }
+        function hide(el) { if (el) { el.style.display = 'none'; el.style.opacity = '0'; } }
+
+        // 渲染步骤
+        function renderStep(stepIndex) {
+            const step = steps[stepIndex];
+
+            // 隐藏所有高亮边
+            for (let i = 1; i <= 8; i++) {
+                hide(getEl('jia-edge' + i));
+                hide(getEl('yi-edge' + i));
+            }
+
+            // 显示当前步骤的高亮边
+            step.jiaEdges.forEach(edge => show(getEl('jia-' + edge)));
+            step.yiEdges.forEach(edge => show(getEl('yi-' + edge)));
+
+            // 控制甲标签显示
+            const jiaLabelsGroup = getEl('jia-labels');
+            if (step.jiaLabels.length > 0) {
+                jiaLabelsGroup.style.opacity = '1';
+                // 隐藏所有甲数值
+                for (let i = 1; i <= 8; i++) {
+                    hide(getEl('jia-val' + i));
+                }
+                // 显示当前步骤的甲数值
+                step.jiaLabels.forEach(label => show(getEl('jia-' + label)));
+            } else {
+                jiaLabelsGroup.style.opacity = '0';
+            }
+
+            // 控制乙标签显示
+            const yiLabelsGroup = getEl('yi-labels');
+            if (step.yiLabels.length > 0) {
+                yiLabelsGroup.style.opacity = '1';
+                // 隐藏所有乙数值
+                for (let i = 1; i <= 8; i++) {
+                    hide(getEl('yi-val' + i));
+                }
+                // 显示当前步骤的乙数值
+                step.yiLabels.forEach(label => show(getEl('yi-' + label)));
+            } else {
+                yiLabelsGroup.style.opacity = '0';
+            }
+
+            // 控制求和框
+            const sumJia = getEl('sum-jia');
+            const sumYi = getEl('sum-yi');
+            if (step.sumJia) {
+                show(sumJia);
+                getEl('sum-jia-text').textContent = step.sumJia;
+            } else {
+                hide(sumJia);
+            }
+            if (step.sumYi) {
+                show(sumYi);
+                getEl('sum-yi-text').textContent = step.sumYi;
+            } else {
+                hide(sumYi);
+            }
+
+            // 控制结论框
+            const conclusion = getEl('conclusion');
+            if (step.conclusion) {
+                show(conclusion);
+                getEl('conclusion-text').textContent = step.conclusion;
+            } else {
+                hide(conclusion);
+            }
+
+            // 控制乙图形透明度
+            getEl('yi-shape').setAttribute('opacity', step.yiOpacity);
+
+            // 更新步骤指示器
+            getEl('step-indicator').textContent = '步骤 ' + stepIndex + '/' + totalSteps;
+
+            // 更新按钮状态
+            getEl('btn-prev').disabled = (stepIndex === 0);
+            getEl('btn-next').disabled = (stepIndex === totalSteps);
+        }
+
+        // 事件绑定
+        getEl('btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        getEl('btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始化
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

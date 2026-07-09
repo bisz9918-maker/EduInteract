@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动点 P 的轨迹分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-label { font-size: 14px; fill: #000000; }
+        .scene3-annotation { font-size: 13px; fill: #555555; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- AB 基准线段 -->
+            <line id="scene3-ab-line" x1="100" y1="400" x2="700" y2="400" stroke="#000000" stroke-width="3"/>
+            
+            <!-- M 点标记（垂线） -->
+            <line id="scene3-m-mark" x1="250" y1="400" x2="250" y2="415" stroke="#888888" stroke-width="2" stroke-dasharray="4,2"/>
+            <!-- N 点标记（垂线） -->
+            <line id="scene3-n-mark" x1="550" y1="400" x2="550" y2="415" stroke="#888888" stroke-width="2" stroke-dasharray="4,2"/>
+            
+            <!-- 等边三角形 ACD -->
+            <polygon id="scene3-tri-acd" points="" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            <!-- 等边三角形 BCE -->
+            <polygon id="scene3-tri-bce" points="" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- DE 连线 -->
+            <line id="scene3-de-line" x1="" y1="" x2="" y2="" stroke="#1565c0" stroke-width="3"/>
+            
+            <!-- P 轨迹线（完整轨迹，初始 opacity=0） -->
+            <line id="scene3-trajectory-full" x1="250" y1="250" x2="550" y2="250" stroke="#c62828" stroke-width="5" opacity="0"/>
+            <!-- P 轨迹线（当前显示部分） -->
+            <line id="scene3-trajectory-current" x1="250" y1="250" x2="250" y2="250" stroke="#c62828" stroke-width="5"/>
+            
+            <!-- 点 C（动点） -->
+            <circle id="scene3-c-point" cx="250" cy="400" r="6" fill="#2e7d32"/>
+            <!-- 点 D -->
+            <circle id="scene3-d-point" cx="" cy="" r="4" fill="#1565c0"/>
+            <!-- 点 E -->
+            <circle id="scene3-e-point" cx="" cy="" r="4" fill="#1565c0"/>
+            <!-- 点 P（动点） -->
+            <circle id="scene3-p-point" cx="" cy="" r="7" fill="#c62828"/>
+            
+            <!-- 固定标签 -->
+            <text id="scene3-label-a" x="95" y="420" class="scene3-label">A</text>
+            <text id="scene3-label-b" x="705" y="420" class="scene3-label">B</text>
+            <text id="scene3-label-m" x="245" y="420" class="scene3-label">M</text>
+            <text id="scene3-label-n" x="555" y="420" class="scene3-label">N</text>
+            
+            <!-- 动态标签 -->
+            <text id="scene3-label-c" x="250" y="435" class="scene3-label">C</text>
+            <text id="scene3-label-p" x="" y="" class="scene3-label">P</text>
+            
+            <!-- 数值标注 -->
+            <text id="scene3-anno-am2" x="175" y="385" class="scene3-annotation">AM=2</text>
+            <text id="scene3-anno-bn2" x="625" y="385" class="scene3-annotation">BN=2</text>
+            <text id="scene3-anno-mn4" x="400" y="385" class="scene3-annotation">MN=4</text>
+            <text id="scene3-anno-traj-len" x="400" y="235" class="scene3-annotation" opacity="0">轨迹长度=4</text>
+            
+            <!-- 滑块轨道 -->
+            <line id="scene3-slider-track" x1="100" y1="470" x2="700" y2="470" stroke="#cccccc" stroke-width="4"/>
+            <!-- 滑块手柄 -->
+            <circle id="scene3-slider-handle" cx="250" cy="470" r="10" fill="#2e7d32" style="cursor: pointer;"/>
+        </svg>
+        
+        <div id="scene3-controls"></div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 动点 P 的轨迹分析
+        // 布局坐标表参考：
+        // AB 线段: (100,400)-(700,400), 长度 600px = 8 单位
+        // M 点: (250,400), N 点: (550,400)
+        // C 动点: x 从 250 到 550, y=400
+        // P 轨迹: y=250, x 从 250 到 550
+        
+        const SVG_NS = "http://www.w3.org/2000/svg";
+        
+        // 常量定义
+        const A_X = 100, A_Y = 400;
+        const B_X = 700, B_Y = 400;
+        const M_X = 250, N_X = 550;
+        const C_Y = 400;
+        const TRAJ_Y = 250;
+        const SLIDER_Y = 470;
+        const SLIDER_MIN = 250, SLIDER_MAX = 550;
+        
+        // 获取 DOM 元素
+        const triACD = document.getElementById('scene3-tri-acd');
+        const triBCE = document.getElementById('scene3-tri-bce');
+        const deLine = document.getElementById('scene3-de-line');
+        const cPoint = document.getElementById('scene3-c-point');
+        const dPoint = document.getElementById('scene3-d-point');
+        const ePoint = document.getElementById('scene3-e-point');
+        const pPoint = document.getElementById('scene3-p-point');
+        const labelC = document.getElementById('scene3-label-c');
+        const labelP = document.getElementById('scene3-label-p');
+        const trajectoryCurrent = document.getElementById('scene3-trajectory-current');
+        const trajectoryFull = document.getElementById('scene3-trajectory-full');
+        const annoTrajLen = document.getElementById('scene3-anno-traj-len');
+        const sliderHandle = document.getElementById('scene3-slider-handle');
+        
+        // 计算等边三角形顶点坐标
+        // 给定底边两端点 (x1, y) 和 (x2, y)，返回顶点坐标
+        function calcEquilateralVertex(x1, y, x2) {
+            const midX = (x1 + x2) / 2;
+            const baseLen = Math.abs(x2 - x1);
+            const height = baseLen * Math.sqrt(3) / 2;
+            return { x: midX, y: y - height };
+        }
+        
+        // 更新图示状态
+        function updateState(cX) {
+            // 计算 D 点（等边三角形 ACD 的顶点）
+            const d = calcEquilateralVertex(A_X, A_Y, cX);
+            
+            // 计算 E 点（等边三角形 BCE 的顶点）
+            const e = calcEquilateralVertex(cX, C_Y, B_X);
+            
+            // 计算 P 点（DE 中点）
+            const pX = (d.x + e.x) / 2;
+            const pY = (d.y + e.y) / 2;
+            
+            // 更新三角形 ACD
+            triACD.setAttribute('points', `${A_X},${A_Y} ${cX},${C_Y} ${d.x},${d.y}`);
+            
+            // 更新三角形 BCE
+            triBCE.setAttribute('points', `${cX},${C_Y} ${B_X},${B_Y} ${e.x},${e.y}`);
+            
+            // 更新 DE 连线
+            deLine.setAttribute('x1', d.x);
+            deLine.setAttribute('y1', d.y);
+            deLine.setAttribute('x2', e.x);
+            deLine.setAttribute('y2', e.y);
+            
+            // 更新点 C
+            cPoint.setAttribute('cx', cX);
+            labelC.setAttribute('x', cX);
+            
+            // 更新点 D
+            dPoint.setAttribute('cx', d.x);
+            dPoint.setAttribute('cy', d.y);
+            
+            // 更新点 E
+            ePoint.setAttribute('cx', e.x);
+            ePoint.setAttribute('cy', e.y);
+            
+            // 更新点 P
+            pPoint.setAttribute('cx', pX);
+            pPoint.setAttribute('cy', pY);
+            labelP.setAttribute('x', pX);
+            labelP.setAttribute('y', pY - 20);
+            
+            // 更新当前轨迹线（从起点到当前 P 的水平投影）
+            trajectoryCurrent.setAttribute('x2', pX);
+            
+            // 如果接近终点，显示完整轨迹和标注
+            if (cX >= SLIDER_MAX - 5) {
+                trajectoryFull.setAttribute('opacity', '1');
+                annoTrajLen.setAttribute('opacity', '1');
+            } else {
+                trajectoryFull.setAttribute('opacity', '0');
+                annoTrajLen.setAttribute('opacity', '0');
+            }
+            
+            // 更新滑块手柄位置
+            sliderHandle.setAttribute('cx', cX);
+        }
+        
+        // 滑块拖拽逻辑
+        let isDragging = false;
+        
+        function startDrag(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function doDrag(e) {
+            if (!isDragging) return;
+            
+            let clientX;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+            } else {
+                clientX = e.clientX;
+            }
+            
+            const svgRect = document.getElementById('scene3-svg').getBoundingClientRect();
+            let newX = clientX - svgRect.left;
+            
+            // 限制在滑块范围内
+            newX = Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, newX));
+            
+            updateState(newX);
+        }
+        
+        function endDrag() {
+            isDragging = false;
+        }
+        
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', startDrag);
+        sliderHandle.addEventListener('touchstart', startDrag);
+        
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('touchmove', doDrag);
+        
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+        
+        // 初始化状态
+        updateState(M_X);
+        
+    })();
+    </script>
+</body>
+</html>

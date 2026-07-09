@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 含氮有机物燃烧耗氧量计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            width: 80px; height: 32px; border: none; border-radius: 4px; font-size: 14px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        #scene2-btn-prev { background: #e0e0e0; color: #333333; }
+        #scene2-btn-prev:hover:not(:disabled) { background: #bdbdbd; }
+        #scene2-btn-prev:disabled { background: #eeeeee; color: #999999; cursor: not-allowed; }
+        #scene2-btn-next { background: #1565c0; color: #ffffff; }
+        #scene2-btn-next:hover:not(:disabled) { background: #0d47a1; }
+        #scene2-btn-next:disabled { background: #90caf9; color: #ffffff; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #1565c0; min-width: 70px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 分隔虚线1 -->
+            <line x1="100" y1="145" x2="700" y2="145" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            <!-- 分隔虚线2 -->
+            <line x1="100" y1="310" x2="700" y2="310" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+
+            <!-- 快捷公式卡片（步骤4）使用 foreignObject -->
+            <foreignObject x="150" y="325" width="500" height="95" id="scene2-formula-card" style="opacity: 0;">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="width: 100%; height: 100%; background: #f5f5f5; border: 2px solid #1565c0; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; box-sizing: border-box; padding: 6px 0;">
+                    <div style="font-size: 14px; color: #1565c0; line-height: 1.5;">快捷公式</div>
+                    <div style="font-size: 18px; color: #333333; line-height: 1.5; margin-top: 2px;">n(O<sub>2</sub>) = x + y/4 − z/2</div>
+                    <div style="font-size: 18px; color: #333333; line-height: 1.5; margin-top: 2px;">= <span style="color: #c62828; font-weight: bold;">20</span> + <span style="color: #c62828; font-weight: bold;">21</span>/4 − <span style="color: #c62828; font-weight: bold;">4</span>/2 = <span style="color: #c62828; font-weight: bold;">23.25</span> mol</div>
+                </div>
+            </foreignObject>
+
+            <!-- 方程式文本 -->
+            <text id="scene2-reactant-text" x="166" y="70" font-size="20" font-weight="bold" fill="#000000">
+                C<tspan baseline-shift="sub" font-size="14">20</tspan>H<tspan baseline-shift="sub" font-size="14">21</tspan>NO<tspan baseline-shift="sub" font-size="14">4</tspan>
+            </text>
+            <text id="scene2-plus-o2" x="300" y="70" font-size="20" font-weight="bold" fill="#000000"> + O<tspan baseline-shift="sub" font-size="14">2</tspan> → </text>
+
+            <!-- CO₂ 产物文本（含系数，步骤2起显示系数） -->
+            <text id="scene2-co2-text" x="410" y="70" font-size="20" font-weight="bold" fill="#000000">
+                <tspan id="scene2-co2-coef" fill="#000000" style="opacity: 0;">20</tspan>CO<tspan baseline-shift="sub" font-size="14">2</tspan>
+            </text>
+
+            <text id="scene2-plus1" x="495" y="70" font-size="20" font-weight="bold" fill="#000000"> + </text>
+
+            <!-- H₂O 产物文本 -->
+            <text id="scene2-h2o-text" x="520" y="70" font-size="20" font-weight="bold" fill="#000000">
+                <tspan id="scene2-h2o-coef" fill="#000000" style="opacity: 0;">10.5</tspan>H<tspan baseline-shift="sub" font-size="14">2</tspan>O
+            </text>
+
+            <text id="scene2-plus2" x="620" y="70" font-size="20" font-weight="bold" fill="#000000"> + </text>
+
+            <!-- N₂ 产物文本 -->
+            <text id="scene2-n2-text" x="650" y="70" font-size="20" font-weight="bold" fill="#000000">
+                <tspan id="scene2-n2-coef" fill="#000000" style="opacity: 0;">0.5</tspan>N<tspan baseline-shift="sub" font-size="14">2</tspan>
+            </text>
+
+            <!-- 原子守恒标签 -->
+            <text id="scene2-c-label" x="445" y="115" font-size="14" fill="#1565c0" style="opacity: 0;">C守恒</text>
+            <text id="scene2-h-label" x="562" y="115" font-size="14" fill="#2e7d32" style="opacity: 0;">H守恒</text>
+            <text id="scene2-n-label" x="677" y="115" font-size="14" fill="#ef6c00" style="opacity: 0;">N守恒</text>
+
+            <!-- 计算式区域 -->
+            <text id="scene2-calc-row1" x="180" y="180" font-size="18" fill="#333333" style="opacity: 0;">
+                ① 产物总O = <tspan fill="#c62828" font-weight="bold">20</tspan>×2 + <tspan fill="#c62828" font-weight="bold">10.5</tspan> = 50.5
+            </text>
+            <text id="scene2-calc-row2" x="180" y="220" font-size="18" fill="#333333" style="opacity: 0;">
+                ② 分子内O = <tspan fill="#c62828" font-weight="bold">4</tspan>
+            </text>
+            <text id="scene2-calc-row3" x="180" y="260" font-size="18" fill="#333333" style="opacity: 0;">
+                ③ 需O<tspan baseline-shift="sub" font-size="14">2</tspan> = (50.5 − <tspan fill="#c62828" font-weight="bold">4</tspan>)/2 = <tspan id="scene2-calc-result" fill="#c62828" font-weight="bold">23.25</tspan> mol
+            </text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>上一步</button>
+            <span id="scene2-step-indicator">步骤 1/4</span>
+            <button id="scene2-btn-next">下一步</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 获取所有需要控制的元素
+        const formulaCard = document.getElementById('scene2-formula-card');
+
+        const reactantText = document.getElementById('scene2-reactant-text');
+        const co2Coef = document.getElementById('scene2-co2-coef');
+        const h2oCoef = document.getElementById('scene2-h2o-coef');
+        const n2Coef = document.getElementById('scene2-n2-coef');
+
+        const cLabel = document.getElementById('scene2-c-label');
+        const hLabel = document.getElementById('scene2-h-label');
+        const nLabel = document.getElementById('scene2-n-label');
+
+        const calcRow1 = document.getElementById('scene2-calc-row1');
+        const calcRow2 = document.getElementById('scene2-calc-row2');
+        const calcRow3 = document.getElementById('scene2-calc-row3');
+        const calcResult = document.getElementById('scene2-calc-result');
+
+        function setOpacity(el, val) {
+            if (el) el.style.opacity = val;
+        }
+
+        function renderStep() {
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 1);
+            btnNext.disabled = (currentStep === totalSteps);
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            // 步骤1：初始状态，反应物文本高亮（蓝色）
+            if (currentStep === 1) {
+                reactantText.setAttribute('fill', '#1565c0');
+                setOpacity(co2Coef, '0');
+                setOpacity(h2oCoef, '0');
+                setOpacity(n2Coef, '0');
+                co2Coef.setAttribute('fill', '#000000');
+                h2oCoef.setAttribute('fill', '#000000');
+                n2Coef.setAttribute('fill', '#000000');
+                setOpacity(cLabel, '0');
+                setOpacity(hLabel, '0');
+                setOpacity(nLabel, '0');
+                setOpacity(calcRow1, '0');
+                setOpacity(calcRow2, '0');
+                setOpacity(calcRow3, '0');
+                if (calcResult) calcResult.setAttribute('fill', '#c62828');
+                setOpacity(formulaCard, '0');
+            }
+            // 步骤2：产物系数出现，原子守恒标签，系数着色
+            else if (currentStep === 2) {
+                reactantText.setAttribute('fill', '#000000');
+                setOpacity(co2Coef, '1');
+                setOpacity(h2oCoef, '1');
+                setOpacity(n2Coef, '1');
+                co2Coef.setAttribute('fill', '#1565c0');
+                h2oCoef.setAttribute('fill', '#2e7d32');
+                n2Coef.setAttribute('fill', '#ef6c00');
+                setOpacity(cLabel, '1');
+                setOpacity(hLabel, '1');
+                setOpacity(nLabel, '1');
+                setOpacity(calcRow1, '0');
+                setOpacity(calcRow2, '0');
+                setOpacity(calcRow3, '0');
+                if (calcResult) calcResult.setAttribute('fill', '#c62828');
+                setOpacity(formulaCard, '0');
+            }
+            // 步骤3：计算式出现，结果高亮（蓝色）
+            else if (currentStep === 3) {
+                reactantText.setAttribute('fill', '#000000');
+                setOpacity(co2Coef, '1');
+                setOpacity(h2oCoef, '1');
+                setOpacity(n2Coef, '1');
+                co2Coef.setAttribute('fill', '#1565c0');
+                h2oCoef.setAttribute('fill', '#2e7d32');
+                n2Coef.setAttribute('fill', '#ef6c00');
+                setOpacity(cLabel, '1');
+                setOpacity(hLabel, '1');
+                setOpacity(nLabel, '1');
+                setOpacity(calcRow1, '1');
+                setOpacity(calcRow2, '1');
+                setOpacity(calcRow3, '1');
+                if (calcResult) calcResult.setAttribute('fill', '#1565c0');
+                setOpacity(formulaCard, '0');
+            }
+            // 步骤4：快捷公式卡片
+            else if (currentStep === 4) {
+                reactantText.setAttribute('fill', '#000000');
+                setOpacity(co2Coef, '1');
+                setOpacity(h2oCoef, '1');
+                setOpacity(n2Coef, '1');
+                co2Coef.setAttribute('fill', '#1565c0');
+                h2oCoef.setAttribute('fill', '#2e7d32');
+                n2Coef.setAttribute('fill', '#ef6c00');
+                setOpacity(cLabel, '1');
+                setOpacity(hLabel, '1');
+                setOpacity(nLabel, '1');
+                setOpacity(calcRow1, '1');
+                setOpacity(calcRow2, '1');
+                setOpacity(calcRow3, '1');
+                if (calcResult) calcResult.setAttribute('fill', '#1565c0');
+                setOpacity(formulaCard, '1');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 1) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

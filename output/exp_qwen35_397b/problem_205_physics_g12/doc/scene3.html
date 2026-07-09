@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P 点受力分析与轨道压力计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .scene3-visible {
+            opacity: 1;
+        }
+        .scene3-btn {
+            background: #1565c0;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .scene3-btn:hover {
+            background: #0d47a1;
+        }
+        .scene3-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene3-step-indicator {
+            position: absolute;
+            bottom: 50px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 14px;
+            color: #424242;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene3-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene3-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene3-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene3-arrow-gray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#888888" />
+                </marker>
+            </defs>
+
+            <!-- 背景电场线（装饰性，淡色） -->
+            <g id="scene3-electric-field" opacity="0.3">
+                <line x1="0" y1="100" x2="800" y2="100" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="0" y1="150" x2="800" y2="150" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="0" y1="200" x2="800" y2="200" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="0" y1="250" x2="800" y2="250" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="0" y1="300" x2="800" y2="300" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                <line x1="0" y1="350" x2="800" y2="350" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+            </g>
+
+            <!-- 半圆轨道 NL -->
+            <path id="scene3-semicircle" d="M 200,370 A 120,120 0 0,1 200,130" 
+                  fill="none" stroke="#000000" stroke-width="4" stroke-linecap="round"/>
+
+            <!-- 水平轨道 MN -->
+            <line id="scene3-horizontal-track" x1="200" y1="370" x2="650" y2="370" 
+                  stroke="#000000" stroke-width="4" stroke-linecap="round"/>
+
+            <!-- 圆心 O -->
+            <circle id="scene3-center-o" cx="200" cy="250" r="4" fill="#000000"/>
+            <text id="scene3-label-o" x="215" y="250" font-size="16" fill="#000000" 
+                  text-anchor="start" dominant-baseline="middle" class="scene3-fade-in scene3-visible">O</text>
+
+            <!-- P 点标记 -->
+            <circle id="scene3-point-p" cx="80" cy="250" r="6" fill="#1565c0"/>
+            <text id="scene3-label-p" x="50" y="250" font-size="16" fill="#1565c0" 
+                  text-anchor="end" dominant-baseline="middle" class="scene3-fade-in scene3-visible">P</text>
+
+            <!-- N 点标签 -->
+            <text id="scene3-label-n" x="200" y="395" font-size="16" fill="#000000" 
+                  text-anchor="middle" dominant-baseline="middle" class="scene3-fade-in scene3-visible">N</text>
+
+            <!-- L 点标签 -->
+            <text id="scene3-label-l" x="215" y="125" font-size="16" fill="#000000" 
+                  text-anchor="start" dominant-baseline="middle" class="scene3-fade-in scene3-visible">L</text>
+
+            <!-- 半径 R 标注 -->
+            <line id="scene3-radius-line" x1="200" y1="250" x2="200" y2="130" 
+                  stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.6"/>
+            <text id="scene3-label-r" x="220" y="190" font-size="16" fill="#888888" 
+                  text-anchor="start" dominant-baseline="middle" class="scene3-fade-in scene3-visible">R</text>
+
+            <!-- 重力向量 mg - 从 P 点右侧向下，标签放在箭头下方远离轨道 -->
+            <g id="scene3-arrow-mg-group" class="scene3-fade-in">
+                <line x1="120" y1="260" x2="120" y2="310" stroke="#c62828" stroke-width="3" marker-end="url(#scene3-arrow-red)"/>
+                <text x="130" y="335" font-size="16" fill="#c62828" text-anchor="start" dominant-baseline="middle">mg</text>
+            </g>
+
+            <!-- 电场力向量 qE - 从 P 点上方向左 -->
+            <g id="scene3-arrow-qe-group" class="scene3-fade-in">
+                <line x1="80" y1="215" x2="30" y2="215" stroke="#1565c0" stroke-width="3" marker-end="url(#scene3-arrow-blue)"/>
+                <text x="35" y="200" font-size="16" fill="#1565c0" text-anchor="start" dominant-baseline="middle">qE</text>
+            </g>
+
+            <!-- 支持力向量 N_P - 从 P 点下方向右，标签放在箭头上方 -->
+            <g id="scene3-arrow-np-group" class="scene3-fade-in">
+                <line x1="80" y1="290" x2="160" y2="290" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene3-arrow-green)"/>
+                <text x="120" y="275" font-size="16" fill="#2e7d32" text-anchor="middle" dominant-baseline="middle">N_P</text>
+            </g>
+
+            <!-- 向心力方向 - 从 P 指向圆心，标签放在下方 -->
+            <g id="scene3-centripetal-group" class="scene3-fade-in">
+                <line x1="80" y1="250" x2="200" y2="250" stroke="#888888" stroke-width="2" 
+                      stroke-dasharray="4,4" marker-end="url(#scene3-arrow-gray)" opacity="0.7"/>
+                <text x="140" y="305" font-size="14" fill="#888888" text-anchor="middle" dominant-baseline="middle">向心力</text>
+            </g>
+
+            <!-- 方程框 1：向心力方程 -->
+            <g id="scene3-box-equation1" class="scene3-fade-in">
+                <rect x="420" y="110" width="360" height="110" fill="#ffffff" stroke="#1565c0" stroke-width="2" rx="8"/>
+                <text x="600" y="140" font-size="15" fill="#1565c0" text-anchor="middle" dominant-baseline="middle" font-weight="bold">向心力方程</text>
+                <text x="600" y="175" font-size="16" fill="#000000" text-anchor="middle" dominant-baseline="middle">
+                    <tspan fill="#2e7d32" font-weight="bold">N_P</tspan> - qE = m·v_P²/R
+                </text>
+            </g>
+
+            <!-- 方程框 2：动能定理 -->
+            <g id="scene3-box-equation2" class="scene3-fade-in">
+                <rect x="420" y="230" width="360" height="115" fill="#ffffff" stroke="#1565c0" stroke-width="2" rx="8"/>
+                <text x="600" y="260" font-size="15" fill="#1565c0" text-anchor="middle" dominant-baseline="middle" font-weight="bold">动能定理（M→P）</text>
+                <text x="600" y="290" font-size="13" fill="#000000" text-anchor="middle" dominant-baseline="middle">qE·(S+R) - μmgS - mgR = ½mv_P²</text>
+                <text x="600" y="320" font-size="13" fill="#000000" text-anchor="middle" dominant-baseline="middle">v_P² = 2.0 m²/s²</text>
+            </g>
+
+            <!-- 结果框 -->
+            <g id="scene3-box-result" class="scene3-fade-in">
+                <rect x="420" y="355" width="360" height="70" fill="#ffffff" stroke="#2e7d32" stroke-width="2" rx="8"/>
+                <text x="600" y="385" font-size="16" fill="#2e7d32" text-anchor="middle" dominant-baseline="middle" font-weight="bold">N_P = 3.0 N</text>
+                <text x="600" y="412" font-size="12" fill="#666666" text-anchor="middle" dominant-baseline="middle">轨道对物块的支持力</text>
+            </g>
+        </svg>
+
+        <!-- 步骤指示器 -->
+        <div id="scene3-step-indicator">步骤 1/6</div>
+
+        <!-- HTML 按钮控件 -->
+        <div style="position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px;">
+            <button id="scene3-btn-prev" class="scene3-btn" disabled>◀ 上一步</button>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3: P 点受力分析与轨道压力计算
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置 | 备注 |
+        // | 半圆轨道 | 圆心(200,250)，半径120px | 从270°到90° |
+        // | 圆心 O | (200,250) | 黑色圆点 |
+        // | P 点 | (80,250) | 蓝色实心圆，标签(50,250) |
+        // | 重力 mg | (120,260)→(120,310) | 红色箭头，标签(130,335) |
+        // | 电场力 qE | (80,215)→(30,215) | 蓝色箭头，标签(35,200) |
+        // | 支持力 N_P | (80,290)→(160,290) | 绿色箭头，标签(120,275) |
+        // | 向心力方向 | (80,250)→(200,250) | 灰色虚线，标签(140,305) |
+        // | 方程框 1 | (420,110)到(780,220) | 向心力方程 |
+        // | 方程框 2 | (420,230)到(780,345) | 动能定理 |
+        // | 结果框 | (420,355)到(780,425) | 最终压力值 |
+
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 每步显示的元素 ID 列表
+        const stepElements = {
+            0: ['scene3-point-p', 'scene3-label-p'], // 初始：P 点高亮
+            1: ['scene3-arrow-mg-group', 'scene3-arrow-qe-group', 'scene3-arrow-np-group'], // 受力向量
+            2: ['scene3-centripetal-group'], // 向心力方向
+            3: ['scene3-box-equation1'], // 向心力方程
+            4: ['scene3-box-equation2'], // 动能定理
+            5: ['scene3-box-result'] // 最终结果
+        };
+
+        // 元素可见性状态
+        const elementVisibility = {};
+
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('scene3-visible');
+                elementVisibility[id] = true;
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene3-visible');
+                elementVisibility[id] = false;
+            }
+        }
+
+        function updateDisplay() {
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene3-btn-next').disabled = (currentStep === totalSteps - 1);
+
+            // 根据当前步骤显示/隐藏元素
+            for (let step = 0; step < totalSteps; step++) {
+                const elements = stepElements[step];
+                if (elements) {
+                    elements.forEach(id => {
+                        if (step <= currentStep) {
+                            showElement(id);
+                        } else {
+                            hideElement(id);
+                        }
+                    });
+                }
+            }
+        }
+
+        function goToStep(step) {
+            if (step >= 0 && step < totalSteps) {
+                currentStep = step;
+                updateDisplay();
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        }
+
+        // 绑定事件
+        document.getElementById('scene3-btn-next').addEventListener('click', nextStep);
+        document.getElementById('scene3-btn-prev').addEventListener('click', prevStep);
+
+        // 初始化显示
+        updateDisplay();
+
+        // MathJax 渲染
+        if (window.MathJax) {
+            MathJax.typesetPromise();
+        }
+    })();
+    </script>
+</body>
+</html>

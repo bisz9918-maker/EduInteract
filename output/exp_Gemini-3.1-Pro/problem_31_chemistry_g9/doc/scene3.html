@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-3d-view { position: absolute; top: 0; left: 0; width: 800px; height: 350px; }
+        #scene3-formula-panel { position: absolute; top: 350px; left: 0; width: 800px; height: 90px; display: flex; justify-content: center; align-items: center; font-size: 18px; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; height: 40px; align-items: center; }
+        
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        .scene3-btn.active { background: #e0e0e0; border-color: #999; font-weight: bold; }
+        
+        .scene3-label { position: absolute; font-size: 14px; color: #000; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+        
+        /* SVG for leader lines */
+        #scene3-svg { position: absolute; top: 0; left: 0; width: 800px; height: 350px; pointer-events: none; z-index: 5; }
+        .scene3-line { stroke: #000; stroke-width: 1; opacity: 0; transition: opacity 0.3s; }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene3-container">
+        <div id="scene3-3d-view"></div>
+        <svg id="scene3-svg">
+            <line id="scene3-line-corner" class="scene3-line" x1="0" y1="0" x2="0" y2="0" />
+            <line id="scene3-line-center" class="scene3-line" x1="0" y1="0" x2="0" y2="0" />
+            <line id="scene3-line-face" class="scene3-line" x1="0" y1="0" x2="0" y2="0" />
+        </svg>
+        
+        <div id="scene3-label-corner" class="scene3-label">1/8 原子</div>
+        <div id="scene3-label-center" class="scene3-label">完整原子</div>
+        <div id="scene3-label-face" class="scene3-label">1/2 原子</div>
+        <div id="scene3-label-bcc" class="scene3-label" style="font-weight: bold;">BCC (910℃以下)</div>
+        <div id="scene3-label-fcc" class="scene3-label" style="font-weight: bold;">FCC (910℃以上)</div>
+        
+        <div id="scene3-formula-panel">
+            <div id="scene3-formula-1" style="display: none;">$$Z_1 = 8 	imes rac{1}{8} + 1 = 2$$</div>
+            <div id="scene3-formula-2" style="display: none;">$$Z_2 = 8 	imes rac{1}{8} + 6 	imes rac{1}{2} = 4$$</div>
+            <div id="scene3-formula-3" style="display: none;">$$rac{
+ho_1}{
+ho_2} = rac{Z_1}{Z_2} 	imes \left(rac{a_2}{a_1}
+ight)^3 = rac{2}{4} 	imes \left(rac{\sqrt{3}}{\sqrt{2}}
+ight)^3 = rac{3\sqrt{6}}{8}$$</div>
+        </div>
+        
+        <div id="scene3-controls">
+            <button id="scene3-btn-bcc" class="scene3-btn active">BCC微粒数</button>
+            <button id="scene3-btn-fcc" class="scene3-btn">FCC微粒数</button>
+            <button id="scene3-btn-density" class="scene3-btn">密度对比</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const container = document.getElementById('scene3-3d-view');
+        const width = 800;
+        const height = 350;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        camera.position.set(0, 15, 30);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(width, height);
+        renderer.localClippingEnabled = true;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableZoom = false;
+        controls.enablePan = false;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        const a = 10; // Box size
+        const r = 1.5; // Sphere radius
+
+        const planes = [
+            new THREE.Plane(new THREE.Vector3(-1, 0, 0), a/2),
+            new THREE.Plane(new THREE.Vector3(1, 0, 0), a/2),
+            new THREE.Plane(new THREE.Vector3(0, -1, 0), a/2),
+            new THREE.Plane(new THREE.Vector3(0, 1, 0), a/2),
+            new THREE.Plane(new THREE.Vector3(0, 0, -1), a/2),
+            new THREE.Plane(new THREE.Vector3(0, 0, 1), a/2)
+        ];
+
+        const bccGroup = new THREE.Group();
+        const fccGroup = new THREE.Group();
+        scene.add(bccGroup);
+        scene.add(fccGroup);
+
+        // Wireframe box
+        const boxGeo = new THREE.BoxGeometry(a, a, a);
+        const edges = new THREE.EdgesGeometry(boxGeo);
+        const lineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+        
+        const bccBox = new THREE.LineSegments(edges, lineMat);
+        bccGroup.add(bccBox);
+        const fccBox = new THREE.LineSegments(edges, lineMat);
+        fccGroup.add(fccBox);
+
+        // Materials
+        const cornerMat = new THREE.MeshPhongMaterial({ color: 0x1565c0, clippingPlanes: planes, side: THREE.DoubleSide });
+        const centerMat = new THREE.MeshPhongMaterial({ color: 0xc62828, clippingPlanes: planes, side: THREE.DoubleSide });
+        const faceMat = new THREE.MeshPhongMaterial({ color: 0x2e7d32, clippingPlanes: planes, side: THREE.DoubleSide });
+
+        const sphereGeo = new THREE.SphereGeometry(r, 32, 32);
+
+        // Corners (both BCC and FCC)
+        const corners = [
+            [1,1,1], [1,1,-1], [1,-1,1], [1,-1,-1],
+            [-1,1,1], [-1,1,-1], [-1,-1,1], [-1,-1,-1]
+        ];
+        
+        // Target points for labels
+        let bccCornerPos = new THREE.Vector3();
+        let bccCenterPos = new THREE.Vector3();
+        let fccCornerPos = new THREE.Vector3();
+        let fccFacePos = new THREE.Vector3();
+
+        corners.forEach(c => {
+            const pos = new THREE.Vector3(c[0]*a/2, c[1]*a/2, c[2]*a/2);
+            
+            const bccSphere = new THREE.Mesh(sphereGeo, cornerMat);
+            bccSphere.position.copy(pos);
+            bccGroup.add(bccSphere);
+            
+            const fccSphere = new THREE.Mesh(sphereGeo, cornerMat);
+            fccSphere.position.copy(pos);
+            fccGroup.add(fccSphere);
+
+            if (c[0]==1 && c[1]==1 && c[2]==1) {
+                bccCornerPos.copy(pos);
+                fccCornerPos.copy(pos);
+            }
+        });
+
+        // BCC Center
+        const bccCenter = new THREE.Mesh(sphereGeo, centerMat);
+        bccGroup.add(bccCenter);
+        bccCenterPos.set(0,0,0);
+
+        // FCC Faces
+        const faces = [
+            [1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]
+        ];
+        faces.forEach(f => {
+            const pos = new THREE.Vector3(f[0]*a/2, f[1]*a/2, f[2]*a/2);
+            const fccSphere = new THREE.Mesh(sphereGeo, faceMat);
+            fccSphere.position.copy(pos);
+            fccGroup.add(fccSphere);
+
+            if (f[0]==1 && f[1]==0 && f[2]==0) {
+                fccFacePos.copy(pos);
+            }
+        });
+
+        // State management
+        let currentState = 1;
+        
+        // Target positions for animation
+        const targetBccPos = new THREE.Vector3(0, 0, 0);
+        const targetFccPos = new THREE.Vector3(0, 0, 0);
+
+        function updateState(state) {
+            currentState = state;
+            
+            document.querySelectorAll('.scene3-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById('scene3-formula-1').style.display = 'none';
+            document.getElementById('scene3-formula-2').style.display = 'none';
+            document.getElementById('scene3-formula-3').style.display = 'none';
+            
+            if (state === 1) {
+                document.getElementById('scene3-btn-bcc').classList.add('active');
+                document.getElementById('scene3-formula-1').style.display = 'block';
+                targetBccPos.set(0, 0, 0);
+                bccGroup.visible = true;
+                fccGroup.visible = false;
+            } else if (state === 2) {
+                document.getElementById('scene3-btn-fcc').classList.add('active');
+                document.getElementById('scene3-formula-2').style.display = 'block';
+                targetFccPos.set(0, 0, 0);
+                bccGroup.visible = false;
+                fccGroup.visible = true;
+            } else if (state === 3) {
+                document.getElementById('scene3-btn-density').classList.add('active');
+                document.getElementById('scene3-formula-3').style.display = 'block';
+                targetBccPos.set(-12, 0, 0);
+                targetFccPos.set(12, 0, 0);
+                bccGroup.visible = true;
+                fccGroup.visible = true;
+            }
+            
+            updateLabels();
+        }
+
+        function updateLabels() {
+            const show = (id, visible) => {
+                const el = document.getElementById(id);
+                if (visible) {
+                    el.style.display = 'block';
+                    // small delay to allow display:block to apply before opacity transition
+                    setTimeout(() => el.style.opacity = '1', 10);
+                } else {
+                    el.style.opacity = '0';
+                    setTimeout(() => el.style.display = 'none', 300);
+                }
+            };
+
+            if (currentState === 1) {
+                show('scene3-label-corner', true);
+                show('scene3-label-center', true);
+                show('scene3-label-face', false);
+                show('scene3-label-bcc', false);
+                show('scene3-label-fcc', false);
+                show('scene3-line-corner', true);
+                show('scene3-line-center', true);
+                show('scene3-line-face', false);
+            } else if (currentState === 2) {
+                show('scene3-label-corner', true);
+                show('scene3-label-center', false);
+                show('scene3-label-face', true);
+                show('scene3-label-bcc', false);
+                show('scene3-label-fcc', false);
+                show('scene3-line-corner', true);
+                show('scene3-line-center', false);
+                show('scene3-line-face', true);
+            } else if (currentState === 3) {
+                show('scene3-label-corner', false);
+                show('scene3-label-center', false);
+                show('scene3-label-face', false);
+                show('scene3-label-bcc', true);
+                show('scene3-label-fcc', true);
+                show('scene3-line-corner', false);
+                show('scene3-line-center', false);
+                show('scene3-line-face', false);
+            }
+        }
+
+        document.getElementById('scene3-btn-bcc').addEventListener('click', () => updateState(1));
+        document.getElementById('scene3-btn-fcc').addEventListener('click', () => updateState(2));
+        document.getElementById('scene3-btn-density').addEventListener('click', () => updateState(3));
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Interpolate positions
+            bccGroup.position.lerp(targetBccPos, 0.1);
+            fccGroup.position.lerp(targetFccPos, 0.1);
+            
+            controls.update();
+            renderer.render(scene, camera);
+            
+            updateLabelPositions();
+        }
+        
+        function updateLabelPositions() {
+            const updatePos = (worldPos, group, labelId, lineId, offsetX, offsetY) => {
+                if (document.getElementById(labelId).style.opacity === '0') return;
+                
+                const pos = worldPos.clone();
+                pos.applyMatrix4(group.matrixWorld);
+                pos.project(camera);
+                
+                const x = (pos.x * .5 + .5) * width;
+                const y = (pos.y * -.5 + .5) * height;
+                
+                const label = document.getElementById(labelId);
+                label.style.left = (x + offsetX) + 'px';
+                label.style.top = (y + offsetY) + 'px';
+                
+                const line = document.getElementById(lineId);
+                if (line) {
+                    line.setAttribute('x1', x);
+                    line.setAttribute('y1', y);
+                    line.setAttribute('x2', x + offsetX + (offsetX > 0 ? 0 : label.offsetWidth));
+                    line.setAttribute('y2', y + offsetY + 10);
+                }
+            };
+            
+            if (currentState === 1) {
+                updatePos(bccCornerPos, bccGroup, 'scene3-label-corner', 'scene3-line-corner', 40, -40);
+                updatePos(bccCenterPos, bccGroup, 'scene3-label-center', 'scene3-line-center', 60, 40);
+            } else if (currentState === 2) {
+                updatePos(fccCornerPos, fccGroup, 'scene3-label-corner', 'scene3-line-corner', 40, -40);
+                updatePos(fccFacePos, fccGroup, 'scene3-label-face', 'scene3-line-face', 60, 40);
+            } else if (currentState === 3) {
+                // Static titles for state 3
+                const bccPos = new THREE.Vector3(0, a/2 + 2, 0).applyMatrix4(bccGroup.matrixWorld).project(camera);
+                const fccPos = new THREE.Vector3(0, a/2 + 2, 0).applyMatrix4(fccGroup.matrixWorld).project(camera);
+                
+                const bccX = (bccPos.x * .5 + .5) * width;
+                const bccY = (bccPos.y * -.5 + .5) * height;
+                const fccX = (fccPos.x * .5 + .5) * width;
+                const fccY = (fccPos.y * -.5 + .5) * height;
+                
+                const bccLabel = document.getElementById('scene3-label-bcc');
+                bccLabel.style.left = (bccX - bccLabel.offsetWidth/2) + 'px';
+                bccLabel.style.top = (bccY - 30) + 'px';
+                
+                const fccLabel = document.getElementById('scene3-label-fcc');
+                fccLabel.style.left = (fccX - fccLabel.offsetWidth/2) + 'px';
+                fccLabel.style.top = (fccY - 30) + 'px';
+            }
+        }
+
+        // Initial setup
+        updateState(1);
+        animate();
+    </script>
+</body>
+</html>

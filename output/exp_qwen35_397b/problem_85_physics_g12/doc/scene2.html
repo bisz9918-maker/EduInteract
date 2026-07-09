@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>过程 (1) — 活塞 b 上升至顶部的等压膨胀</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect width="800" height="500" fill="#ffffff"/>
+
+            <!-- 气缸 A 左壁 -->
+            <line id="scene2-cylinder-a-left" x1="100" y1="100" x2="100" y2="350" stroke="#000000" stroke-width="4"/>
+            <!-- 气缸 A 右壁 -->
+            <line id="scene2-cylinder-a-right" x1="220" y1="100" x2="220" y2="350" stroke="#000000" stroke-width="4"/>
+            <!-- 气缸 A 顶盖 -->
+            <line id="scene2-cylinder-a-top" x1="100" y1="100" x2="220" y2="100" stroke="#000000" stroke-width="4"/>
+            <!-- 气缸 A 底部 -->
+            <line id="scene2-cylinder-a-bottom" x1="100" y1="350" x2="220" y2="350" stroke="#000000" stroke-width="4"/>
+
+            <!-- 气缸 B 左壁 -->
+            <line id="scene2-cylinder-b-left" x1="400" y1="100" x2="400" y2="350" stroke="#000000" stroke-width="4"/>
+            <!-- 气缸 B 右壁 -->
+            <line id="scene2-cylinder-b-right" x1="460" y1="100" x2="460" y2="350" stroke="#000000" stroke-width="4"/>
+            <!-- 气缸 B 底部 -->
+            <line id="scene2-cylinder-b-bottom" x1="400" y1="350" x2="460" y2="350" stroke="#000000" stroke-width="4"/>
+
+            <!-- 连通管水平段 -->
+            <line id="scene2-tube-horizontal" x1="220" y1="330" x2="400" y2="330" stroke="#000000" stroke-width="4"/>
+            <!-- 连通管竖直段 A -->
+            <line id="scene2-tube-vertical-a" x1="220" y1="330" x2="220" y2="350" stroke="#000000" stroke-width="4"/>
+            <!-- 连通管竖直段 B -->
+            <line id="scene2-tube-vertical-b" x1="400" y1="330" x2="400" y2="350" stroke="#000000" stroke-width="4"/>
+
+            <!-- 氮气区域初始状态（A 气缸 + B 气缸下半部分） -->
+            <path id="scene2-nitrogen-initial" d="M 100 170 L 220 170 L 220 350 L 100 350 Z M 400 232.5 L 460 232.5 L 460 350 L 400 350 Z" fill="#c62828" opacity="0"/>
+
+            <!-- 氮气区域末态（A 气缸 + B 气缸全部） -->
+            <path id="scene2-nitrogen-final" d="M 100 170 L 220 170 L 220 350 L 100 350 Z M 400 107.5 L 460 107.5 L 460 350 L 400 350 Z" fill="#c62828" opacity="0"/>
+
+            <!-- 电阻丝 -->
+            <path id="scene2-heater" d="M 130 340 L 140 345 L 150 340 L 160 345 L 170 340 L 180 345 L 190 340" stroke="#ff6f00" stroke-width="2" fill="none"/>
+            <!-- 电阻丝引线 -->
+            <line id="scene2-heater-lead1" x1="130" y1="340" x2="130" y2="350" stroke="#ff6f00" stroke-width="2"/>
+            <line id="scene2-heater-lead2" x1="190" y1="340" x2="190" y2="350" stroke="#ff6f00" stroke-width="2"/>
+
+            <!-- 活塞 a（固定在 H/4 = 162.5 处） -->
+            <rect id="scene2-piston-a" x="100" y="162.5" width="120" height="7.5" fill="#333333" stroke="#000000" stroke-width="2"/>
+
+            <!-- 活塞 b 初始位置（H/2 = 225 处，虚线） -->
+            <rect id="scene2-piston-b-initial" x="400" y="225" width="60" height="7.5" fill="#888888" stroke="#888888" stroke-width="2" stroke-dasharray="4,2"/>
+
+            <!-- 活塞 b 末态位置（顶部 y=100，实线，初始隐藏） -->
+            <rect id="scene2-piston-b-final" x="400" y="100" width="60" height="7.5" fill="#333333" stroke="#000000" stroke-width="2" opacity="0"/>
+
+            <!-- 位移箭头（初始隐藏） -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <polygon points="0,0 10,5 0,10" fill="#1565c0"/>
+                </marker>
+            </defs>
+            <line id="scene2-displacement-arrow" x1="470" y1="225" x2="470" y2="107.5" stroke="#1565c0" stroke-width="4" marker-end="url(#scene2-arrowhead)" opacity="0"/>
+
+            <!-- 标签 A -->
+            <text id="scene2-label-a" x="160" y="250" font-size="20" text-anchor="middle" fill="#000000">A</text>
+            <!-- 标签 B -->
+            <text id="scene2-label-b" x="430" y="280" font-size="20" text-anchor="middle" fill="#000000">B</text>
+            <!-- 标签 a -->
+            <text id="scene2-label-a-piston" x="160" y="150" font-size="16" text-anchor="middle" fill="#000000">a</text>
+            <!-- 标签 b 初始 -->
+            <text id="scene2-label-b-initial" x="485" y="230" font-size="14" text-anchor="start" fill="#000000">b 初始</text>
+            <!-- 标签 b 末态 -->
+            <text id="scene2-label-b-final" x="485" y="110" font-size="14" text-anchor="start" fill="#000000" opacity="0">b 末态</text>
+            <!-- 标签 V₁ -->
+            <text id="scene2-label-v1" x="240" y="280" font-size="18" text-anchor="start" fill="#000000" opacity="0">V₁</text>
+            <!-- 标签 V₂ -->
+            <text id="scene2-label-v2" x="240" y="320" font-size="18" text-anchor="start" fill="#000000" opacity="0">V₂</text>
+            <!-- 标签 T₁=280K -->
+            <text id="scene2-label-t1" x="580" y="150" font-size="16" text-anchor="start" fill="#000000">T₁=280K</text>
+            <!-- 标签 T₂=? -->
+            <text id="scene2-label-t2" x="580" y="180" font-size="16" text-anchor="start" fill="#000000" opacity="0">T₂=?</text>
+            <!-- 标签 P₀ -->
+            <text id="scene2-label-p0" x="430" y="85" font-size="16" text-anchor="middle" fill="#000000">P₀</text>
+
+            <!-- 公式框（初始隐藏） -->
+            <rect id="scene2-formula-box" x="550" y="220" width="230" height="120" fill="#ffffff" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <text id="scene2-formula-title" x="665" y="245" font-size="14" text-anchor="middle" fill="#1565c0" opacity="0">等压过程</text>
+            <text id="scene2-formula-p" x="665" y="275" font-size="14" text-anchor="middle" fill="#000000" opacity="0">P₁ = P₂ = P₀</text>
+            <text id="scene2-formula-law" x="665" y="305" font-size="14" text-anchor="middle" fill="#000000" opacity="0">V₁/T₁ = V₂/T₂</text>
+            <text id="scene2-formula-name" x="665" y="330" font-size="12" text-anchor="middle" fill="#666666" opacity="0">盖-吕萨克定律</text>
+
+            <!-- 步骤指示器 -->
+            <text id="scene2-step-indicator-svg" x="400" y="475" font-size="14" text-anchor="middle" fill="#333333">步骤 1/5</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 过程 (1) — 活塞 b 上升至顶部的等压膨胀
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 气缸 A 左壁 | (100,100)-(100,350) | 粗实线 |
+        // | 气缸 A 右壁 | (220,100)-(220,350) | 粗实线 |
+        // | 气缸 B 左壁 | (400,100)-(400,350) | 粗实线 |
+        // | 气缸 B 右壁 | (460,100)-(460,350) | 粗实线 |
+        // | 活塞 a | (100,162.5)-(220,170) | 固定在 H/4 处 |
+        // | 活塞 b 初始 | (400,225)-(460,232.5) | 虚线 #888888 |
+        // | 活塞 b 末态 | (400,100)-(460,107.5) | 实线 #000000 |
+        // | 电阻丝 | (130,340)-(190,340) | A 底部 |
+        // | 位移箭头 | (470,225)-(470,107.5) | 向上 #1565c0 |
+
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const stepIndicatorSvg = document.getElementById('scene2-step-indicator-svg');
+
+        // 氮气区域
+        const nitrogenInitial = document.getElementById('scene2-nitrogen-initial');
+        const nitrogenFinal = document.getElementById('scene2-nitrogen-final');
+
+        // 活塞 b
+        const pistonBInitial = document.getElementById('scene2-piston-b-initial');
+        const pistonBFinal = document.getElementById('scene2-piston-b-final');
+
+        // 标签
+        const labelBInitial = document.getElementById('scene2-label-b-initial');
+        const labelBFinal = document.getElementById('scene2-label-b-final');
+        const labelV1 = document.getElementById('scene2-label-v1');
+        const labelV2 = document.getElementById('scene2-label-v2');
+        const labelT2 = document.getElementById('scene2-label-t2');
+
+        // 位移箭头
+        const displacementArrow = document.getElementById('scene2-displacement-arrow');
+
+        // 公式框相关
+        const formulaBox = document.getElementById('scene2-formula-box');
+        const formulaTitle = document.getElementById('scene2-formula-title');
+        const formulaP = document.getElementById('scene2-formula-p');
+        const formulaLaw = document.getElementById('scene2-formula-law');
+        const formulaName = document.getElementById('scene2-formula-name');
+
+        // 辅助函数：显示元素
+        function show(el) {
+            el.style.opacity = '1';
+            el.style.display = '';
+        }
+
+        // 辅助函数：隐藏元素
+        function hide(el) {
+            el.style.opacity = '0';
+            el.style.display = '';
+        }
+
+        // 更新步骤显示
+        function updateStepDisplay() {
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            stepIndicatorSvg.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === TOTAL_STEPS - 1;
+
+            // 根据当前步骤设置各元素可见性
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：只显示基本结构
+                    hide(nitrogenInitial);
+                    hide(nitrogenFinal);
+                    hide(pistonBFinal);
+                    show(pistonBInitial);
+                    hide(labelBFinal);
+                    show(labelBInitial);
+                    hide(labelV1);
+                    hide(labelV2);
+                    hide(labelT2);
+                    hide(displacementArrow);
+                    hide(formulaBox);
+                    hide(formulaTitle);
+                    hide(formulaP);
+                    hide(formulaLaw);
+                    hide(formulaName);
+                    break;
+
+                case 1:
+                    // 步骤 1：高亮氮气区域，显示 V₁
+                    show(nitrogenInitial);
+                    nitrogenInitial.setAttribute('opacity', '0.2');
+                    hide(nitrogenFinal);
+                    hide(pistonBFinal);
+                    show(pistonBInitial);
+                    hide(labelBFinal);
+                    show(labelBInitial);
+                    show(labelV1);
+                    hide(labelV2);
+                    hide(labelT2);
+                    hide(displacementArrow);
+                    hide(formulaBox);
+                    hide(formulaTitle);
+                    hide(formulaP);
+                    hide(formulaLaw);
+                    hide(formulaName);
+                    break;
+
+                case 2:
+                    // 步骤 2：动画播放活塞 b 上升（由 animatePistonB 处理）
+                    show(nitrogenInitial);
+                    nitrogenInitial.setAttribute('opacity', '0.2');
+                    hide(nitrogenFinal);
+                    hide(pistonBFinal);
+                    show(pistonBInitial);
+                    hide(labelBFinal);
+                    show(labelBInitial);
+                    show(labelV1);
+                    hide(labelV2);
+                    hide(labelT2);
+                    show(displacementArrow);
+                    hide(formulaBox);
+                    hide(formulaTitle);
+                    hide(formulaP);
+                    hide(formulaLaw);
+                    hide(formulaName);
+                    animatePistonB();
+                    break;
+
+                case 3:
+                    // 步骤 3：末状态定格
+                    hide(nitrogenInitial);
+                    show(nitrogenFinal);
+                    nitrogenFinal.setAttribute('opacity', '0.3');
+                    show(pistonBFinal);
+                    hide(pistonBInitial);
+                    show(labelBFinal);
+                    hide(labelBInitial);
+                    hide(labelV1);
+                    show(labelV2);
+                    show(labelT2);
+                    show(displacementArrow);
+                    hide(formulaBox);
+                    hide(formulaTitle);
+                    hide(formulaP);
+                    hide(formulaLaw);
+                    hide(formulaName);
+                    break;
+
+                case 4:
+                    // 步骤 4：展示公式
+                    hide(nitrogenInitial);
+                    show(nitrogenFinal);
+                    nitrogenFinal.setAttribute('opacity', '0.3');
+                    show(pistonBFinal);
+                    hide(pistonBInitial);
+                    show(labelBFinal);
+                    hide(labelBInitial);
+                    hide(labelV1);
+                    show(labelV2);
+                    show(labelT2);
+                    show(displacementArrow);
+                    show(formulaBox);
+                    show(formulaTitle);
+                    show(formulaP);
+                    show(formulaLaw);
+                    show(formulaName);
+                    break;
+            }
+        }
+
+        // 动画：活塞 b 从初始位置上升到末态位置
+        function animatePistonB() {
+            const startY = 225;
+            const endY = 100;
+            const duration = 1500;
+            const startTime = performance.now();
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // 线性插值计算当前位置
+                const currentY = startY + (endY - startY) * progress;
+
+                // 更新活塞 b 初始位置（移动中）
+                pistonBInitial.setAttribute('y', currentY);
+
+                // 更新氮气区域填充（渐变）
+                const initialOpacity = 0.2;
+                const finalOpacity = 0.3;
+                nitrogenInitial.setAttribute('opacity', initialOpacity + (finalOpacity - initialOpacity) * progress);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // 动画结束后，切换到末态显示
+                    pistonBInitial.setAttribute('y', startY);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 按钮事件处理
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStepDisplay();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateStepDisplay();
+            }
+        });
+
+        // 初始化
+        updateStepDisplay();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 圆切线与割线几何结构</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover { background: #357abd; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 步骤 0：圆和圆心 -->
+            <g id="scene1-step0">
+                <circle id="scene1-circle" cx="550" cy="250" r="100" stroke="#000000" stroke-width="2" fill="none"/>
+                <circle id="scene1-point-o" cx="550" cy="250" r="3" fill="#c62828"/>
+                <text id="scene1-label-o" x="570" y="255" font-size="14" fill="#000000">O</text>
+            </g>
+            
+            <!-- 步骤 1：切线相关 -->
+            <g id="scene1-step1" style="display:none">
+                <circle id="scene1-point-a" cx="550" cy="350" r="3" fill="#1565c0"/>
+                <text id="scene1-label-a" x="550" y="370" font-size="14" fill="#000000" text-anchor="middle">A</text>
+                <line id="scene1-line-pa" x1="350" y1="350" x2="550" y2="350" stroke="#000000" stroke-width="3"/>
+                <text id="scene1-label-pa" x="450" y="380" font-size="14" fill="#000000" text-anchor="middle">PA=2</text>
+                <!-- 垂直标记：直角符号 -->
+                <path id="scene1-perp-mark" d="M 540 350 L 540 340 L 550 340" stroke="#888888" stroke-width="1" fill="none" stroke-dasharray="3,3"/>
+            </g>
+            
+            <!-- 步骤 2：直径相关 -->
+            <g id="scene1-step2" style="display:none">
+                <circle id="scene1-point-c" cx="550" cy="150" r="3" fill="#1565c0"/>
+                <text id="scene1-label-c" x="550" y="135" font-size="14" fill="#000000" text-anchor="middle">C</text>
+                <line id="scene1-line-ac" x1="550" y1="150" x2="550" y2="350" stroke="#000000" stroke-width="3"/>
+                <!-- 半径 R 虚线 -->
+                <line id="scene1-radius-r" x1="550" y1="250" x2="550" y2="350" stroke="#666666" stroke-width="1" stroke-dasharray="5,3"/>
+                <text id="scene1-label-r" x="590" y="255" font-size="14" fill="#000000">R</text>
+            </g>
+            
+            <!-- 步骤 3：割线和外部点 -->
+            <g id="scene1-step3" style="display:none">
+                <circle id="scene1-point-p" cx="350" cy="350" r="3" fill="#2e7d32"/>
+                <text id="scene1-label-p" x="335" y="370" font-size="14" fill="#000000">P</text>
+                <circle id="scene1-point-b" cx="430" cy="270" r="3" fill="#1565c0"/>
+                <text id="scene1-label-b" x="405" y="255" font-size="14" fill="#000000">B</text>
+                <line id="scene1-line-pc" x1="350" y1="350" x2="550" y2="150" stroke="#000000" stroke-width="2"/>
+                <text id="scene1-label-pb" x="375" y="310" font-size="14" fill="#000000">PB=1</text>
+            </g>
+            
+            <!-- 步骤 4：高亮三角形 PAC -->
+            <g id="scene1-step4" style="display:none">
+                <polygon id="scene1-triangle-pac" points="350,350 550,350 550,150" stroke="#ff6b35" stroke-width="3" fill="none" opacity="0.8"/>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <text id="scene1-step-indicator">步骤 1/5</text>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // 圆 O：圆心 (550,250)，半径 100
+        // 圆心 O：(550,250)
+        // 切点 A：(550,350)
+        // 端点 C：(550,150)
+        // 外部点 P：(350,350)
+        // 交点 B：(430,270)
+        // 切线 PA：(350,350)-(550,350)
+        // 直径 AC：(550,150)-(550,350)
+        // 割线 PC：(350,350)-(550,150)
+        
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.transition = 'opacity 300ms';
+                    el.style.opacity = '1';
+                }, 10);
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.transition = 'opacity 300ms';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.display = 'none';
+                    el.style.opacity = '1';
+                    el.style.transition = '';
+                }, 300);
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有步骤组
+            for (let i = 0; i < TOTAL_STEPS; i++) {
+                const group = document.getElementById('scene1-step' + i);
+                if (group) {
+                    group.style.display = 'none';
+                    group.style.opacity = '1';
+                }
+            }
+            
+            // 显示当前步骤及之前的所有步骤
+            for (let i = 0; i <= currentStep; i++) {
+                const group = document.getElementById('scene1-step' + i);
+                if (group) {
+                    group.style.display = 'block';
+                    group.style.opacity = '1';
+                }
+            }
+            
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene1-step-indicator');
+            if (indicator) {
+                indicator.textContent = '步骤 ' + (currentStep + 1) + '/' + TOTAL_STEPS;
+            }
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            if (prevBtn) {
+                prevBtn.disabled = (currentStep === 0);
+            }
+            if (nextBtn) {
+                nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+            }
+        }
+        
+        // 步骤变化
+        function stepChange(delta) {
+            const newStep = currentStep + delta;
+            if (newStep >= 0 && newStep < TOTAL_STEPS) {
+                currentStep = newStep;
+                updateDisplay();
+            }
+        }
+        
+        // 初始化
+        function init() {
+            // 绑定按钮事件
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    stepChange(-1);
+                });
+            }
+            
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    stepChange(1);
+                });
+            }
+            
+            // 初始显示
+            updateDisplay();
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

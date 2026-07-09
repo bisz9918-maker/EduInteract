@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 最短飞行路径（大圆航线）</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; transition: all 0.2s; }
+        .scene3-btn:hover { background: #1565c0; color: #ffffff; }
+        .scene3-btn:disabled { border-color: #cccccc; color: #cccccc; cursor: not-allowed; background: #f5f5f5; }
+        .scene3-step-indicator { padding: 6px 12px; font-size: 14px; background: #e3f2fd; border-radius: 4px; color: #1565c0; font-weight: bold; }
+        svg { display: block; }
+        .scene3-text { font-size: 14px; fill: #000000; }
+        .scene3-text-small { font-size: 12px; fill: #000000; }
+        .scene3-text-label { font-size: 16px; fill: #000000; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 经线网格 -->
+            <line x1="400" y1="70" x2="400" y2="430" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" id="scene3-meridian-1"/>
+            <line x1="220" y1="430" x2="580" y2="430" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" id="scene3-meridian-2"/>
+            <line x1="400" y1="250" x2="580" y2="430" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" id="scene3-meridian-3"/>
+            <line x1="400" y1="250" x2="220" y2="430" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" id="scene3-meridian-4"/>
+            
+            <!-- 纬线圈 -->
+            <circle cx="400" cy="250" r="180" stroke="#000000" stroke-width="2" fill="none" id="scene3-latitude-circle"/>
+            
+            <!-- 北极点 -->
+            <circle cx="400" cy="250" r="6" fill="#000000" id="scene3-north-pole"/>
+            
+            <!-- A 点 -->
+            <circle cx="220" cy="250" r="8" fill="#c62828" id="scene3-point-a"/>
+            
+            <!-- B 点 -->
+            <circle cx="580" cy="250" r="8" fill="#c62828" id="scene3-point-b"/>
+            
+            <!-- 纬线路径（步骤 1 显示） -->
+            <path d="M 220,250 A 180,180 0 0,1 580,250" stroke="#888888" stroke-width="2" stroke-dasharray="6,4" fill="none" id="scene3-latitude-path" style="display: none; opacity: 0;"/>
+            
+            <!-- 大圆航线（步骤 1 显示） -->
+            <path d="M 220,250 Q 400,100 580,250" stroke="#1565c0" stroke-width="3" fill="none" id="scene3-great-circle-path" style="display: none; opacity: 0;"/>
+            
+            <!-- 方向箭头（步骤 2 显示） -->
+            <g id="scene3-arrow-1" style="display: none; opacity: 0;">
+                <line x1="260" y1="220" x2="280" y2="200" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrowhead)"/>
+            </g>
+            <g id="scene3-arrow-2" style="display: none; opacity: 0;">
+                <line x1="400" y1="170" x2="400" y2="140" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrowhead)"/>
+            </g>
+            <g id="scene3-arrow-3" style="display: none; opacity: 0;">
+                <line x1="520" y1="220" x2="540" y2="240" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrowhead)"/>
+            </g>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene3-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+            </defs>
+            
+            <!-- 标签 -->
+            <!-- 北极点标签 - 移到纬线圈外部上方 -->
+            <text x="400" y="60" text-anchor="middle" class="scene3-text" id="scene3-label-north-pole">北极点</text>
+            
+            <!-- 45°E 标签 -->
+            <text x="385" y="55" text-anchor="middle" class="scene3-text-small" id="scene3-label-45e">45°E</text>
+            
+            <!-- 45°W 标签 -->
+            <text x="590" y="440" text-anchor="start" class="scene3-text-small" id="scene3-label-45w">45°W</text>
+            
+            <!-- A 标签 -->
+            <text x="200" y="245" text-anchor="end" class="scene3-text-label" id="scene3-label-a">A</text>
+            
+            <!-- B 标签 -->
+            <text x="595" y="245" text-anchor="start" class="scene3-text-label" id="scene3-label-b">B</text>
+            
+            <!-- 30°N 标签 -->
+            <text x="580" y="70" text-anchor="start" class="scene3-text" id="scene3-label-30n">30°N</text>
+            
+            <!-- 纬线路径标签（步骤 1 显示） - 移到纬线圈外部下方 -->
+            <text x="400" y="460" text-anchor="middle" class="scene3-text-small" id="scene3-label-latitude-path" style="display: none; opacity: 0;">纬线路径</text>
+            
+            <!-- 大圆航线标签（步骤 1 显示） - 移到纬线圈外部上方 -->
+            <text x="400" y="40" text-anchor="middle" class="scene3-text-small" id="scene3-label-great-circle" style="display: none; opacity: 0;">大圆航线</text>
+            
+            <!-- 方向文字标签（步骤 3 显示） - 移到纬线圈外部上方 -->
+            <text x="280" y="40" text-anchor="middle" class="scene3-text" id="scene3-label-direction-1" style="display: none; opacity: 0;">先向东北</text>
+            <text x="480" y="40" text-anchor="middle" class="scene3-text" id="scene3-label-direction-2" style="display: none; opacity: 0;">后向东南</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button class="scene3-btn" id="scene3-btn-prev">◀ 上一步</button>
+            <span class="scene3-step-indicator" id="scene3-step-indicator">步骤 1/4</span>
+            <button class="scene3-btn" id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现 - 最短飞行路径（大圆航线）图
+        // 布局坐标表：
+        // 画布尺寸：800×500px，圆形居中
+        // 纬线圈：中心 (400,250)，半径 180
+        // A 点：(220,250) - 左侧，晨线交点
+        // B 点：(580,250) - 右侧，昏线交点
+        // 北极点：(400,250) - 圆心
+        // 大圆航线：从 A(220,250) 到 B(580,250)，控制点 (400,100) 使弧线凸向北极
+        // 纬线路径：从 A(220,250) 到 B(580,250) 沿上半圆
+        
+        const scene3 = {
+            currentStep: 0,
+            totalSteps: 4,
+            
+            // 元素 ID 映射
+            elements: {
+                // 步骤 1 显示的元素
+                step1: [
+                    'scene3-latitude-path',
+                    'scene3-great-circle-path',
+                    'scene3-label-latitude-path',
+                    'scene3-label-great-circle'
+                ],
+                // 步骤 2 显示的元素
+                step2: [
+                    'scene3-arrow-1',
+                    'scene3-arrow-2',
+                    'scene3-arrow-3'
+                ],
+                // 步骤 3 显示的元素
+                step3: [
+                    'scene3-label-direction-1',
+                    'scene3-label-direction-2'
+                ]
+            },
+            
+            // 显示元素
+            showElement: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            },
+            
+            // 隐藏元素
+            hideElement: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.opacity = '0';
+                    setTimeout(() => {
+                        if (el.style.opacity === '0') {
+                            el.style.display = 'none';
+                        }
+                    }, 200);
+                }
+            },
+            
+            // 更新显示状态
+            updateDisplay: function() {
+                // 隐藏所有动态元素
+                const allDynamic = [
+                    ...this.elements.step1,
+                    ...this.elements.step2,
+                    ...this.elements.step3
+                ];
+                allDynamic.forEach(id => this.hideElement(id));
+                
+                // 根据当前步骤显示对应元素
+                if (this.currentStep >= 1) {
+                    this.elements.step1.forEach(id => this.showElement(id));
+                }
+                if (this.currentStep >= 2) {
+                    this.elements.step2.forEach(id => this.showElement(id));
+                }
+                if (this.currentStep >= 3) {
+                    this.elements.step3.forEach(id => this.showElement(id));
+                }
+                
+                // 更新步骤指示器
+                document.getElementById('scene3-step-indicator').textContent = 
+                    '步骤 ' + (this.currentStep + 1) + '/' + this.totalSteps;
+                
+                // 更新按钮状态
+                document.getElementById('scene3-btn-prev').disabled = (this.currentStep === 0);
+                document.getElementById('scene3-btn-next').disabled = (this.currentStep === this.totalSteps - 1);
+            },
+            
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    this.currentStep++;
+                    this.updateDisplay();
+                }
+            },
+            
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.updateDisplay();
+                }
+            },
+            
+            // 初始化
+            init: function() {
+                // 绑定按钮事件
+                document.getElementById('scene3-btn-next').addEventListener('click', () => this.nextStep());
+                document.getElementById('scene3-btn-prev').addEventListener('click', () => this.prevStep());
+                
+                // 初始化显示状态
+                this.updateDisplay();
+            }
+        };
+        
+        // 启动
+        scene3.init();
+    })();
+    </script>
+</body>
+</html>

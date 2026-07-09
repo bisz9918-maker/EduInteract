@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:hover { background: #e2e6ea; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .title { font-size: 24px; font-weight: bold; fill: #333; text-anchor: middle; }
+        .conclusion { font-size: 22px; font-weight: bold; fill: #c62828; text-anchor: middle; opacity: 0; transition: opacity 0.5s; }
+        .label { font-size: 16px; fill: #333; text-anchor: middle; opacity: 0; transition: opacity 0.5s; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <text id="scene2-title" class="title" x="400" y="50">正四面体烷 (C4H4)</text>
+            <text id="scene2-conclusion" class="conclusion" x="400" y="90">三种取代物完全重合，只有1种二氯代物！选项A错误</text>
+            
+            <text id="scene2-label-left" class="label" x="150" y="380">取代位置2</text>
+            <text id="scene2-label-main" class="label" x="400" y="380">取代位置1</text>
+            <text id="scene2-label-right" class="label" x="650" y="380">取代位置3</text>
+
+            <!-- 3D 渲染容器 -->
+            <g id="scene2-render-group"></g>
+        </svg>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // 坐标表复述：
+        // 顶部标题: (400, 30)
+        // 结论文本: (400, 80)
+        // 主模型: (400, 260)
+        // 左模型: (150, 260)
+        // 右模型: (650, 260)
+        // 标签: (150, 380), (400, 380), (650, 380)
+        // 控件栏: y=450~490
+
+        const svg = document.getElementById('scene2-svg');
+        const renderGroup = document.getElementById('scene2-render-group');
+        const title = document.getElementById('scene2-title');
+        const conclusion = document.getElementById('scene2-conclusion');
+        const labelLeft = document.getElementById('scene2-label-left');
+        const labelMain = document.getElementById('scene2-label-main');
+        const labelRight = document.getElementById('scene2-label-right');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+
+        let currentStep = 0;
+        const maxStep = 3;
+
+        // 3D 引擎基础
+        const fov = 400;
+        const distance = 400;
+
+        // 正四面体顶点 (边长为 2*sqrt(2)*r, 外接球半径 r)
+        // 设 r = 100
+        const r = 100;
+        const baseVertices = [
+            { x: 0, y: -r, z: 0 }, // 顶部
+            { x: r * Math.sqrt(8/9), y: r/3, z: 0 },
+            { x: -r * Math.sqrt(2/9), y: r/3, z: r * Math.sqrt(2/3) },
+            { x: -r * Math.sqrt(2/9), y: r/3, z: -r * Math.sqrt(2/3) }
+        ];
+
+        // 氢原子位置 (向外延伸)
+        const hDist = 160;
+        const hVertices = baseVertices.map(v => ({
+            x: v.x * (hDist/r),
+            y: v.y * (hDist/r),
+            z: v.z * (hDist/r)
+        }));
+
+        // 边连接关系
+        const edges = [
+            [0, 1], [0, 2], [0, 3],
+            [1, 2], [2, 3], [3, 1]
+        ];
+
+        // 模型状态
+        let models = [
+            { id: 'main', cx: 400, cy: 260, scale: 1, rotY: 0, rotX: 0, opacity: 1, clPos: -1, hlPos: [] },
+            { id: 'left', cx: 150, cy: 260, scale: 0.7, rotY: 0, rotX: 0, opacity: 0, clPos: 1, hlPos: [] },
+            { id: 'right', cx: 650, cy: 260, scale: 0.7, rotY: 0, rotX: 0, opacity: 0, clPos: 2, hlPos: [] }
+        ];
+
+        let globalTime = 0;
+        let animationFrameId;
+
+        function rotate3D(v, rx, ry) {
+            // 绕 X 轴
+            let y1 = v.y * Math.cos(rx) - v.z * Math.sin(rx);
+            let z1 = v.y * Math.sin(rx) + v.z * Math.cos(rx);
+            // 绕 Y 轴
+            let x2 = v.x * Math.cos(ry) + z1 * Math.sin(ry);
+            let z2 = -v.x * Math.sin(ry) + z1 * Math.cos(ry);
+            return { x: x2, y: y1, z: z2 };
+        }
+
+        function project(v, cx, cy, scale) {
+            const zScale = fov / (distance + v.z);
+            return {
+                x: cx + v.x * zScale * scale,
+                y: cy + v.y * zScale * scale,
+                z: v.z,
+                zScale: zScale * scale
+            };
+        }
+
+        function render() {
+            renderGroup.innerHTML = ''; // 简单实现，后续可优化为对象池
+            let renderItems = [];
+
+            models.forEach(model => {
+                if (model.opacity <= 0) return;
+
+                let cProj = baseVertices.map(v => project(rotate3D(v, model.rotX, model.rotY), model.cx, model.cy, model.scale));
+                let hProj = hVertices.map(v => project(rotate3D(v, model.rotX, model.rotY), model.cx, model.cy, model.scale));
+
+                // 碳碳键
+                edges.forEach(edge => {
+                    const p1 = cProj[edge[0]];
+                    const p2 = cProj[edge[1]];
+                    renderItems.push({
+                        type: 'line',
+                        z: (p1.z + p2.z) / 2,
+                        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                        width: 6 * (p1.zScale + p2.zScale) / 2,
+                        color: '#555555',
+                        opacity: model.opacity
+                    });
+                });
+
+                // 碳氢键
+                for (let i = 0; i < 4; i++) {
+                    const p1 = cProj[i];
+                    const p2 = hProj[i];
+                    renderItems.push({
+                        type: 'line',
+                        z: (p1.z + p2.z) / 2,
+                        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                        width: 4 * (p1.zScale + p2.zScale) / 2,
+                        color: '#555555',
+                        opacity: model.opacity
+                    });
+                }
+
+                // 高亮光晕
+                model.hlPos.forEach(i => {
+                    const p = hProj[i];
+                    renderItems.push({
+                        type: 'circle',
+                        z: p.z + 10, // 置于底层
+                        cx: p.x, cy: p.y,
+                        r: 14 * 1.8 * p.zScale,
+                        fill: '#1565c0',
+                        stroke: 'none',
+                        opacity: 0.4 * model.opacity
+                    });
+                });
+
+                // 碳原子
+                cProj.forEach(p => {
+                    renderItems.push({
+                        type: 'circle',
+                        z: p.z,
+                        cx: p.x, cy: p.y,
+                        r: 16 * p.zScale,
+                        fill: '#888888',
+                        stroke: '#555555',
+                        opacity: model.opacity
+                    });
+                });
+
+                // 氢/氯原子
+                hProj.forEach((p, i) => {
+                    const isCl = (i === 0 && currentStep >= 1) || (i === model.clPos);
+                    renderItems.push({
+                        type: 'circle',
+                        z: p.z,
+                        cx: p.x, cy: p.y,
+                        r: (isCl ? 14 : 10) * p.zScale,
+                        fill: isCl ? '#2e7d32' : '#ffffff',
+                        stroke: isCl ? '#1b5e20' : '#000000',
+                        opacity: model.opacity
+                    });
+                });
+            });
+
+            // Z-Sorting
+            renderItems.sort((a, b) => b.z - a.z);
+
+            // 渲染
+            renderItems.forEach(item => {
+                if (item.type === 'line') {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', item.x1);
+                    line.setAttribute('y1', item.y1);
+                    line.setAttribute('x2', item.x2);
+                    line.setAttribute('y2', item.y2);
+                    line.setAttribute('stroke', item.color);
+                    line.setAttribute('stroke-width', item.width);
+                    line.setAttribute('opacity', item.opacity);
+                    renderGroup.appendChild(line);
+                } else if (item.type === 'circle') {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', item.cx);
+                    circle.setAttribute('cy', item.cy);
+                    circle.setAttribute('r', item.r);
+                    circle.setAttribute('fill', item.fill);
+                    if (item.stroke !== 'none') {
+                        circle.setAttribute('stroke', item.stroke);
+                        circle.setAttribute('stroke-width', 2);
+                    }
+                    circle.setAttribute('opacity', item.opacity);
+                    renderGroup.appendChild(circle);
+                }
+            });
+        }
+
+        function animate() {
+            globalTime += 0.02;
+            
+            // 基础自转
+            if (currentStep === 0 || currentStep === 1) {
+                models[0].rotY = globalTime;
+                models[0].rotX = 0.2 * Math.sin(globalTime * 0.5);
+            }
+
+            render();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            if (currentStep === 0) {
+                title.textContent = "正四面体烷 (C4H4)";
+                models[0].hlPos = [];
+                models[0].scale = 1;
+                models[1].opacity = 0;
+                models[2].opacity = 0;
+                conclusion.style.opacity = 0;
+                labelLeft.style.opacity = 0;
+                labelMain.style.opacity = 0;
+                labelRight.style.opacity = 0;
+            } else if (currentStep === 1) {
+                title.textContent = "一氯代物：顶部H被Cl取代";
+                models[0].hlPos = [];
+                models[0].scale = 1;
+                models[1].opacity = 0;
+                models[2].opacity = 0;
+                conclusion.style.opacity = 0;
+                labelLeft.style.opacity = 0;
+                labelMain.style.opacity = 0;
+                labelRight.style.opacity = 0;
+            } else if (currentStep === 2) {
+                title.textContent = "底部3个位置完全等价";
+                models[0].hlPos = [1, 2, 3];
+                models[0].scale = 1;
+                models[1].opacity = 0;
+                models[2].opacity = 0;
+                conclusion.style.opacity = 0;
+                labelLeft.style.opacity = 0;
+                labelMain.style.opacity = 0;
+                labelRight.style.opacity = 0;
+                
+                // 动画到特定角度展示对称性
+                models[0].rotY = 0;
+                models[0].rotX = 0.3;
+            } else if (currentStep === 3) {
+                title.textContent = "二氯代物：取代底部3个位置";
+                models[0].hlPos = [];
+                models[0].scale = 0.7;
+                models[1].opacity = 1;
+                models[2].opacity = 1;
+                
+                models[1].cx = 150;
+                models[2].cx = 650;
+                models[1].rotY = 0;
+                models[2].rotY = 0;
+                models[0].rotX = 0.3;
+                models[1].rotX = 0.3;
+                models[2].rotX = 0.3;
+
+                labelLeft.style.opacity = 1;
+                labelMain.style.opacity = 1;
+                labelRight.style.opacity = 1;
+
+                // 触发重合动画
+                setTimeout(() => {
+                    if (currentStep !== 3) return;
+                    labelLeft.style.opacity = 0;
+                    labelMain.style.opacity = 0;
+                    labelRight.style.opacity = 0;
+                    
+                    let startTime = performance.now();
+                    function mergeAnim(time) {
+                        if (currentStep !== 3) return;
+                        let progress = (time - startTime) / 1500;
+                        if (progress > 1) progress = 1;
+                        
+                        // 缓动
+                        let ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+                        
+                        models[1].cx = 150 + (400 - 150) * ease;
+                        models[2].cx = 650 + (400 - 650) * ease;
+                        
+                        models[1].rotY = -Math.PI * 2 / 3 * ease;
+                        models[2].rotY = Math.PI * 2 / 3 * ease;
+
+                        if (progress < 1) {
+                            requestAnimationFrame(mergeAnim);
+                        } else {
+                            conclusion.style.opacity = 1;
+                        }
+                    }
+                    requestAnimationFrame(mergeAnim);
+                }, 1500);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        updateStep();
+        animate();
+    })();
+    </script>
+</body>
+</html>

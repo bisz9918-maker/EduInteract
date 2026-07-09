@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .text-shadow { text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff, 0px 0px 4px #fff; font-size: 14px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500"></svg>
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const svg = d3.select("#scene3-svg");
+        
+        const projection = d3.geoOrthographic()
+            .scale(180)
+            .translate([400, 240])
+            .rotate([-45, -45, 0]);
+            
+        const path = d3.geoPath().projection(projection);
+        
+        // Earth background
+        svg.append("path")
+            .datum({type: "Sphere"})
+            .attr("d", path)
+            .attr("fill", "#f5f5f5")
+            .attr("stroke", "#000000")
+            .attr("stroke-width", 1);
+            
+        // Graticule
+        const graticule = d3.geoGraticule();
+        svg.append("path")
+            .datum(graticule())
+            .attr("d", path)
+            .attr("fill", "none")
+            .attr("stroke", "#e0e0e0")
+            .attr("stroke-width", 1);
+            
+        const pointA = [120, 30];
+        const pointB = [-30, 30];
+        
+        // 30°N latitude line (sampled)
+        const latLineCoords = d3.range(-30, 121, 2).map(lon => [lon, 30]).reverse();
+        const latLineFeature = { type: "LineString", coordinates: latLineCoords };
+        
+        const latLine = svg.append("path")
+            .datum(latLineFeature)
+            .attr("d", path)
+            .attr("fill", "none")
+            .attr("stroke", "#888888")
+            .attr("stroke-width", 2)
+            .attr("stroke-dasharray", "4,4")
+            .attr("opacity", 0)
+            .attr("id", "scene3-lat-line");
+            
+        const latLabel = svg.append("text")
+            .attr("x", 400)
+            .attr("y", 340) // Moved further down to avoid overlap with graticule
+            .attr("text-anchor", "middle")
+            .attr("class", "text-shadow")
+            .attr("fill", "#555555")
+            .attr("opacity", 0)
+            .attr("id", "scene3-lat-label")
+            .text("30°N纬线");
+            
+        // Great circle route
+        const gcFeature = { type: "LineString", coordinates: [pointA, pointB] };
+        const gcLine = svg.append("path")
+            .datum(gcFeature)
+            .attr("d", path)
+            .attr("fill", "none")
+            .attr("stroke", "#c62828")
+            .attr("stroke-width", 3)
+            .attr("opacity", 0)
+            .attr("id", "scene3-gc-line");
+            
+        const gcLabel = svg.append("text")
+            .attr("x", 400)
+            .attr("y", 110) // Moved further up to avoid overlap with graticule
+            .attr("text-anchor", "middle")
+            .attr("class", "text-shadow")
+            .attr("fill", "#c62828")
+            .attr("opacity", 0)
+            .attr("id", "scene3-gc-label")
+            .text("大圆航线");
+            
+        // Points
+        const projA = projection(pointA);
+        const projB = projection(pointB);
+        
+        svg.append("circle")
+            .attr("cx", projA[0])
+            .attr("cy", projA[1])
+            .attr("r", 4)
+            .attr("fill", "#000000");
+            
+        svg.append("text")
+            .attr("x", projA[0] + 8)
+            .attr("y", projA[1] + 4)
+            .attr("class", "text-shadow")
+            .text("A(120°E, 30°N)");
+            
+        svg.append("circle")
+            .attr("cx", projB[0])
+            .attr("cy", projB[1])
+            .attr("r", 4)
+            .attr("fill", "#000000");
+            
+        svg.append("text")
+            .attr("x", projB[0] - 8)
+            .attr("y", projB[1] + 4)
+            .attr("text-anchor", "end")
+            .attr("class", "text-shadow")
+            .text("B(30°W, 30°N)");
+            
+        // Airplane and arrows
+        const planeGroup = svg.append("g")
+            .attr("opacity", 0)
+            .attr("id", "scene3-plane-group");
+            
+        // Draw a simple airplane icon
+        planeGroup.append("path")
+            .attr("d", "M-10,0 L-5,-5 L5,-5 L10,0 L5,5 L-5,5 Z M-2,-5 L-2,-10 L2,-10 L2,-5 M-2,5 L-2,10 L2,10 L2,5")
+            .attr("fill", "#1565c0")
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 1);
+            
+        // Arrows
+        const nwArrow = svg.append("g").attr("opacity", 0).attr("id", "scene3-nw-arrow");
+        nwArrow.append("line").attr("x1", 475).attr("y1", 190).attr("x2", 455).attr("y2", 170).attr("stroke", "#c62828").attr("stroke-width", 2);
+        nwArrow.append("polygon").attr("points", "455,170 462,170 455,177").attr("fill", "#c62828");
+        nwArrow.append("text").attr("x", 505).attr("y", 160).attr("class", "text-shadow").attr("fill", "#c62828").text("西北"); // Moved text further out
+        
+        const swArrow = svg.append("g").attr("opacity", 0).attr("id", "scene3-sw-arrow");
+        swArrow.append("line").attr("x1", 325).attr("y1", 190).attr("x2", 305).attr("y2", 210).attr("stroke", "#c62828").attr("stroke-width", 2);
+        swArrow.append("polygon").attr("points", "305,210 312,210 305,203").attr("fill", "#c62828");
+        swArrow.append("text").attr("x", 335).attr("y", 245).attr("class", "text-shadow").attr("fill", "#c62828").text("西南"); // Moved text further out
+        
+        // Interaction logic
+        let currentStep = 0;
+        const btnPrev = document.getElementById("scene3-btn-prev");
+        const btnNext = document.getElementById("scene3-btn-next");
+        
+        let animationTimer = null;
+        
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === 3;
+            
+            // Step 1: Lat line
+            d3.select("#scene3-lat-line").transition().duration(500).attr("opacity", currentStep >= 1 ? 1 : 0);
+            d3.select("#scene3-lat-label").transition().duration(500).attr("opacity", currentStep >= 1 ? 1 : 0);
+            
+            // Step 2: GC line
+            d3.select("#scene3-gc-line").transition().duration(500).attr("opacity", currentStep >= 2 ? 1 : 0);
+            d3.select("#scene3-gc-label").transition().duration(500).attr("opacity", currentStep >= 2 ? 1 : 0);
+            
+            // Step 3: Animation
+            if (currentStep === 3) {
+                playAnimation();
+            } else {
+                if (animationTimer) animationTimer.stop();
+                d3.select("#scene3-plane-group").attr("opacity", 0);
+                d3.select("#scene3-nw-arrow").attr("opacity", 0);
+                d3.select("#scene3-sw-arrow").attr("opacity", 0);
+            }
+        }
+        
+        function playAnimation() {
+            const plane = d3.select("#scene3-plane-group");
+            const gcPathNode = document.getElementById("scene3-gc-line");
+            const pathLength = gcPathNode.getTotalLength();
+            
+            plane.attr("opacity", 1);
+            d3.select("#scene3-nw-arrow").attr("opacity", 0);
+            d3.select("#scene3-sw-arrow").attr("opacity", 0);
+            
+            plane.transition()
+                .duration(4000)
+                .ease(d3.easeLinear)
+                .attrTween("transform", function() {
+                    return function(t) {
+                        const p = gcPathNode.getPointAtLength(t * pathLength);
+                        
+                        // Calculate rotation
+                        const pNext = gcPathNode.getPointAtLength(Math.min(t * pathLength + 1, pathLength));
+                        const angle = Math.atan2(pNext.y - p.y, pNext.x - p.x) * 180 / Math.PI;
+                        
+                        // Show arrows at specific points
+                        if (t > 0.2 && t < 0.3) {
+                            d3.select("#scene3-nw-arrow").attr("opacity", 1);
+                        }
+                        if (t > 0.7 && t < 0.8) {
+                            d3.select("#scene3-sw-arrow").attr("opacity", 1);
+                        }
+                        
+                        return `translate(${p.x},${p.y}) rotate(${angle})`;
+                    };
+                });
+        }
+        
+        btnPrev.addEventListener("click", () => { if (currentStep > 0) { currentStep--; updateStep(); } });
+        btnNext.addEventListener("click", () => { if (currentStep < 3) { currentStep++; updateStep(); } });
+        
+    })();
+    </script>
+</body>
+</html>

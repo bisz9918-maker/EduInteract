@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>状态丙的压强平衡与活塞位置计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        .scene2-element { transition: opacity 0.3s ease; }
+        .scene2-hidden { opacity: 0; display: none; }
+        .scene2-visible { opacity: 1; display: block; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; background: #1565c0; color: white; border: none; border-radius: 4px; }
+        #scene2-btn-prev:hover, #scene2-btn-next:hover { background: #0d47a1; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 玻璃管轮廓: (370,80)-(430,430), 60×350 -->
+            <rect id="scene2-tube" x="370" y="80" width="60" height="350" fill="none" stroke="#000000" stroke-width="2" class="scene2-element scene2-visible"/>
+            
+            <!-- 管顶封闭端: (370,80)-(430,80) -->
+            <line id="scene2-tube-top" x1="370" y1="80" x2="430" y2="80" stroke="#000000" stroke-width="3" class="scene2-element scene2-visible"/>
+            
+            <!-- 管口开口端: (370,430)-(430,430) -->
+            <line id="scene2-tube-bottom" x1="370" y1="430" x2="430" y2="430" stroke="#000000" stroke-width="2" class="scene2-element scene2-visible"/>
+            
+            <!-- 上端气体区域: (372,82)-(428,280), 56×198 -->
+            <rect id="scene2-gas-upper" x="372" y="82" width="56" height="198" fill="#e3f2fd" opacity="0.2" class="scene2-element scene2-visible"/>
+            
+            <!-- 水银柱区域: (372,280)-(428,308), 56×28 -->
+            <rect id="scene2-mercury" x="372" y="280" width="56" height="28" fill="#2c3e50" class="scene2-element scene2-visible"/>
+            
+            <!-- 下端气体区域: (372,308)-(428,422), 56×114 -->
+            <rect id="scene2-gas-lower" x="372" y="308" width="56" height="114" fill="#e8f5e9" opacity="0.2" class="scene2-element scene2-visible"/>
+            
+            <!-- 活塞: (365,422)-(435,422) -->
+            <line id="scene2-piston" x1="365" y1="422" x2="435" y2="422" stroke="#c62828" stroke-width="4" class="scene2-element scene2-visible"/>
+            
+            <!-- 尺寸标注线 l₁: x=450, y=80~280 -->
+            <g id="scene2-dim-l1" class="scene2-element scene2-hidden">
+                <line x1="450" y1="80" x2="450" y2="280" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="450,80 446,88 454,88" fill="#1565c0"/>
+                <polygon points="450,280 446,272 454,272" fill="#1565c0"/>
+                <text x="465" y="185" font-size="14" fill="#1565c0">l₁=35cm</text>
+            </g>
+            
+            <!-- 尺寸标注线 h: x=450, y=280~308 -->
+            <g id="scene2-dim-h" class="scene2-element scene2-hidden">
+                <line x1="450" y1="280" x2="450" y2="308" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="450,280 446,288 454,288" fill="#1565c0"/>
+                <polygon points="450,308 446,300 454,300" fill="#1565c0"/>
+                <text x="465" y="298" font-size="14" fill="#1565c0">h=5cm</text>
+            </g>
+            
+            <!-- 尺寸标注线 l₄: x=450, y=308~422 -->
+            <g id="scene2-dim-l4" class="scene2-element scene2-hidden">
+                <line x1="450" y1="308" x2="450" y2="422" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="450,308 446,316 454,316" fill="#1565c0"/>
+                <polygon points="450,422 446,414 454,414" fill="#1565c0"/>
+                <text x="465" y="370" font-size="14" fill="#1565c0">l₄</text>
+            </g>
+            
+            <!-- 尺寸标注线 d: x=450, y=422~430 -->
+            <g id="scene2-dim-d" class="scene2-element scene2-hidden">
+                <line x1="450" y1="422" x2="450" y2="430" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="450,422 446,430 454,430" fill="#1565c0"/>
+                <polygon points="450,430 446,422 454,422" fill="#1565c0"/>
+                <text x="465" y="430" font-size="14" fill="#1565c0">d</text>
+            </g>
+            
+            <!-- 压强标注 P₃: (340,180) -->
+            <text id="scene2-pressure-p3" x="340" y="180" font-size="14" fill="#2e7d32" class="scene2-element scene2-hidden">P₃</text>
+            
+            <!-- 压强标注 P₄: (340,365) -->
+            <text id="scene2-pressure-p4" x="340" y="365" font-size="14" fill="#2e7d32" class="scene2-element scene2-hidden">P₄</text>
+            
+            <!-- 压强标注 P₀: (320,475) - 移到左下角避免与方程重叠 -->
+            <text id="scene2-pressure-p0" x="30" y="475" font-size="14" fill="#2e7d32" class="scene2-element scene2-hidden">P₀</text>
+            
+            <!-- 方程展示区: 居中显示，无背景框 -->
+            <text id="scene2-equation-text" x="400" y="475" font-size="13" fill="#333" text-anchor="middle" class="scene2-element scene2-hidden"></text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：状态丙的压强平衡与活塞位置计算
+        
+        // 布局坐标表（对照依据）：
+        // 玻璃管轮廓: (370,80)-(430,430), 60×350
+        // 上端气体: (372,82)-(428,280), 56×198
+        // 水银柱: (372,280)-(428,308), 56×28
+        // 下端气体: (372,308)-(428,422), 56×114
+        // 活塞: (365,422)-(435,422)
+        // 尺寸标注线: x=450
+        // 压强标注: x=340 (P₀在 x=30)
+        // 方程区: y=475 居中
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 每步的可见元素配置
+        const stepConfig = [
+            // 步骤 0：初始状态 - 仅显示基础图形
+            {
+                visible: ['scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom', 
+                          'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston'],
+                equation: ''
+            },
+            // 步骤 1：标注上端气体
+            {
+                visible: ['scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom',
+                          'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston',
+                          'scene2-dim-l1', 'scene2-pressure-p3'],
+                equation: '上端气体：l₁ = 35cm, 压强 P₃'
+            },
+            // 步骤 2：标注水银柱压强关系
+            {
+                visible: ['scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom',
+                          'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston',
+                          'scene2-dim-l1', 'scene2-pressure-p3', 'scene2-dim-h', 'scene2-pressure-p4'],
+                equation: '压强平衡：P₃ = P₄ + 5cmHg'
+            },
+            // 步骤 3：标注下端气体
+            {
+                visible: ['scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom',
+                          'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston',
+                          'scene2-dim-l1', 'scene2-pressure-p3', 'scene2-dim-h', 'scene2-pressure-p4',
+                          'scene2-dim-l4'],
+                equation: '下端气体：压强 P₄, 长度 l₄ = ?'
+            },
+            // 步骤 4：标注活塞位置与几何约束
+            {
+                visible: ['scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom',
+                          'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston',
+                          'scene2-dim-l1', 'scene2-pressure-p3', 'scene2-dim-h', 'scene2-pressure-p4',
+                          'scene2-dim-l4', 'scene2-dim-d', 'scene2-pressure-p0'],
+                equation: '几何约束：62 = 35 + 5 + l₄ + d'
+            },
+            // 步骤 5：展示完整方程组和解
+            {
+                visible: ['scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom',
+                          'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston',
+                          'scene2-dim-l1', 'scene2-pressure-p3', 'scene2-dim-h', 'scene2-pressure-p4',
+                          'scene2-dim-l4', 'scene2-dim-d', 'scene2-pressure-p0'],
+                equation: 'P₃=80cmHg → P₄=75cmHg → l₄=20.53cm → d=1.47cm'
+            }
+        ];
+        
+        // 更新元素可见性
+        function updateVisibility() {
+            const config = stepConfig[currentStep];
+            
+            // 获取所有元素
+            const allElements = [
+                'scene2-tube', 'scene2-tube-top', 'scene2-tube-bottom',
+                'scene2-gas-upper', 'scene2-mercury', 'scene2-gas-lower', 'scene2-piston',
+                'scene2-dim-l1', 'scene2-dim-h', 'scene2-dim-l4', 'scene2-dim-d',
+                'scene2-pressure-p3', 'scene2-pressure-p4', 'scene2-pressure-p0',
+                'scene2-equation-text'
+            ];
+            
+            // 更新每个元素的可见性
+            allElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (config.visible.includes(id)) {
+                        el.classList.remove('scene2-hidden');
+                        el.classList.add('scene2-visible');
+                    } else {
+                        el.classList.remove('scene2-visible');
+                        el.classList.add('scene2-hidden');
+                    }
+                }
+            });
+            
+            // 更新方程文本
+            const eqText = document.getElementById('scene2-equation-text');
+            if (eqText) {
+                eqText.textContent = config.equation;
+            }
+            
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene2-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            }
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            if (prevBtn) prevBtn.disabled = currentStep === 0;
+            if (nextBtn) nextBtn.disabled = currentStep === totalSteps;
+        }
+        
+        // 步骤切换
+        function goToStep(step) {
+            if (step < 0 || step > totalSteps) return;
+            currentStep = step;
+            updateVisibility();
+        }
+        
+        // 事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', () => {
+            goToStep(currentStep - 1);
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', () => {
+            goToStep(currentStep + 1);
+        });
+        
+        // 初始化
+        updateVisibility();
+    })();
+    </script>
+</body>
+</html>

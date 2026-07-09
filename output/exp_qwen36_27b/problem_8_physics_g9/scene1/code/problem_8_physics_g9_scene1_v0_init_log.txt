@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电路故障分析</title>
+<style>
+body{margin:0;padding:0;background:#fff;font-family:"Microsoft YaHei",sans-serif}
+#scene1-container{position:relative;width:800px;height:500px;margin:0 auto;overflow:hidden}
+#scene1-svg{width:800px;height:500px;display:block}
+#scene1-controls{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:16px;z-index:10}
+#scene1-controls button{padding:6px 18px;font-size:14px;border:1px solid #999;border-radius:4px;background:#f5f5f5;cursor:pointer;color:#333}
+#scene1-controls button:hover:not(:disabled){background:#e0e0e0}
+#scene1-controls button:disabled{opacity:0.4;cursor:default}
+</style>
+</head>
+<body>
+<div id="scene1-container">
+<svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="s1-ab" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+<polygon points="0 0,10 3.5,0 7" fill="#1565c0"/>
+</marker>
+</defs>
+
+<!-- STEP 0-2: Physical Diagram -->
+<g id="scene1-phys">
+<path d="M640 395 C680 395,700 300,680 155" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M640 155 C550 130,350 130,260 155" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M220 155 C180 155,160 250,160 345" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M220 395 C350 395,500 395,560 395" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M355 250 C300 280,200 340,160 345" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M445 250 C480 300,300 395,220 395" fill="none" stroke="#000" stroke-width="2"/>
+
+<!-- Battery -->
+<rect x="560" y="385" width="35" height="20" rx="2" fill="#e0e0e0" stroke="#000" stroke-width="1.5"/>
+<line x1="577" y1="385" x2="577" y2="405" stroke="#000" stroke-width="1"/>
+<rect x="597" y="385" width="35" height="20" rx="2" fill="#e0e0e0" stroke="#000" stroke-width="1.5"/>
+<line x1="614" y1="385" x2="614" y2="405" stroke="#000" stroke-width="1"/>
+<circle cx="560" cy="395" r="3" fill="#000"/><circle cx="640" cy="395" r="3" fill="#000"/>
+<text x="655" y="383" font-size="12" fill="#000" font-weight="bold">+</text>
+<text x="532" y="383" font-size="12" fill="#000" font-weight="bold">−</text>
+
+<!-- Switch -->
+<rect x="210" y="148" width="60" height="14" rx="2" fill="#d0d0d0" stroke="#000" stroke-width="1.5"/>
+<circle cx="220" cy="155" r="4" fill="#000"/><circle cx="260" cy="155" r="4" fill="#000"/>
+<line x1="220" y1="155" x2="250" y2="135" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+
+<!-- L1 -->
+<circle cx="660" cy="155" r="20" fill="#fff9c4" opacity="0.3" stroke="#000" stroke-width="1.5"/>
+<line x1="650" y1="145" x2="670" y2="165" stroke="#000" stroke-width="1.5"/>
+<line x1="670" y1="145" x2="650" y2="165" stroke="#000" stroke-width="1.5"/>
+<circle cx="640" cy="155" r="3" fill="#000"/><circle cx="680" cy="155" r="3" fill="#000"/>
+
+<!-- L2 -->
+<circle cx="190" cy="370" r="20" fill="#fff9c4" opacity="0.3" stroke="#000" stroke-width="1.5"/>
+<line x1="180" y1="360" x2="200" y2="380" stroke="#000" stroke-width="1.5"/>
+<line x1="200" y1="360" x2="180" y2="380" stroke="#000" stroke-width="1.5"/>
+<circle cx="160" cy="370" r="3" fill="#000"/><circle cx="220" cy="370" r="3" fill="#000"/>
+
+<!-- Voltmeter -->
+<rect x="355" y="225" width="90" height="50" rx="4" fill="#f5f5f5" stroke="#000" stroke-width="1.5"/>
+<path d="M370 260 A35 35 0 0 1 450 260" fill="none" stroke="#000" stroke-width="1"/>
+<line x1="375" y1="258" x2="378" y2="252" stroke="#000" stroke-width="1"/>
+<line x1="390" y1="248" x2="392" y2="242" stroke="#000" stroke-width="1"/>
+<line x1="405" y1="244" x2="405" y2="238" stroke="#000" stroke-width="1"/>
+<line x1="420" y1="248" x2="418" y2="242" stroke="#000" stroke-width="1"/>
+<line x1="435" y1="258" x2="432" y2="252" stroke="#000" stroke-width="1"/>
+<line x1="400" y1="260" x2="415" y2="248" stroke="#c62828" stroke-width="1.5"/>
+<circle cx="355" cy="250" r="3" fill="#000"/><circle cx="445" cy="250" r="3" fill="#000"/>
+
+<!-- Labels -->
+<text x="600" y="430" font-size="14" fill="#000" text-anchor="middle">电源</text>
+<text x="235" y="108" font-size="14" fill="#000" text-anchor="middle">开关</text>
+<text x="660" y="118" font-size="14" fill="#000" text-anchor="middle">L₁</text>
+<text x="190" y="420" font-size="14" fill="#000" text-anchor="middle">L₂</text>
+<text x="400" y="212" font-size="14" fill="#000" text-anchor="middle">电压表V</text>
+</g>
+
+<!-- STEP 1: Current Path -->
+<g id="scene1-cur" opacity="0">
+<path d="M640 395 C680 395,700 300,680 155" fill="none" stroke="#1565c0" stroke-width="3" marker-mid="url(#s1-ab)" marker-end="url(#s1-ab)"/>
+<path d="M640 155 C550 130,350 130,260 155" fill="none" stroke="#1565c0" stroke-width="3" marker-mid="url(#s1-ab)" marker-end="url(#s1-ab)"/>
+<path d="M220 155 C180 155,160 250,160 345" fill="none" stroke="#1565c0" stroke-width="3" marker-mid="url(#s1-ab)" marker-end="url(#s1-ab)"/>
+<path d="M220 395 C350 395,500 395,560 395" fill="none" stroke="#1565c0" stroke-width="3" marker-mid="url(#s1-ab)" marker-end="url(#s1-ab)"/>
+<text x="400" y="105" font-size="14" fill="#1565c0" text-anchor="middle">电流方向</text>
+<text x="400" y="320" font-size="14" fill="#000" text-anchor="middle">串联电路</text>
+</g>
+
+<!-- STEP 2: Voltmeter Highlight -->
+<g id="scene1-vh" opacity="0">
+<path d="M355 250 C300 280,200 340,160 345" fill="none" stroke="#c62828" stroke-width="3"/>
+<path d="M445 250 C480 300,300 395,220 395" fill="none" stroke="#c62828" stroke-width="3"/>
+<rect x="355" y="225" width="90" height="50" rx="4" fill="none" stroke="#c62828" stroke-width="2.5"/>
+<text x="400" y="178" font-size="14" fill="#c62828" text-anchor="middle">电压表测L₂两端电压</text>
+</g>
+
+<!-- STEP 3: Side-by-side -->
+<g id="scene1-std" opacity="0">
+<text x="170" y="50" font-size="16" fill="#000" text-anchor="middle" font-weight="bold">实物图</text>
+<text x="590" y="50" font-size="16" fill="#000" text-anchor="middle" font-weight="bold">标准电路图</text>
+<line x1="390" y1="55" x2="390" y2="440" stroke="#888" stroke-width="1" stroke-dasharray="6,4"/>
+
+<!-- Mini physical (scaled) -->
+<g transform="translate(30,174) scale(0.65)">
+<path d="M640 395 C680 395,700 300,680 155" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M640 155 C550 130,350 130,260 155" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M220 155 C180 155,160 250,160 345" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M220 395 C350 395,500 395,560 395" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M355 250 C300 280,200 340,160 345" fill="none" stroke="#000" stroke-width="2"/>
+<path d="M445 250 C480 300,300 395,220 395" fill="none" stroke="#000" stroke-width="2"/>
+<rect x="560" y="385" width="35" height="20" rx="2" fill="#e0e0e0" stroke="#000" stroke-width="1.5"/>
+<line x1="577" y1="385" x2="577" y2="405" stroke="#000" stroke-width="1"/>
+<rect x="597" y="385" width="35" height="20" rx="2" fill="#e0e0e0" stroke="#000" stroke-width="1.5"/>
+<line x1="614" y1="385" x2="614" y2="405" stroke="#000" stroke-width="1"/>
+<circle cx="560" cy="395" r="3" fill="#000"/><circle cx="640" cy="395" r="3" fill="#000"/>
+<rect x="210" y="148" width="60" height="14" rx="2" fill="#d0d0d0" stroke="#000" stroke-width="1.5"/>
+<circle cx="220" cy="155" r="4" fill="#000"/><circle cx="260" cy="155" r="4" fill="#000"/>
+<line x1="220" y1="155" x2="250" y2="135" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+<circle cx="660" cy="155" r="20" fill="#fff9c4" opacity="0.3" stroke="#000" stroke-width="1.5"/>
+<line x1="650" y1="145" x2="670" y2="165" stroke="#000" stroke-width="1.5"/>
+<line x1="670" y1="145" x2="650" y2="165" stroke="#000" stroke-width="1.5"/>
+<circle cx="640" cy="155" r="3" fill="#000"/><circle cx="680" cy="155" r="3" fill="#000"/>
+<circle cx="190" cy="370" r="20" fill="#fff9c4" opacity="0.3" stroke="#000" stroke-width="1.5"/>
+<line x1="180" y1="360" x2="200" y2="380" stroke="#000" stroke-width="1.5"/>
+<line x1="200" y1="360" x2="180" y2="380" stroke="#000" stroke-width="1.5"/>
+<circle cx="160" cy="370" r="3" fill="#000"/><circle cx="220" cy="370" r="3" fill="#000"/>
+<rect x="355" y="225" width="90" height="50" rx="4" fill="#f5f5f5" stroke="#000" stroke-width="1.5"/>
+<line x1="400" y1="260" x2="415" y2="248" stroke="#c62828" stroke-width="1.5"/>
+<circle cx="355" cy="250" r="3" fill="#000"/><circle cx="445" cy="250" r="3" fill="#000"/>
+</g>
+
+<!-- Standard circuit -->
+<line x1="460" y1="120" x2="560" y2="120" stroke="#000" stroke-width="2"/>
+<line x1="620" y1="120" x2="720" y2="120" stroke="#000" stroke-width="2"/>
+<line x1="720" y1="120" x2="720" y2="220" stroke="#000" stroke-width="2"/>
+<line x1="720" y1="280" x2="720" y2="380" stroke="#000" stroke-width="2"/>
+<line x1="720" y1="380" x2="620" y2="380" stroke="#000" stroke-width="2"/>
+<line x1="560" y1="380" x2="460" y2="380" stroke="#000" stroke-width="2"/>
+<line x1="460" y1="380" x2="460" y2="280" stroke="#000" stroke-width="2"/>
+<line x1="460" y1="220" x2="460" y2="120" stroke="#000" stroke-width="2"/>
+
+<!-- L1 symbol -->
+<circle cx="590" cy="120" r="16" fill="none" stroke="#000" stroke-width="1.5"/>
+<line x1="580" y1="110" x2="600" y2="130" stroke="#000" stroke-width="1.5"/>
+<line x1="600" y1="110" x2="580" y2="130" stroke="#000" stroke-width="1.5"/>
+<text x="590" y="95" font-size="14" fill="#000" text-anchor="middle">L₁</text>
+
+<!-- Switch symbol -->
+<line x1="460" y1="250" x2="480" y2="250" stroke="#000" stroke-width="2"/>
+<line x1="480" y1="250" x2="500" y2="235" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+<line x1="500" y1="250" x2="520" y2="250" stroke="#000" stroke-width="2"/>
+<circle cx="480" cy="250" r="2.5" fill="#000"/><circle cx="500" cy="250" r="2.5" fill="#000"/>
+<text x="435" y="254" font-size="13" fill="#000" text-anchor="end">开关</text>
+
+<!-- L2 symbol -->
+<circle cx="720" cy="250" r="16" fill="none" stroke="#000" stroke-width="1.5"/>
+<line x1="710" y1="240" x2="730" y2="260" stroke="#000" stroke-width="1.5"/>
+<line x1="730" y1="240" x2="710" y2="260" stroke="#000" stroke-width="1.5"/>
+<text x="742" y="254" font-size="14" fill="#000" text-anchor="start">L₂</text>
+
+<!-- Battery symbol -->
+<line x1="580" y1="380" x2="580" y2="360" stroke="#000" stroke-width="2.5"/>
+<line x1="590" y1="380" x2="590" y2="368" stroke="#000" stroke-width="1.5"/>
+<line x1="600" y1="380" x2="600" y2="360" stroke="#000" stroke-width="2.5"/>
+<line x1="610" y1="380" x2="610" y2="368" stroke="#000" stroke-width="1.5"/>
+<text x="595" y="410" font-size="14" fill="#000" text-anchor="middle">电源</text>
+
+<!-- Voltmeter parallel to L2 -->
+<line x1="720" y1="220" x2="755" y2="220" stroke="#c62828" stroke-width="2"/>
+<line x1="755" y1="220" x2="755" y2="250" stroke="#c62828" stroke-width="2"/>
+<line x1="720" y1="280" x2="755" y2="280" stroke="#c62828" stroke-width="2"/>
+<line x1="755" y1="280" x2="755" y2="250" stroke="#c62828" stroke-width="2"/>
+<circle cx="755" cy="250" r="14" fill="none" stroke="#c62828" stroke-width="1.5"/>
+<text x="778" y="254" font-size="13" fill="#c62828" text-anchor="start">V</text>
+
+<!-- Current arrows -->
+<polygon points="540,117 548,120 540,123" fill="#1565c0"/>
+<polygon points="717,170 720,178 723,170" fill="#1565c0"/>
+<polygon points="650,377 642,380 650,383" fill="#1565c0"/>
+<polygon points="457,310 460,302 463,310" fill="#1565c0"/>
+</g>
+
+<text id="scene1-step-indicator" x="400" y="450" font-size="14" fill="#555" text-anchor="middle">1/4</text>
+</svg>
+
+<div id="scene1-controls">
+<button id="scene1-prev-btn" disabled>◀ 上一步</button>
+<button id="scene1-next-btn">下一步 ▶</button>
+</div>
+</div>
+<script>
+(function(){
+var cs=0;
+var pb=document.getElementById('scene1-prev-btn');
+var nb=document.getElementById('scene1-next-btn');
+var si=document.getElementById('scene1-step-indicator');
+var ph=document.getElementById('scene1-phys');
+var cu=document.getElementById('scene1-cur');
+var vh=document.getElementById('scene1-vh');
+var sd=document.getElementById('scene1-std');
+
+function upd(){
+si.textContent=(cs+1)+'/4';
+pb.disabled=(cs===0);
+nb.disabled=(cs===3);
+ph.setAttribute('opacity', cs<3?'1':'0');
+cu.setAttribute('opacity', (cs>=1&&cs<3)?'1':'0');
+vh.setAttribute('opacity', (cs>=2&&cs<3)?'1':'0');
+sd.setAttribute('opacity', cs===3?'1':'0');
+}
+pb.addEventListener('click',function(){if(cs>0){cs--;upd();}});
+nb.addEventListener('click',function(){if(cs<3){cs++;upd();}});
+upd();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测量河宽问题 - 几何建模与求解</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { cursor: pointer; user-select: none; }
+        .scene1-btn-disabled { cursor: not-allowed; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect id="scene1-bg" width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 河岸线 -->
+            <line id="scene1-shore-top" x1="60" y1="240" x2="740" y2="240" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-shore-bottom" x1="60" y1="360" x2="740" y2="360" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 三角形填充 -->
+            <polygon id="scene1-triangle-fill" points="140,360 540,360 220,240" fill="#1565c0" fill-opacity="0.15"/>
+            
+            <!-- 三角形边 -->
+            <line id="scene1-ac" x1="140" y1="360" x2="220" y2="240" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-bc" x1="540" y1="360" x2="220" y2="240" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-ab" x1="140" y1="360" x2="540" y2="360" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 点 -->
+            <circle id="scene1-point-a" cx="140" cy="360" r="4" fill="#000000"/>
+            <circle id="scene1-point-b" cx="540" cy="360" r="4" fill="#000000"/>
+            <circle id="scene1-point-c" cx="220" cy="240" r="4" fill="#000000"/>
+            <circle id="scene1-point-d" cx="220" cy="360" r="4" fill="#000000" style="display:none;"/>
+            
+            <!-- 高线 CD -->
+            <line id="scene1-cd-line" x1="220" y1="240" x2="220" y2="360" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" style="display:none;"/>
+            
+            <!-- 垂直符号 -->
+            <path id="scene1-perp-symbol" d="M225,355 L235,355 L235,365" stroke="#000000" stroke-width="1" fill="none" style="display:none;"/>
+            
+            <!-- 角度弧线 -->
+            <path id="scene1-angle-a" d="M170,350 Q155,340 150,325" stroke="#1565c0" stroke-width="2" fill="none"/>
+            <path id="scene1-angle-b" d="M510,350 Q525,340 530,325" stroke="#1565c0" stroke-width="2" fill="none"/>
+            <path id="scene1-angle-c" d="M235,255 Q240,245 250,250" stroke="#2e7d32" stroke-width="2" fill="none" style="display:none;"/>
+            
+            <!-- 标签 -->
+            <text id="scene1-label-a" x="130" y="380" font-size="16" fill="#000000">A</text>
+            <text id="scene1-label-b" x="530" y="380" font-size="16" fill="#000000">B</text>
+            <text id="scene1-label-c" x="215" y="225" font-size="16" fill="#000000">C</text>
+            <text id="scene1-label-d" x="215" y="380" font-size="16" fill="#000000" style="display:none;">D</text>
+            <text id="scene1-label-ab" x="340" y="395" font-size="14" fill="#1565c0" text-anchor="middle">AB=96 米</text>
+            <text id="scene1-label-angle-a" x="160" y="340" font-size="14" fill="#1565c0">∠CAB=75°</text>
+            <text id="scene1-label-angle-b" x="500" y="340" font-size="14" fill="#1565c0">∠CBA=45°</text>
+            <text id="scene1-label-angle-c" x="240" y="260" font-size="14" fill="#2e7d32" style="display:none;">∠ACB=60°</text>
+            <text id="scene1-label-cd" x="235" y="300" font-size="14" fill="#c62828" style="display:none;">CD=h</text>
+            
+            <!-- 计算结果框 -->
+            <text id="scene1-result" x="200" y="450" font-size="14" fill="#000000">已知：AB=96 米，∠CAB=75°，∠CBA=45°</text>
+            
+            <!-- 控件按钮 -->
+            <g id="scene1-controls">
+                <rect id="scene1-btn-prev-bg" x="280" y="460" width="100" height="30" fill="#cccccc" rx="5" class="scene1-btn"/>
+                <text id="scene1-btn-prev-text" x="330" y="480" font-size="14" fill="#000000" text-anchor="middle">◀ 上一步</text>
+                <rect id="scene1-btn-next-bg" x="420" y="460" width="100" height="30" fill="#1565c0" rx="5" class="scene1-btn"/>
+                <text id="scene1-btn-next-text" x="470" y="480" font-size="14" fill="#ffffff" text-anchor="middle">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+    <script>
+    (function() {
+        var currentStep = 0;
+        var maxStep = 4;
+        
+        // 元素 ID 映射
+        var elements = {
+            pointD: 'scene1-point-d',
+            cdLine: 'scene1-cd-line',
+            perpSymbol: 'scene1-perp-symbol',
+            labelD: 'scene1-label-d',
+            labelCd: 'scene1-label-cd',
+            angleC: 'scene1-angle-c',
+            labelAngleC: 'scene1-label-angle-c',
+            result: 'scene1-result',
+            btnPrevBg: 'scene1-btn-prev-bg',
+            btnPrevText: 'scene1-btn-prev-text',
+            btnNextBg: 'scene1-btn-next-bg',
+            btnNextText: 'scene1-btn-next-text'
+        };
+        
+        // 每步显示的元素和结果文本
+        var stepConfig = [
+            { show: [], result: '已知：AB=96 米，∠CAB=75°，∠CBA=45°' },
+            { show: ['angleC', 'labelAngleC'], result: '∠ACB = 180° - 75° - 45° = 60°' },
+            { show: ['pointD', 'cdLine', 'perpSymbol', 'labelD', 'labelCd'], result: '作 CD⊥AB 于 D，CD 即为河宽 h' },
+            { show: [], result: '由正弦定理：AC/sin(45°) = AB/sin(60°)\nAC = 96 × sin(45°)/sin(60°) ≈ 78.4 米' },
+            { show: [], result: 'h = AC × sin(75°) ≈ 78.4 × 0.966 ≈ 76 米\n河宽约为 76 米' }
+        ];
+        
+        function showElement(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hideElement(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        function updateDisplay() {
+            // 隐藏所有动态元素
+            hideElement(elements.pointD);
+            hideElement(elements.cdLine);
+            hideElement(elements.perpSymbol);
+            hideElement(elements.labelD);
+            hideElement(elements.labelCd);
+            hideElement(elements.angleC);
+            hideElement(elements.labelAngleC);
+            
+            // 根据当前步骤显示对应元素
+            var config = stepConfig[currentStep];
+            config.show.forEach(function(key) {
+                showElement(elements[key]);
+            });
+            
+            // 更新结果文本（支持多行）
+            var resultEl = document.getElementById(elements.result);
+            resultEl.textContent = config.result;
+            
+            // 更新按钮状态
+            var prevBtnBg = document.getElementById(elements.btnPrevBg);
+            var prevBtnText = document.getElementById(elements.btnPrevText);
+            var nextBtnBg = document.getElementById(elements.btnNextBg);
+            var nextBtnText = document.getElementById(elements.btnNextText);
+            
+            if (currentStep === 0) {
+                prevBtnBg.setAttribute('fill', '#cccccc');
+                prevBtnText.setAttribute('fill', '#666666');
+                prevBtnBg.classList.add('scene1-btn-disabled');
+            } else {
+                prevBtnBg.setAttribute('fill', '#cccccc');
+                prevBtnText.setAttribute('fill', '#000000');
+                prevBtnBg.classList.remove('scene1-btn-disabled');
+            }
+            
+            if (currentStep === maxStep) {
+                nextBtnBg.setAttribute('fill', '#cccccc');
+                nextBtnText.setAttribute('fill', '#666666');
+                nextBtnBg.classList.add('scene1-btn-disabled');
+            } else {
+                nextBtnBg.setAttribute('fill', '#1565c0');
+                nextBtnText.setAttribute('fill', '#ffffff');
+                nextBtnBg.classList.remove('scene1-btn-disabled');
+            }
+        }
+        
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        }
+        
+        function nextStep() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateDisplay();
+            }
+        }
+        
+        // 初始化
+        document.getElementById(elements.btnPrevBg).addEventListener('click', function() {
+            if (!this.classList.contains('scene1-btn-disabled')) {
+                prevStep();
+            }
+        });
+        document.getElementById(elements.btnNextBg).addEventListener('click', function() {
+            if (!this.classList.contains('scene1-btn-disabled')) {
+                nextStep();
+            }
+        });
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 两船距离函数图像分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        #scene1-btn-prev:hover:not(:disabled), #scene1-btn-next:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 步骤指示器 */
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 70px; text-align: center; }
+
+        /* SVG 元素过渡 */
+        .scene1-fade { transition: opacity 0.4s ease, stroke-width 0.3s ease; }
+        .scene1-dash-anim { transition: stroke-dashoffset 0.6s ease-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 坐标系 -->
+            <!-- x轴: (60,420)-(550,420) -->
+            <line id="scene1-axis-x" x1="60" y1="420" x2="550" y2="420" stroke="#000" stroke-width="1.5"/>
+            <!-- y轴: (60,420)-(60,180) -->
+            <line id="scene1-axis-y" x1="60" y1="420" x2="60" y2="180" stroke="#000" stroke-width="1.5"/>
+            <!-- x轴箭头 -->
+            <polygon points="550,420 545,416 545,424" fill="#000"/>
+            <!-- y轴箭头 -->
+            <polygon points="60,180 56,185 64,185" fill="#000"/>
+
+            <!-- 轴标签 -->
+            <text id="scene1-label-x" x="570" y="425" font-size="14" fill="#000">x/h</text>
+            <text id="scene1-label-y" x="40" y="150" font-size="14" fill="#000" text-anchor="middle">y/km</text>
+
+            <!-- x轴刻度标签 -->
+            <text id="scene1-tick-x0" x="60" y="450" font-size="12" fill="#000" text-anchor="middle">0</text>
+            <text id="scene1-tick-x1" x="130" y="435" font-size="12" fill="#000" text-anchor="middle">1</text>
+            <text id="scene1-tick-x4" x="340" y="435" font-size="12" fill="#000" text-anchor="middle">4</text>
+            <text id="scene1-tick-x6" x="480" y="435" font-size="12" fill="#000" text-anchor="middle">6</text>
+            <text id="scene1-tick-x7" x="550" y="435" font-size="12" fill="#000" text-anchor="middle">7</text>
+
+            <!-- y轴刻度标签 -->
+            <text id="scene1-tick-y0" x="40" y="425" font-size="12" fill="#000" text-anchor="end">0</text>
+            <text id="scene1-tick-y200" x="40" y="305" font-size="12" fill="#000" text-anchor="end">200</text>
+            <text id="scene1-tick-y400" x="40" y="190" font-size="12" fill="#000" text-anchor="end">400</text>
+
+            <!-- 刻度线 -->
+            <line x1="130" y1="420" x2="130" y2="424" stroke="#000" stroke-width="1"/>
+            <line x1="340" y1="420" x2="340" y2="424" stroke="#000" stroke-width="1"/>
+            <line x1="480" y1="420" x2="480" y2="424" stroke="#000" stroke-width="1"/>
+            <line x1="550" y1="420" x2="550" y2="424" stroke="#000" stroke-width="1"/>
+            <line x1="60" y1="300" x2="56" y2="300" stroke="#000" stroke-width="1"/>
+            <line x1="60" y1="180" x2="56" y2="180" stroke="#000" stroke-width="1"/>
+
+            <!-- 甲船折线 (0,400)->(4,0)->(6,200) -->
+            <polyline id="scene1-line-jia" points="60,180 340,420 480,300" fill="none" stroke="#1565c0" stroke-width="2.5" stroke-linejoin="round"/>
+            <!-- 乙船线段 (1,0)->(6,400) -->
+            <line id="scene1-line-yi" x1="130" y1="420" x2="480" y2="180" stroke="#c62828" stroke-width="2.5"/>
+
+            <!-- 甲船端点 -->
+            <circle id="scene1-point-a1" cx="60" cy="180" r="4" fill="#1565c0"/>
+            <circle id="scene1-point-b1" cx="340" cy="420" r="4" fill="#1565c0"/>
+            <circle id="scene1-point-p" cx="480" cy="300" r="4" fill="#1565c0" opacity="1"/>
+            <!-- 乙船端点 -->
+            <circle id="scene1-point-q" cx="130" cy="420" r="4" fill="#c62828"/>
+            <circle id="scene1-point-r" cx="480" cy="180" r="4" fill="#c62828"/>
+
+            <!-- 图例 -->
+            <line x1="620" y1="115" x2="650" y2="115" stroke="#1565c0" stroke-width="2.5"/>
+            <text x="660" y="120" font-size="14" fill="#000">甲船</text>
+            <line x1="620" y1="150" x2="650" y2="150" stroke="#c62828" stroke-width="2.5"/>
+            <text x="660" y="155" font-size="14" fill="#000">乙船</text>
+
+            <!-- 高亮填充区域 (初始隐藏) -->
+
+            <!-- 辅助虚线 (初始隐藏) -->
+            <!-- 虚线 y=400: (60,180)-(480,180) -->
+            <line id="scene1-dashed-y400" x1="60" y1="180" x2="480" y2="180" stroke="#888" stroke-width="1" stroke-dasharray="5,5" opacity="0" class="scene1-fade"/>
+            <!-- 虚线 x=4: (340,180)-(340,420) -->
+            <line id="scene1-dashed-x4" x1="340" y1="180" x2="340" y2="420" stroke="#888" stroke-width="1" stroke-dasharray="5,5" opacity="0" class="scene1-fade"/>
+            <!-- 虚线 y=200: (60,300)-(480,300) -->
+            <line id="scene1-dashed-y200" x1="60" y1="300" x2="480" y2="300" stroke="#888" stroke-width="1" stroke-dasharray="5,5" opacity="0" class="scene1-fade"/>
+            <!-- 虚线 x=6: (480,180)-(480,420) -->
+            <line id="scene1-dashed-x6" x1="480" y1="180" x2="480" y2="420" stroke="#888" stroke-width="1" stroke-dasharray="5,5" opacity="0" class="scene1-fade"/>
+            <!-- 虚线 x=5 (橙色辨析线): (410,180)-(410,420) -->
+            <line id="scene1-dashed-x5" x1="410" y1="180" x2="410" y2="420" stroke="#ff8f00" stroke-width="2" stroke-dasharray="4,4" opacity="0" class="scene1-fade"/>
+
+            <!-- 坐标标签 (初始隐藏) -->
+            <text id="scene1-label-0-400" x="75" y="155" font-size="12" fill="#2e7d32" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(0,400)</text>
+            <text id="scene1-label-4-0" x="370" y="445" font-size="12" fill="#2e7d32" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(4,0)</text>
+            <text id="scene1-label-1-0" x="160" y="445" font-size="12" fill="#2e7d32" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(1,0)</text>
+            <text id="scene1-label-6-400" x="505" y="170" font-size="12" fill="#2e7d32" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(6,400)</text>
+            <text id="scene1-label-6-200" x="505" y="290" font-size="12" fill="#2e7d32" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(6,200)</text>
+            <text id="scene1-label-5-100" x="480" y="365" font-size="12" fill="#ff8f00" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(5,100)</text>
+            <text id="scene1-label-5-320" x="480" y="233" font-size="12" fill="#ff8f00" font-weight="bold" text-anchor="start" opacity="0" class="scene1-fade">(5,320)</text>
+
+            <!-- 步骤4点M和N -->
+            <circle id="scene1-point-m" cx="410" cy="360" r="4" fill="#1565c0" opacity="0" class="scene1-fade"/>
+            <circle id="scene1-point-n" cx="410" cy="228" r="4" fill="#c62828" opacity="0" class="scene1-fade"/>
+
+            <!-- 推导文字区 -->
+            <text id="scene1-text-derivation" x="400" y="50" font-size="14" fill="#000" text-anchor="middle" opacity="0" class="scene1-fade"></text>
+
+            <!-- 判断结果 (初始隐藏) -->
+            <text id="scene1-result-1" x="580" y="290" font-size="12" fill="#2e7d32" font-weight="bold" opacity="0" class="scene1-fade">① A、B港口相距400km √</text>
+            <text id="scene1-result-2" x="580" y="320" font-size="12" fill="#2e7d32" font-weight="bold" opacity="0" class="scene1-fade">② 甲船的速度为100km/h √</text>
+            <text id="scene1-result-3" x="580" y="350" font-size="12" fill="#2e7d32" font-weight="bold" opacity="0" class="scene1-fade">③ B、C港口相距200km √</text>
+            <text id="scene1-result-4" x="580" y="380" font-size="12" fill="#c62828" font-weight="bold" opacity="0" class="scene1-fade">④ 乙出发4h时两船相距220km ×</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var totalSteps = 4;
+
+        // 元素引用
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+        var textDerivation = document.getElementById('scene1-text-derivation');
+
+        var lineJia = document.getElementById('scene1-line-jia');
+        var lineYi = document.getElementById('scene1-line-yi');
+
+        var dashedY400 = document.getElementById('scene1-dashed-y400');
+        var dashedX4 = document.getElementById('scene1-dashed-x4');
+        var dashedY200 = document.getElementById('scene1-dashed-y200');
+        var dashedX6 = document.getElementById('scene1-dashed-x6');
+        var dashedX5 = document.getElementById('scene1-dashed-x5');
+
+        var label0400 = document.getElementById('scene1-label-0-400');
+        var label40 = document.getElementById('scene1-label-4-0');
+        var label10 = document.getElementById('scene1-label-1-0');
+        var label6400 = document.getElementById('scene1-label-6-400');
+        var label6200 = document.getElementById('scene1-label-6-200');
+        var label5100 = document.getElementById('scene1-label-5-100');
+        var label5320 = document.getElementById('scene1-label-5-320');
+
+        var pointM = document.getElementById('scene1-point-m');
+        var pointN = document.getElementById('scene1-point-n');
+
+        var result1 = document.getElementById('scene1-result-1');
+        var result2 = document.getElementById('scene1-result-2');
+        var result3 = document.getElementById('scene1-result-3');
+        var result4 = document.getElementById('scene1-result-4');
+
+        // 辅助函数：显示/隐藏元素
+        function show(el) { el.style.opacity = '1'; }
+        function hide(el) { el.style.opacity = '0'; }
+        function setText(el, text) { el.textContent = text; }
+
+        // 渲染指定步骤
+        function renderStep(step) {
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps);
+            stepIndicator.textContent = '步骤 ' + step + '/' + totalSteps;
+
+            // 重置所有高亮和填充
+            lineJia.setAttribute('stroke-width', '2.5');
+            lineYi.setAttribute('stroke-width', '2.5');
+
+            // 重置所有虚线
+            hide(dashedY400);
+            hide(dashedX4);
+            hide(dashedY200);
+            hide(dashedX6);
+            hide(dashedX5);
+
+            // 重置所有标签
+            hide(label0400);
+            hide(label40);
+            hide(label10);
+            hide(label6400);
+            hide(label6200);
+            hide(label5100);
+            hide(label5320);
+
+            // 重置点M、N
+            hide(pointM);
+            hide(pointN);
+
+            // 重置判断结果
+            hide(result1);
+            hide(result2);
+            hide(result3);
+            hide(result4);
+
+            // 重置推导文字
+            hide(textDerivation);
+            setText(textDerivation, '');
+
+            switch(step) {
+                case 0:
+                    // 初始状态：只显示基础图形
+                    break;
+                case 1:
+                    // 步骤1：甲船前段分析
+                    lineJia.setAttribute('stroke-width', '3.5');
+                    show(dashedY400);
+                    show(dashedX4);
+                    show(label0400);
+                    show(label40);
+                    setText(textDerivation, '甲船从A到B：x=0时y=400，x=4时y=0 → AB=400km，v甲=400÷4=100km/h');
+                    show(textDerivation);
+                    show(result1);
+                    show(result2);
+                    break;
+                case 2:
+                    // 步骤2：乙船信息推导
+                    lineYi.setAttribute('stroke-width', '3.5');
+                    show(label10);
+                    show(label6400);
+                    // 步骤1虚线淡出（opacity 0.3）
+                    dashedY400.style.opacity = '0.3';
+                    dashedX4.style.opacity = '0.3';
+                    setText(textDerivation, 'v甲=1.25v乙 → v乙=100÷1.25=80km/h；乙行BA=400km需400÷80=5h；甲总时间=1+5=6h');
+                    show(textDerivation);
+                    show(result1);
+                    show(result2);
+                    break;
+                case 3:
+                    // 步骤3：甲船后段与BC距离
+                    lineJia.setAttribute('stroke-width', '3.5');
+                    show(dashedY200);
+                    show(dashedX6);
+                    show(label6200);
+                    setText(textDerivation, '甲船从B到C：行驶6−4=2h，速度100km/h → BC=100×2=200km');
+                    show(textDerivation);
+                    show(result1);
+                    show(result2);
+                    show(result3);
+                    break;
+                case 4:
+                    // 步骤4：说法④辨析
+                    show(dashedX5);
+                    show(pointM);
+                    show(pointN);
+                    show(label5100);
+                    show(label5320);
+                    // 步骤3虚线淡出
+                    dashedY200.style.opacity = '0.3';
+                    dashedX6.style.opacity = '0.3';
+                    setText(textDerivation, 'x=5时：甲在B右侧100km，乙在B左侧320km，实际距离=100+320=420km ≠ 220km');
+                    show(textDerivation);
+                    show(result1);
+                    show(result2);
+                    show(result3);
+                    show(result4);
+                    break;
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

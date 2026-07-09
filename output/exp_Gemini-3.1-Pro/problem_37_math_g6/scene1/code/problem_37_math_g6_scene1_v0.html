@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .draggable { cursor: grab; }
+        .draggable:active { cursor: grabbing; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <pattern id="scene1-ground-pattern" width="10" height="10" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="10" x2="10" y2="0" stroke="#000000" stroke-width="1" />
+                </pattern>
+                <marker id="scene1-arrow-left" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M9,0 L0,3 L9,6 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-right" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L9,3 L0,6 z" fill="#1565c0" />
+                </marker>
+                <line id="scene1-ray-def" x1="150" y1="80" x2="450" y2="380" stroke="#fbc02d" stroke-width="2" />
+            </defs>
+            
+            <!-- Ground shadow -->
+            <rect x="50" y="380" width="700" height="10" fill="url(#scene1-ground-pattern)" />
+            <!-- Ground -->
+            <line x1="50" y1="380" x2="750" y2="380" stroke="#000000" stroke-width="2" />
+            
+            <!-- Streetlight -->
+            <line x1="150" y1="380" x2="150" y2="80" stroke="#000000" stroke-width="4" />
+            <text x="140" y="230" font-size="16" fill="#000000" text-anchor="end">路灯</text>
+            
+            <!-- Light source -->
+            <circle cx="150" cy="80" r="12" fill="#fbc02d" />
+            <circle cx="150" cy="80" r="20" fill="#fbc02d" opacity="0.3" />
+            <text x="150" y="55" font-size="16" fill="#000000" text-anchor="middle">光源</text>
+            
+            <!-- Distance a -->
+            <line id="scene1-a-line" x1="150" y1="420" x2="350" y2="420" stroke="#1565c0" stroke-width="2" marker-start="url(#scene1-arrow-left)" marker-end="url(#scene1-arrow-right)" />
+            <line x1="150" y1="380" x2="150" y2="430" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            <line id="scene1-a-dash" x1="350" y1="380" x2="350" y2="430" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            <text id="scene1-a-text" x="250" y="440" font-size="18" fill="#1565c0" text-anchor="middle" font-style="italic">a</text>
+            
+            <!-- Light ray -->
+            <use id="scene1-ray" href="#scene1-ray-def" />
+            
+            <!-- Shadow -->
+            <line id="scene1-shadow" x1="350" y1="380" x2="450" y2="380" stroke="#c62828" stroke-width="6" />
+            <text id="scene1-shadow-text" x="400" y="365" font-size="16" fill="#c62828" text-anchor="middle" opacity="0.99">影子</text>
+            
+            <!-- Object -->
+            <g id="scene1-object-group" class="draggable" transform="translate(350, 0)">
+                <rect x="-10" y="280" width="20" height="100" fill="#eeeeee" stroke="#000000" stroke-width="2" />
+                <text x="-20" y="330" font-size="16" fill="#000000" text-anchor="end" opacity="0.99">物体</text>
+                <!-- Invisible wider rect for easier dragging -->
+                <rect x="-30" y="280" width="60" height="100" fill="transparent" opacity="0" />
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <label for="scene1-slider" style="font-size: 16px;">距离 a:</label>
+            <input type="range" id="scene1-slider" min="250" max="500" value="350" style="width: 300px;">
+        </div>
+    </div>
+    <script>
+    (function() {
+        const slider = document.getElementById('scene1-slider');
+        const objectGroup = document.getElementById('scene1-object-group');
+        const rayDef = document.getElementById('scene1-ray-def');
+        const shadow = document.getElementById('scene1-shadow');
+        const shadowText = document.getElementById('scene1-shadow-text');
+        const aLine = document.getElementById('scene1-a-line');
+        const aDash = document.getElementById('scene1-a-dash');
+        const aText = document.getElementById('scene1-a-text');
+        const svg = document.getElementById('scene1-svg');
+        
+        let objectX = 350;
+        let isDragging = false;
+        
+        function updateScene(x) {
+            objectX = Math.max(250, Math.min(500, x));
+            slider.value = objectX;
+            
+            // Update object position
+            objectGroup.setAttribute('transform', `translate(${objectX}, 0)`);
+            
+            // Calculate shadow end point (x_s)
+            // Light source: (150, 80)
+            // Object top center: (objectX, 280)
+            // Ground: y = 380
+            // (380 - 80) / (x_s - 150) = (280 - 80) / (objectX - 150)
+            // 300 / (x_s - 150) = 200 / (objectX - 150)
+            // x_s = 150 + 1.5 * (objectX - 150)
+            const xs = 150 + 1.5 * (objectX - 150);
+            
+            // Update ray
+            rayDef.setAttribute('x2', xs);
+            
+            // Update shadow
+            shadow.setAttribute('x1', objectX);
+            shadow.setAttribute('x2', xs);
+            shadowText.setAttribute('x', (objectX + 10 + xs) / 2);
+            
+            // Update distance a
+            aLine.setAttribute('x2', objectX);
+            aDash.setAttribute('x1', objectX);
+            aDash.setAttribute('x2', objectX);
+            aText.setAttribute('x', (150 + objectX) / 2);
+        }
+        
+        slider.addEventListener('input', function(e) {
+            updateScene(parseFloat(e.target.value));
+        });
+        
+        // Dragging logic
+        function getMouseX(e) {
+            const CTM = svg.getScreenCTM();
+            if (e.touches && e.touches.length > 0) {
+                return (e.touches[0].clientX - CTM.e) / CTM.a;
+            }
+            return (e.clientX - CTM.e) / CTM.a;
+        }
+        
+        function startDrag(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                const x = getMouseX(e);
+                updateScene(x);
+            }
+        }
+        
+        function endDrag() {
+            isDragging = false;
+        }
+        
+        objectGroup.addEventListener('mousedown', startDrag);
+        objectGroup.addEventListener('touchstart', startDrag, {passive: false});
+        
+        window.addEventListener('mousemove', drag);
+        window.addEventListener('touchmove', drag, {passive: false});
+        
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchend', endDrag);
+        
+        // Initial update
+        updateScene(objectX);
+    })();
+    </script>
+</body>
+</html>

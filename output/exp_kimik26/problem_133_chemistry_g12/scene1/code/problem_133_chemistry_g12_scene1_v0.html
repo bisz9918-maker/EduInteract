@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 气体反应与活塞移动</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { display: block; }
+        #scene1-controls { position: absolute; bottom: 0; left: 0; right: 0; height: 60px; pointer-events: none; }
+        #scene1-btn-prev { position: absolute; left: 280px; top: 8px; width: 90px; height: 28px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; pointer-events: auto; }
+        #scene1-btn-next { position: absolute; left: 430px; top: 8px; width: 90px; height: 28px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; pointer-events: auto; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { position: absolute; left: 370px; top: 38px; font-size: 14px; color: #666; min-width: 60px; text-align: center; }
+        .scene1-hidden { display: none !important; opacity: 0 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 容器外框 -->
+            <rect id="scene1-container-frame" x="100" y="160" width="600" height="160" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 左侧填充区 -->
+            <rect id="scene1-left-fill" x="100" y="160" width="150" height="160" fill="#1565c0" fill-opacity="0.2"/>
+            
+            <!-- 右侧填充区 -->
+            <rect id="scene1-right-fill" x="250" y="160" width="450" height="160" fill="#c62828" fill-opacity="0.2"/>
+            
+            <!-- 活塞 -->
+            <line id="scene1-piston" x1="250" y1="160" x2="250" y2="320" stroke="#000000" stroke-width="4"/>
+            
+            <!-- 左尺寸线 -->
+            <line id="scene1-dim-left" x1="100" y1="338" x2="250" y2="338" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+            
+            <!-- 右尺寸线 -->
+            <line id="scene1-dim-right" x1="250" y1="338" x2="700" y2="338" stroke="#888888" stroke-width="1" stroke-dasharray="4,3"/>
+            
+            <!-- 左弹箭头 -->
+            <g id="scene1-arrow-group" class="scene1-hidden">
+                <line id="scene1-arrow-line" x1="240" y1="240" x2="210" y2="240" stroke="#c62828" stroke-width="1.5"/>
+                <polygon id="scene1-arrow-head" points="210,240 218,236 218,244" fill="#c62828"/>
+            </g>
+            
+            <!-- 步骤0标签 -->
+            <text id="scene1-label-standard" x="120" y="125" font-size="14" fill="#000000" class="scene1-hidden">标准状况</text>
+            <text id="scene1-label-same-tp" x="400" y="125" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">同温同压</text>
+            <text id="scene1-label-air" x="175" y="145" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">空气</text>
+            <text id="scene1-label-h2o2" x="475" y="145" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">H₂、O₂</text>
+            <text id="scene1-label-v1" x="175" y="355" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">V=1</text>
+            <text id="scene1-label-v3" x="475" y="355" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">V=3</text>
+            <text id="scene1-label-total" x="400" y="385" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">总体积 = 4</text>
+            
+            <!-- 步骤1标签：移至容器右侧外部，避免与填充区重叠 -->
+            <text id="scene1-label-ignite" x="720" y="240" font-size="14" fill="#c62828" font-weight="bold" text-anchor="middle" class="scene1-hidden">点燃引爆</text>
+            
+            <!-- 步骤2标签 -->
+            <text id="scene1-label-air2" x="250" y="145" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">空气</text>
+            <text id="scene1-label-remaining" x="550" y="140" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">剩余气体</text>
+            <text id="scene1-label-remaining-type" x="550" y="158" font-size="12" fill="#000000" text-anchor="middle" class="scene1-hidden">(H₂或O₂)</text>
+            <text id="scene1-label-v2-left" x="250" y="355" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">V=2</text>
+            <text id="scene1-label-v2-right" x="550" y="355" font-size="14" fill="#000000" text-anchor="middle" class="scene1-hidden">V=2</text>
+            <text id="scene1-label-recover" x="120" y="125" font-size="14" fill="#000000" class="scene1-hidden">恢复至原温度</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1 / 3</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        
+        // 状态变量
+        var currentStep = 0;
+        var isAnimating = false;
+        
+        // 元素引用
+        var piston = document.getElementById('scene1-piston');
+        var leftFill = document.getElementById('scene1-left-fill');
+        var rightFill = document.getElementById('scene1-right-fill');
+        var dimLeft = document.getElementById('scene1-dim-left');
+        var dimRight = document.getElementById('scene1-dim-right');
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 步骤配置：活塞X坐标、左填充宽度、右填充宽度、右填充颜色
+        var stepConfigs = [
+            { pistonX: 250, leftWidth: 150, rightWidth: 450, rightFill: '#c62828' },
+            { pistonX: 200, leftWidth: 100, rightWidth: 500, rightFill: '#c62828' },
+            { pistonX: 400, leftWidth: 300, rightWidth: 300, rightFill: '#2e7d32' }
+        ];
+        
+        // 显示/隐藏工具函数：通过 classList 控制 scene1-hidden
+        function show(el) {
+            if (!el) return;
+            el.classList.remove('scene1-hidden');
+        }
+        
+        function hide(el) {
+            if (!el) return;
+            el.classList.add('scene1-hidden');
+        }
+        
+        function getEl(id) {
+            return document.getElementById(id);
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === 2);
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + ' / 3';
+        }
+        
+        // 缓动函数
+        function easeOut(t) {
+            return 1 - Math.pow(1 - t, 2);
+        }
+        
+        function easeInOut(t) {
+            return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        }
+        
+        // 动画到目标步骤
+        function animateToStep(targetStep, duration) {
+            if (isAnimating) return;
+            isAnimating = true;
+            
+            var startConfig = stepConfigs[currentStep];
+            var targetConfig = stepConfigs[targetStep];
+            var startTime = null;
+            
+            // 选择缓动函数：步骤0→1用easeOut，其他用easeInOut
+            var easing = (targetStep > currentStep && currentStep === 0) ? easeOut : easeInOut;
+            
+            // 预先设置目标颜色
+            rightFill.setAttribute('fill', targetConfig.rightFill);
+            
+            // 立即更新步骤状态和元素显隐，避免动画过程中出现不该显示的元素
+            currentStep = targetStep;
+            renderStep();
+            
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                var progress = Math.min((timestamp - startTime) / duration, 1);
+                var eased = easing(progress);
+                
+                var currentPistonX = startConfig.pistonX + (targetConfig.pistonX - startConfig.pistonX) * eased;
+                var currentLeftWidth = startConfig.leftWidth + (targetConfig.leftWidth - startConfig.leftWidth) * eased;
+                var currentRightWidth = startConfig.rightWidth + (targetConfig.rightWidth - startConfig.rightWidth) * eased;
+                
+                // 更新活塞位置
+                piston.setAttribute('x1', currentPistonX);
+                piston.setAttribute('x2', currentPistonX);
+                
+                // 更新左侧填充区宽度
+                leftFill.setAttribute('width', currentLeftWidth);
+                
+                // 更新右侧填充区位置和宽度
+                rightFill.setAttribute('x', currentPistonX);
+                rightFill.setAttribute('width', currentRightWidth);
+                
+                // 更新尺寸线
+                dimLeft.setAttribute('x2', currentPistonX);
+                dimRight.setAttribute('x1', currentPistonX);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    isAnimating = false;
+                }
+            }
+            
+            requestAnimationFrame(step);
+        }
+        
+        // 渲染当前步骤的可见元素
+        function renderStep() {
+            // 先隐藏所有步骤相关元素
+            hide(getEl('scene1-label-standard'));
+            hide(getEl('scene1-label-same-tp'));
+            hide(getEl('scene1-label-air'));
+            hide(getEl('scene1-label-h2o2'));
+            hide(getEl('scene1-label-v1'));
+            hide(getEl('scene1-label-v3'));
+            hide(getEl('scene1-label-total'));
+            hide(getEl('scene1-label-ignite'));
+            hide(getEl('scene1-arrow-group'));
+            hide(getEl('scene1-label-air2'));
+            hide(getEl('scene1-label-remaining'));
+            hide(getEl('scene1-label-remaining-type'));
+            hide(getEl('scene1-label-v2-left'));
+            hide(getEl('scene1-label-v2-right'));
+            hide(getEl('scene1-label-recover'));
+            
+            // 根据当前步骤显示对应元素
+            if (currentStep === 0) {
+                show(getEl('scene1-label-standard'));
+                show(getEl('scene1-label-same-tp'));
+                show(getEl('scene1-label-air'));
+                show(getEl('scene1-label-h2o2'));
+                show(getEl('scene1-label-v1'));
+                show(getEl('scene1-label-v3'));
+                show(getEl('scene1-label-total'));
+            } else if (currentStep === 1) {
+                show(getEl('scene1-label-same-tp'));
+                show(getEl('scene1-label-air'));
+                show(getEl('scene1-label-h2o2'));
+                show(getEl('scene1-label-v1'));
+                show(getEl('scene1-label-v3'));
+                show(getEl('scene1-label-total'));
+                show(getEl('scene1-label-ignite'));
+                show(getEl('scene1-arrow-group'));
+            } else if (currentStep === 2) {
+                show(getEl('scene1-label-same-tp'));
+                show(getEl('scene1-label-total'));
+                show(getEl('scene1-label-air2'));
+                show(getEl('scene1-label-remaining'));
+                show(getEl('scene1-label-remaining-type'));
+                show(getEl('scene1-label-v2-left'));
+                show(getEl('scene1-label-v2-right'));
+                show(getEl('scene1-label-recover'));
+            }
+            
+            updateButtons();
+        }
+        
+        // 直接设置到某步骤（无动画，用于初始化）
+        function setToStep(step) {
+            var config = stepConfigs[step];
+            piston.setAttribute('x1', config.pistonX);
+            piston.setAttribute('x2', config.pistonX);
+            leftFill.setAttribute('width', config.leftWidth);
+            rightFill.setAttribute('x', config.pistonX);
+            rightFill.setAttribute('width', config.rightWidth);
+            rightFill.setAttribute('fill', config.rightFill);
+            dimLeft.setAttribute('x2', config.pistonX);
+            dimRight.setAttribute('x1', config.pistonX);
+            currentStep = step;
+            renderStep();
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0 && !isAnimating) {
+                var duration = (currentStep === 2) ? 800 : 500;
+                animateToStep(currentStep - 1, duration);
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 2 && !isAnimating) {
+                var duration = (currentStep === 0) ? 500 : 800;
+                animateToStep(currentStep + 1, duration);
+            }
+        });
+        
+        // 初始化
+        setToStep(0);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地方时计算与日期分界线 - Scene 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.3s; }
+        .scene2-btn-prev { background: #9e9e9e; color: white; }
+        .scene2-btn-prev:hover { background: #757575; }
+        .scene2-btn-prev:disabled { background: #bdbdbd; cursor: not-allowed; }
+        .scene2-btn-next { background: #1976d2; color: white; }
+        .scene2-btn-next:hover { background: #1565c0; }
+        .scene2-btn-next:disabled { background: #64b5f6; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        /* 坐标表对照：
+           经线 x: 80, 208, 336, 464, 592, 720 (间距 128px)
+           纬线 y: 80(0°), 186.7(23.5°), 293.3(70°), 400
+           A 点：(80, 186.7)
+           B 点：(720, 80)
+           O 点：(464, 293.3)
+           阴影区域：(208,80)-(464,400)
+        */
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 经纬网背景 -->
+            <!-- 经线 -->
+            <line x1="80" y1="80" x2="80" y2="400" stroke="#333" stroke-width="1"/>
+            <line x1="208" y1="80" x2="208" y2="400" stroke="#333" stroke-width="1"/>
+            <line x1="336" y1="80" x2="336" y2="400" stroke="#333" stroke-width="1"/>
+            <line x1="464" y1="80" x2="464" y2="400" stroke="#333" stroke-width="1"/>
+            <line x1="592" y1="80" x2="592" y2="400" stroke="#333" stroke-width="1"/>
+            <line x1="720" y1="80" x2="720" y2="400" stroke="#333" stroke-width="1"/>
+            
+            <!-- 纬线 -->
+            <line x1="80" y1="80" x2="720" y2="80" stroke="#333" stroke-width="1"/>
+            <line x1="80" y1="186.7" x2="720" y2="186.7" stroke="#333" stroke-width="1" stroke-dasharray="4,2"/>
+            <line x1="80" y1="293.3" x2="720" y2="293.3" stroke="#333" stroke-width="1" stroke-dasharray="4,2"/>
+            <line x1="80" y1="400" x2="720" y2="400" stroke="#333" stroke-width="1"/>
+            
+            <!-- 阴影区域 -->
+            <rect x="208" y="80" width="256" height="320" fill="#888888" opacity="0.3" id="scene2-shadow"/>
+            
+            <!-- 晨昏线 -->
+            <!-- AO 昏线 -->
+            <line x1="80" y1="186.7" x2="464" y2="293.3" stroke="#000" stroke-width="2" id="scene2-line-AO"/>
+            <!-- BO 晨线 -->
+            <line x1="720" y1="80" x2="464" y2="293.3" stroke="#000" stroke-width="2" id="scene2-line-BO"/>
+            
+            <!-- 点标注 -->
+            <!-- O 点 -->
+            <circle cx="464" cy="293.3" r="4" fill="#c62828" id="scene2-point-O"/>
+            <!-- A 点 -->
+            <circle cx="80" cy="186.7" r="3" fill="#2e7d32" id="scene2-point-A"/>
+            <!-- B 点 -->
+            <circle cx="720" cy="80" r="3" fill="#1565c0" id="scene2-point-B"/>
+            
+            <!-- 纬度标签 -->
+            <text x="735" y="85" font-size="12" fill="#000">0°</text>
+            <text x="735" y="192" font-size="12" fill="#000">23.5°</text>
+            <text x="735" y="299" font-size="12" fill="#000">70°</text>
+            
+            <!-- 步骤 1: B 点时间标签 - 移到 B 点左侧，避开晨线 -->
+            <text x="650" y="70" font-size="14" fill="#1565c0" font-weight="bold" display="none" id="scene2-label-B-time">6:00</text>
+            <text x="650" y="85" font-size="10" fill="#1565c0" display="none" id="scene2-text1">晨线交点</text>
+            
+            <!-- 步骤 2: 经度标签 -->
+            <text x="60" y="420" font-size="12" fill="#000" display="none" id="scene2-label-lon1">180°</text>
+            <text x="188" y="420" font-size="12" fill="#000" display="none" id="scene2-label-lon2">150°E</text>
+            <text x="316" y="420" font-size="12" fill="#000" display="none" id="scene2-label-lon3">120°E</text>
+            <text x="444" y="420" font-size="12" fill="#000" display="none" id="scene2-label-lon4">90°E</text>
+            <text x="572" y="420" font-size="12" fill="#000" display="none" id="scene2-label-lon5">60°E</text>
+            <text x="700" y="420" font-size="12" fill="#000" display="none" id="scene2-label-lon6">30°E</text>
+            
+            <!-- 步骤 2: O 点时间标签 - 移到 O 点左侧，避开阴影和晨昏线 -->
+            <text x="400" y="290" font-size="14" fill="#c62828" font-weight="bold" display="none" id="scene2-label-O-time">0:00</text>
+            <text x="400" y="305" font-size="10" fill="#c62828" display="none" id="scene2-text2">晨昏交点</text>
+            
+            <!-- 步骤 3: 时间差箭头 -->
+            <g display="none" id="scene2-group-time-diff">
+                <line x1="464" y1="320" x2="720" y2="320" stroke="#ff9800" stroke-width="2"/>
+                <polygon points="720,315 730,320 720,325" fill="#ff9800"/>
+                <polygon points="454,315 444,320 454,325" fill="#ff9800"/>
+                <text x="540" y="310" font-size="12" fill="#ff9800" font-weight="bold">经度差 45°, 时间差 3h</text>
+            </g>
+            <text x="480" y="340" font-size="10" fill="#ff9800" display="none" id="scene2-text3">O 点 90°E, B 点 30°E</text>
+            
+            <!-- 步骤 4: 矛盾分析文字 - 放在左侧空白区域，避开晨昏线 -->
+            <text x="50" y="120" font-size="10" fill="#333" display="none" id="scene2-text4">矛盾分析:</text>
+            <text x="50" y="135" font-size="10" fill="#333" display="none" id="scene2-text4b">B 点应在 O 点东侧 90°</text>
+            <text x="50" y="150" font-size="10" fill="#333" display="none" id="scene2-text4c">但图中 B 点在 O 点东侧 45°</text>
+            <text x="50" y="165" font-size="10" fill="#333" display="none" id="scene2-text4d">重新分析：O 点为 0 时经线</text>
+            
+            <!-- 步骤 5: A 点经度 -->
+            <text x="50" y="180" font-size="10" fill="#2e7d32" display="none" id="scene2-text5">A 点经度=120°E</text>
+            <text x="220" y="70" font-size="10" fill="#333" display="none" id="scene2-text7">180°经线</text>
+            <text x="50" y="195" font-size="11" fill="#2e7d32" font-weight="bold" display="none" id="scene2-text8">120°E</text>
+            
+            <!-- 步骤 6: A 点夜长弧线 -->
+            <path d="M 80,186.7 A 64,64 0 0,0 -48,186.7" stroke="#2e7d32" stroke-width="2" fill="none" stroke-dasharray="4,2" display="none" id="scene2-night-arc"/>
+            <text x="50" y="210" font-size="10" fill="#333" display="none" id="scene2-text6">夜长=12h</text>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#ff9800"/>
+                </marker>
+                <marker id="scene2-arrowhead-start" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto">
+                    <path d="M9,0 L9,6 L0,3 z" fill="#ff9800"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button class="scene2-btn scene2-btn-prev" id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span class="scene2-step-indicator" id="scene2-step-indicator">步骤 1/7</span>
+            <button class="scene2-btn scene2-btn-next" id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 地方时计算与日期分界线
+        const scene2 = {
+            currentStep: 1,
+            totalSteps: 7,
+            
+            // 元素 ID 列表
+            elements: {
+                // 步骤 1
+                step1: ['scene2-label-B-time', 'scene2-text1'],
+                // 步骤 2
+                step2: ['scene2-label-lon1', 'scene2-label-lon2', 'scene2-label-lon3', 'scene2-label-lon4', 'scene2-label-lon5', 'scene2-label-lon6', 'scene2-label-O-time', 'scene2-text2'],
+                // 步骤 3
+                step3: ['scene2-group-time-diff', 'scene2-text3'],
+                // 步骤 4
+                step4: ['scene2-text4', 'scene2-text4b', 'scene2-text4c', 'scene2-text4d'],
+                // 步骤 5
+                step5: ['scene2-text5', 'scene2-text7', 'scene2-text8'],
+                // 步骤 6
+                step6: ['scene2-night-arc', 'scene2-text6']
+            },
+            
+            init: function() {
+                this.bindEvents();
+                this.updateScene();
+            },
+            
+            bindEvents: function() {
+                const prevBtn = document.getElementById('scene2-btn-prev');
+                const nextBtn = document.getElementById('scene2-btn-next');
+                
+                prevBtn.addEventListener('click', () => {
+                    if (this.currentStep > 1) {
+                        this.currentStep--;
+                        this.updateScene();
+                    }
+                });
+                
+                nextBtn.addEventListener('click', () => {
+                    if (this.currentStep < this.totalSteps) {
+                        this.currentStep++;
+                        this.updateScene();
+                    }
+                });
+            },
+            
+            updateScene: function() {
+                // 更新步骤指示器
+                document.getElementById('scene2-step-indicator').textContent = '步骤 ' + this.currentStep + '/' + this.totalSteps;
+                
+                // 更新按钮状态
+                const prevBtn = document.getElementById('scene2-btn-prev');
+                const nextBtn = document.getElementById('scene2-btn-next');
+                prevBtn.disabled = this.currentStep <= 1;
+                nextBtn.disabled = this.currentStep >= this.totalSteps;
+                
+                // 隐藏所有步骤元素
+                for (let step = 1; step <= this.totalSteps; step++) {
+                    const key = 'step' + step;
+                    if (this.elements[key]) {
+                        this.elements[key].forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.style.display = 'none';
+                                el.style.opacity = '0';
+                            }
+                        });
+                    }
+                }
+                
+                // 显示当前步骤及之前的所有元素
+                for (let step = 1; step <= this.currentStep; step++) {
+                    const key = 'step' + step;
+                    if (this.elements[key]) {
+                        this.elements[key].forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.style.display = 'block';
+                                // 动画过渡
+                                setTimeout(() => {
+                                    el.style.opacity = '1';
+                                }, 50);
+                            }
+                        });
+                    }
+                }
+            }
+        };
+        
+        // 初始化
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

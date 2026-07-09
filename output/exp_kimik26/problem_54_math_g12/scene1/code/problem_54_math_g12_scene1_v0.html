@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 长方体表面最短距离</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-step-indicator { font-size: 14px; color: #666; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 6px 16px; font-size: 14px; background: #f5f5f5; border: 1px solid #ccc;
+            border-radius: 4px; cursor: pointer; transition: opacity 0.2s;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-btn-prev:hover:not(:disabled), #scene1-btn-next:hover:not(:disabled) { background: #e8e8e8; }
+        /* SVG element transitions */
+        .scene1-transition { transition: opacity 0.3s ease, stroke-width 0.3s ease, stroke 0.3s ease; }
+        /* Hint box as HTML overlay */
+        #scene1-hint-box {
+            position: absolute; left: 480px; top: 220px; width: 220px; height: 80px;
+            background: rgba(255,255,255,0.95); border: 1px solid #ccc; border-radius: 4px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-size: 14px; color: #000; opacity: 0; transition: opacity 0.3s ease; z-index: 5;
+            pointer-events: none;
+        }
+        #scene1-hint-box p { margin: 4px 0; padding: 0; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 长方体线框组 -->
+            <g id="scene1-cuboid">
+                <!-- 不可见棱（虚线） -->
+                <line id="scene1-edge-ag" class="scene1-transition" x1="200" y1="380" x2="230" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+                <line id="scene1-edge-gd" class="scene1-transition" x1="230" y1="350" x2="340" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+                <line id="scene1-edge-ge" class="scene1-transition" x1="230" y1="350" x2="230" y2="218" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+
+                <!-- 可见棱（实线） -->
+                <line id="scene1-edge-ac" class="scene1-transition" x1="200" y1="380" x2="310" y2="380" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-cd" class="scene1-transition" x1="310" y1="380" x2="340" y2="350" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-ah" class="scene1-transition" x1="200" y1="380" x2="200" y2="248" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-cb" class="scene1-transition" x1="310" y1="380" x2="310" y2="248" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-df" class="scene1-transition" x1="340" y1="350" x2="340" y2="218" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-hb" class="scene1-transition" x1="200" y1="248" x2="310" y2="248" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-bf" class="scene1-transition" x1="310" y1="248" x2="340" y2="218" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-fe" class="scene1-transition" x1="340" y1="218" x2="230" y2="218" stroke="#000000" stroke-width="2"/>
+                <line id="scene1-edge-eh" class="scene1-transition" x1="230" y1="218" x2="200" y2="248" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- 顶点标签 -->
+            <text id="scene1-label-a" class="scene1-transition" x="160" y="405" font-size="16" font-weight="bold" fill="#000000" text-anchor="middle">A</text>
+            <text id="scene1-label-c" class="scene1-transition" x="360" y="405" font-size="16" font-weight="bold" fill="#000000" text-anchor="middle">C</text>
+            <text id="scene1-label-d" class="scene1-transition" x="400" y="330" font-size="16" font-weight="bold" fill="#000000" text-anchor="middle">D</text>
+            <text id="scene1-label-e" class="scene1-transition" x="200" y="200" font-size="16" font-weight="bold" fill="#000000" text-anchor="middle">E</text>
+            <text id="scene1-label-b" class="scene1-transition" x="290" y="240" font-size="16" font-weight="bold" fill="#000000" text-anchor="middle">B</text>
+            <text id="scene1-label-f" class="scene1-transition" x="370" y="205" font-size="16" font-weight="bold" fill="#000000" text-anchor="middle">F</text>
+
+            <!-- 边长标注 -->
+            <text id="scene1-dim-ac" class="scene1-transition" x="255" y="420" font-size="14" font-weight="bold" fill="#2e7d32" text-anchor="middle">AC = 5 cm</text>
+            <text id="scene1-dim-cd" class="scene1-transition" x="360" y="365" font-size="14" font-weight="bold" fill="#2e7d32" text-anchor="middle">CD = 3 cm</text>
+            <text id="scene1-dim-df" class="scene1-transition" x="380" y="284" font-size="14" font-weight="bold" fill="#2e7d32" text-anchor="middle">DF = 6 cm</text>
+
+            <!-- 高亮圆点（步骤1出现） -->
+            <circle id="scene1-highlight-a" class="scene1-transition" cx="200" cy="380" r="8" fill="none" stroke="#1565c0" stroke-width="3" opacity="0"/>
+            <circle id="scene1-highlight-f" class="scene1-transition" cx="340" cy="218" r="8" fill="none" stroke="#c62828" stroke-width="3" opacity="0"/>
+        </svg>
+
+        <!-- 提示文本框（HTML overlay，步骤2出现） -->
+        <div id="scene1-hint-box">
+            <p>将相邻表面展开成平面</p>
+            <p>→ 连接 A、F 直线</p>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/3</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 3;
+
+        // 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const hintBox = document.getElementById('scene1-hint-box');
+
+        // 棱线元素
+        const edges = {
+            ac: document.getElementById('scene1-edge-ac'),
+            cd: document.getElementById('scene1-edge-cd'),
+            ah: document.getElementById('scene1-edge-ah'),
+            cb: document.getElementById('scene1-edge-cb'),
+            df: document.getElementById('scene1-edge-df'),
+            hb: document.getElementById('scene1-edge-hb'),
+            bf: document.getElementById('scene1-edge-bf'),
+            fe: document.getElementById('scene1-edge-fe'),
+            eh: document.getElementById('scene1-edge-eh'),
+            ag: document.getElementById('scene1-edge-ag'),
+            gd: document.getElementById('scene1-edge-gd'),
+            ge: document.getElementById('scene1-edge-ge')
+        };
+
+        // 标签元素
+        const labels = {
+            a: document.getElementById('scene1-label-a'),
+            b: document.getElementById('scene1-label-b'),
+            c: document.getElementById('scene1-label-c'),
+            d: document.getElementById('scene1-label-d'),
+            e: document.getElementById('scene1-label-e'),
+            f: document.getElementById('scene1-label-f')
+        };
+
+        // 标注元素
+        const dims = {
+            ac: document.getElementById('scene1-dim-ac'),
+            cd: document.getElementById('scene1-dim-cd'),
+            df: document.getElementById('scene1-dim-df')
+        };
+
+        // 高亮元素
+        const highlightA = document.getElementById('scene1-highlight-a');
+        const highlightF = document.getElementById('scene1-highlight-f');
+
+        function renderStep(step) {
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+
+            if (step === 0) {
+                // 步骤0：初始状态，全部显示
+                // 所有棱线 opacity 1，恢复默认颜色和线宽
+                Object.values(edges).forEach(el => {
+                    el.style.opacity = '1';
+                    el.setAttribute('stroke', el.id.includes('ag') || el.id.includes('gd') || el.id.includes('ge') ? '#888888' : '#000000');
+                    el.setAttribute('stroke-width', el.id.includes('ag') || el.id.includes('gd') || el.id.includes('ge') ? '1' : '2');
+                });
+
+                // 所有标签 opacity 1
+                Object.values(labels).forEach(el => { el.style.opacity = '1'; });
+
+                // 所有标注 opacity 1
+                Object.values(dims).forEach(el => { el.style.opacity = '1'; });
+
+                // 高亮隐藏
+                highlightA.style.opacity = '0';
+                highlightF.style.opacity = '0';
+                hintBox.style.opacity = '0';
+
+            } else if (step === 1) {
+                // 步骤1：聚焦 A→F
+                // AC 和 AH 变为蓝色粗线
+                edges.ac.setAttribute('stroke', '#1565c0');
+                edges.ac.setAttribute('stroke-width', '3');
+                edges.ah.setAttribute('stroke', '#1565c0');
+                edges.ah.setAttribute('stroke-width', '3');
+
+                // DF 变为红色粗线
+                edges.df.setAttribute('stroke', '#c62828');
+                edges.df.setAttribute('stroke-width', '3');
+
+                // 其余棱线淡化
+                ['cd', 'cb', 'hb', 'bf', 'fe', 'eh', 'ag', 'gd', 'ge'].forEach(key => {
+                    edges[key].style.opacity = '0.25';
+                    // 恢复默认颜色
+                    if (key === 'ag' || key === 'gd' || key === 'ge') {
+                        edges[key].setAttribute('stroke', '#888888');
+                        edges[key].setAttribute('stroke-width', '1');
+                    } else {
+                        edges[key].setAttribute('stroke', '#000000');
+                        edges[key].setAttribute('stroke-width', '2');
+                    }
+                });
+
+                // 其余标签淡化
+                ['b', 'c', 'd', 'e'].forEach(key => {
+                    labels[key].style.opacity = '0.25';
+                });
+                labels.a.style.opacity = '1';
+                labels.f.style.opacity = '1';
+
+                // 标注淡化到0.35
+                Object.values(dims).forEach(el => { el.style.opacity = '0.35'; });
+
+                // 高亮显示
+                highlightA.style.opacity = '1';
+                highlightF.style.opacity = '1';
+
+                // 提示框隐藏
+                hintBox.style.opacity = '0';
+
+            } else if (step === 2) {
+                // 步骤2：保持步骤1状态，显示提示框
+                // 保持步骤1的所有高亮与淡化状态
+                edges.ac.setAttribute('stroke', '#1565c0');
+                edges.ac.setAttribute('stroke-width', '3');
+                edges.ah.setAttribute('stroke', '#1565c0');
+                edges.ah.setAttribute('stroke-width', '3');
+                edges.df.setAttribute('stroke', '#c62828');
+                edges.df.setAttribute('stroke-width', '3');
+
+                ['cd', 'cb', 'hb', 'bf', 'fe', 'eh', 'ag', 'gd', 'ge'].forEach(key => {
+                    edges[key].style.opacity = '0.25';
+                });
+
+                ['b', 'c', 'd', 'e'].forEach(key => {
+                    labels[key].style.opacity = '0.25';
+                });
+                labels.a.style.opacity = '1';
+                labels.f.style.opacity = '1';
+
+                Object.values(dims).forEach(el => { el.style.opacity = '0.35'; });
+
+                highlightA.style.opacity = '1';
+                highlightF.style.opacity = '1';
+
+                // 提示框显示
+                hintBox.style.opacity = '1';
+            }
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染
+        renderStep(currentStep);
+    })();
+    </script>
+</body>
+</html>

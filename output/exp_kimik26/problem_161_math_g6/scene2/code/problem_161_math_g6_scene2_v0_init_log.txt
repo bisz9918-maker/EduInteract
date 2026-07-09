@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>长方形计数规律探究</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+
+        /* 滑块自定义样式 */
+        #scene2-slider {
+            position: absolute;
+            left: 250px;
+            top: 285px;
+            width: 300px;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: #cccccc;
+            border-radius: 3px;
+            outline: none;
+            z-index: 10;
+        }
+        #scene2-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #1565c0;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        #scene2-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #1565c0;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" style="position:absolute; left:0; top:0;">
+            <!-- 大长方形外框 -->
+            <rect id="scene2-rect-border" x="220" y="40" width="360" height="120" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 小长方形填充区（动态生成） -->
+            <g id="scene2-fill-group"></g>
+
+            <!-- 内部竖直分割线（动态生成） -->
+            <g id="scene2-divider-group"></g>
+
+            <!-- 竖线短标记（动态生成） -->
+            <g id="scene2-tick-group"></g>
+
+            <!-- 竖线编号（动态生成） -->
+            <g id="scene2-tick-label-group"></g>
+
+            <!-- 滑块标签 -->
+            <text id="scene2-slider-label" x="400" y="228" text-anchor="middle" font-size="16" fill="#000000">小长方形个数 n</text>
+
+            <!-- 滑块数值 -->
+            <text id="scene2-slider-value" x="400" y="262" text-anchor="middle" font-size="14" fill="#000000">n = 4</text>
+
+            <!-- 特殊标记（n=4时显示） -->
+            <text id="scene2-formula-special" x="400" y="330" text-anchor="middle" font-size="16" fill="#c62828" style="display:none;">★ 这就是题目中的图形</text>
+
+            <!-- 竖线数公式 -->
+            <text id="scene2-formula-lines" x="400" y="368" text-anchor="middle" font-size="18" fill="#000000">竖线总数 = n + 1 = 5</text>
+
+            <!-- 总数公式与计算结果（合并为一行） -->
+            <text id="scene2-formula-total" x="400" y="408" text-anchor="middle" font-size="18" fill="#000000">
+                长方形总数 = (n + 1) × n ÷ 2 = <tspan id="scene2-formula-result" fill="#2e7d32" font-weight="bold">10</tspan>
+            </text>
+
+            <!-- 本题算式（n=4时显示） -->
+            <text id="scene2-formula-example" x="400" y="446" text-anchor="middle" font-size="18" fill="#c62828" style="display:none;">4 + 3 + 2 + 1 = 10</text>
+        </svg>
+
+        <!-- 滑块控件 -->
+        <input type="range" id="scene2-slider" min="2" max="6" step="1" value="4">
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：长方形计数规律探究
+
+        // 坐标表（实现对照依据）
+        // 大长方形外框: (220, 40), 360×120
+        // 小长方形填充区: (220+i·w, 40), w=360/n, w×120, i=0~n-1
+        // 内部竖直分割线: (220+i·w, 40)-(220+i·w, 160), i=1~n-1
+        // 竖线短标记: (220+i·w, 175)-(220+i·w, 185), i=0~n
+        // 竖线编号: (220+i·w, 188), i=0~n
+        // 滑块标签: (400, 228)
+        // 滑块数值: (cx, 262), cx = 250 + (n-2)*75
+        // 滑块轨道: (250, 285), 300×6
+        // 滑块按钮: (cx, 295), r=10
+        // 特殊标记: (400, 330)
+        // 竖线数公式: (400, 368)
+        // 总数公式+结果: (400, 408)
+        // 本题算式: (400, 446)
+
+        const slider = document.getElementById('scene2-slider');
+        const fillGroup = document.getElementById('scene2-fill-group');
+        const dividerGroup = document.getElementById('scene2-divider-group');
+        const tickGroup = document.getElementById('scene2-tick-group');
+        const tickLabelGroup = document.getElementById('scene2-tick-label-group');
+        const sliderValue = document.getElementById('scene2-slider-value');
+        const formulaSpecial = document.getElementById('scene2-formula-special');
+        const formulaLines = document.getElementById('scene2-formula-lines');
+        const formulaResult = document.getElementById('scene2-formula-result');
+        const formulaExample = document.getElementById('scene2-formula-example');
+
+        function updateScene(n) {
+            const nVal = parseInt(n, 10);
+            const w = 360 / nVal;
+
+            // 清空动态组
+            fillGroup.innerHTML = '';
+            dividerGroup.innerHTML = '';
+            tickGroup.innerHTML = '';
+            tickLabelGroup.innerHTML = '';
+
+            // 小长方形填充区
+            for (let i = 0; i < nVal; i++) {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', 220 + i * w);
+                rect.setAttribute('y', 40);
+                rect.setAttribute('width', w);
+                rect.setAttribute('height', 120);
+                rect.setAttribute('fill', '#1565c0');
+                rect.setAttribute('opacity', '0.15');
+                fillGroup.appendChild(rect);
+            }
+
+            // 内部竖直分割线（i=1~n-1）
+            for (let i = 1; i < nVal; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', 220 + i * w);
+                line.setAttribute('y1', 40);
+                line.setAttribute('x2', 220 + i * w);
+                line.setAttribute('y2', 160);
+                line.setAttribute('stroke', '#000000');
+                line.setAttribute('stroke-width', '2');
+                dividerGroup.appendChild(line);
+            }
+
+            // 竖线短标记（i=0~n）
+            for (let i = 0; i <= nVal; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', 220 + i * w);
+                line.setAttribute('y1', 175);
+                line.setAttribute('x2', 220 + i * w);
+                line.setAttribute('y2', 185);
+                line.setAttribute('stroke', '#000000');
+                line.setAttribute('stroke-width', '1');
+                tickGroup.appendChild(line);
+            }
+
+            // 竖线编号（i=0~n）
+            for (let i = 0; i <= nVal; i++) {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', 220 + i * w);
+                text.setAttribute('y', 188);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '12');
+                text.setAttribute('fill', '#000000');
+                text.textContent = String(i + 1);
+                tickLabelGroup.appendChild(text);
+            }
+
+            // 更新滑块数值位置
+            const cx = 250 + (nVal - 2) * 75;
+            sliderValue.setAttribute('x', cx);
+            sliderValue.textContent = 'n = ' + nVal;
+
+            // 更新公式
+            const totalLines = nVal + 1;
+            const totalRects = totalLines * nVal / 2;
+            formulaLines.textContent = '竖线总数 = n + 1 = ' + totalLines;
+            formulaResult.textContent = totalRects;
+
+            // n=4 特殊标记
+            if (nVal === 4) {
+                formulaSpecial.style.display = 'block';
+                formulaExample.style.display = 'block';
+            } else {
+                formulaSpecial.style.display = 'none';
+                formulaExample.style.display = 'none';
+            }
+        }
+
+        // 绑定滑块事件
+        slider.addEventListener('input', function() {
+            updateScene(this.value);
+        });
+
+        // 初始状态
+        updateScene(4);
+    })();
+    </script>
+</body>
+</html>

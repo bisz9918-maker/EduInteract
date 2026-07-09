@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 粒子轨迹对比与偏转范围</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 16px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 平行板 A -->
+            <rect id="scene3-plateA" x="100" y="140" width="500" height="14" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="8,4"/>
+            <!-- 平行板 B -->
+            <rect id="scene3-plateB" x="100" y="346" width="500" height="14" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="8,4"/>
+            <!-- 靶板 MN -->
+            <rect id="scene3-targetMN" x="600" y="140" width="20" height="220" fill="#333333"/>
+            <!-- 中心轴线 OO' -->
+            <line id="scene3-axisOO" x1="50" y1="250" x2="600" y2="250" stroke="#888888" stroke-width="2" stroke-dasharray="6,4"/>
+            <!-- O 点 -->
+            <circle id="scene3-pointO" cx="50" cy="250" r="4" fill="#000000"/>
+            <!-- O'点 -->
+            <circle id="scene3-pointO2" cx="600" cy="250" r="4" fill="#000000"/>
+            <!-- v₀箭头 -->
+            <g id="scene3-v0Arrow">
+                <line x1="60" y1="245" x2="100" y2="250" stroke="#000000" stroke-width="2"/>
+                <polygon points="100,250 92,247 92,253" fill="#000000"/>
+            </g>
+            
+            <!-- t₀=0 轨迹（红色，向下偏转） -->
+            <path id="scene3-trajectory0" d="M 50,250 Q 325,285 600,320" fill="none" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <!-- t₀=2T/3 轨迹（蓝色，向上偏转） -->
+            <path id="scene3-trajectory2T3" d="M 50,250 Q 325,215 600,180" fill="none" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <!-- t₀=T/3 轨迹（灰色虚线） -->
+            <path id="scene3-trajectoryT3" d="M 50,250 Q 325,260 600,270" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" opacity="0"/>
+            <!-- t₀=T 轨迹（灰色虚线） -->
+            <path id="scene3-trajectoryT" d="M 50,250 Q 325,280 600,310" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" opacity="0"/>
+            
+            <!-- y_max↓标记点 -->
+            <circle id="scene3-ymaxDown" cx="600" cy="320" r="6" fill="#2e7d32" opacity="0"/>
+            <!-- y_max↑标记点 -->
+            <circle id="scene3-ymaxUp" cx="600" cy="180" r="6" fill="#2e7d32" opacity="0"/>
+            <!-- 击中范围区间 -->
+            <line id="scene3-hitRange" x1="600" y1="180" x2="600" y2="320" stroke="#2e7d32" stroke-width="4" opacity="0"/>
+            
+            <!-- 标签（调整位置避免重叠） -->
+            <text id="scene3-labelA" x="90" y="145" font-size="16" fill="#888888">A</text>
+            <text id="scene3-labelB" x="90" y="350" font-size="16" fill="#888888">B</text>
+            <text id="scene3-labelM" x="625" y="125" font-size="16" fill="#000000">M</text>
+            <text id="scene3-labelN" x="625" y="375" font-size="16" fill="#000000">N</text>
+            <text id="scene3-labelO" x="35" y="255" font-size="16" fill="#000000">O</text>
+            <text id="scene3-labelO2" x="550" y="275" font-size="16" fill="#000000">O′</text>
+            <text id="scene3-labelv0" x="75" y="210" font-size="16" fill="#000000">v₀</text>
+            <text id="scene3-labelT0" x="300" y="345" font-size="14" fill="#c62828" opacity="0">t₀=0</text>
+            <text id="scene3-labelT2T3" x="200" y="155" font-size="14" fill="#1565c0" opacity="0">t₀=2T/3</text>
+            <text id="scene3-labelYmaxDown" x="615" y="345" font-size="14" fill="#2e7d32" opacity="0">y_max↓</text>
+            <text id="scene3-labelYmaxUp" x="615" y="150" font-size="14" fill="#2e7d32" opacity="0">y_max↑</text>
+            <text id="scene3-labelHitRange" x="630" y="250" font-size="14" fill="#2e7d32" opacity="0">击中范围</text>
+        </svg>
+        
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1/5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现
+        // 布局坐标表对照：
+        // 平行板 A: (100,140)-(600,154) | 平行板 B: (100,346)-(600,360) | 靶板 MN: (600,140)-(620,360)
+        // 中心轴线 OO': (50,250)-(600,250) | O 点：(50,250) | O'点：(600,250)
+        // v₀箭头：(60,245)-(100,250)
+        // t₀=0 轨迹：(50,250)→(600,320) | t₀=2T/3 轨迹：(50,250)→(600,180)
+        // t₀=T/3 轨迹：(50,250)→(600,270) | t₀=T 轨迹：(50,250)→(600,310)
+        // y_max↓标记点：(600,320) | y_max↑标记点：(600,180)
+        // 击中范围区间：(600,180)-(600,320)
+        
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+        
+        // 获取 DOM 元素
+        const elements = {
+            trajectory0: document.getElementById('scene3-trajectory0'),
+            trajectory2T3: document.getElementById('scene3-trajectory2T3'),
+            trajectoryT3: document.getElementById('scene3-trajectoryT3'),
+            trajectoryT: document.getElementById('scene3-trajectoryT'),
+            ymaxDown: document.getElementById('scene3-ymaxDown'),
+            ymaxUp: document.getElementById('scene3-ymaxUp'),
+            hitRange: document.getElementById('scene3-hitRange'),
+            labelT0: document.getElementById('scene3-labelT0'),
+            labelT2T3: document.getElementById('scene3-labelT2T3'),
+            labelYmaxDown: document.getElementById('scene3-labelYmaxDown'),
+            labelYmaxUp: document.getElementById('scene3-labelYmaxUp'),
+            labelHitRange: document.getElementById('scene3-labelHitRange'),
+            btnPrev: document.getElementById('scene3-btn-prev'),
+            btnNext: document.getElementById('scene3-btn-next'),
+            stepIndicator: document.getElementById('scene3-step-indicator')
+        };
+        
+        // 显示/隐藏工具函数
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 步骤 0：初始状态 - 只显示装置框架
+            // 步骤 1：显示 t₀=0 轨迹
+            // 步骤 2：显示 t₀=2T/3 轨迹
+            // 步骤 3：显示其他轨迹
+            // 步骤 4：高亮最大偏转点和击中范围
+            
+            // 重置所有动态元素
+            hide(elements.trajectory0);
+            hide(elements.trajectory2T3);
+            hide(elements.trajectoryT3);
+            hide(elements.trajectoryT);
+            hide(elements.ymaxDown);
+            hide(elements.ymaxUp);
+            hide(elements.hitRange);
+            hide(elements.labelT0);
+            hide(elements.labelT2T3);
+            hide(elements.labelYmaxDown);
+            hide(elements.labelYmaxUp);
+            hide(elements.labelHitRange);
+            
+            // 根据当前步骤显示对应元素
+            if (currentStep >= 1) {
+                show(elements.trajectory0);
+                show(elements.labelT0);
+            }
+            if (currentStep >= 2) {
+                show(elements.trajectory2T3);
+                show(elements.labelT2T3);
+            }
+            if (currentStep >= 3) {
+                show(elements.trajectoryT3);
+                show(elements.trajectoryT);
+            }
+            if (currentStep >= 4) {
+                show(elements.ymaxDown);
+                show(elements.ymaxUp);
+                show(elements.hitRange);
+                show(elements.labelYmaxDown);
+                show(elements.labelYmaxUp);
+                show(elements.labelHitRange);
+            }
+            
+            // 更新按钮状态
+            elements.btnPrev.disabled = (currentStep === 0);
+            elements.btnNext.disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+        }
+        
+        // 按钮事件绑定
+        elements.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        elements.btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

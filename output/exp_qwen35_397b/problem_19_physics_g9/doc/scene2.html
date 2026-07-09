@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电流比值 I₁/I₂ 随滑片位置变化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        #scene2-controls button:hover { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 数值面板 -->
+            <rect id="scene2-value-panel-bg" x="550" y="50" width="230" height="90" fill="#f5f5f5" stroke="#333" stroke-width="1" class="scene2-hidden"/>
+            <text id="scene2-x-label" x="560" y="75" font-size="14" fill="#333" class="scene2-hidden">x = 0.0 cm</text>
+            <text id="scene2-ratio-label" x="560" y="100" font-size="14" fill="#333" class="scene2-hidden">I₁/I₂ = 1.00</text>
+            <text id="scene2-range-label" x="560" y="125" font-size="14" fill="#333" class="scene2-hidden">量程：0-3A</text>
+
+            <!-- 铅笔芯 AB -->
+            <line id="scene2-pencil" x1="80" y1="100" x2="720" y2="100" stroke="#000000" stroke-width="4"/>
+            
+            <!-- 刻度线 -->
+            <g id="scene2-ticks">
+                <!-- 每 80px 一个刻度，共 9 个刻度 (80,160,240,320,400,480,560,640,720) -->
+            </g>
+
+            <!-- c-d 范围标记 -->
+            <rect id="scene2-cd-range" x="280" y="105" width="160" height="10" fill="#1565c0" opacity="0.2" class="scene2-hidden"/>
+            <line id="scene2-c-mark" x1="280" y1="90" x2="280" y2="110" stroke="#c62828" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-d-mark" x1="440" y1="90" x2="440" y2="110" stroke="#c62828" stroke-width="2" class="scene2-hidden"/>
+            <text id="scene2-c-label" x="275" y="135" font-size="12" fill="#c62828" class="scene2-hidden">c</text>
+            <text id="scene2-d-label" x="435" y="135" font-size="12" fill="#c62828" class="scene2-hidden">d</text>
+
+            <!-- A、B 点标签 -->
+            <text id="scene2-a-label" x="70" y="125" font-size="14" fill="#333">A</text>
+            <text id="scene2-b-label" x="710" y="125" font-size="14" fill="#333">B</text>
+
+            <!-- 滑片 P -->
+            <circle id="scene2-slider-p" cx="400" cy="100" r="12" fill="#2e7d32" cursor="pointer" class="scene2-hidden"/>
+            <text id="scene2-p-label" x="400" y="75" font-size="14" fill="#2e7d32" text-anchor="middle" class="scene2-hidden">x</text>
+
+            <!-- 电阻条形图标题 -->
+            <text id="scene2-resistor-title" x="200" y="240" font-size="14" fill="#333" text-anchor="middle" class="scene2-hidden">电阻分布</text>
+            
+            <!-- 电阻条形图 -->
+            <rect id="scene2-r-ap-bg" x="80" y="270" width="120" height="20" fill="#e0e0e0" class="scene2-hidden"/>
+            <rect id="scene2-r-ap-bar" x="80" y="270" width="60" height="20" fill="#1565c0" class="scene2-hidden"/>
+            <text id="scene2-r-ap-label" x="140" y="260" font-size="12" fill="#333" text-anchor="middle" class="scene2-hidden">R_AP</text>
+            
+            <rect id="scene2-r-pb-bg" x="220" y="270" width="120" height="20" fill="#e0e0e0" class="scene2-hidden"/>
+            <rect id="scene2-r-pb-bar" x="280" y="270" width="60" height="20" fill="#ff9800" class="scene2-hidden"/>
+            <text id="scene2-r-pb-label" x="280" y="260" font-size="12" fill="#333" text-anchor="middle" class="scene2-hidden">R_PB</text>
+
+            <!-- 比值曲线图标题 -->
+            <text id="scene2-curve-title" x="575" y="240" font-size="14" fill="#333" text-anchor="middle" class="scene2-hidden">I₁/I₂ 比值曲线</text>
+
+            <!-- 曲线图坐标轴 -->
+            <line id="scene2-y-axis" x1="420" y1="260" x2="420" y2="420" stroke="#000000" stroke-width="1.5" class="scene2-hidden"/>
+            <line id="scene2-x-axis" x1="420" y1="420" x2="730" y2="420" stroke="#000000" stroke-width="1.5" class="scene2-hidden"/>
+            <text id="scene2-x-axis-label" x="575" y="440" font-size="12" fill="#333" text-anchor="middle" class="scene2-hidden">x</text>
+            <text id="scene2-y-axis-label" x="405" y="340" font-size="12" fill="#333" text-anchor="end" class="scene2-hidden">I₁/I₂</text>
+
+            <!-- 函数曲线 -->
+            <path id="scene2-curve-path" d="" stroke="#1565c0" stroke-width="2" fill="none" class="scene2-hidden"/>
+            
+            <!-- c、d 点在曲线上的标记 -->
+            <circle id="scene2-c-curve-point" cx="0" cy="0" r="5" fill="#c62828" class="scene2-hidden"/>
+            <circle id="scene2-d-curve-point" cx="0" cy="0" r="5" fill="#c62828" class="scene2-hidden"/>
+
+            <!-- 当前点在曲线上的标记 -->
+            <circle id="scene2-current-curve-point" cx="0" cy="0" r="6" fill="#2e7d32" stroke="#fff" stroke-width="2" class="scene2-hidden"/>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn">◀ 上一步</button>
+            <button id="scene2-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表参考：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 铅笔芯 AB | (80,100)-(720,100) | 640px 长 |
+        // | 滑片 P | 圆心 (x,100), r=12 | 可拖拽 |
+        // | c 点 | x=280 | 红色竖线 |
+        // | d 点 | x=440 | 红色竖线 |
+        // | 电阻条图 | y=270-290 | R_AP 蓝色, R_PB 橙色 |
+        // | 曲线图 | (420,260)-(730,420) | 160×160 |
+        // | 数值面板 | (550,50)-(780,140) | 显示 x, I1/I2, 量程 |
+
+        const L_PX = 640; // 铅笔芯像素长度
+        const X_MIN_PX = 80; // 铅笔芯起点 x
+        const X_MAX_PX = 720; // 铅笔芯终点 x
+        const C_PX = 280; // c 点 x 坐标
+        const D_PX = 440; // d 点 x 坐标
+        const CD_CM = 12; // c-d 实际长度 12cm
+        
+        // 比例：160px = 12cm, 所以 1px = 12/160 = 0.075cm
+        const PX_TO_CM = CD_CM / (D_PX - C_PX); // 0.075 cm/px
+        
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+        let sliderX = 400; // 滑片初始位置（中点）
+        let isDragging = false;
+
+        // DOM 元素
+        const svg = document.getElementById('scene2-svg');
+        const sliderP = document.getElementById('scene2-slider-p');
+        const pLabel = document.getElementById('scene2-p-label');
+        const xLabel = document.getElementById('scene2-x-label');
+        const ratioLabel = document.getElementById('scene2-ratio-label');
+        const rangeLabel = document.getElementById('scene2-range-label');
+        const rApBar = document.getElementById('scene2-r-ap-bar');
+        const rPbBar = document.getElementById('scene2-r-pb-bar');
+        const curvePath = document.getElementById('scene2-curve-path');
+        const cCurvePoint = document.getElementById('scene2-c-curve-point');
+        const dCurvePoint = document.getElementById('scene2-d-curve-point');
+        const currentCurvePoint = document.getElementById('scene2-current-curve-point');
+        const prevBtn = document.getElementById('scene2-prev-btn');
+        const nextBtn = document.getElementById('scene2-next-btn');
+
+        // 元素显隐控制
+        function show(el) {
+            el.classList.remove('scene2-hidden');
+            el.style.display = '';
+            el.style.opacity = '1';
+        }
+        function hide(el) {
+            el.classList.add('scene2-hidden');
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // 计算比值 I1/I2 = (L-x)/x
+        // x 是从 A 点开始的距离（像素），L=640px
+        function calcRatio(xPx) {
+            const xFromA = xPx - X_MIN_PX;
+            if (xFromA <= 0) return Infinity;
+            if (xFromA >= L_PX) return 0;
+            return (L_PX - xFromA) / xFromA;
+        }
+
+        // 计算实际长度（cm）
+        function pxToCm(xPx) {
+            return (xPx - X_MIN_PX) * PX_TO_CM;
+        }
+
+        // 更新数值显示
+        function updateValueDisplay() {
+            const xCm = pxToCm(sliderX);
+            const ratio = calcRatio(sliderX);
+            xLabel.textContent = `x = ${xCm.toFixed(1)} cm`;
+            if (ratio === Infinity) {
+                ratioLabel.textContent = 'I₁/I₂ = ∞';
+            } else if (ratio === 0) {
+                ratioLabel.textContent = 'I₁/I₂ = 0';
+            } else {
+                ratioLabel.textContent = `I₁/I₂ = ${ratio.toFixed(2)}`;
+            }
+        }
+
+        // 更新电阻条形图
+        function updateResistorBars() {
+            const xFromA = sliderX - X_MIN_PX;
+            const apWidth = (xFromA / L_PX) * 120; // 条形图最大宽度 120px
+            const pbWidth = ((L_PX - xFromA) / L_PX) * 120;
+            
+            rApBar.setAttribute('width', Math.max(0, apWidth));
+            rPbBar.setAttribute('x', 220 + (120 - pbWidth));
+            rPbBar.setAttribute('width', Math.max(0, pbWidth));
+        }
+
+        // 绘制函数曲线 I1/I2 = (L-x)/x
+        function drawCurve() {
+            // 曲线图坐标：x 从 420 到 730 (310px), y 从 260 到 420 (160px)
+            // 映射：xPx (80-720) -> graphX (420-730)
+            // 映射：ratio (0-5) -> graphY (420-260), y = 420 - ratio * 32
+            let d = '';
+            const graphLeft = 420;
+            const graphRight = 730;
+            const graphBottom = 420;
+            const graphTop = 260;
+            const graphWidth = graphRight - graphLeft;
+            const graphHeight = graphBottom - graphTop;
+
+            for (let px = X_MIN_PX + 10; px <= X_MAX_PX - 10; px += 5) {
+                const ratio = calcRatio(px);
+                const graphX = graphLeft + ((px - X_MIN_PX) / L_PX) * graphWidth;
+                // 限制 ratio 显示范围 0-5
+                const displayRatio = Math.min(5, Math.max(0, ratio));
+                const graphY = graphBottom - (displayRatio / 5) * graphHeight;
+                
+                if (px === X_MIN_PX + 10) {
+                    d += `M ${graphX} ${graphY}`;
+                } else {
+                    d += ` L ${graphX} ${graphY}`;
+                }
+            }
+            curvePath.setAttribute('d', d);
+        }
+
+        // 计算曲线上的点坐标
+        function getCurvePoint(xPx) {
+            const graphLeft = 420;
+            const graphBottom = 420;
+            const graphWidth = 310;
+            const graphHeight = 160;
+            
+            const ratio = calcRatio(xPx);
+            const graphX = graphLeft + ((xPx - X_MIN_PX) / L_PX) * graphWidth;
+            const displayRatio = Math.min(5, Math.max(0, ratio));
+            const graphY = graphBottom - (displayRatio / 5) * graphHeight;
+            
+            return { x: graphX, y: graphY };
+        }
+
+        // 更新滑片位置
+        function updateSliderPosition() {
+            sliderP.setAttribute('cx', sliderX);
+            pLabel.setAttribute('x', sliderX);
+            updateValueDisplay();
+            updateResistorBars();
+            
+            // 更新曲线上的当前点
+            const pt = getCurvePoint(sliderX);
+            currentCurvePoint.setAttribute('cx', pt.x);
+            currentCurvePoint.setAttribute('cy', pt.y);
+        }
+
+        // 初始化刻度线
+        function initTicks() {
+            const ticksGroup = document.getElementById('scene2-ticks');
+            for (let x = 80; x <= 720; x += 80) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x);
+                line.setAttribute('y1', 95);
+                line.setAttribute('x2', x);
+                line.setAttribute('y2', 105);
+                line.setAttribute('stroke', '#666');
+                line.setAttribute('stroke-width', '1');
+                ticksGroup.appendChild(line);
+            }
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            prevBtn.disabled = currentStep === 0;
+            if (currentStep >= totalSteps) {
+                nextBtn.textContent = '完成';
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+                nextBtn.disabled = false;
+            }
+        }
+
+        // 分步显示控制
+        function updateStep() {
+            // 步骤 0: 只显示铅笔芯 AB、A/B 标签
+            // 步骤 1: 显示滑片 P、数值面板
+            // 步骤 2: 显示电阻条形图
+            // 步骤 3: 显示曲线图和曲线
+            // 步骤 4: 显示 c-d 范围标记
+            // 步骤 5: 全部显示，可自由拖动
+
+            hide(document.getElementById('scene2-c-mark'));
+            hide(document.getElementById('scene2-d-mark'));
+            hide(document.getElementById('scene2-c-label'));
+            hide(document.getElementById('scene2-d-label'));
+            hide(document.getElementById('scene2-cd-range'));
+            hide(document.getElementById('scene2-value-panel-bg'));
+            hide(document.getElementById('scene2-x-label'));
+            hide(document.getElementById('scene2-ratio-label'));
+            hide(document.getElementById('scene2-range-label'));
+            hide(sliderP);
+            hide(pLabel);
+            hide(document.getElementById('scene2-resistor-title'));
+            hide(document.getElementById('scene2-r-ap-bg'));
+            hide(document.getElementById('scene2-r-ap-bar'));
+            hide(document.getElementById('scene2-r-ap-label'));
+            hide(document.getElementById('scene2-r-pb-bg'));
+            hide(document.getElementById('scene2-r-pb-bar'));
+            hide(document.getElementById('scene2-r-pb-label'));
+            hide(document.getElementById('scene2-curve-title'));
+            hide(document.getElementById('scene2-y-axis'));
+            hide(document.getElementById('scene2-x-axis'));
+            hide(document.getElementById('scene2-x-axis-label'));
+            hide(document.getElementById('scene2-y-axis-label'));
+            hide(curvePath);
+            hide(cCurvePoint);
+            hide(dCurvePoint);
+            hide(currentCurvePoint);
+
+            // 始终显示
+            show(document.getElementById('scene2-a-label'));
+            show(document.getElementById('scene2-b-label'));
+            show(document.getElementById('scene2-pencil'));
+            show(document.getElementById('scene2-ticks'));
+
+            if (currentStep >= 1) {
+                show(document.getElementById('scene2-value-panel-bg'));
+                show(document.getElementById('scene2-x-label'));
+                show(document.getElementById('scene2-ratio-label'));
+                show(document.getElementById('scene2-range-label'));
+                show(sliderP);
+                show(pLabel);
+                updateSliderPosition();
+            }
+
+            if (currentStep >= 2) {
+                show(document.getElementById('scene2-resistor-title'));
+                show(document.getElementById('scene2-r-ap-bg'));
+                show(document.getElementById('scene2-r-ap-bar'));
+                show(document.getElementById('scene2-r-ap-label'));
+                show(document.getElementById('scene2-r-pb-bg'));
+                show(document.getElementById('scene2-r-pb-bar'));
+                show(document.getElementById('scene2-r-pb-label'));
+                updateResistorBars();
+            }
+
+            if (currentStep >= 3) {
+                show(document.getElementById('scene2-curve-title'));
+                show(document.getElementById('scene2-y-axis'));
+                show(document.getElementById('scene2-x-axis'));
+                show(document.getElementById('scene2-x-axis-label'));
+                show(document.getElementById('scene2-y-axis-label'));
+                show(curvePath);
+                drawCurve();
+                show(cCurvePoint);
+                show(dCurvePoint);
+                show(currentCurvePoint);
+                
+                // 设置 c、d 点在曲线上的位置
+                const cPt = getCurvePoint(C_PX);
+                cCurvePoint.setAttribute('cx', cPt.x);
+                cCurvePoint.setAttribute('cy', cPt.y);
+                
+                const dPt = getCurvePoint(D_PX);
+                dCurvePoint.setAttribute('cx', dPt.x);
+                dCurvePoint.setAttribute('cy', dPt.y);
+            }
+
+            if (currentStep >= 4) {
+                show(document.getElementById('scene2-c-mark'));
+                show(document.getElementById('scene2-d-mark'));
+                show(document.getElementById('scene2-c-label'));
+                show(document.getElementById('scene2-d-label'));
+                show(document.getElementById('scene2-cd-range'));
+            }
+
+            updateButtons();
+        }
+
+        // 拖拽事件处理
+        function onPointerDown(e) {
+            e.preventDefault();
+            isDragging = true;
+            sliderP.style.cursor = 'grabbing';
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const rect = svg.getBoundingClientRect();
+            let newX = (e.clientX || e.touches[0].clientX) - rect.left;
+            newX = Math.max(X_MIN_PX, Math.min(X_MAX_PX, newX));
+            sliderX = newX;
+            updateSliderPosition();
+        }
+
+        function onPointerUp(e) {
+            isDragging = false;
+            sliderP.style.cursor = 'pointer';
+        }
+
+        // 按钮事件
+        prevBtn.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 绑定拖拽事件
+        sliderP.addEventListener('mousedown', onPointerDown);
+        sliderP.addEventListener('touchstart', onPointerDown);
+        document.addEventListener('mousemove', onPointerMove);
+        document.addEventListener('touchmove', onPointerMove);
+        document.addEventListener('mouseup', onPointerUp);
+        document.addEventListener('touchend', onPointerUp);
+
+        // 初始化
+        initTicks();
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        /* SVG Styles */
+        svg { position: absolute; top: 0; left: 0; }
+        .wire { fill: none; stroke: #000000; stroke-width: 2; transition: all 0.5s ease; }
+        .wire.highlight { stroke: #c62828; stroke-width: 3; }
+        .wire.disabled { stroke: #888888; stroke-width: 2; stroke-dasharray: 5,5; }
+        
+        .node { fill: #000000; transition: all 0.5s ease; }
+        .node.highlight { fill: #c62828; }
+        .node.disabled { fill: #888888; }
+        
+        .switch-blade { fill: none; stroke: #000000; stroke-width: 2; transition: all 0.5s ease; }
+        .switch-blade.highlight { stroke: #c62828; stroke-width: 3; }
+        
+        .bulb-glow { fill: #fbc02d; transition: all 0.5s ease; }
+        
+        .label { font-size: 14px; fill: #000000; user-select: none; }
+        
+        /* Panel Styles */
+        #scene1-panel {
+            position: absolute;
+            top: 80px;
+            left: 520px;
+            width: 260px;
+            height: 340px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            box-sizing: border-box;
+            font-size: 14px;
+            line-height: 1.6;
+            overflow-y: auto;
+        }
+        
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #e0e0e0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) { background: #d0d0d0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 光晕层 -->
+            <circle id="scene1-glow1" class="bulb-glow" cx="225" cy="220" r="20" opacity="0" />
+            <circle id="scene1-glow2" class="bulb-glow" cx="375" cy="220" r="20" opacity="0" />
+            
+            <!-- 导线层 -->
+            <!-- 底部主路 -->
+            <path id="scene1-wire-bottom-left" class="wire" d="M 150 380 L 270 380" />
+            <path id="scene1-wire-bottom-right" class="wire" d="M 330 380 L 450 380" />
+            <!-- 左侧主路 -->
+            <path id="scene1-wire-left" class="wire" d="M 150 380 L 150 100" />
+            <!-- 顶部支路 (S2) -->
+            <path id="scene1-wire-top-left" class="wire" d="M 150 100 L 260 100" />
+            <path id="scene1-wire-top-right" class="wire" d="M 340 100 L 450 100" />
+            <!-- 右侧支路 -->
+            <path id="scene1-wire-right-top" class="wire" d="M 450 100 L 450 300" />
+            <path id="scene1-wire-right-bottom" class="wire" d="M 450 360 L 450 380" />
+            <!-- 中间水平路 -->
+            <path id="scene1-wire-mid-left" class="wire" d="M 150 220 L 205 220" />
+            <path id="scene1-wire-mid-mid" class="wire" d="M 245 220 L 355 220" />
+            <path id="scene1-wire-mid-right" class="wire" d="M 395 220 L 450 220" />
+            <!-- b触点支路 -->
+            <path id="scene1-wire-b-branch" class="wire" d="M 300 220 L 300 300 L 380 300" />
+            
+            <!-- 元件层 -->
+            <!-- 电源 -->
+            <line x1="270" y1="380" x2="290" y2="380" stroke="#000" stroke-width="2" />
+            <line x1="290" y1="365" x2="290" y2="395" stroke="#000" stroke-width="2" /> <!-- 正极 -->
+            <line x1="310" y1="372" x2="310" y2="388" stroke="#000" stroke-width="4" /> <!-- 负极 -->
+            <line x1="310" y1="380" x2="330" y2="380" stroke="#000" stroke-width="2" />
+            
+            <!-- 灯泡 L1 -->
+            <circle cx="225" cy="220" r="20" fill="none" stroke="#000" stroke-width="2" />
+            <path d="M 211 206 L 239 234 M 211 234 L 239 206" stroke="#000" stroke-width="2" />
+            
+            <!-- 灯泡 L2 -->
+            <circle cx="375" cy="220" r="20" fill="none" stroke="#000" stroke-width="2" />
+            <path d="M 361 206 L 389 234 M 361 234 L 389 206" stroke="#000" stroke-width="2" />
+            
+            <!-- 节点 -->
+            <circle id="scene1-node-a" class="node" cx="450" cy="300" r="4" />
+            <circle id="scene1-node-b" class="node" cx="380" cy="300" r="4" />
+            <circle class="node" cx="150" cy="220" r="4" />
+            <circle class="node" cx="300" cy="220" r="4" />
+            <circle class="node" cx="450" cy="220" r="4" />
+            <circle class="node" cx="150" cy="100" r="4" />
+            <circle class="node" cx="450" cy="100" r="4" />
+            <circle class="node" cx="300" cy="300" r="4" />
+            
+            <!-- 开关 S2 -->
+            <circle cx="260" cy="100" r="3" fill="#000" />
+            <circle cx="340" cy="100" r="3" fill="#000" />
+            <path id="scene1-switch-s2" class="switch-blade" d="M 260 100 L 320 70" />
+            
+            <!-- 开关 S1 -->
+            <circle cx="450" cy="360" r="3" fill="#000" />
+            <path id="scene1-switch-s1" class="switch-blade" d="M 450 360 L 415 300" />
+            
+            <!-- 标签层 -->
+            <text x="300" y="55" class="label" text-anchor="middle">S₂</text>
+            <text x="225" y="160" class="label" text-anchor="middle">L₁</text>
+            <text x="375" y="160" class="label" text-anchor="middle">L₂</text>
+            <text x="465" y="305" class="label">a</text>
+            <text x="365" y="315" class="label" text-anchor="end">b</text>
+            <text x="470" y="340" class="label">S₁</text>
+            <text x="300" y="415" class="label" text-anchor="middle">3V</text>
+            <text x="225" y="140" class="label" text-anchor="middle">6V 6W</text>
+            <text x="375" y="140" class="label" text-anchor="middle">3V 3W</text>
+        </svg>
+        
+        <div id="scene1-panel">
+            <!-- 内容由 JS 动态填充 -->
+        </div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const steps = [
+            {
+                // 步骤 0: 初始状态
+                s2Path: "M 260 100 L 320 70",
+                s1Path: "M 450 360 L 415 300",
+                wires: {
+                    "scene1-wire-bottom-left": "wire",
+                    "scene1-wire-bottom-right": "wire",
+                    "scene1-wire-left": "wire",
+                    "scene1-wire-top-left": "wire",
+                    "scene1-wire-top-right": "wire",
+                    "scene1-wire-right-top": "wire",
+                    "scene1-wire-right-bottom": "wire",
+                    "scene1-wire-mid-left": "wire",
+                    "scene1-wire-mid-mid": "wire",
+                    "scene1-wire-mid-right": "wire",
+                    "scene1-wire-b-branch": "wire"
+                },
+                glow1: { r: 20, opacity: 0 },
+                glow2: { r: 20, opacity: 0 },
+                panelHTML: `
+                    <div style="font-weight:bold; margin-bottom:10px;">初始条件分析</div>
+                    <div>已知：电源电压 $U = 3\text{V}$</div>
+                    <div>L₁ 规格：“6V 6W”</div>
+                    <div>L₂ 规格：“3V 3W”</div>
+                    <hr style="margin:10px 0; border:0; border-top:1px solid #ccc;">
+                    <div>计算两灯电阻：</div>
+                    <div>$R_1 = \frac{U_{额1}^2}{P_{额1}} = \frac{(6\text{V})^2}{6\text{W}} = 6\Omega$</div>
+                    <div style="margin-top:5px;">$R_2 = \frac{U_{额2}^2}{P_{额2}} = \frac{(3\text{V})^2}{3\text{W}} = 3\Omega$</div>
+                `
+            },
+            {
+                // 步骤 1: A选项
+                s2Path: "M 260 100 L 320 70",
+                s1Path: "M 450 360 L 380 300",
+                wires: {
+                    "scene1-wire-bottom-left": "wire highlight",
+                    "scene1-wire-bottom-right": "wire highlight",
+                    "scene1-wire-left": "wire highlight",
+                    "scene1-wire-top-left": "wire disabled",
+                    "scene1-wire-top-right": "wire disabled",
+                    "scene1-wire-right-top": "wire disabled",
+                    "scene1-wire-right-bottom": "wire highlight",
+                    "scene1-wire-mid-left": "wire highlight",
+                    "scene1-wire-mid-mid": "wire highlight",
+                    "scene1-wire-mid-right": "wire disabled",
+                    "scene1-wire-b-branch": "wire highlight"
+                },
+                glow1: { r: 30, opacity: 0.4 },
+                glow2: { r: 20, opacity: 0 },
+                panelHTML: `
+                    <div style="font-weight:bold; margin-bottom:10px;">分析选项 A</div>
+                    <div>S₂断开，S₁接b</div>
+                    <div>电路结构：<b>L₁ 单独接入电路</b></div>
+                    <hr style="margin:10px 0; border:0; border-top:1px solid #ccc;">
+                    <div>L₁ 两端电压 $U_1 = U = 3\text{V}$</div>
+                    <div>因为 $3\text{V} < 6\text{V}$ (额定电压)</div>
+                    <div>所以 L₁ <b>不能</b>正常发光。</div>
+                    <div style="margin-top:10px; color:#c62828;">结论：选项 A 错误</div>
+                `
+            },
+            {
+                // 步骤 2: B, C选项
+                s2Path: "M 260 100 L 320 70",
+                s1Path: "M 450 360 L 450 300",
+                wires: {
+                    "scene1-wire-bottom-left": "wire highlight",
+                    "scene1-wire-bottom-right": "wire highlight",
+                    "scene1-wire-left": "wire highlight",
+                    "scene1-wire-top-left": "wire disabled",
+                    "scene1-wire-top-right": "wire disabled",
+                    "scene1-wire-right-top": "wire highlight",
+                    "scene1-wire-right-bottom": "wire highlight",
+                    "scene1-wire-mid-left": "wire highlight",
+                    "scene1-wire-mid-mid": "wire highlight",
+                    "scene1-wire-mid-right": "wire highlight",
+                    "scene1-wire-b-branch": "wire disabled"
+                },
+                glow1: { r: 25, opacity: 0.3 },
+                glow2: { r: 22, opacity: 0.15 },
+                panelHTML: `
+                    <div style="font-weight:bold; margin-bottom:10px;">分析选项 B、C</div>
+                    <div>S₂断开，S₁接a</div>
+                    <div>电路结构：<b>L₁ 与 L₂ 串联</b></div>
+                    <hr style="margin:10px 0; border:0; border-top:1px solid #ccc;">
+                    <div>总电阻 $R_{串} = R_1 + R_2 = 9\Omega$</div>
+                    <div>电流 $I = \frac{U}{R_{串}} = \frac{3\text{V}}{9\Omega} = \frac{1}{3}\text{A}$</div>
+                    <div>$P_1 = I^2 R_1 = (\frac{1}{3})^2 \times 6 \approx 0.67\text{W}$</div>
+                    <div>$P_2 = I^2 R_2 = (\frac{1}{3})^2 \times 3 \approx 0.33\text{W}$</div>
+                    <div style="margin-top:10px;">因为 $P_1 > P_2$，所以 <b>L₁ 更亮</b>。</div>
+                    <div style="color:#c62828;">结论：选项 B、C 错误</div>
+                `
+            },
+            {
+                // 步骤 3: D选项
+                s2Path: "M 260 100 L 340 100",
+                s1Path: "M 450 360 L 380 300",
+                wires: {
+                    "scene1-wire-bottom-left": "wire highlight",
+                    "scene1-wire-bottom-right": "wire highlight",
+                    "scene1-wire-left": "wire highlight",
+                    "scene1-wire-top-left": "wire highlight",
+                    "scene1-wire-top-right": "wire highlight",
+                    "scene1-wire-right-top": "wire disabled",
+                    "scene1-wire-right-bottom": "wire highlight",
+                    "scene1-wire-mid-left": "wire highlight",
+                    "scene1-wire-mid-mid": "wire highlight",
+                    "scene1-wire-mid-right": "wire highlight",
+                    "scene1-wire-b-branch": "wire highlight"
+                },
+                glow1: { r: 30, opacity: 0.4 },
+                glow2: { r: 35, opacity: 0.8 },
+                panelHTML: `
+                    <div style="font-weight:bold; margin-bottom:10px;">分析选项 D</div>
+                    <div>S₂闭合，S₁接b</div>
+                    <div>电路结构：<b>L₁ 与 L₂ 并联</b></div>
+                    <hr style="margin:10px 0; border:0; border-top:1px solid #ccc;">
+                    <div>两灯两端电压均为 $U = 3\text{V}$</div>
+                    <div>$P_1 = \frac{U^2}{R_1} = \frac{3^2}{6} = 1.5\text{W}$</div>
+                    <div>$P_2 = \frac{U^2}{R_2} = \frac{3^2}{3} = 3\text{W}$</div>
+                    <div style="margin-top:10px;">因为 $P_2 > P_1$，所以 <b>L₂ 更亮</b>。</div>
+                    <div style="color:#2e7d32; font-weight:bold;">结论：选项 D 正确</div>
+                `
+            }
+        ];
+
+        let currentStep = 0;
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const panel = document.getElementById('scene1-panel');
+        const s2 = document.getElementById('scene1-switch-s2');
+        const s1 = document.getElementById('scene1-switch-s1');
+        const glow1 = document.getElementById('scene1-glow1');
+        const glow2 = document.getElementById('scene1-glow2');
+
+        function updateScene() {
+            const step = steps[currentStep];
+            
+            // 更新开关
+            s2.setAttribute('d', step.s2Path);
+            s1.setAttribute('d', step.s1Path);
+            
+            // 更新导线
+            for (const [id, className] of Object.entries(step.wires)) {
+                const el = document.getElementById(id);
+                if (el) el.className.baseVal = className;
+            }
+            
+            // 更新光晕
+            glow1.setAttribute('r', step.glow1.r);
+            glow1.setAttribute('opacity', step.glow1.opacity);
+            glow2.setAttribute('r', step.glow2.r);
+            glow2.setAttribute('opacity', step.glow2.opacity);
+            
+            // 更新面板
+            panel.innerHTML = step.panelHTML;
+            if (window.MathJax) {
+                MathJax.typesetPromise([panel]).catch(err => console.error(err));
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === steps.length - 1;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始渲染
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

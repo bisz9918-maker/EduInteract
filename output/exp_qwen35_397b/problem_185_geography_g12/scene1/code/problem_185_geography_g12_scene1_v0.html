@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>晨昏线与 30°N 纬线圈交点关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; background: #f5f5f5; border-radius: 4px; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-step-indicator { font-size: 14px; color: #333; padding: 8px 16px; }
+        .scene1-fade-in { animation: scene1FadeIn 0.3s ease-out forwards; }
+        @keyframes scene1FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 30°N 纬线圈 -->
+            <circle id="scene1-circle-30n" cx="400" cy="250" r="150" fill="none" stroke="#000000" stroke-width="2" opacity="1"/>
+            
+            <!-- 垂直经线 (45°E) -->
+            <line id="scene1-meridian-vertical" x1="400" y1="100" x2="400" y2="400" stroke="#000000" stroke-width="2" opacity="1"/>
+            
+            <!-- 水平经线 (45°W) -->
+            <line id="scene1-meridian-horizontal" x1="250" y1="250" x2="550" y2="250" stroke="#000000" stroke-width="2" opacity="1"/>
+            
+            <!-- 晨昏线 (蓝色) -->
+            <line id="scene1-terminator" x1="260" y1="289" x2="540" y2="211" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            
+            <!-- A 点 -->
+            <circle id="scene1-point-a" cx="260" cy="289" r="5" fill="#c62828" opacity="0"/>
+            
+            <!-- B 点 -->
+            <circle id="scene1-point-b" cx="540" cy="211" r="5" fill="#c62828" opacity="0"/>
+            
+            <!-- 左侧 15°角弧 (165°到 180°) -->
+            <path id="scene1-arc-15-left" d="M 360 250 A 40 40 0 0 1 361.1 246.1" fill="none" stroke="#888888" stroke-width="1" opacity="0"/>
+            
+            <!-- 右侧 15°角弧 (0°到 15°) -->
+            <path id="scene1-arc-15-right" d="M 440 250 A 40 40 0 0 1 438.9 253.9" fill="none" stroke="#888888" stroke-width="1" opacity="0"/>
+            
+            <!-- 标签 -->
+            <text id="scene1-label-45e" x="400" y="85" text-anchor="middle" font-size="14" fill="#000000" opacity="0">45°E</text>
+            <text id="scene1-label-45w" x="565" y="255" text-anchor="start" font-size="14" fill="#000000" opacity="0">45°W</text>
+            <text id="scene1-label-a" x="245" y="275" text-anchor="end" font-size="14" fill="#000000" opacity="0">A</text>
+            <text id="scene1-label-b" x="555" y="195" text-anchor="start" font-size="14" fill="#000000" opacity="0">B</text>
+            <text id="scene1-label-15-left" x="310" y="265" text-anchor="middle" font-size="14" fill="#000000" opacity="0">15°</text>
+            <text id="scene1-label-15-right" x="490" y="265" text-anchor="middle" font-size="14" fill="#000000" opacity="0">15°</text>
+            <text id="scene1-label-30n" x="400" y="420" text-anchor="middle" font-size="14" fill="#000000" opacity="0">30°N</text>
+            
+            <!-- 控件栏 (放在 SVG 内部底部) -->
+            <g id="scene1-controls">
+                <rect x="280" y="455" width="240" height="35" fill="#f5f5f5" stroke="#ddd" rx="4"/>
+                <text id="scene1-step-indicator" x="400" y="478" text-anchor="middle" font-size="14" fill="#333">步骤 1/4</text>
+                <rect id="scene1-btn-prev-bg" x="300" y="460" width="70" height="25" fill="#e0e0e0" rx="4" opacity="1"/>
+                <text id="scene1-btn-prev-text" x="335" y="477" text-anchor="middle" font-size="12" fill="#333">◀ 上一步</text>
+                <rect id="scene1-btn-next-bg" x="430" y="460" width="70" height="25" fill="#e0e0e0" rx="4" opacity="1"/>
+                <text id="scene1-btn-next-text" x="465" y="477" text-anchor="middle" font-size="12" fill="#333">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+    <script>
+    (function() {
+        // Scene 1 实现：晨昏线与 30°N 纬线圈交点关系
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 30°N 纬线圈 | 圆形 | 圆心 (400,250), 半径 150 | 300×300 | - | 居中，黑色实线 |
+        // | 垂直经线 | 线段 | (400,100)-(400,400) | 300×2 | - | 45°E 所在经线 |
+        // | 水平经线 | 线段 | (250,250)-(550,250) | 300×2 | - | 45°W 所在经线 |
+        // | 晨昏线 | 线段 | (260,289)-(540,211) | ~290×2 | - | 蓝色，与水平夹角 15° |
+        // | A 点 | 实心圆 | (260,289) | r=5 | 左上方 | 红色 |
+        // | B 点 | 实心圆 | (540,211) | r=5 | 右上方 | 红色 |
+        // | 15°角弧 (左) | 弧线 | 圆心 (400,250), 半径 40, 角度 165°-180° | - | - | 灰色 |
+        // | 15°角弧 (右) | 弧线 | 圆心 (400,250), 半径 40, 角度 0°-15° | - | - | 灰色 |
+        // | 45°E 标签 | text | (400,85) | ~50×16 | 上方 | 垂直经线顶端上方 |
+        // | 45°W 标签 | text | (565,250) | ~50×16 | 右侧 | 水平经线右端右侧 |
+        // | A 标签 | text | (245,275) | ~12×16 | 左上方 | A 点左上方 |
+        // | B 标签 | text | (555,195) | ~12×16 | 右上方 | B 点右上方 |
+        // | 15°数值 (左) | text | (310,265) | ~25×16 | 上方 | 左侧角弧上方 |
+        // | 15°数值 (右) | text | (490,265) | ~25×16 | 上方 | 右侧角弧上方 |
+        // | 30°N 标签 | text | (400,420) | ~40×16 | 下方 | 圆形正下方 |
+        // | 控件栏 | 按钮组 | y=450~490 | 800×40 | - | 底部居中 |
+        
+        // 状态定义
+        const steps = [
+            // 步骤 0：初始状态 - 仅显示纬线圈和两条经线
+            {
+                visible: ['scene1-circle-30n', 'scene1-meridian-vertical', 'scene1-meridian-horizontal'],
+                indicator: '步骤 1/4'
+            },
+            // 步骤 1：添加晨昏线和 30°N 标签
+            {
+                visible: ['scene1-circle-30n', 'scene1-meridian-vertical', 'scene1-meridian-horizontal', 'scene1-terminator', 'scene1-label-30n'],
+                indicator: '步骤 2/4'
+            },
+            // 步骤 2：添加 A、B 点，15°角弧及标注
+            {
+                visible: ['scene1-circle-30n', 'scene1-meridian-vertical', 'scene1-meridian-horizontal', 'scene1-terminator', 'scene1-label-30n',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-arc-15-left', 'scene1-arc-15-right',
+                          'scene1-label-15-left', 'scene1-label-15-right', 'scene1-label-a', 'scene1-label-b'],
+                indicator: '步骤 3/4'
+            },
+            // 步骤 3：添加 45°E、45°W 经度标签，完成完整图示
+            {
+                visible: ['scene1-circle-30n', 'scene1-meridian-vertical', 'scene1-meridian-horizontal', 'scene1-terminator', 'scene1-label-30n',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-arc-15-left', 'scene1-arc-15-right',
+                          'scene1-label-15-left', 'scene1-label-15-right', 'scene1-label-a', 'scene1-label-b',
+                          'scene1-label-45e', 'scene1-label-45w'],
+                indicator: '步骤 4/4'
+            }
+        ];
+        
+        let currentState = 0;
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+                el.classList.add('scene1-fade-in');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+                el.classList.remove('scene1-fade-in');
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            const step = steps[currentState];
+            
+            // 获取所有可控元素 ID
+            const allElements = [
+                'scene1-circle-30n', 'scene1-meridian-vertical', 'scene1-meridian-horizontal',
+                'scene1-terminator', 'scene1-point-a', 'scene1-point-b',
+                'scene1-arc-15-left', 'scene1-arc-15-right',
+                'scene1-label-45e', 'scene1-label-45w', 'scene1-label-a', 'scene1-label-b',
+                'scene1-label-15-left', 'scene1-label-15-right', 'scene1-label-30n'
+            ];
+            
+            // 更新每个元素的可见性
+            allElements.forEach(id => {
+                if (step.visible.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = step.indicator;
+            
+            // 更新按钮状态
+            const prevBtnBg = document.getElementById('scene1-btn-prev-bg');
+            const prevBtnText = document.getElementById('scene1-btn-prev-text');
+            const nextBtnBg = document.getElementById('scene1-btn-next-bg');
+            const nextBtnText = document.getElementById('scene1-btn-next-text');
+            
+            if (currentState === 0) {
+                prevBtnBg.setAttribute('opacity', '0.5');
+                prevBtnText.setAttribute('fill', '#999');
+            } else {
+                prevBtnBg.setAttribute('opacity', '1');
+                prevBtnText.setAttribute('fill', '#333');
+            }
+            
+            if (currentState === steps.length - 1) {
+                nextBtnBg.setAttribute('opacity', '0.5');
+                nextBtnText.setAttribute('fill', '#999');
+            } else {
+                nextBtnBg.setAttribute('opacity', '1');
+                nextBtnText.setAttribute('fill', '#333');
+            }
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentState > 0) {
+                currentState--;
+                updateDisplay();
+            }
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentState < steps.length - 1) {
+                currentState++;
+                updateDisplay();
+            }
+        }
+        
+        // 绑定按钮点击事件
+        document.getElementById('scene1-btn-prev-bg').addEventListener('click', prevStep);
+        document.getElementById('scene1-btn-next-bg').addEventListener('click', nextStep);
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

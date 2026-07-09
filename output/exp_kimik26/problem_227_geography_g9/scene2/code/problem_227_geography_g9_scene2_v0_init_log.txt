@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网图 - 球面最短路径</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px; font-size: 14px; border-radius: 4px; border: 1px solid #bdbdbd;
+            background: #e0e0e0; cursor: pointer; color: #333; min-width: 80px; height: 32px;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #bdbdbd; }
+        #scene2-controls button:disabled { background: #f5f5f5; color: #9e9e9e; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #666; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 经纬网背景 -->
+            <!-- 纬线 -->
+            <line id="scene2-lat-40" x1="250" y1="120" x2="550" y2="120" stroke="#000" stroke-width="1.5"/>
+            <line id="scene2-lat-30" x1="250" y1="200" x2="550" y2="200" stroke="#000" stroke-width="1.5"/>
+            <line id="scene2-lat-20" x1="250" y1="280" x2="550" y2="280" stroke="#000" stroke-width="1.5"/>
+            <!-- 经线 -->
+            <line id="scene2-lon-170e" x1="250" y1="120" x2="250" y2="280" stroke="#000" stroke-width="1.5"/>
+            <line id="scene2-lon-180" x1="400" y1="120" x2="400" y2="280" stroke="#000" stroke-width="1.5"/>
+            <line id="scene2-lon-170w" x1="550" y1="120" x2="550" y2="280" stroke="#000" stroke-width="1.5"/>
+
+            <!-- 20°N 高亮（步骤1显示） -->
+            <line id="scene2-lat-20-highlight" x1="250" y1="280" x2="550" y2="280" stroke="#ff8f00" stroke-width="2.5" style="display:none;"/>
+
+            <!-- B→D 题目虚线 -->
+            <line id="scene2-bd-dashed" x1="250" y1="280" x2="550" y2="280" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- 沿纬线正东箭头（步骤1显示） -->
+            <g id="scene2-east-arrow-group" style="display:none;">
+                <line x1="360" y1="280" x2="430" y2="280" stroke="#888" stroke-width="2"/>
+                <polygon points="430,280 420,275 420,285" fill="#888"/>
+            </g>
+
+            <!-- 最短路径弧线（步骤2显示） -->
+            <path id="scene2-arc-shortest" d="M 250,280 Q 400,50 550,280" fill="none" stroke="#1565c0" stroke-width="2.5" style="display:none;"/>
+
+            <!-- 方向箭头组（步骤3显示） -->
+            <g id="scene2-dir-arrows" style="display:none;">
+                <!-- 起点方向箭头（东北）t=0.15 -->
+                <line x1="295" y1="221" x2="312" y2="203" stroke="#c62828" stroke-width="2"/>
+                <polygon points="312,203 305,205 308,210" fill="#c62828"/>
+                <!-- 弧顶方向箭头（正东）t=0.5 -->
+                <line x1="400" y1="165" x2="430" y2="165" stroke="#c62828" stroke-width="2"/>
+                <polygon points="430,165 420,160 420,170" fill="#c62828"/>
+                <!-- 终点前方向箭头（东南）t=0.85 -->
+                <line x1="505" y1="221" x2="522" y2="239" stroke="#c62828" stroke-width="2"/>
+                <polygon points="522,239 515,237 518,232" fill="#c62828"/>
+            </g>
+
+            <!-- 动画移动点和箭头（步骤4显示） -->
+            <g id="scene2-anim-group" style="display:none;">
+                <circle id="scene2-anim-dot" cx="250" cy="280" r="4" fill="#2e7d32" stroke="#fff" stroke-width="2"/>
+                <line id="scene2-anim-arrow-line" x1="0" y1="0" x2="0" y2="0" stroke="#c62828" stroke-width="2"/>
+                <polygon id="scene2-anim-arrow-head" points="0,0 0,0 0,0" fill="#c62828"/>
+            </g>
+
+            <!-- 点 A/B/C/D -->
+            <circle id="scene2-point-a" cx="250" cy="120" r="4" fill="#000" stroke="#fff" stroke-width="1"/>
+            <circle id="scene2-point-b" cx="250" cy="280" r="4" fill="#000" stroke="#fff" stroke-width="1"/>
+            <circle id="scene2-point-c" cx="550" cy="120" r="4" fill="#000" stroke="#fff" stroke-width="1"/>
+            <circle id="scene2-point-d" cx="550" cy="280" r="4" fill="#000" stroke="#fff" stroke-width="1"/>
+
+            <!-- 点标签 -->
+            <text id="scene2-label-a" x="230" y="95" font-size="14" fill="#000" text-anchor="end">A</text>
+            <text id="scene2-label-b" x="210" y="295" font-size="14" fill="#000" text-anchor="end">B</text>
+            <text id="scene2-label-c" x="570" y="95" font-size="14" fill="#000">C</text>
+            <text id="scene2-label-d" x="570" y="295" font-size="14" fill="#000">D</text>
+
+            <!-- 纬度标注 -->
+            <text x="170" y="125" font-size="14" fill="#000" text-anchor="end">40°</text>
+            <text x="170" y="205" font-size="14" fill="#000" text-anchor="end">30°</text>
+            <text x="170" y="285" font-size="14" fill="#000" text-anchor="end">20°</text>
+
+            <!-- 经度标注 -->
+            <text x="250" y="330" font-size="14" fill="#000" text-anchor="middle">170°E</text>
+            <text x="400" y="330" font-size="14" fill="#000" text-anchor="middle">180°</text>
+            <text x="550" y="330" font-size="14" fill="#000" text-anchor="middle">170°W</text>
+
+            <!-- 步骤标签 -->
+            <text id="scene2-label-lat-path" x="290" y="295" font-size="14" fill="#000" style="display:none;">沿20°N纬线</text>
+            <text id="scene2-label-east-lat" x="445" y="295" font-size="14" fill="#000" style="display:none;">正东</text>
+            <text id="scene2-label-shortest" x="400" y="90" font-size="14" fill="#1565c0" text-anchor="middle" style="display:none;">最短路径（大圆航线）</text>
+            <text id="scene2-label-northeast" x="190" y="220" font-size="14" fill="#c62828" style="display:none;">东北</text>
+            <text id="scene2-label-east-arc" x="580" y="150" font-size="14" fill="#c62828" style="display:none;">正东</text>
+            <text id="scene2-label-southeast" x="580" y="250" font-size="14" fill="#c62828" style="display:none;">东南</text>
+
+            <!-- 结论文字（步骤5显示） -->
+            <text id="scene2-conclusion" x="400" y="400" font-size="16" fill="#2e7d32" font-weight="bold" text-anchor="middle" style="display:none;">
+                沿最短路径从B到D，方向先东北后东南，故小题2正确（√）
+            </text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+        let animating = false;
+        let animReqId = null;
+
+        // 贝塞尔曲线控制点
+        const p0 = { x: 250, y: 280 };
+        const p1 = { x: 400, y: 50 };
+        const p2 = { x: 550, y: 280 };
+
+        // 获取元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        const elLat20Highlight = document.getElementById('scene2-lat-20-highlight');
+        const elEastArrowGroup = document.getElementById('scene2-east-arrow-group');
+        const elArcShortest = document.getElementById('scene2-arc-shortest');
+        const elDirArrows = document.getElementById('scene2-dir-arrows');
+        const elAnimGroup = document.getElementById('scene2-anim-group');
+        const elAnimDot = document.getElementById('scene2-anim-dot');
+        const elAnimArrowLine = document.getElementById('scene2-anim-arrow-line');
+        const elAnimArrowHead = document.getElementById('scene2-anim-arrow-head');
+
+        const elLabelLatPath = document.getElementById('scene2-label-lat-path');
+        const elLabelEastLat = document.getElementById('scene2-label-east-lat');
+        const elLabelShortest = document.getElementById('scene2-label-shortest');
+        const elLabelNortheast = document.getElementById('scene2-label-northeast');
+        const elLabelEastArc = document.getElementById('scene2-label-east-arc');
+        const elLabelSoutheast = document.getElementById('scene2-label-southeast');
+        const elConclusion = document.getElementById('scene2-conclusion');
+
+        function show(el) { if (el) { el.style.display = ''; el.style.opacity = '1'; } }
+        function hide(el) { if (el) { el.style.display = 'none'; } }
+
+        // 二次贝塞尔曲线计算
+        function bezierPoint(t, p0, p1, p2) {
+            const mt = 1 - t;
+            return {
+                x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+                y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y
+            };
+        }
+
+        function bezierTangent(t, p0, p1, p2) {
+            const mt = 1 - t;
+            return {
+                x: 2 * mt * (p1.x - p0.x) + 2 * t * (p2.x - p1.x),
+                y: 2 * mt * (p1.y - p0.y) + 2 * t * (p2.y - p1.y)
+            };
+        }
+
+        function normalize(v) {
+            const len = Math.sqrt(v.x * v.x + v.y * v.y);
+            if (len === 0) return { x: 0, y: 0 };
+            return { x: v.x / len, y: v.y / len };
+        }
+
+        // 动画播放
+        function playAnimation() {
+            if (animating) return;
+            animating = true;
+            btnNext.disabled = true;
+            show(elAnimGroup);
+
+            const duration = 2000;
+            const startTime = performance.now();
+
+            function frame(now) {
+                const elapsed = now - startTime;
+                let t = elapsed / duration;
+                if (t > 1) t = 1;
+
+                const pt = bezierPoint(t, p0, p1, p2);
+                const tan = normalize(bezierTangent(t, p0, p1, p2));
+
+                // 更新移动点
+                elAnimDot.setAttribute('cx', pt.x);
+                elAnimDot.setAttribute('cy', pt.y);
+
+                // 更新方向箭头（长度20px）
+                const arrowLen = 20;
+                const ax = pt.x + tan.x * arrowLen;
+                const ay = pt.y + tan.y * arrowLen;
+                elAnimArrowLine.setAttribute('x1', pt.x);
+                elAnimArrowLine.setAttribute('y1', pt.y);
+                elAnimArrowLine.setAttribute('x2', ax);
+                elAnimArrowLine.setAttribute('y2', ay);
+
+                // 箭头翼
+                const wingLen = 8;
+                const wingAngle = Math.PI / 6;
+                const angle = Math.atan2(tan.y, tan.x);
+                const a1x = ax - wingLen * Math.cos(angle - wingAngle);
+                const a1y = ay - wingLen * Math.sin(angle - wingAngle);
+                const a2x = ax - wingLen * Math.cos(angle + wingAngle);
+                const a2y = ay - wingLen * Math.sin(angle + wingAngle);
+                elAnimArrowHead.setAttribute('points', `${ax},${ay} ${a1x},${a1y} ${a2x},${a2y}`);
+
+                if (t < 1) {
+                    animReqId = requestAnimationFrame(frame);
+                } else {
+                    animating = false;
+                    btnNext.disabled = false;
+                }
+            }
+
+            animReqId = requestAnimationFrame(frame);
+        }
+
+        function stopAnimation() {
+            if (animReqId) {
+                cancelAnimationFrame(animReqId);
+                animReqId = null;
+            }
+            animating = false;
+        }
+
+        function resetAnimation() {
+            stopAnimation();
+            hide(elAnimGroup);
+            elAnimDot.setAttribute('cx', p0.x);
+            elAnimDot.setAttribute('cy', p0.y);
+        }
+
+        function renderStep(step) {
+            // 先隐藏所有步骤专属元素
+            hide(elLat20Highlight);
+            hide(elEastArrowGroup);
+            hide(elArcShortest);
+            hide(elDirArrows);
+            resetAnimation();
+            hide(elLabelLatPath);
+            hide(elLabelEastLat);
+            hide(elLabelShortest);
+            hide(elLabelNortheast);
+            hide(elLabelEastArc);
+            hide(elLabelSoutheast);
+            hide(elConclusion);
+
+            // 根据步骤显示对应元素
+            if (step >= 1) {
+                show(elLat20Highlight);
+                show(elEastArrowGroup);
+                show(elLabelLatPath);
+                show(elLabelEastLat);
+            }
+            if (step >= 2) {
+                show(elArcShortest);
+                show(elLabelShortest);
+            }
+            if (step >= 3) {
+                show(elDirArrows);
+                show(elLabelNortheast);
+                show(elLabelEastArc);
+                show(elLabelSoutheast);
+            }
+            if (step >= 4) {
+                // 步骤4自动播放动画
+                setTimeout(() => {
+                    if (currentStep === 4) {
+                        playAnimation();
+                    }
+                }, 50);
+            }
+            if (step >= 5) {
+                show(elAnimGroup);
+                // 动画结束状态：点在D点
+                elAnimDot.setAttribute('cx', p2.x);
+                elAnimDot.setAttribute('cy', p2.y);
+                // 终点方向箭头（东南）
+                const tan = normalize(bezierTangent(1, p0, p1, p2));
+                const arrowLen = 20;
+                const ax = p2.x + tan.x * arrowLen;
+                const ay = p2.y + tan.y * arrowLen;
+                elAnimArrowLine.setAttribute('x1', p2.x);
+                elAnimArrowLine.setAttribute('y1', p2.y);
+                elAnimArrowLine.setAttribute('x2', ax);
+                elAnimArrowLine.setAttribute('y2', ay);
+                const wingLen = 8;
+                const wingAngle = Math.PI / 6;
+                const angle = Math.atan2(tan.y, tan.x);
+                const a1x = ax - wingLen * Math.cos(angle - wingAngle);
+                const a1y = ay - wingLen * Math.sin(angle - wingAngle);
+                const a2x = ax - wingLen * Math.cos(angle + wingAngle);
+                const a2y = ay - wingLen * Math.sin(angle + wingAngle);
+                elAnimArrowHead.setAttribute('points', `${ax},${ay} ${a1x},${a1y} ${a2x},${a2y}`);
+                show(elConclusion);
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = step <= 0;
+            if (step === 4 && animating) {
+                btnNext.disabled = true;
+            } else {
+                btnNext.disabled = step >= totalSteps - 1;
+            }
+
+            stepIndicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+        }
+
+        function setStep(step) {
+            if (step < 0 || step >= totalSteps) return;
+            currentStep = step;
+            renderStep(currentStep);
+        }
+
+        btnPrev.addEventListener('click', function() {
+            setStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', function() {
+            setStep(currentStep + 1);
+        });
+
+        // 初始渲染
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

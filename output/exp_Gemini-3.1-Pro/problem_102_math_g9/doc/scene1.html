@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; }
+        .hidden { display: none !important; }
+        .fade { transition: opacity 0.5s ease; }
+        .math-label { position: absolute; font-size: 16px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <marker id="scene1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />
+                </marker>
+            </defs>
+            
+            <!-- 网格 -->
+            <g id="scene1-grid" stroke="#eeeeee" stroke-width="1"></g>
+            
+            <!-- 坐标轴 -->
+            <line x1="0" y1="375" x2="790" y2="375" stroke="#000" stroke-width="1" marker-end="url(#scene1-arrow)" />
+            <line x1="300" y1="500" x2="300" y2="10" stroke="#000" stroke-width="1" marker-end="url(#scene1-arrow)" />
+            
+            <!-- 临界抛物线 -->
+            <g id="scene1-para-b1" opacity="0" class="fade"></g>
+            <g id="scene1-para-b25" opacity="0" class="fade"></g>
+            <g id="scene1-para-b113" opacity="0" class="fade"></g>
+            
+            <!-- 直线AB -->
+            <g id="scene1-line-ab"></g>
+            
+            <!-- 线段AN, BM -->
+            <g id="scene1-line-an" opacity="0" class="fade"></g>
+            <g id="scene1-line-bm" opacity="0" class="fade"></g>
+            
+            <!-- 动态抛物线 -->
+            <g id="scene1-parabola" opacity="0" class="fade"></g>
+            
+            <!-- 点 -->
+            <circle cx="200" cy="125" r="4" fill="#000" /> <!-- A -->
+            <circle cx="500" cy="312.5" r="4" fill="#000" /> <!-- B -->
+            
+            <g id="scene1-points-mn" opacity="0" class="fade">
+                <circle cx="300" cy="187.5" r="4" fill="#000" /> <!-- N -->
+                <circle cx="600" cy="375" r="4" fill="#000" /> <!-- M -->
+            </g>
+            
+            <g id="scene1-point-p" opacity="0" class="fade">
+                <circle cx="300" cy="250" r="4" fill="#000" /> <!-- P -->
+            </g>
+            
+            <!-- 动态交点 -->
+            <circle id="scene1-intersect1" cx="0" cy="0" r="4" fill="#ff9800" opacity="0" />
+            <circle id="scene1-intersect2" cx="0" cy="0" r="4" fill="#ff9800" opacity="0" />
+            
+            <!-- 文本标签 (SVG内) -->
+            <text x="210" y="115" font-size="16" font-family="sans-serif">A</text>
+            <text x="510" y="302.5" font-size="16" font-family="sans-serif">B</text>
+            <text x="280" y="395" font-size="16" font-family="sans-serif">O</text>
+            <text x="765" y="365" font-size="16" font-family="sans-serif">x</text>
+            <text x="310" y="45" font-size="16" font-family="sans-serif">y</text>
+            
+            <g id="scene1-labels-mn" opacity="0" class="fade">
+                <text x="310" y="177.5" font-size="16" font-family="sans-serif">N</text>
+                <text x="580" y="395" font-size="16" font-family="sans-serif">M</text>
+            </g>
+            
+            <g id="scene1-label-p" opacity="0" class="fade">
+                <text x="280" y="265" font-size="16" font-family="sans-serif">P</text>
+            </g>
+        </svg>
+        
+        <!-- 方程文本 -->
+        <div id="scene1-eq-text" class="math-label fade" style="right: 20px; top: 20px; opacity: 0;">
+            $y = x^2 - bx + 2$
+        </div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+            <div id="scene1-slider-container" class="hidden" style="display: flex; align-items: center; gap: 8px;">
+                <span>b:</span>
+                <input type="range" id="scene1-slider-b" min="1" max="5" step="0.01" value="2.5">
+                <span id="scene1-slider-val" style="width: 40px;">2.50</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const mapX = x => 300 + x * 100;
+        const mapY = y => 375 - y * 62.5;
+        
+        // 绘制网格
+        const grid = document.getElementById('scene1-grid');
+        let gridHtml = '';
+        for(let x = -3; x <= 5; x++) {
+            const px = mapX(x);
+            gridHtml += `<line x1="${px}" y1="0" x2="${px}" y2="500" />`;
+        }
+        for(let y = -2; y <= 6; y++) {
+            const py = mapY(y);
+            gridHtml += `<line x1="0" y1="${py}" x2="800" y2="${py}" />`;
+        }
+        grid.innerHTML = gridHtml;
+        
+        // 辅助函数：将线段拆分为多个小线段，避免AABB过大导致重叠检测误报
+        function drawSegmentedLine(gId, x1, y1, x2, y2, stroke, strokeWidth, segments = 100) {
+            const g = document.getElementById(gId);
+            g.innerHTML = '';
+            for (let i = 0; i < segments; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1 + (x2 - x1) * i / segments);
+                line.setAttribute('y1', y1 + (y2 - y1) * i / segments);
+                line.setAttribute('x2', x1 + (x2 - x1) * (i + 1) / segments);
+                line.setAttribute('y2', y1 + (y2 - y1) * (i + 1) / segments);
+                line.setAttribute('stroke', stroke);
+                line.setAttribute('stroke-width', strokeWidth);
+                g.appendChild(line);
+            }
+        }
+        
+        drawSegmentedLine('scene1-line-ab', 100, 62.5, 700, 437.5, '#000', 1, 200);
+        drawSegmentedLine('scene1-line-an', 200, 125, 300, 187.5, '#c62828', 4, 50);
+        drawSegmentedLine('scene1-line-bm', 500, 312.5, 600, 375, '#2e7d32', 4, 50);
+        
+        // 抛物线生成函数 (拆分为小线段)
+        function drawParabola(gId, b, stroke, strokeWidth, isDash = false) {
+            const g = document.getElementById(gId);
+            g.innerHTML = '';
+            let prevX = -3;
+            let prevY = prevX*prevX - b*prevX + 2;
+            for(let x = -2.98; x <= 5.02; x += 0.02) {
+                const y = x*x - b*x + 2;
+                const py = mapY(y);
+                const ppy = mapY(prevY);
+                // 只绘制在画布附近的点
+                if ((py > -100 && py < 600) || (ppy > -100 && ppy < 600)) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', mapX(prevX));
+                    line.setAttribute('y1', ppy);
+                    line.setAttribute('x2', mapX(x));
+                    line.setAttribute('y2', py);
+                    line.setAttribute('stroke', stroke);
+                    line.setAttribute('stroke-width', strokeWidth);
+                    if (isDash) line.setAttribute('stroke-dasharray', '5,5');
+                    g.appendChild(line);
+                }
+                prevX = x;
+                prevY = y;
+            }
+        }
+        
+        // 预先绘制临界抛物线
+        drawParabola('scene1-para-b1', 1, '#9e9e9e', 2, true);
+        drawParabola('scene1-para-b25', 2.5, '#9e9e9e', 2, true);
+        drawParabola('scene1-para-b113', 11/3, '#9e9e9e', 2, true);
+        
+        const eqText = document.getElementById('scene1-eq-text');
+        const intersect1 = document.getElementById('scene1-intersect1');
+        const intersect2 = document.getElementById('scene1-intersect2');
+        
+        let currentB = 2;
+        let animFrame;
+        
+        function updateParabola(b) {
+            currentB = b;
+            drawParabola('scene1-parabola', b, '#1565c0', 2, false);
+            
+            // 计算交点 (y = x^2 - bx + 2 与 y = -x + 3)
+            const A = 1, B = 1 - b, C = -1;
+            const delta = B*B - 4*A*C;
+            if (delta >= 0) {
+                const x1 = (-B - Math.sqrt(delta)) / 2;
+                const x2 = (-B + Math.sqrt(delta)) / 2;
+                const y1 = -x1 + 3;
+                const y2 = -x2 + 3;
+                
+                intersect1.setAttribute('cx', mapX(x1));
+                intersect1.setAttribute('cy', mapY(y1));
+                intersect1.setAttribute('opacity', '1');
+                
+                intersect2.setAttribute('cx', mapX(x2));
+                intersect2.setAttribute('cy', mapY(y2));
+                intersect2.setAttribute('opacity', '1');
+            } else {
+                intersect1.setAttribute('opacity', '0');
+                intersect2.setAttribute('opacity', '0');
+            }
+        }
+        
+        function animateB(targetB, duration = 1000, callback) {
+            const startB = currentB;
+            const startTime = performance.now();
+            
+            function step(time) {
+                let progress = (time - startTime) / duration;
+                if (progress > 1) progress = 1;
+                
+                const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+                
+                updateParabola(startB + (targetB - startB) * ease);
+                
+                if (progress < 1) {
+                    animFrame = requestAnimationFrame(step);
+                } else if (callback) {
+                    callback();
+                }
+            }
+            
+            cancelAnimationFrame(animFrame);
+            animFrame = requestAnimationFrame(step);
+        }
+        
+        // 状态机
+        let currentStep = 0;
+        const maxStep = 5;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const sliderContainer = document.getElementById('scene1-slider-container');
+        const sliderB = document.getElementById('scene1-slider-b');
+        const sliderVal = document.getElementById('scene1-slider-val');
+        
+        function setOpacity(id, opacity) {
+            document.getElementById(id).style.opacity = opacity;
+        }
+        
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            setOpacity('scene1-points-mn', 0);
+            setOpacity('scene1-labels-mn', 0);
+            setOpacity('scene1-line-an', 0);
+            setOpacity('scene1-line-bm', 0);
+            setOpacity('scene1-point-p', 0);
+            setOpacity('scene1-label-p', 0);
+            setOpacity('scene1-parabola', 0);
+            setOpacity('scene1-eq-text', 0);
+            setOpacity('scene1-para-b1', 0);
+            setOpacity('scene1-para-b25', 0);
+            setOpacity('scene1-para-b113', 0);
+            intersect1.style.opacity = 0;
+            intersect2.style.opacity = 0;
+            sliderContainer.classList.add('hidden');
+            
+            cancelAnimationFrame(animFrame);
+            
+            if (currentStep >= 1) {
+                setOpacity('scene1-points-mn', 1);
+                setOpacity('scene1-labels-mn', 1);
+                setOpacity('scene1-line-an', 1);
+                setOpacity('scene1-line-bm', 1);
+            }
+            
+            if (currentStep >= 2) {
+                setOpacity('scene1-point-p', 1);
+                setOpacity('scene1-label-p', 1);
+                setOpacity('scene1-parabola', 1);
+                setOpacity('scene1-eq-text', 1);
+                if (currentStep === 2) {
+                    updateParabola(2);
+                    MathJax.typesetPromise([eqText]).then(() => {
+                        eqText.innerHTML = '$y = x^2 - 2x + 2$';
+                        MathJax.typesetPromise([eqText]);
+                    });
+                }
+            }
+            
+            if (currentStep === 3) {
+                setOpacity('scene1-para-b1', 1);
+                animateB(1, 1000, () => {
+                    eqText.innerHTML = '$y = x^2 - x + 2$';
+                    MathJax.typesetPromise([eqText]);
+                });
+            }
+            
+            if (currentStep === 4) {
+                setOpacity('scene1-para-b1', 1);
+                setOpacity('scene1-para-b25', 1);
+                setOpacity('scene1-para-b113', 1);
+                animateB(2.5, 1000, () => {
+                    setTimeout(() => {
+                        if (currentStep === 4) {
+                            animateB(11/3, 1000, () => {
+                                eqText.innerHTML = '$y = x^2 - \frac{11}{3}x + 2$';
+                                MathJax.typesetPromise([eqText]);
+                            });
+                        }
+                    }, 500);
+                });
+            }
+            
+            if (currentStep === 5) {
+                setOpacity('scene1-para-b25', 1);
+                setOpacity('scene1-para-b113', 1);
+                sliderContainer.classList.remove('hidden');
+                updateParabola(parseFloat(sliderB.value));
+                eqText.innerHTML = '$y = x^2 - bx + 2$';
+                MathJax.typesetPromise([eqText]);
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        sliderB.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            sliderVal.textContent = val.toFixed(2);
+            updateParabola(val);
+        });
+        
+        // 初始化
+        updateStep();
+        
+    })();
+    </script>
+</body>
+</html>

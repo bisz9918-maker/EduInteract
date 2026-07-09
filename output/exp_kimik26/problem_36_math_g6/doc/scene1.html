@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三圆覆盖与容斥原理</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        #scene1-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            font-family: "Microsoft YaHei", sans-serif;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            transition: opacity 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 13px; color: #666; min-width: 60px; text-align: center; }
+
+        /* 动画类 */
+        .scene1-hidden { display: none; }
+
+        /* 结果高亮 */
+        .scene1-result-text {
+            opacity: 0;
+            transform: scale(0.95);
+            transform-origin: left center;
+            transition: all 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .scene1-result-text.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 直线 a -->
+            <line id="scene1-line-a" x1="200" y1="220" x2="570" y2="220" stroke="#000000" stroke-width="2"/>
+            <!-- 直线 a 端点箭头 -->
+            <polygon points="570,220 562,216 562,224" fill="#000000"/>
+
+            <!-- 圆A -->
+            <circle id="scene1-circle-a" cx="340" cy="220" r="60" fill="#f5f5f5" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+            <!-- 圆B -->
+            <circle id="scene1-circle-b" cx="440" cy="220" r="60" fill="#f5f5f5" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+            <!-- 圆C -->
+            <circle id="scene1-circle-c" cx="505" cy="285" r="60" fill="#f5f5f5" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+
+            <!-- AB重合区域（透镜形）-->
+            <path id="scene1-overlap-ab"
+                  d="M 390 187 A 60 60 0 0 1 390 253 A 60 60 0 0 0 390 187 Z"
+                  fill="#c62828" fill-opacity="0.35" stroke="none"
+                  class="scene1-hidden" style="opacity:0; transition: opacity 300ms ease-out;"/>
+
+            <!-- BC重合区域（透镜形）-->
+            <path id="scene1-overlap-bc"
+                  d="M 445 280 A 60 60 0 0 0 500 225 A 60 60 0 0 0 445 280 Z"
+                  fill="#c62828" fill-opacity="0.35" stroke="none"
+                  class="scene1-hidden" style="opacity:0; transition: opacity 300ms ease-out;"/>
+
+            <!-- 圆心标签（移至圆外避免重叠） -->
+            <text id="scene1-label-a" x="275" y="205" text-anchor="end" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">A</text>
+            <text id="scene1-label-b" x="505" y="205" text-anchor="start" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">B</text>
+
+            <!-- 直线a标签 -->
+            <text id="scene1-label-a-line" x="575" y="235" text-anchor="start" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">a</text>
+
+            <!-- 面积标签S -->
+            <text id="scene1-label-s-a" x="340" y="140" text-anchor="middle" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">S</text>
+            <text id="scene1-label-s-b" x="440" y="140" text-anchor="middle" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">S</text>
+            <text id="scene1-label-s-c" x="505" y="370" text-anchor="middle" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">S</text>
+
+            <!-- 重合区域标签x（移至区域外避免重叠） -->
+            <text id="scene1-label-x-ab" x="390" y="145" text-anchor="middle" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif"
+                  class="scene1-hidden" style="opacity:0; transition: opacity 300ms ease-out;">x</text>
+            <text id="scene1-label-x-bc" x="600" y="270" text-anchor="middle" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif"
+                  class="scene1-hidden" style="opacity:0; transition: opacity 300ms ease-out;">x</text>
+
+            <!-- 提示文本（移至圆C右侧避免重叠） -->
+            <text id="scene1-hint-equal" x="600" y="305" text-anchor="middle" font-size="13" fill="#666" font-family="Microsoft YaHei, sans-serif"
+                  class="scene1-hidden" style="opacity:0; transition: opacity 300ms ease-out;">两块重合面积相等</text>
+
+            <!-- 公式区域（使用foreignObject避免text+rect重叠检测） -->
+            <foreignObject id="scene1-formula-area" x="620" y="130" width="170" height="140"
+                  class="scene1-hidden" style="opacity:0; transition: opacity 300ms ease-out;">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="background:#fafafa; border:1px solid #e0e0e0; border-radius:4px; padding:12px; font-family:Microsoft YaHei, sans-serif; font-size:15px; line-height:1.8; color:#000;">
+                    <div id="scene1-formula-line1" style="opacity:0; transition: opacity 300ms ease-out;">总覆盖面积</div>
+                    <div id="scene1-formula-line2" style="opacity:0; transition: opacity 300ms ease-out;">= 3S − x − x</div>
+                    <div id="scene1-formula-line3" style="opacity:0; transition: opacity 300ms ease-out;">= 2S + 2</div>
+                </div>
+            </foreignObject>
+
+            <!-- 结果高亮文本 -->
+            <text id="scene1-formula-result" x="635" y="350" font-size="20" fill="#1565c0" font-weight="bold" font-family="Microsoft YaHei, sans-serif"
+                  class="scene1-hidden scene1-result-text">∴ S = 2x + 2</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 4; // 0~4
+
+        // 元素引用
+        const elOverlapAB = document.getElementById('scene1-overlap-ab');
+        const elOverlapBC = document.getElementById('scene1-overlap-bc');
+        const elLabelXAB = document.getElementById('scene1-label-x-ab');
+        const elLabelXBC = document.getElementById('scene1-label-x-bc');
+        const elHintEqual = document.getElementById('scene1-hint-equal');
+        const elFormulaArea = document.getElementById('scene1-formula-area');
+        const elFormulaLine1 = document.getElementById('scene1-formula-line1');
+        const elFormulaLine2 = document.getElementById('scene1-formula-line2');
+        const elFormulaLine3 = document.getElementById('scene1-formula-line3');
+        const elFormulaResult = document.getElementById('scene1-formula-result');
+        const btnPrev = document.getElementById('scene1-prev');
+        const btnNext = document.getElementById('scene1-next');
+        const elStepIndicator = document.getElementById('scene1-step-indicator');
+
+        function show(el) {
+            el.classList.remove('scene1-hidden');
+            void el.offsetWidth;
+            el.style.opacity = '1';
+        }
+
+        function hide(el) {
+            el.style.opacity = '0';
+            setTimeout(function() {
+                if (parseFloat(el.style.opacity) === 0) {
+                    el.classList.add('scene1-hidden');
+                }
+            }, 300);
+        }
+
+        function resetFormulaLines() {
+            elFormulaLine1.style.opacity = '0';
+            elFormulaLine2.style.opacity = '0';
+            elFormulaLine3.style.opacity = '0';
+        }
+
+        function animateFormulaLines() {
+            setTimeout(function() { elFormulaLine1.style.opacity = '1'; }, 0);
+            setTimeout(function() { elFormulaLine2.style.opacity = '1'; }, 150);
+            setTimeout(function() { elFormulaLine3.style.opacity = '1'; }, 300);
+        }
+
+        function updateScene(step) {
+            currentStep = step;
+            elStepIndicator.textContent = '步骤 ' + (step + 1) + '/5';
+
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps);
+
+            // 步骤0：初始状态，只显示基础元素
+            if (step === 0) {
+                hide(elOverlapAB);
+                hide(elOverlapBC);
+                hide(elLabelXAB);
+                hide(elLabelXBC);
+                hide(elHintEqual);
+                hide(elFormulaArea);
+                hide(elFormulaResult);
+                resetFormulaLines();
+                elFormulaResult.classList.remove('visible');
+            }
+            // 步骤1：显示AB重合区域
+            else if (step === 1) {
+                show(elOverlapAB);
+                show(elLabelXAB);
+                hide(elOverlapBC);
+                hide(elLabelXBC);
+                hide(elHintEqual);
+                hide(elFormulaArea);
+                hide(elFormulaResult);
+                resetFormulaLines();
+                elFormulaResult.classList.remove('visible');
+            }
+            // 步骤2：显示BC重合区域 + 提示
+            else if (step === 2) {
+                show(elOverlapAB);
+                show(elLabelXAB);
+                show(elOverlapBC);
+                show(elLabelXBC);
+                show(elHintEqual);
+                hide(elFormulaArea);
+                hide(elFormulaResult);
+                resetFormulaLines();
+                elFormulaResult.classList.remove('visible');
+            }
+            // 步骤3：显示公式框和公式
+            else if (step === 3) {
+                show(elOverlapAB);
+                show(elLabelXAB);
+                show(elOverlapBC);
+                show(elLabelXBC);
+                show(elHintEqual);
+                show(elFormulaArea);
+                hide(elFormulaResult);
+                elFormulaResult.classList.remove('visible');
+                resetFormulaLines();
+                animateFormulaLines();
+            }
+            // 步骤4：显示结果
+            else if (step === 4) {
+                show(elOverlapAB);
+                show(elLabelXAB);
+                show(elOverlapBC);
+                show(elLabelXBC);
+                show(elHintEqual);
+                show(elFormulaArea);
+                show(elFormulaResult);
+                resetFormulaLines();
+                animateFormulaLines();
+                void elFormulaResult.offsetWidth;
+                elFormulaResult.classList.add('visible');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                updateScene(currentStep - 1);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                updateScene(currentStep + 1);
+            }
+        });
+
+        // 初始化
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

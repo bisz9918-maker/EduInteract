@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCR 放射性标记追踪分析</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-dna-template {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 4;
+        }
+        .scene3-dna-new {
+            fill: none;
+            stroke: #c62828;
+            stroke-width: 4;
+        }
+        .scene3-dna-label {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .scene3-data-label {
+            font-size: 16px;
+            fill: #000000;
+        }
+        .scene3-ratio-label {
+            font-size: 18px;
+            font-weight: bold;
+            fill: #c62828;
+        }
+        .scene3-formula-label {
+            font-size: 16px;
+            fill: #1565c0;
+        }
+        .scene3-note-label {
+            font-size: 14px;
+            fill: #666666;
+        }
+        .scene3-slider-track {
+            stroke: #888888;
+            stroke-width: 6;
+            fill: none;
+        }
+        .scene3-slider-button {
+            fill: #1565c0;
+            cursor: pointer;
+        }
+        .scene3-slider-button:hover {
+            fill: #0d47a1;
+        }
+        .scene3-tick {
+            stroke: #888888;
+            stroke-width: 2;
+        }
+        .scene3-tick-label {
+            font-size: 12px;
+            fill: #000000;
+            text-anchor: middle;
+        }
+        .scene3-n-display {
+            font-size: 24px;
+            font-weight: bold;
+            fill: #1565c0;
+        }
+        .scene3-btn {
+            cursor: pointer;
+            rx: 5;
+            ry: 5;
+        }
+        .scene3-btn-prev {
+            fill: #e0e0e0;
+        }
+        .scene3-btn-prev.disabled {
+            fill: #bdbdbd;
+            cursor: not-allowed;
+        }
+        .scene3-btn-next {
+            fill: #1565c0;
+        }
+        .scene3-btn-next.disabled {
+            fill: #90caf9;
+            cursor: not-allowed;
+        }
+        .scene3-btn-reset {
+            fill: #ef6c00;
+        }
+        .scene3-btn-text {
+            font-size: 14px;
+            fill: #000000;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+        }
+        .scene3-btn-prev-text {
+            fill: #424242;
+        }
+        .scene3-btn-next-text {
+            fill: #ffffff;
+        }
+        .scene3-btn-reset-text {
+            fill: #ffffff;
+        }
+        .scene3-data-bg {
+            fill: #f5f5f5;
+            stroke: #dddddd;
+            stroke-width: 1;
+        }
+        .scene3-32p-label {
+            font-size: 12px;
+            fill: #c62828;
+            font-weight: bold;
+        }
+        .scene3-template-label {
+            font-size: 12px;
+            fill: #000000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 滑块轨道 -->
+            <line id="scene3-slider-track" x1="150" y1="40" x2="650" y2="40" class="scene3-slider-track"/>
+            
+            <!-- 滑块刻度 -->
+            <g id="scene3-ticks"></g>
+            
+            <!-- 滑块按钮 -->
+            <circle id="scene3-slider-button" cx="150" cy="40" r="12" class="scene3-slider-button"/>
+            
+            <!-- 当前 n 值显示 -->
+            <text id="scene3-n-display" x="680" y="45" class="scene3-n-display">n=1</text>
+            
+            <!-- DNA 分子容器 -->
+            <g id="scene3-dna-group"></g>
+            
+            <!-- 数据表格区背景 -->
+            <rect id="scene3-data-bg" x="50" y="320" width="700" height="90" class="scene3-data-bg"/>
+            
+            <!-- 数据标签 -->
+            <text id="scene3-data-total" x="80" y="345" class="scene3-data-label">总 DNA 分子数：2</text>
+            <text id="scene3-data-strands" x="80" y="370" class="scene3-data-label">总单链数：4</text>
+            <text id="scene3-data-noradio" x="300" y="345" class="scene3-data-label">不含放射性单链数：2</text>
+            <text id="scene3-data-ratio" x="300" y="370" class="scene3-ratio-label">比例：1/2</text>
+            <text id="scene3-data-formula" x="550" y="345" class="scene3-formula-label">公式：1/2ⁿ</text>
+            <text id="scene3-data-note" x="550" y="370" class="scene3-note-label">原始模板链始终 2 条</text>
+            
+            <!-- 控件栏背景 -->
+            <rect x="0" y="440" width="800" height="60" fill="#fafafa"/>
+            
+            <!-- 上一步按钮 -->
+            <g id="scene3-btn-prev-group" class="scene3-btn-group">
+                <rect id="scene3-btn-prev" x="250" y="455" width="100" height="35" class="scene3-btn scene3-btn-prev disabled"/>
+                <text id="scene3-btn-prev-text" x="300" y="472.5" class="scene3-btn-text scene3-btn-prev-text">◀ 上一步</text>
+            </g>
+            
+            <!-- 下一步按钮 -->
+            <g id="scene3-btn-next-group" class="scene3-btn-group">
+                <rect id="scene3-btn-next" x="450" y="455" width="100" height="35" class="scene3-btn scene3-btn-next"/>
+                <text id="scene3-btn-next-text" x="500" y="472.5" class="scene3-btn-text scene3-btn-next-text">下一步 ▶</text>
+            </g>
+            
+            <!-- 重置按钮 -->
+            <g id="scene3-btn-reset-group" class="scene3-btn-group">
+                <rect id="scene3-btn-reset" x="650" y="455" width="100" height="35" class="scene3-btn scene3-btn-reset"/>
+                <text id="scene3-btn-reset-text" x="700" y="472.5" class="scene3-btn-text scene3-btn-reset-text">重置</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 放射性标记追踪分析（DNA 半保留复制）
+        // 布局坐标表：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // |------|------|-----------|------|------|
+        // | 滑块轨道 | 线段 | (150,40)-(650,40) | 500×6 | 水平居中顶部 |
+        // | 滑块按钮 | 圆形 | (150,40) 起始 | 24×24 | 可拖拽，初始 n=1 |
+        // | 刻度标签 1-10 | text | (150,65) 起每隔 50px | ~12×16 | 滑块正下方 |
+        // | 当前 n 值显示 | text | (680,40) | ~30×20 | 滑块右侧 |
+        // | DNA 分子容器 | g 组 | (100,100)-(700,280) | 600×180 | 中部可视化区 |
+        // | 数据表格区 | rect | (50,320)-(750,410) | 700×90 | 白色背景 |
+        // | 上一步按钮 | rect+text | (250,455) | 100×35 | 灰色禁用/可用 |
+        // | 下一步按钮 | rect+text | (450,455) | 100×35 | 蓝色可用 |
+        // | 重置按钮 | rect+text | (650,455) | 100×35 | 橙色 |
+
+        let currentN = 1;
+        const MIN_N = 1;
+        const MAX_N = 10;
+        const SLIDER_START_X = 150;
+        const SLIDER_END_X = 650;
+        const SLIDER_RANGE = SLIDER_END_X - SLIDER_START_X;
+
+        // 获取 DOM 元素
+        const sliderButton = document.getElementById('scene3-slider-button');
+        const nDisplay = document.getElementById('scene3-n-display');
+        const dnaGroup = document.getElementById('scene3-dna-group');
+        const ticksGroup = document.getElementById('scene3-ticks');
+        const dataTotal = document.getElementById('scene3-data-total');
+        const dataStrands = document.getElementById('scene3-data-strands');
+        const dataNoRadio = document.getElementById('scene3-data-noradio');
+        const dataRatio = document.getElementById('scene3-data-ratio');
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const btnPrevGroup = document.getElementById('scene3-btn-prev-group');
+        const btnNextGroup = document.getElementById('scene3-btn-next-group');
+
+        // 初始化刻度
+        function initTicks() {
+            ticksGroup.innerHTML = '';
+            for (let i = 1; i <= 10; i++) {
+                const x = SLIDER_START_X + (i - 1) * 50;
+                // 刻度线
+                const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                tick.setAttribute('x1', x);
+                tick.setAttribute('y1', 40);
+                tick.setAttribute('x2', x);
+                tick.setAttribute('y2', 50);
+                tick.setAttribute('class', 'scene3-tick');
+                ticksGroup.appendChild(tick);
+                
+                // 刻度标签
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', x);
+                label.setAttribute('y', 65);
+                label.setAttribute('class', 'scene3-tick-label');
+                label.textContent = i;
+                ticksGroup.appendChild(label);
+            }
+        }
+
+        // 计算滑块位置
+        function getSliderX(n) {
+            return SLIDER_START_X + (n - 1) * (SLIDER_RANGE / (MAX_N - 1));
+        }
+
+        // 更新滑块位置
+        function updateSlider() {
+            const x = getSliderX(currentN);
+            sliderButton.setAttribute('cx', x);
+            nDisplay.textContent = 'n=' + currentN;
+            updateButtons();
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            if (currentN <= MIN_N) {
+                btnPrev.classList.add('disabled');
+            } else {
+                btnPrev.classList.remove('disabled');
+            }
+            
+            if (currentN >= MAX_N) {
+                btnNext.classList.add('disabled');
+            } else {
+                btnNext.classList.remove('disabled');
+            }
+        }
+
+        // 绘制 DNA 双链（贝塞尔曲线模拟双螺旋）
+        function createDNAMolecule(x, y, width, height, hasTemplate, showLabels, index) {
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.setAttribute('transform', `translate(${x}, ${y})`);
+            
+            // 模板链（黑色，左侧）- 正弦曲线
+            const templatePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            let templateD = `M 0,0`;
+            const numWaves = 3;
+            const waveWidth = width / numWaves;
+            for (let i = 0; i <= numWaves * 2; i++) {
+                const px = (i / 2) * waveWidth;
+                const py = height / 2 + (i % 2 === 0 ? -height / 3 : height / 3) * (i >= numWaves * 2 ? 0 : 1);
+                if (i === 0) {
+                    templateD += ` C ${px + waveWidth/4},${height/2 - height/4} ${px + waveWidth*3/4},${height/2 - height/4} ${px + waveWidth/2},${height/2}`;
+                } else if (i < numWaves * 2) {
+                    const prevX = ((i-1) / 2) * waveWidth;
+                    const prevY = height / 2 + ((i-1) % 2 === 0 ? -height / 3 : height / 3);
+                    templateD += ` C ${prevX + waveWidth*3/4},${prevY + (i%2===0?height/6:-height/6)} ${px + waveWidth/4},${py + (i%2===0?height/6:-height/6)} ${px},${py}`;
+                }
+            }
+            // 简化：用两条正弦曲线
+            templateD = `M 5,5 Q 15,20 25,10 T 45,15 T 65,10 T 75,35`;
+            templatePath.setAttribute('d', templateD);
+            templatePath.setAttribute('class', hasTemplate ? 'scene3-dna-template' : 'scene3-dna-new');
+            if (!hasTemplate) {
+                templatePath.setAttribute('stroke', '#c62828');
+            }
+            group.appendChild(templatePath);
+            
+            // 新合成链（红色，右侧）- 互补正弦曲线
+            const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const newD = `M 15,5 Q 25,20 35,10 T 55,15 T 70,10`;
+            newPath.setAttribute('d', newD);
+            newPath.setAttribute('class', 'scene3-dna-new');
+            group.appendChild(newPath);
+            
+            // 标签
+            if (showLabels && hasTemplate) {
+                const templateLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                templateLabel.setAttribute('x', -8);
+                templateLabel.setAttribute('y', height / 2);
+                templateLabel.setAttribute('class', 'scene3-template-label');
+                templateLabel.textContent = '模板链';
+                group.appendChild(templateLabel);
+                
+                const p32Label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                p32Label.setAttribute('x', width + 5);
+                p32Label.setAttribute('y', height / 2);
+                p32Label.setAttribute('class', 'scene3-32p-label');
+                p32Label.textContent = '³²P';
+                group.appendChild(p32Label);
+            }
+            
+            return group;
+        }
+
+        // 更新 DNA 可视化
+        function updateDNAVisualization() {
+            dnaGroup.innerHTML = '';
+            
+            const totalDNA = Math.pow(2, currentN);
+            const displayDNA = Math.min(totalDNA, 16); // 最多显示 16 个
+            
+            // 计算网格布局
+            let cols, rows;
+            if (displayDNA <= 2) {
+                cols = 2;
+                rows = 1;
+            } else if (displayDNA <= 4) {
+                cols = 2;
+                rows = 2;
+            } else if (displayDNA <= 8) {
+                cols = 4;
+                rows = 2;
+            } else {
+                cols = 4;
+                rows = 4;
+            }
+            
+            const dnaWidth = 80;
+            const dnaHeight = 40;
+            const spacingX = 40;
+            const spacingY = 30;
+            const totalWidth = cols * dnaWidth + (cols - 1) * spacingX;
+            const totalHeight = rows * dnaHeight + (rows - 1) * spacingY;
+            const startX = (800 - totalWidth) / 2;
+            const startY = (280 - totalHeight) / 2;
+            
+            // 始终有 2 条原始模板链
+            let templateCount = 2;
+            
+            for (let i = 0; i < displayDNA; i++) {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                const x = startX + col * (dnaWidth + spacingX);
+                const y = startY + row * (dnaHeight + spacingY);
+                
+                // 前 2 个 DNA 分子含有模板链
+                const hasTemplate = i < 2;
+                const showLabels = currentN <= 4; // n>4 时不显示标签避免拥挤
+                
+                const dnaMol = createDNAMolecule(x, y, dnaWidth, dnaHeight, hasTemplate, showLabels, i);
+                dnaGroup.appendChild(dnaMol);
+            }
+            
+            // 如果实际 DNA 数超过显示数，添加提示
+            if (totalDNA > displayDNA) {
+                const note = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                note.setAttribute('x', 400);
+                note.setAttribute('y', 295);
+                note.setAttribute('class', 'scene3-note-label');
+                note.setAttribute('text-anchor', 'middle');
+                note.setAttribute('font-style', 'italic');
+                note.textContent = `... 共 ${totalDNA} 个 DNA 分子`;
+                dnaGroup.appendChild(note);
+            }
+        }
+
+        // 更新数据
+        function updateData() {
+            const totalDNA = Math.pow(2, currentN);
+            const totalStrands = Math.pow(2, currentN + 1);
+            const noRadioStrands = 2; // 始终只有 2 条原始模板链不含放射性
+            const ratio = `1/${Math.pow(2, currentN)}`;
+            
+            dataTotal.textContent = `总 DNA 分子数：${totalDNA}`;
+            dataStrands.textContent = `总单链数：${totalStrands}`;
+            dataNoRadio.textContent = `不含放射性单链数：${noRadioStrands}`;
+            dataRatio.textContent = `比例：${ratio}`;
+        }
+
+        // 更新整个场景
+        function updateScene() {
+            updateSlider();
+            updateDNAVisualization();
+            updateData();
+        }
+
+        // 滑块拖拽逻辑
+        let isDragging = false;
+        
+        sliderButton.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            
+            const svgRect = document.getElementById('scene3-svg').getBoundingClientRect();
+            let x = e.clientX - svgRect.left;
+            x = Math.max(SLIDER_START_X - 12, Math.min(SLIDER_END_X + 12, x));
+            
+            // 计算对应的 n 值
+            const nFloat = (x - SLIDER_START_X) / SLIDER_RANGE * (MAX_N - 1) + 1;
+            const newN = Math.round(nFloat);
+            
+            if (newN !== currentN && newN >= MIN_N && newN <= MAX_N) {
+                currentN = newN;
+                updateScene();
+            }
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        // 按钮事件
+        btnPrevGroup.addEventListener('click', function() {
+            if (currentN > MIN_N) {
+                currentN--;
+                updateScene();
+            }
+        });
+        
+        btnNextGroup.addEventListener('click', function() {
+            if (currentN < MAX_N) {
+                currentN++;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene3-btn-reset-group').addEventListener('click', function() {
+            currentN = MIN_N;
+            updateScene();
+        });
+
+        // 键盘控制
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' && currentN > MIN_N) {
+                currentN--;
+                updateScene();
+            } else if (e.key === 'ArrowRight' && currentN < MAX_N) {
+                currentN++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        initTicks();
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

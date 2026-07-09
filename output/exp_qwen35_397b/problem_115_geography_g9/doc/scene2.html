@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对跖点三维演示 - 场景 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        .scene2-hidden { display: none; opacity: 0; }
+        .scene2-visible { display: block; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 地球球体 -->
+            <circle id="scene2-earth" cx="250" cy="250" r="140" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 经纬线网格 -->
+            <g id="scene2-grid">
+                <!-- 经线 -->
+                <ellipse id="scene2-grid-meridian-1" cx="250" cy="250" rx="20" ry="140" fill="none" stroke="#888888" stroke-width="1"/>
+                <ellipse id="scene2-grid-meridian-2" cx="250" cy="250" rx="60" ry="140" fill="none" stroke="#888888" stroke-width="1"/>
+                <ellipse id="scene2-grid-meridian-3" cx="250" cy="250" rx="100" ry="140" fill="none" stroke="#888888" stroke-width="1"/>
+                <ellipse id="scene2-grid-meridian-4" cx="250" cy="250" rx="140" ry="140" fill="none" stroke="#888888" stroke-width="1"/>
+                <!-- 纬线 -->
+                <ellipse id="scene2-grid-parallel-1" cx="250" cy="250" rx="140" ry="40" fill="none" stroke="#888888" stroke-width="1"/>
+                <ellipse id="scene2-grid-parallel-2" cx="250" cy="250" rx="120" ry="80" fill="none" stroke="#888888" stroke-width="1"/>
+                <ellipse id="scene2-grid-parallel-3" cx="250" cy="250" rx="80" ry="120" fill="none" stroke="#888888" stroke-width="1"/>
+            </g>
+            
+            <!-- 地心 -->
+            <circle id="scene2-core" cx="250" cy="250" r="6" fill="#c62828"/>
+            <text id="scene2-label-core" x="265" y="265" font-size="10" fill="#666" class="scene2-visible">地心</text>
+            
+            <!-- 咸蛋超人家标记点 -->
+            <circle id="scene2-point-salty" cx="320" cy="190" r="8" fill="#1565c0" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <text id="scene2-label-salty" x="280" y="180" font-size="12" fill="#1565c0" class="scene2-hidden">咸蛋超人 (30°N,120°E)</text>
+            
+            <!-- 面包超人家标记点 -->
+            <circle id="scene2-point-bread" cx="180" cy="310" r="8" fill="#c62828" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <text id="scene2-label-bread" x="200" y="320" font-size="12" fill="#c62828" class="scene2-hidden">面包超人 (30°S,60°W)</text>
+            
+            <!-- 穿地直线 -->
+            <line id="scene2-line-through" x1="320" y1="190" x2="180" y2="310" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" class="scene2-hidden"/>
+            
+            <!-- 二维剖面图 -->
+            <g id="scene2-profile" class="scene2-hidden">
+                <circle cx="600" cy="200" r="80" fill="none" stroke="#1565c0" stroke-width="2"/>
+                <line x1="540" y1="240" x2="660" y2="160" stroke="#c62828" stroke-width="2"/>
+                <circle cx="540" cy="240" r="5" fill="#1565c0"/>
+                <circle cx="660" cy="160" r="5" fill="#c62828"/>
+                <circle cx="600" cy="200" r="4" fill="#c62828"/>
+            </g>
+            
+            <!-- 坐标计算框 -->
+            <g id="scene2-calc-box" class="scene2-hidden">
+                <rect x="520" y="300" width="260" height="120" fill="#f9f9f9" stroke="#ccc" stroke-width="1"/>
+                <text x="530" y="320" font-size="12" fill="#333">对跖点：纬度相反，经度互补（和为 180°，东西经相反）</text>
+                <text x="530" y="360" font-size="12" fill="#333">30°N → 30°S；120°E → 60°W</text>
+            </g>
+            
+            <!-- 滑块控件 -->
+            <text id="scene2-slider-label" x="380" y="445" font-size="12" fill="#333">旋转角度</text>
+            <foreignObject id="scene2-slider-fo" x="200" y="455" width="400" height="30">
+                <input id="scene2-slider" type="range" min="0" max="360" value="0" style="width:100%;"/>
+            </foreignObject>
+            <text id="scene2-angle-display" x="620" y="475" font-size="14" fill="#333">0°</text>
+            
+            <!-- 分步按钮 -->
+            <button id="scene2-btn-prev" style="position:absolute; left:20px; bottom:10px; padding:8px 16px; font-size:14px;">◀ 上一步</button>
+            <button id="scene2-btn-next" style="position:absolute; right:20px; bottom:10px; padding:8px 16px; font-size:14px;">下一步 ▶</button>
+        </svg>
+    </div>
+    <script>
+    (function() {
+        // Scene 2 实现 - 对跖点三维演示
+        
+        // 状态变量
+        let currentStep = 0;
+        let rotationAngle = 0;
+        
+        // DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const slider = document.getElementById('scene2-slider');
+        const angleDisplay = document.getElementById('scene2-angle-display');
+        
+        // 可显示/隐藏的元素组
+        const stepElements = {
+            1: ['scene2-point-salty', 'scene2-label-salty'],
+            2: ['scene2-line-through'],
+            3: ['scene2-point-bread', 'scene2-label-bread'],
+            4: ['scene2-profile', 'scene2-calc-box']
+        };
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 根据当前步骤显示/隐藏对应元素
+            for (let step = 1; step <= 4; step++) {
+                const elements = stepElements[step];
+                if (elements) {
+                    elements.forEach(id => {
+                        if (step <= currentStep) {
+                            showElement(id);
+                        } else {
+                            hideElement(id);
+                        }
+                    });
+                }
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === 4;
+        }
+        
+        // 更新旋转角度
+        function updateRotation() {
+            rotationAngle = parseInt(slider.value);
+            angleDisplay.textContent = rotationAngle + '°';
+            
+            // 根据旋转角度更新咸蛋点和面包点的位置
+            // 简化投影：绕地心旋转
+            const cx = 250, cy = 250, R = 140;
+            const rad = rotationAngle * Math.PI / 180;
+            
+            // 咸蛋超人初始位置 (30°N, 120°E) 投影
+            const saltyBaseX = 320, saltyBaseY = 190;
+            const breadBaseX = 180, breadBaseY = 310;
+            
+            // 绕地心旋转
+            const saltyDX = saltyBaseX - cx;
+            const saltyDY = saltyBaseY - cy;
+            const breadDX = breadBaseX - cx;
+            const breadDY = breadBaseY - cy;
+            
+            const saltyNewX = cx + saltyDX * Math.cos(rad) - saltyDY * Math.sin(rad);
+            const saltyNewY = cy + saltyDX * Math.sin(rad) + saltyDY * Math.cos(rad);
+            const breadNewX = cx + breadDX * Math.cos(rad) - breadDY * Math.sin(rad);
+            const breadNewY = cy + breadDX * Math.sin(rad) + breadDY * Math.cos(rad);
+            
+            // 更新咸蛋点位置
+            const saltyPoint = document.getElementById('scene2-point-salty');
+            const saltyLabel = document.getElementById('scene2-label-salty');
+            if (saltyPoint) {
+                saltyPoint.setAttribute('cx', saltyNewX);
+                saltyPoint.setAttribute('cy', saltyNewY);
+            }
+            if (saltyLabel) {
+                saltyLabel.setAttribute('x', saltyNewX + 15);
+                saltyLabel.setAttribute('y', saltyNewY - 15);
+            }
+            
+            // 更新面包点位置
+            const breadPoint = document.getElementById('scene2-point-bread');
+            const breadLabel = document.getElementById('scene2-label-bread');
+            if (breadPoint) {
+                breadPoint.setAttribute('cx', breadNewX);
+                breadPoint.setAttribute('cy', breadNewY);
+            }
+            if (breadLabel) {
+                breadLabel.setAttribute('x', breadNewX - 60);
+                breadLabel.setAttribute('y', breadNewY + 25);
+            }
+            
+            // 更新穿地直线
+            const lineThrough = document.getElementById('scene2-line-through');
+            if (lineThrough && currentStep >= 2) {
+                lineThrough.setAttribute('x1', saltyNewX);
+                lineThrough.setAttribute('y1', saltyNewY);
+                lineThrough.setAttribute('x2', breadNewX);
+                lineThrough.setAttribute('y2', breadNewY);
+            }
+        }
+        
+        // 事件监听
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 4) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        slider.addEventListener('input', function() {
+            updateRotation();
+        });
+        
+        // 初始化
+        updateStep();
+        
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>时间计算——经度差与地方时换算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene4-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene4-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene4-step-box { opacity: 0; transition: opacity 0.3s ease; }
+        .scene4-visible { opacity: 1 !important; }
+        .scene4-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; background: #ffffff; border-radius: 4px; }
+        .scene4-btn:hover { background: #e3f2fd; }
+        .scene4-btn:disabled { border-color: #cccccc; color: #cccccc; cursor: not-allowed; }
+        #scene4-step-indicator { font-size: 14px; color: #333333; padding: 8px 16px; }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <svg width="800" height="500">
+            <!-- 地球轮廓 -->
+            <circle id="scene4-earth" cx="150" cy="250" r="120" stroke="#000000" stroke-width="2" fill="none"/>
+            
+            <!-- 夜半球（左侧半圆） -->
+            <path id="scene4-night" d="M 150,130 A 120,120 0 0,0 150,370 L 150,370 A 120,120 0 0,0 150,130 Z" fill="#e0e0e0" opacity="0.6"/>
+            
+            <!-- 赤道线 -->
+            <line id="scene4-equator" x1="30" y1="250" x2="270" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 晨昏线 -->
+            <line id="scene4-terminator" x1="90" y1="130" x2="210" y2="370" stroke="#1565c0" stroke-width="3"/>
+            
+            <!-- 经线（3 条弧线） -->
+            <path id="scene4-meridian-1" d="M 150,130 Q 90,250 150,370" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" fill="none"/>
+            <path id="scene4-meridian-2" d="M 150,130 Q 150,250 150,370" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" fill="none"/>
+            <path id="scene4-meridian-3" d="M 150,130 Q 210,250 150,370" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" fill="none"/>
+            
+            <!-- 太阳光线（3 条箭头） -->
+            <defs>
+                <marker id="scene4-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+            </defs>
+            <line id="scene4-sunray-1" x1="700" y1="150" x2="640" y2="150" stroke="#000000" stroke-width="2" marker-end="url(#scene4-arrow)"/>
+            <line id="scene4-sunray-2" x1="720" y1="250" x2="660" y2="250" stroke="#000000" stroke-width="2" marker-end="url(#scene4-arrow)"/>
+            <line id="scene4-sunray-3" x1="700" y1="350" x2="640" y2="350" stroke="#000000" stroke-width="2" marker-end="url(#scene4-arrow)"/>
+            
+            <!-- A 点（晨线与赤道交点） -->
+            <circle id="scene4-point-a" cx="210" cy="250" r="4" fill="#000000"/>
+            <text id="scene4-label-a" x="235" y="230" font-size="14" fill="#000000">A</text>
+            <text id="scene4-time-a" x="235" y="275" font-size="16" font-weight="bold" fill="#c62828" opacity="0">6:00</text>
+            
+            <!-- B 点（北半球） -->
+            <circle id="scene4-point-b" cx="90" cy="150" r="4" fill="#000000"/>
+            <text id="scene4-label-b" x="70" y="130" font-size="14" fill="#000000">B</text>
+            
+            <!-- C 点（昼半球赤道点） -->
+            <circle id="scene4-point-c" cx="270" cy="250" r="4" fill="#000000"/>
+            <text id="scene4-label-c" x="285" y="230" font-size="14" fill="#000000">C</text>
+            <text id="scene4-longitude-c" x="285" y="275" font-size="16" font-weight="bold" fill="#1565c0" opacity="0">110°W</text>
+            
+            <!-- 北极标注 -->
+            <text id="scene4-north-pole" x="150" y="115" font-size="14" fill="#000000" text-anchor="middle">73°41′N</text>
+            
+            <!-- 计算区标题 -->
+            <text id="scene4-calc-title" x="600" y="80" font-size="18" font-weight="bold" fill="#000000" text-anchor="middle">时间计算</text>
+            
+            <!-- 步骤框 1：A 点地方时 -->
+            <g id="scene4-step-box-1" class="scene4-step-box">
+                <rect x="420" y="100" width="360" height="55" fill="#f5f5f5" stroke="#1565c0" stroke-width="1"/>
+                <text x="435" y="125" font-size="14" fill="#000000">A 点在晨线与赤道交点 → 地方时 = 6:00</text>
+            </g>
+            
+            <!-- 步骤框 2：C 点经度 -->
+            <g id="scene4-step-box-2" class="scene4-step-box">
+                <rect x="420" y="160" width="360" height="55" fill="#f5f5f5" stroke="#1565c0" stroke-width="1"/>
+                <text x="435" y="185" font-size="14" fill="#000000">C 点位于西半球中央经线 → 经度 = 110°W</text>
+            </g>
+            
+            <!-- 步骤框 3：经度差计算 -->
+            <g id="scene4-step-box-3" class="scene4-step-box">
+                <rect x="420" y="220" width="360" height="60" fill="#f5f5f5" stroke="#1565c0" stroke-width="1"/>
+                <text x="435" y="245" font-size="14" fill="#000000">经度差：110°W → 120°E = 230°</text>
+                <text x="435" y="268" font-size="14" fill="#000000">时间差 = 230°÷15°/h ≈ 15h20m</text>
+            </g>
+            
+            <!-- 步骤框 4：北京时间结果 -->
+            <g id="scene4-step-box-4" class="scene4-step-box">
+                <rect x="420" y="290" width="360" height="55" fill="#f5f5f5" stroke="#1565c0" stroke-width="1"/>
+                <text x="435" y="315" font-size="14" fill="#000000">北京时间 = 6:00 + 15h20m = 21 时 20 分</text>
+            </g>
+            
+            <!-- 经度差箭头（步骤 3 显示）- 移到更高位置避免重叠 -->
+            <g id="scene4-longitude-arrow" opacity="0">
+                <line x1="430" y1="90" x2="550" y2="90" stroke="#1565c0" stroke-width="2" marker-end="url(#scene4-arrow)"/>
+                <text x="490" y="85" font-size="12" fill="#1565c0" text-anchor="middle">230°</text>
+            </g>
+            
+            <!-- 120°E 标注（步骤 4 显示） -->
+            <text id="scene4-beijing-longitude" x="600" y="360" font-size="14" font-weight="bold" fill="#c62828" opacity="0">120°E</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene4-controls">
+            <button id="scene4-btn-prev" class="scene4-btn" disabled>◀ 上一步</button>
+            <span id="scene4-step-indicator">步骤 0/4</span>
+            <button id="scene4-btn-next" class="scene4-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4 实现：时间计算——经度差与地方时换算
+        
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 每步需要显示的元素
+        const steps = {
+            0: [],
+            1: ['scene4-step-box-1', 'scene4-time-a'],
+            2: ['scene4-step-box-2', 'scene4-longitude-c'],
+            3: ['scene4-step-box-3', 'scene4-longitude-arrow'],
+            4: ['scene4-step-box-4', 'scene4-beijing-longitude']
+        };
+        
+        // 高亮点
+        const pointHighlights = {
+            1: { id: 'scene4-point-a', r: 6, fill: '#c62828' },
+            2: { id: 'scene4-point-c', r: 6, fill: '#1565c0' }
+        };
+        
+        const btnPrev = document.getElementById('scene4-btn-prev');
+        const btnNext = document.getElementById('scene4-btn-next');
+        const stepIndicator = document.getElementById('scene4-step-indicator');
+        
+        // 显示元素函数
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+                el.classList.add('scene4-visible');
+            }
+        }
+        
+        // 隐藏元素函数
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '0';
+                el.classList.remove('scene4-visible');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 隐藏所有步骤元素
+            for (let i = 1; i <= totalSteps; i++) {
+                steps[i].forEach(id => hideElement(id));
+            }
+            
+            // 显示当前步骤及之前所有步骤的元素
+            for (let i = 1; i <= currentState; i++) {
+                steps[i].forEach(id => showElement(id));
+            }
+            
+            // 恢复点大小
+            ['scene4-point-a', 'scene4-point-c'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.setAttribute('r', '4');
+                    el.setAttribute('fill', '#000000');
+                }
+            });
+            
+            // 高亮当前步骤的点
+            if (pointHighlights[currentState]) {
+                const h = pointHighlights[currentState];
+                const el = document.getElementById(h.id);
+                if (el) {
+                    el.setAttribute('r', h.r);
+                    el.setAttribute('fill', h.fill);
+                }
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === totalSteps;
+            
+            // 更新指示器
+            stepIndicator.textContent = `步骤 ${currentState}/${totalSteps}`;
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

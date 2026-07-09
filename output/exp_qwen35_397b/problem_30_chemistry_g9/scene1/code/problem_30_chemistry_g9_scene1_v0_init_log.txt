@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物质推断关系网络图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn-prev { background: #f5f5f5; color: #333333; }
+        .scene1-btn-next { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 12px; color: #666666; align-self: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- 连线（在节点下方） -->
+            <line id="scene1-line-x-y" x1="200" y1="280" x2="400" y2="150" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-x-m" x1="200" y1="280" x2="300" y2="350" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-y-m" x1="400" y1="150" x2="300" y2="350" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-y-fe" x1="400" y1="150" x2="650" y2="200" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-y-n" x1="400" y1="150" x2="550" y2="350" stroke="#000000" stroke-width="2" />
+
+            <!-- 箭头 N→铁 -->
+            <line id="scene1-arrow-n-fe" x1="550" y1="350" x2="650" y2="200" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+
+            <!-- 节点圆圈 -->
+            <circle id="scene1-node-x" cx="200" cy="280" r="25" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+            <circle id="scene1-node-y" cx="400" cy="150" r="25" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+            <circle id="scene1-node-m" cx="300" cy="350" r="25" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+            <circle id="scene1-node-n" cx="550" cy="350" r="25" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+            <circle id="scene1-node-fe" cx="650" cy="200" r="25" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+
+            <!-- 节点代号标签 -->
+            <text id="scene1-label-x" x="200" y="245" text-anchor="middle" font-size="14px" fill="#000000">X</text>
+            <text id="scene1-label-y" x="400" y="115" text-anchor="middle" font-size="14px" fill="#000000">Y</text>
+            <text id="scene1-label-m" x="300" y="395" text-anchor="middle" font-size="14px" fill="#000000">M</text>
+            <text id="scene1-label-n" x="550" y="395" text-anchor="middle" font-size="14px" fill="#000000">N</text>
+            <text id="scene1-label-fe" x="650" y="165" text-anchor="middle" font-size="14px" fill="#000000">铁</text>
+
+            <!-- 物质标签（初始隐藏） -->
+            <text id="scene1-material-y" x="400" y="80" text-anchor="middle" font-size="13px" fill="#2e7d32" style="display:none;">稀盐酸</text>
+            <text id="scene1-material-n" x="550" y="425" text-anchor="middle" font-size="13px" fill="#2e7d32" style="display:none;">氧化铁</text>
+            <text id="scene1-material-x" x="140" y="245" text-anchor="middle" font-size="13px" fill="#2e7d32" style="display:none;">碳酸钠/氢氧化钙</text>
+            <text id="scene1-material-m" x="240" y="425" text-anchor="middle" font-size="13px" fill="#2e7d32" style="display:none;">氢氧化钙/碳酸钠</text>
+
+            <!-- 提示文字（初始隐藏） -->
+            <text id="scene1-hint-y" x="400" y="185" text-anchor="middle" font-size="13px" fill="#ff9800" style="display:none;">4 条连线</text>
+
+            <!-- 最终确定物质标签（初始隐藏） -->
+            <text id="scene1-final-x" x="140" y="245" text-anchor="middle" font-size="13px" fill="#2e7d32" style="display:none;">碳酸钠</text>
+            <text id="scene1-final-m" x="240" y="425" text-anchor="middle" font-size="13px" fill="#2e7d32" style="display:none;">氢氧化钙</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-next" class="scene1-btn scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 物质推断关系网络图
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 获取所有元素
+        const elements = {
+            // 节点
+            nodeX: document.getElementById('scene1-node-x'),
+            nodeY: document.getElementById('scene1-node-y'),
+            nodeM: document.getElementById('scene1-node-m'),
+            nodeN: document.getElementById('scene1-node-n'),
+            nodeFe: document.getElementById('scene1-node-fe'),
+            // 连线
+            lineXY: document.getElementById('scene1-line-x-y'),
+            lineXM: document.getElementById('scene1-line-x-m'),
+            lineYM: document.getElementById('scene1-line-y-m'),
+            lineYFe: document.getElementById('scene1-line-y-fe'),
+            lineYN: document.getElementById('scene1-line-y-n'),
+            arrowNFe: document.getElementById('scene1-arrow-n-fe'),
+            // 标签
+            labelX: document.getElementById('scene1-label-x'),
+            labelY: document.getElementById('scene1-label-y'),
+            labelM: document.getElementById('scene1-label-m'),
+            labelN: document.getElementById('scene1-label-n'),
+            labelFe: document.getElementById('scene1-label-fe'),
+            // 物质标签
+            materialY: document.getElementById('scene1-material-y'),
+            materialN: document.getElementById('scene1-material-n'),
+            materialX: document.getElementById('scene1-material-x'),
+            materialM: document.getElementById('scene1-material-m'),
+            // 提示
+            hintY: document.getElementById('scene1-hint-y'),
+            // 最终标签
+            finalX: document.getElementById('scene1-final-x'),
+            finalM: document.getElementById('scene1-final-m'),
+            // 控件
+            btnPrev: document.getElementById('scene1-btn-prev'),
+            btnNext: document.getElementById('scene1-btn-next'),
+            stepIndicator: document.getElementById('scene1-step-indicator')
+        };
+
+        // 辅助函数：显示/隐藏元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 重置所有元素到默认状态
+        function resetToDefault() {
+            // 所有节点恢复蓝色描边
+            [elements.nodeX, elements.nodeY, elements.nodeM, elements.nodeN, elements.nodeFe].forEach(node => {
+                node.setAttribute('stroke', '#1565c0');
+                node.setAttribute('stroke-width', '2');
+            });
+            // 所有连线恢复黑色
+            [elements.lineXY, elements.lineXM, elements.lineYM, elements.lineYFe, elements.lineYN, elements.arrowNFe].forEach(line => {
+                line.setAttribute('stroke', '#000000');
+                line.setAttribute('stroke-width', '2');
+            });
+            // 隐藏所有物质标签和提示
+            hide(elements.materialY);
+            hide(elements.materialN);
+            hide(elements.materialX);
+            hide(elements.materialM);
+            hide(elements.hintY);
+            hide(elements.finalX);
+            hide(elements.finalM);
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            resetToDefault();
+
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep}/5`;
+
+            // 更新按钮状态
+            elements.btnPrev.disabled = currentStep === 0;
+            elements.btnNext.disabled = currentStep === totalSteps;
+            elements.btnNext.textContent = currentStep === totalSteps ? '完成' : '下一步 ▶';
+
+            // 根据步骤显示不同内容
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：只显示原题空图（已默认显示）
+                    break;
+
+                case 1:
+                    // 高亮 Y 的连接数
+                    elements.nodeY.setAttribute('stroke', '#ff9800');
+                    elements.nodeY.setAttribute('stroke-width', '4');
+                    elements.lineXY.setAttribute('stroke', '#ff9800');
+                    elements.lineXY.setAttribute('stroke-width', '4');
+                    elements.lineYM.setAttribute('stroke', '#ff9800');
+                    elements.lineYM.setAttribute('stroke-width', '4');
+                    elements.lineYFe.setAttribute('stroke', '#ff9800');
+                    elements.lineYFe.setAttribute('stroke-width', '4');
+                    elements.lineYN.setAttribute('stroke', '#ff9800');
+                    elements.lineYN.setAttribute('stroke-width', '4');
+                    show(elements.hintY);
+                    break;
+
+                case 2:
+                    // 标注 Y=稀盐酸
+                    elements.nodeY.setAttribute('stroke', '#ff9800');
+                    elements.nodeY.setAttribute('stroke-width', '4');
+                    elements.lineXY.setAttribute('stroke', '#ff9800');
+                    elements.lineXY.setAttribute('stroke-width', '4');
+                    elements.lineYM.setAttribute('stroke', '#ff9800');
+                    elements.lineYM.setAttribute('stroke-width', '4');
+                    elements.lineYFe.setAttribute('stroke', '#ff9800');
+                    elements.lineYFe.setAttribute('stroke-width', '4');
+                    elements.lineYN.setAttribute('stroke', '#ff9800');
+                    elements.lineYN.setAttribute('stroke-width', '4');
+                    show(elements.materialY);
+                    break;
+
+                case 3:
+                    // 标注 N=氧化铁
+                    show(elements.materialY);
+                    elements.nodeN.setAttribute('stroke', '#2e7d32');
+                    elements.nodeN.setAttribute('stroke-width', '3');
+                    elements.arrowNFe.setAttribute('stroke', '#2e7d32');
+                    elements.arrowNFe.setAttribute('stroke-width', '3');
+                    show(elements.materialN);
+                    break;
+
+                case 4:
+                    // 标注 X、M=碳酸钠/氢氧化钙
+                    show(elements.materialY);
+                    show(elements.materialN);
+                    elements.nodeX.setAttribute('stroke', '#2e7d32');
+                    elements.nodeX.setAttribute('stroke-width', '3');
+                    elements.nodeM.setAttribute('stroke', '#2e7d32');
+                    elements.nodeM.setAttribute('stroke-width', '3');
+                    show(elements.materialX);
+                    show(elements.materialM);
+                    break;
+
+                case 5:
+                    // 完整标注所有物质（最终结论）
+                    show(elements.materialY);
+                    show(elements.materialN);
+                    hide(elements.materialX);
+                    hide(elements.materialM);
+                    show(elements.finalX);
+                    show(elements.finalM);
+                    break;
+            }
+        }
+
+        // 事件绑定
+        elements.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        elements.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

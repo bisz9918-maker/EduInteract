@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e9e9e9; }
+        
+        .fade { transition: opacity 0.5s ease; }
+        .hidden { opacity: 0; pointer-events: none; }
+        .visible { opacity: 1; pointer-events: auto; }
+        
+        .grid-line { stroke: #000; stroke-width: 1; }
+        .grid-line-dashed { stroke: #000; stroke-width: 1; stroke-dasharray: 4,4; }
+        .terminator { stroke: #000; stroke-width: 2; }
+        .text-label { font-size: 14px; fill: #000; }
+        .text-small { font-size: 12px; fill: #000; }
+        .point { fill: #1565c0; }
+        .point-highlight { fill: #c62828; }
+        
+        .shadow-area { fill: #888888; opacity: 0.2; }
+        .night-area { fill: #1565c0; opacity: 0.15; }
+        .polar-day { fill: #c62828; opacity: 0.2; }
+        
+        .axis-line { stroke: #000; stroke-width: 2; }
+        .axis-tick { stroke: #000; stroke-width: 2; }
+        .day-arc { stroke: #c62828; stroke-width: 4; }
+        .night-arc { stroke: #1565c0; stroke-width: 4; }
+        
+        .highlight-line { stroke: #c62828; stroke-width: 2; stroke-dasharray: 4,4; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- 基础网格与区域 (Step 0) -->
+            <g id="scene2-base">
+                <!-- 阴影区 -->
+                <rect class="shadow-area" x="240" y="50" width="160" height="230" />
+                
+                <!-- 黑夜区 -->
+                <polygon class="night-area" points="160,50 400,250 640,50" />
+                
+                <!-- 经纬网 -->
+                <rect class="grid-line" x="160" y="50" width="480" height="230" fill="none" />
+                <line class="grid-line" x1="240" y1="50" x2="240" y2="280" />
+                <line class="grid-line" x1="320" y1="50" x2="320" y2="280" />
+                <line class="grid-line" x1="400" y1="50" x2="400" y2="280" />
+                <line class="grid-line" x1="480" y1="50" x2="480" y2="280" />
+                <line class="grid-line" x1="560" y1="50" x2="560" y2="280" />
+                
+                <line class="grid-line-dashed" x1="160" y1="117" x2="640" y2="117" />
+                <line class="grid-line-dashed" x1="160" y1="250" x2="640" y2="250" />
+                
+                <!-- 晨昏线 -->
+                <line class="terminator" x1="160" y1="50" x2="400" y2="250" />
+                <line class="terminator" x1="400" y1="250" x2="640" y2="50" />
+                
+                <!-- 点 -->
+                <circle class="point" cx="240" cy="117" r="4" id="scene2-pt-a" />
+                <circle class="point" cx="640" cy="50" r="4" />
+                <circle class="point-highlight" cx="400" cy="250" r="4" />
+                
+                <!-- 标签 -->
+                <text class="text-label" x="145" y="122">A</text>
+                <text class="text-label" x="665" y="75">B</text>
+                <text class="text-label" x="400" y="300" text-anchor="middle">O</text>
+                
+                <text class="text-label" x="695" y="55">0°</text>
+                <text class="text-label" x="655" y="122">23.5°S</text>
+                <text class="text-label" x="655" y="255">70°S</text>
+                
+                <text class="text-label" x="240" y="40" text-anchor="middle">20:00</text>
+                <text class="text-label" x="400" y="40" text-anchor="middle">0:00</text>
+                <text class="text-label" x="640" y="40" text-anchor="middle">6:00</text>
+                
+                <!-- O点高亮辅助线 -->
+                <line class="highlight-line" x1="160" y1="250" x2="640" y2="250" />
+            </g>
+            
+            <!-- 极昼区 (Step 1) -->
+            <g id="scene2-step1" class="fade hidden">
+                <rect class="polar-day" x="160" y="250" width="480" height="30" />
+                <text class="text-label" x="550" y="315" text-anchor="middle" fill="#c62828">极昼区</text>
+            </g>
+            
+            <!-- 直射点计算 (Step 2) -->
+            <g id="scene2-step2" class="fade hidden">
+                <text class="text-label" x="400" y="320" text-anchor="middle">直射点纬度 = 90° - 70° = 20°S</text>
+                
+                <!-- 直射点标记 -->
+                <line stroke="#c62828" stroke-width="2" x1="130" y1="107" x2="155" y2="107" marker-end="url(#arrow)" />
+                <text class="text-small" x="125" y="111" text-anchor="end" fill="#c62828">直射点 20°S</text>
+            </g>
+            
+            <!-- 时间轴 (Step 3) -->
+            <g id="scene2-step3" class="fade hidden">
+                <text class="text-label" x="180" y="360" text-anchor="end">A点(23.5°S):</text>
+                
+                <!-- 主轴 -->
+                <line class="axis-line" x1="200" y1="380" x2="600" y2="380" />
+                
+                <!-- 刻度 -->
+                <line class="axis-tick" x1="200" y1="375" x2="200" y2="385" />
+                <line class="axis-tick" x1="267" y1="375" x2="267" y2="385" />
+                <line class="axis-tick" x1="400" y1="375" x2="400" y2="385" />
+                <line class="axis-tick" x1="533" y1="375" x2="533" y2="385" />
+                <line class="axis-tick" x1="600" y1="375" x2="600" y2="385" />
+                
+                <!-- 刻度文本 -->
+                <text class="text-small" x="200" y="400" text-anchor="middle">0:00</text>
+                <text class="text-small" x="267" y="400" text-anchor="middle">4:00</text>
+                <text class="text-small" x="400" y="400" text-anchor="middle">12:00</text>
+                <text class="text-small" x="533" y="400" text-anchor="middle" id="scene2-time-20">20:00</text>
+                <text class="text-small" x="600" y="400" text-anchor="middle">24:00</text>
+            </g>
+            
+            <!-- 昼夜长短计算 (Step 4) -->
+            <g id="scene2-step4" class="fade hidden">
+                <!-- 昼夜弧高亮 -->
+                <line class="night-arc" x1="200" y1="380" x2="267" y2="380" />
+                <line class="day-arc" x1="267" y1="380" x2="533" y2="380" />
+                <line class="night-arc" x1="533" y1="380" x2="600" y2="380" />
+                
+                <!-- 半昼长标注 -->
+                <path d="M 400 370 Q 400 360 466.5 360 Q 533 360 533 370" fill="none" stroke="#c62828" stroke-width="1" />
+                <text class="text-small" x="466.5" y="355" text-anchor="middle" fill="#c62828">半个昼长 = 8h</text>
+                
+                <!-- 结论 -->
+                <text class="text-label" x="400" y="435" text-anchor="middle">昼长 = 8h × 2 = 16h</text>
+                <text class="text-label" x="400" y="455" text-anchor="middle">夜长 = 24h - 16h = 8h</text>
+            </g>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+            </defs>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        const steps = [
+            null, // step 0 is base
+            document.getElementById('scene2-step1'),
+            document.getElementById('scene2-step2'),
+            document.getElementById('scene2-step3'),
+            document.getElementById('scene2-step4')
+        ];
+        
+        const ptA = document.getElementById('scene2-pt-a');
+        const time20 = document.getElementById('scene2-time-20');
+        
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            for (let i = 1; i <= maxStep; i++) {
+                if (i <= currentStep) {
+                    steps[i].classList.remove('hidden');
+                    steps[i].classList.add('visible');
+                } else {
+                    steps[i].classList.remove('visible');
+                    steps[i].classList.add('hidden');
+                }
+            }
+            
+            // Step 3 闪烁效果
+            if (currentStep === 3) {
+                ptA.classList.add('point-highlight');
+                ptA.classList.remove('point');
+                time20.setAttribute('fill', '#c62828');
+                time20.setAttribute('font-weight', 'bold');
+            } else {
+                ptA.classList.remove('point-highlight');
+                ptA.classList.add('point');
+                time20.setAttribute('fill', '#000');
+                time20.setAttribute('font-weight', 'normal');
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

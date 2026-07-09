@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>热力环流模式下的气压与温度分布分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+            transition: all 0.2s;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover {
+            background: #e0e0e0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .hidden {
+            display: none !important;
+            opacity: 0 !important;
+        }
+        .visible {
+            display: block !important;
+            opacity: 1 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 地面平面：平行四边形，向下移动避免与标签重叠 -->
+            <!-- 原 (120,320)-(680,320)-(700,380)-(140,380) → 新 (120,360)-(680,360)-(700,420)-(140,420) -->
+            <polygon points="120,360 680,360 700,420 140,420" fill="#888888" fill-opacity="0.1" stroke="#888888" stroke-width="1"/>
+            
+            <!-- 高空标签：(400,105) → 上移至 (400,95) 避免与①重叠 -->
+            <text id="scene1-label-high" x="400" y="95" text-anchor="middle" font-size="14" fill="#000000">高空</text>
+            
+            <!-- 地面标签：(400,405) → 下移至 (400,445) 避免与③和选项重叠 -->
+            <text id="scene1-label-ground" x="400" y="445" text-anchor="middle" font-size="14" fill="#000000">地面</text>
+            
+            <!-- 点 a: (180,350) → 上移至 (180,330) 避免与地面平面重叠 -->
+            <circle id="scene1-point-a" cx="180" cy="330" r="6" fill="#000000"/>
+            <!-- 标签 a 移到点 a 左侧，避免与高亮圆重叠 -->
+            <text id="scene1-label-a" x="155" y="335" font-size="16" fill="#000000">a</text>
+            
+            <!-- 点 b: (620,350) → 上移至 (620,330) 避免与地面平面重叠 -->
+            <circle id="scene1-point-b" cx="620" cy="330" r="6" fill="#000000"/>
+            <!-- 标签 b 移到点 b 右侧，避免与高亮圆重叠 -->
+            <text id="scene1-label-b" x="645" y="335" font-size="16" fill="#000000">b</text>
+            
+            <!-- 点 c: (620,150) 保持不变 -->
+            <circle id="scene1-point-c" cx="620" cy="150" r="6" fill="#000000"/>
+            <text id="scene1-label-c" x="635" y="135" font-size="16" fill="#000000">c</text>
+            
+            <!-- 点 d: (180,150) 保持不变 -->
+            <circle id="scene1-point-d" cx="180" cy="150" r="6" fill="#000000"/>
+            <text id="scene1-label-d" x="165" y="135" font-size="16" fill="#000000">d</text>
+            
+            <!-- 箭头①: c→d 高空水平向左 (620,150)-(180,150) 保持不变 -->
+            <line id="scene1-arrow-1" x1="620" y1="150" x2="180" y2="150" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrowhead-1" points="180,150 195,145 195,155" fill="#000000"/>
+            <text id="scene1-label-1" x="400" y="130" text-anchor="middle" font-size="16" fill="#000000">①</text>
+            
+            <!-- 箭头②: b→c 上升气流 (620,330)-(620,150) 调整起点 -->
+            <line id="scene1-arrow-2" x1="620" y1="330" x2="620" y2="150" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrowhead-2" points="620,150 615,165 625,165" fill="#000000"/>
+            <text id="scene1-label-2" x="640" y="240" text-anchor="middle" font-size="16" fill="#000000">②</text>
+            
+            <!-- 箭头③: a→b 近地面水平向右 (180,330)-(620,330) 调整起点 -->
+            <line id="scene1-arrow-3" x1="180" y1="330" x2="620" y2="330" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrowhead-3" points="620,330 605,325 605,335" fill="#000000"/>
+            <text id="scene1-label-3" x="400" y="355" text-anchor="middle" font-size="16" fill="#000000">③</text>
+            
+            <!-- 箭头④: d→a 下沉气流 (180,150)-(180,330) 调整终点 -->
+            <line id="scene1-arrow-4" x1="180" y1="150" x2="180" y2="330" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrowhead-4" points="180,330 175,315 185,315" fill="#000000"/>
+            <text id="scene1-label-4" x="160" y="240" text-anchor="middle" font-size="16" fill="#000000">④</text>
+            
+            <!-- 步骤 1: 受热/冷却区域标注 -->
+            <g id="scene1-step1-group" class="hidden">
+                <!-- 冷却下沉：(140,330) → 左移并上移至 (100,290) 避免与 a 标签和高亮圆重叠 -->
+                <text id="scene1-label-cool" x="100" y="290" font-size="14" fill="#c62828">冷却下沉</text>
+                <!-- 受热上升：(660,330) → 右移并上移至 (700,290) 避免与 b 标签和高亮圆重叠 -->
+                <text id="scene1-label-heat" x="700" y="290" font-size="14" fill="#1565c0">受热上升</text>
+                <!-- a 处红色高亮 -->
+                <circle id="scene1-highlight-a" cx="180" cy="330" r="20" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="4,2"/>
+                <!-- b 处蓝色高亮 -->
+                <circle id="scene1-highlight-b" cx="620" cy="330" r="20" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="4,2"/>
+            </g>
+            
+            <!-- 步骤 2: 近地面气压标注 -->
+            <g id="scene1-step2-group" class="hidden">
+                <!-- a:高压：(140,380) → 左移并下移至 (100,400) 避免与地面平面和 a 标签重叠 -->
+                <text id="scene1-label-a-high" x="100" y="400" font-size="14" fill="#2e7d32">a:高压</text>
+                <!-- b:低压：(660,380) → 右移并下移至 (700,400) 避免与地面平面和 b 标签重叠 -->
+                <text id="scene1-label-b-low" x="700" y="400" font-size="14" fill="#c62828">b:低压</text>
+            </g>
+            
+            <!-- 步骤 3: 高空气压标注 -->
+            <g id="scene1-step3-group" class="hidden">
+                <!-- c:高压：(660,110) → 右移至 (680,110) 避免与 c 标签重叠 -->
+                <text id="scene1-label-c-high" x="680" y="110" font-size="14" fill="#2e7d32">c:高压</text>
+                <!-- d:低压：(140,110) → 左移至 (100,110) 避免与 d 标签重叠 -->
+                <text id="scene1-label-d-low" x="100" y="110" font-size="14" fill="#c62828">d:低压</text>
+            </g>
+            
+            <!-- 步骤 4: 温度分布标注 -->
+            <g id="scene1-step4-group" class="hidden">
+                <!-- T_b>T_a：(400,330) → 下移至 (400,425) 避免与地面平面和③重叠 -->
+                <text id="scene1-label-temp-ground" x="400" y="425" text-anchor="middle" font-size="14" fill="#1565c0">T_b &gt; T_a</text>
+                <!-- T_a>T_c>T_d：(400,200) 保持不变 -->
+                <text id="scene1-label-temp-vertical" x="400" y="200" text-anchor="middle" font-size="14" fill="#1565c0">T_a &gt; T_c &gt; T_d</text>
+            </g>
+            
+            <!-- 步骤 5: 选项判断结论 -->
+            <g id="scene1-step5-group" class="hidden">
+                <!-- 选项 A:错误：(400,430) → 下移至 (400,455) 避免与地面标签重叠 -->
+                <text id="scene1-label-option-a" x="400" y="455" text-anchor="middle" font-size="16" fill="#c62828">选项 A:错误</text>
+                <!-- 选项 B:错误：(400,455) → 下移至 (400,475) 避免与选项 A 重叠，但要在按钮上方 -->
+                <text id="scene1-label-option-b" x="400" y="475" text-anchor="middle" font-size="16" fill="#c62828">选项 B:错误</text>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 热力环流模式下的气压与温度分布分析
+        // 布局坐标表对照（调整后）：
+        // 地面平面：(120,360)-(680,360)-(700,420)-(140,420)
+        // 点 a: (180,330), 点 b: (620,330), 点 c: (620,150), 点 d: (180,150)
+        // 箭头①: c→d (620,150)-(180,150), 箭头②: b→c (620,330)-(620,150)
+        // 箭头③: a→b (180,330)-(620,330), 箭头④: d→a (180,150)-(180,330)
+        // 标签"高空": (400,95), 标签"地面": (400,445)
+        
+        const TOTAL_STEPS = 6; // 步骤 0-5
+        let currentStep = 0;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        // 步骤组元素
+        const stepGroups = {
+            step1: document.getElementById('scene1-step1-group'),
+            step2: document.getElementById('scene1-step2-group'),
+            step3: document.getElementById('scene1-step3-group'),
+            step4: document.getElementById('scene1-step4-group'),
+            step5: document.getElementById('scene1-step5-group')
+        };
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有步骤组
+            Object.values(stepGroups).forEach(group => {
+                group.classList.add('hidden');
+                group.classList.remove('visible');
+            });
+            
+            // 根据当前步骤显示对应组
+            if (currentStep >= 1) {
+                stepGroups.step1.classList.remove('hidden');
+                stepGroups.step1.classList.add('visible');
+            }
+            if (currentStep >= 2) {
+                stepGroups.step2.classList.remove('hidden');
+                stepGroups.step2.classList.add('visible');
+            }
+            if (currentStep >= 3) {
+                stepGroups.step3.classList.remove('hidden');
+                stepGroups.step3.classList.add('visible');
+            }
+            if (currentStep >= 4) {
+                stepGroups.step4.classList.remove('hidden');
+                stepGroups.step4.classList.add('visible');
+            }
+            if (currentStep >= 5) {
+                stepGroups.step5.classList.remove('hidden');
+                stepGroups.step5.classList.add('visible');
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === TOTAL_STEPS - 1);
+        }
+        
+        // 上一步按钮点击
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        // 下一步按钮点击
+        btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

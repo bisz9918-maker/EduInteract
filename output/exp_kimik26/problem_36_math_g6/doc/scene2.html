@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 直线a下方覆盖面积分解</title>
+    <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+      svg: { fontCache: 'global' },
+      startup: { typeset: false }
+    };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #999;
+            border-radius: 4px;
+            background: #f0f0f0;
+            transition: background 200ms;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            position: absolute;
+            bottom: 48px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .scene2-formula-box {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #333;
+            padding: 8px 12px;
+        }
+        .scene2-highlight { color: #1565c0; font-weight: bold; }
+        .scene2-result { color: #2e7d32; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" style="position:absolute; top:0; left:0;">
+            <!-- 基础图形：直线a、三圆轮廓 -->
+            <line id="scene2-line-a" x1="80" y1="190" x2="720" y2="190" stroke="#000" stroke-width="2" />
+            
+            <circle id="scene2-circle-a" cx="280" cy="190" r="70" fill="none" stroke="#000" stroke-width="2" />
+            <circle id="scene2-circle-b" cx="400" cy="190" r="70" fill="none" stroke="#000" stroke-width="2" />
+            <circle id="scene2-circle-c" cx="460" cy="265" r="70" fill="none" stroke="#000" stroke-width="2" />
+            
+            <!-- 填充区域 -->
+            <!-- 圆A下半填充 -->
+            <path id="scene2-fill-a-lower" d="M 210 190 A 70 70 0 0 0 350 190 L 210 190 Z" fill="#1565c0" fill-opacity="0.15" style="display:none; opacity:0; transition: opacity 300ms ease-out;" />
+            <!-- 圆B下半填充 -->
+            <path id="scene2-fill-b-lower" d="M 330 190 A 70 70 0 0 0 470 190 L 330 190 Z" fill="#1565c0" fill-opacity="0.15" style="display:none; opacity:0; transition: opacity 300ms ease-out;" />
+            <!-- 第三个圆填充 -->
+            <circle id="scene2-fill-c" cx="460" cy="265" r="70" fill="#2e7d32" fill-opacity="0.15" style="display:none; opacity:0; transition: opacity 300ms ease-out;" />
+            
+            <!-- A∩B下半填充（y≥190的部分） -->
+            <path id="scene2-overlap-ab-lower" d="M 340 190 A 70 70 0 0 1 340 226 A 70 70 0 0 1 340 190 Z" fill="#c62828" fill-opacity="0.5" style="display:none; opacity:0; transition: opacity 300ms ease-out;" />
+            
+            <!-- B∩第三圆填充 -->
+            <path id="scene2-overlap-bc" d="M 390 259 A 70 70 0 0 1 470 196 A 70 70 0 0 1 390 259 Z" fill="#c62828" fill-opacity="0.5" style="display:none; opacity:0; transition: opacity 300ms ease-out;" />
+            
+            <!-- 标签：圆心标签放在圆上方，避免与圆重叠 -->
+            <text id="scene2-label-a" x="280" y="112" text-anchor="middle" font-size="16" fill="#000" font-weight="bold">A</text>
+            <text id="scene2-label-b" x="400" y="112" text-anchor="middle" font-size="16" fill="#000" font-weight="bold">B</text>
+            <text id="scene2-label-a-line" x="730" y="185" text-anchor="start" font-size="16" fill="#000" font-style="italic">a</text>
+            
+            <!-- 面积标签放在区域外侧，避免与图形重叠 -->
+            <!-- S/2 标签放在各自下半圆正下方，远离其他圆 -->
+            <text id="scene2-label-s2-left" x="280" y="310" text-anchor="middle" font-size="16" fill="#000" style="display:none; opacity:0; transition: opacity 300ms ease-out;">S/2</text>
+            <text id="scene2-label-s2-right" x="360" y="310" text-anchor="middle" font-size="16" fill="#000" style="display:none; opacity:0; transition: opacity 300ms ease-out;">S/2</text>
+            <!-- S 标签放在第三个圆右侧 -->
+            <text id="scene2-label-s" x="545" y="270" text-anchor="start" font-size="16" fill="#000" style="display:none; opacity:0; transition: opacity 300ms ease-out;">S</text>
+            <!-- x/2 标签放在交集上方，高于所有圆 -->
+            <text id="scene2-label-x2" x="340" y="100" text-anchor="middle" font-size="16" fill="#000" style="display:none; opacity:0; transition: opacity 300ms ease-out;">x/2</text>
+            <!-- x 标签放在 B∩C 交集下方 -->
+            <text id="scene2-label-x" x="430" y="350" text-anchor="middle" font-size="16" fill="#000" style="display:none; opacity:0; transition: opacity 300ms ease-out;">x</text>
+            
+            <!-- 公式文本框 -->
+            <foreignObject id="scene2-formula-fo" x="120" y="330" width="560" height="100">
+                <div id="scene2-formula-box" class="scene2-formula-box" xmlns="http://www.w3.org/1999/xhtml">
+                    三个面积都是 $S$ 的圆，桌面被覆盖面积 $= 2S + 2$
+                </div>
+            </foreignObject>
+        </svg>
+        
+        <div id="scene2-step-indicator">步骤 0 / 7</div>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        var currentStep = 0;
+        var totalSteps = 7;
+        
+        var btnPrev = document.getElementById('scene2-btn-prev');
+        var btnNext = document.getElementById('scene2-btn-next');
+        var stepIndicator = document.getElementById('scene2-step-indicator');
+        var formulaBox = document.getElementById('scene2-formula-box');
+        
+        // 元素引用
+        var els = {
+            fillALower: document.getElementById('scene2-fill-a-lower'),
+            fillBLower: document.getElementById('scene2-fill-b-lower'),
+            fillC: document.getElementById('scene2-fill-c'),
+            overlapABLower: document.getElementById('scene2-overlap-ab-lower'),
+            overlapBC: document.getElementById('scene2-overlap-bc'),
+            labelS2Left: document.getElementById('scene2-label-s2-left'),
+            labelS2Right: document.getElementById('scene2-label-s2-right'),
+            labelS: document.getElementById('scene2-label-s'),
+            labelX2: document.getElementById('scene2-label-x2'),
+            labelX: document.getElementById('scene2-label-x')
+        };
+        
+        function show(el) {
+            if (!el) return;
+            el.style.display = '';
+            requestAnimationFrame(function() {
+                el.style.opacity = '1';
+            });
+        }
+        
+        function hide(el) {
+            if (!el) return;
+            el.style.opacity = '0';
+            setTimeout(function() {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 300);
+        }
+        
+        function setFormula(html) {
+            formulaBox.innerHTML = html;
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise([formulaBox]).catch(function() {});
+            }
+        }
+        
+        function renderStep() {
+            stepIndicator.textContent = '步骤 ' + currentStep + ' / ' + totalSteps;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            
+            if (currentStep >= 1) {
+                show(els.fillALower);
+                show(els.fillBLower);
+                show(els.labelS2Left);
+                show(els.labelS2Right);
+            } else {
+                hide(els.fillALower);
+                hide(els.fillBLower);
+                hide(els.labelS2Left);
+                hide(els.labelS2Right);
+            }
+            
+            if (currentStep >= 2) {
+                show(els.fillC);
+                show(els.labelS);
+            } else {
+                hide(els.fillC);
+                hide(els.labelS);
+            }
+            
+            if (currentStep >= 3) {
+                show(els.overlapABLower);
+                show(els.labelX2);
+            } else {
+                hide(els.overlapABLower);
+                hide(els.labelX2);
+            }
+            
+            if (currentStep >= 4) {
+                show(els.overlapBC);
+                show(els.labelX);
+            } else {
+                hide(els.overlapBC);
+                hide(els.labelX);
+            }
+            
+            switch (currentStep) {
+                case 0:
+                    setFormula('三个面积都是 $S$ 的圆，桌面被覆盖面积 $= 2S + 2$');
+                    break;
+                case 1:
+                    setFormula('圆心 $A$、$B$ 均在直线 $a$ 上，故下半圆面积恰为 <span class="scene2-highlight">$\\frac{S}{2}$</span>');
+                    break;
+                case 2:
+                    setFormula('第三个圆整体位于直线 $a$ 下方，面积为 <span class="scene2-highlight">$S$</span>');
+                    break;
+                case 3:
+                    setFormula('$A$、$B$ 圆心均在 $a$ 上且半径相等，交集关于 $a$ 对称，故 $a$ 下方占一半，面积为 <span class="scene2-highlight">$\\frac{x}{2}$</span>');
+                    break;
+                case 4:
+                    setFormula('$B$ 与第三个圆的交集完全位于 $a$ 下方，面积为 <span class="scene2-highlight">$x$</span>');
+                    break;
+                case 5:
+                    setFormula('汇总：$\\frac{S}{2} + \\frac{S}{2} + S - \\frac{x}{2} - x = 9$<br>化简得：<span class="scene2-highlight">$2S - \\frac{3x}{2} = 9$</span>');
+                    break;
+                case 6:
+                    setFormula('联立求解：<br>① $S = 2x + 2$　② $2S - \\frac{3x}{2} = 9$<br>代入：$2(2x+2) - 1.5x = 9 \\Rightarrow 2.5x = 5 \\Rightarrow <span class="scene2-highlight">$x = 2$</span>');
+                    break;
+                case 7:
+                    setFormula('验证：总覆盖 $= 3\\times6 - 2\\times2 = 14 = 2\\times6+2$<br>$a$ 下方 $= 3+3+6-1-2 = 9$　<span class="scene2-result">$S = 6$</span><br><span class="scene2-result">答案：C．6</span>');
+                    break;
+            }
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始渲染：等待 MathJax 就绪
+        if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
+            MathJax.startup.promise.then(renderStep);
+        } else {
+            renderStep();
+        }
+    })();
+    </script>
+</body>
+</html>

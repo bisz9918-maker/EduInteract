@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>原电池工作原理 - 电极反应与粒子运动</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 控件栏样式 */
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1976d2;
+            color: white;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover {
+            background: #1565c0;
+        }
+        .scene1-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #424242;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 动画效果 */
+        .scene1-fade-in {
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+        }
+        .scene1-fade-in.visible {
+            opacity: 1;
+        }
+        .scene1-slide-up {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+        }
+        .scene1-slide-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        /* 离子脉冲动画 */
+        @keyframes scene1-pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        .scene1-ion {
+            animation: scene1-pulse 1.5s ease-in-out infinite;
+        }
+        /* 电子流向箭头动画 */
+        @keyframes scene1-electron-flow {
+            0% { stroke-dashoffset: 270; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .scene1-electron-arrow {
+            stroke-dasharray: 270;
+            stroke-dashoffset: 270;
+            transition: stroke-dashoffset 0.8s ease-out;
+        }
+        .scene1-electron-arrow.visible {
+            stroke-dashoffset: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrowhead-na" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arrowhead-cl" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 烧杯容器 -->
+            <path id="scene1-beaker" d="M 200 180 L 200 400 L 600 400 L 600 180" 
+                  fill="none" stroke="#888888" stroke-width="2"/>
+            <rect id="scene1-beaker-bottom" x="200" y="400" width="400" height="2" fill="#888888"/>
+
+            <!-- 饱和 NaCl 溶液 -->
+            <rect id="scene1-solution" x="210" y="240" width="380" height="150" 
+                  fill="#bbdefb" fill-opacity="0.3" stroke="none"/>
+            <!-- 液面虚线 -->
+            <line id="scene1-liquid-surface" x1="210" y1="240" x2="590" y2="240" 
+                  stroke="#1976d2" stroke-width="2" stroke-dasharray="5,5"/>
+
+            <!-- C 棒电极（左侧） -->
+            <rect id="scene1-electrode-c" x="240" y="160" width="50" height="220" 
+                  fill="#000000"/>
+            <text id="scene1-label-c" x="300" y="275" font-size="16" fill="#000000" text-anchor="start">C</text>
+
+            <!-- Fe 棒电极（右侧） -->
+            <rect id="scene1-electrode-fe" x="510" y="160" width="50" height="220" 
+                  fill="#757575"/>
+            <text id="scene1-label-fe" x="490" y="275" font-size="16" fill="#000000" text-anchor="end">Fe</text>
+
+            <!-- 导线系统 -->
+            <!-- 左竖导线（C 电极向上） -->
+            <line id="scene1-wire-left" x1="265" y1="160" x2="265" y2="80" 
+                  stroke="#000000" stroke-width="3"/>
+            <!-- 右竖导线（Fe 电极向上） -->
+            <line id="scene1-wire-right" x1="535" y1="160" x2="535" y2="80" 
+                  stroke="#000000" stroke-width="3"/>
+            <!-- 顶部横导线 -->
+            <line id="scene1-wire-top" x1="265" y1="80" x2="535" y2="80" 
+                  stroke="#000000" stroke-width="3"/>
+
+            <!-- 开关 K₁（上支路，闭合状态） -->
+            <g id="scene1-switch-k1-group">
+                <line x1="320" y1="80" x2="360" y2="80" stroke="#2e7d32" stroke-width="3"/>
+                <line x1="360" y1="80" x2="440" y2="80" stroke="#2e7d32" stroke-width="3"/>
+                <line x1="440" y1="80" x2="480" y2="80" stroke="#2e7d32" stroke-width="3"/>
+                <!-- K₁ 触点 -->
+                <circle cx="320" cy="80" r="4" fill="#2e7d32"/>
+                <circle cx="480" cy="80" r="4" fill="#2e7d32"/>
+            </g>
+            <text id="scene1-label-k1" x="400" y="65" font-size="14" fill="#2e7d32" text-anchor="middle" font-weight="bold">K₁</text>
+
+            <!-- 开关 K₂（下支路，断开状态）+ 电源 -->
+            <g id="scene1-switch-k2-group">
+                <!-- 左侧导线 -->
+                <line x1="320" y1="100" x2="360" y2="100" stroke="#c62828" stroke-width="3"/>
+                <!-- K₂ 断开触点 -->
+                <circle cx="360" cy="100" r="4" fill="#c62828"/>
+                <!-- 开关臂（断开） -->
+                <line x1="360" y1="100" x2="380" y2="90" stroke="#c62828" stroke-width="3"/>
+                <circle cx="380" cy="90" r="3" fill="#c62828"/>
+                <!-- 右侧导线 -->
+                <line x1="440" y1="100" x2="480" y2="100" stroke="#c62828" stroke-width="3"/>
+                <circle cx="440" cy="100" r="4" fill="#c62828"/>
+            </g>
+            <text id="scene1-label-k2" x="400" y="120" font-size="14" fill="#c62828" text-anchor="middle" font-weight="bold">K₂</text>
+
+            <!-- 电源符号（电池） -->
+            <g id="scene1-power">
+                <!-- 正极（长线） -->
+                <line x1="400" y1="92" x2="400" y2="108" stroke="#000000" stroke-width="2"/>
+                <!-- 负极（短线） -->
+                <line x1="420" y1="96" x2="420" y2="104" stroke="#000000" stroke-width="2"/>
+                <!-- 连接线 -->
+                <line x1="380" y1="100" x2="400" y2="100" stroke="#000000" stroke-width="2"/>
+                <line x1="420" y1="100" x2="440" y2="100" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- 步骤 1：电极极性标签（初始隐藏） -->
+            <text id="scene1-label-positive" x="300" y="240" font-size="14" fill="#c62828" 
+                  text-anchor="start" font-weight="bold" class="scene1-fade-in">正极</text>
+            <text id="scene1-label-negative" x="480" y="240" font-size="14" fill="#c62828" 
+                  text-anchor="end" font-weight="bold" class="scene1-fade-in">负极</text>
+
+            <!-- 步骤 2：电子流向箭头（初始隐藏） -->
+            <g id="scene1-electron-group" class="scene1-fade-in">
+                <!-- 电子流向箭头（从 Fe 到 C，即从右到左） -->
+                <line id="scene1-electron-arrow" x1="500" y1="50" x2="300" y2="50" 
+                      stroke="#1565c0" stroke-width="4" marker-end="url(#scene1-arrowhead)"
+                      class="scene1-electron-arrow"/>
+                <text id="scene1-label-e" x="400" y="40" font-size="14" fill="#1565c0" 
+                      text-anchor="middle" font-weight="bold">e⁻</text>
+            </g>
+
+            <!-- 步骤 3：离子迁移（初始隐藏） -->
+            <g id="scene1-ions-group" class="scene1-fade-in">
+                <!-- Na⁺ 离子（红色，向正极 C 移动） -->
+                <circle id="scene1-ion-na-1" cx="420" cy="300" r="6" fill="#c62828" class="scene1-ion"/>
+                <circle id="scene1-ion-na-2" cx="450" cy="320" r="6" fill="#c62828" class="scene1-ion"/>
+                <circle id="scene1-ion-na-3" cx="480" cy="300" r="6" fill="#c62828" class="scene1-ion"/>
+                
+                <!-- Cl⁻ 离子（绿色，向负极 Fe 移动） -->
+                <circle id="scene1-ion-cl-1" cx="350" cy="350" r="6" fill="#2e7d32" class="scene1-ion"/>
+                <circle id="scene1-ion-cl-2" cx="380" cy="370" r="6" fill="#2e7d32" class="scene1-ion"/>
+                <circle id="scene1-ion-cl-3" cx="420" cy="350" r="6" fill="#2e7d32" class="scene1-ion"/>
+
+                <!-- Na⁺ 迁移箭头（指向 C 极/正极，向左） -->
+                <line id="scene1-arrow-na" x1="460" y1="285" x2="340" y2="285" 
+                      stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead-na)" opacity="0.6"/>
+                <text id="scene1-label-na" x="400" y="275" font-size="12" fill="#c62828" text-anchor="middle">Na⁺</text>
+
+                <!-- Cl⁻ 迁移箭头（指向 Fe 极/负极，向右） -->
+                <line id="scene1-arrow-cl" x1="340" y1="385" x2="460" y2="385" 
+                      stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrowhead-cl)" opacity="0.6"/>
+                <text id="scene1-label-cl" x="400" y="405" font-size="12" fill="#2e7d32" text-anchor="middle">Cl⁻</text>
+            </g>
+
+            <!-- 步骤 4：电极反应式（初始隐藏） -->
+            <g id="scene1-reactions-group" class="scene1-slide-up">
+                <text id="scene1-reaction-fe" x="520" y="430" font-size="13" fill="#757575" 
+                      text-anchor="middle" font-family="monospace">Fe - 2e⁻ = Fe²⁺</text>
+                <text id="scene1-reaction-c" x="280" y="430" font-size="13" fill="#000000" 
+                      text-anchor="middle" font-family="monospace">2H⁺ + 2e⁻ = H₂↑</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：原电池工作原理
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步可见元素配置
+        const stepConfig = {
+            0: { // 初始状态：基础装置
+                fade: [],
+                slide: []
+            },
+            1: { // 步骤 1：电极极性
+                fade: ['scene1-label-positive', 'scene1-label-negative'],
+                slide: []
+            },
+            2: { // 步骤 2：电子流向
+                fade: ['scene1-label-positive', 'scene1-label-negative', 'scene1-electron-group'],
+                slide: []
+            },
+            3: { // 步骤 3：离子迁移
+                fade: ['scene1-label-positive', 'scene1-label-negative', 'scene1-electron-group', 'scene1-ions-group'],
+                slide: []
+            },
+            4: { // 步骤 4：电极反应式
+                fade: ['scene1-label-positive', 'scene1-label-negative', 'scene1-electron-group', 'scene1-ions-group'],
+                slide: ['scene1-reactions-group']
+            }
+        };
+
+        // DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 更新视图函数
+        function updateView() {
+            // 隐藏所有可切换元素
+            const allFadeElements = ['scene1-label-positive', 'scene1-label-negative', 'scene1-electron-group', 'scene1-ions-group'];
+            const allSlideElements = ['scene1-reactions-group'];
+
+            allFadeElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('visible');
+            });
+            allSlideElements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('visible');
+            });
+
+            // 显示当前步骤及之前步骤的元素
+            const config = stepConfig[currentStep];
+            config.fade.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('visible');
+            });
+            config.slide.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('visible');
+            });
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+
+            // 触发电子流向动画（步骤 2）
+            if (currentStep >= 2) {
+                const arrow = document.getElementById('scene1-electron-arrow');
+                if (arrow) {
+                    arrow.classList.remove('visible');
+                    requestAnimationFrame(() => {
+                        arrow.classList.add('visible');
+                    });
+                }
+            }
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateView();
+            }
+        });
+
+        // 初始化视图
+        updateView();
+    })();
+    </script>
+</body>
+</html>

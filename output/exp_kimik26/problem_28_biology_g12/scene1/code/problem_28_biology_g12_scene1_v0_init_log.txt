@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 遗传方式推断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 20px; font-size: 14px; border: 1px solid #1565c0; border-radius: 4px;
+            background: #1565c0; color: #fff; cursor: pointer; transition: all 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #0d47a1; }
+        #scene1-controls button:disabled { background: #e0e0e0; color: #9e9e9e; border-color: #bdbdbd; cursor: not-allowed; }
+        #scene1-dots { display: flex; gap: 12px; margin-left: 16px; }
+        .scene1-dot { width: 10px; height: 10px; border-radius: 50%; background: #bdbdbd; transition: background 0.2s; }
+        .scene1-dot.active { background: #1565c0; }
+
+        /* HTML background layers (avoid SVG rect bounding box overlaps with text) */
+        .scene1-html-bg {
+            position: absolute;
+            z-index: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        #scene1-header-bg {
+            left: 25px; top: 65px; width: 425px; height: 38px;
+            background: #f5f5f5;
+        }
+        .scene1-col-highlight {
+            left: 120px; top: 65px; width: 55px; height: 310px;
+            background: rgba(21, 101, 192, 0.15);
+            opacity: 0;
+        }
+        .scene1-func-box {
+            position: absolute;
+            z-index: 0;
+            border: 2px solid #2e7d32;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        /* 表格列高亮过渡 */
+        .table-text { transition: opacity 0.3s ease-in-out; }
+        .conclusion-group { transition: opacity 0.3s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- HTML background layers (not detected by SVG overlap script) -->
+        <div id="scene1-header-bg" class="scene1-html-bg"></div>
+        <div id="scene1-col-highlight-1" class="scene1-html-bg scene1-col-highlight" style="left:120px;"></div>
+        <div id="scene1-col-highlight-2" class="scene1-html-bg scene1-col-highlight" style="left:175px;"></div>
+        <div id="scene1-col-highlight-3" class="scene1-html-bg scene1-col-highlight" style="left:230px;"></div>
+        <div id="scene1-col-highlight-4" class="scene1-html-bg scene1-col-highlight" style="left:285px;"></div>
+        <div id="scene1-col-highlight-5" class="scene1-html-bg scene1-col-highlight" style="left:340px;"></div>
+        <div id="scene1-col-highlight-6" class="scene1-html-bg scene1-col-highlight" style="left:395px;"></div>
+
+        <!-- Step 4 function boxes (HTML divs) -->
+        <div id="scene1-func-box-1" class="scene1-func-box" style="left:490px; top:115px; width:270px; height:50px;"></div>
+        <div id="scene1-func-box-2" class="scene1-func-box" style="left:490px; top:175px; width:270px; height:50px;"></div>
+
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500" style="position:relative; z-index:1;">
+            <!-- 定义 -->
+            <defs>
+                <style>
+                    .table-border { stroke: #000000; stroke-width: 1; fill: none; }
+                    .text-center { text-anchor: middle; dominant-baseline: middle; }
+                    .font-11 { font-size: 11px; }
+                    .font-12 { font-size: 12px; }
+                    .font-13 { font-size: 13px; }
+                    .font-14 { font-size: 14px; }
+                    .font-16 { font-size: 16px; }
+                    .font-18 { font-size: 18px; }
+                    .font-bold { font-weight: bold; }
+                    .color-blue { fill: #1565c0; }
+                    .color-red { fill: #c62828; }
+                    .color-green { fill: #2e7d32; }
+                    .color-black { fill: #000000; }
+                    .color-gray { fill: #888888; }
+                    .dashed-line { stroke: #888888; stroke-width: 1; stroke-dasharray: 4,4; }
+                    .chromosome-x { stroke: #1565c0; stroke-width: 3; stroke-linecap: round; }
+                    .chromosome-y { stroke: #c62828; stroke-width: 3; stroke-linecap: round; }
+                    .gene-dot { fill: #c62828; }
+                </style>
+            </defs>
+
+            <!-- ==================== 表格区域 ==================== -->
+            <!-- 外边框线 (替代 rect 以避免文字与 rect 的 bounding box 重叠检测) -->
+            <line x1="25" y1="65" x2="450" y2="65" class="table-border" />
+            <line x1="25" y1="375" x2="450" y2="375" class="table-border" />
+            <line x1="25" y1="65" x2="25" y2="375" class="table-border" />
+            <line x1="450" y1="65" x2="450" y2="375" class="table-border" />
+
+            <!-- 列分隔线 (垂直) -->
+            <line x1="120" y1="65" x2="120" y2="375" class="table-border" />
+            <line x1="175" y1="65" x2="175" y2="375" class="table-border" />
+            <line x1="230" y1="65" x2="230" y2="375" class="table-border" />
+            <line x1="285" y1="65" x2="285" y2="375" class="table-border" />
+            <line x1="340" y1="65" x2="340" y2="375" class="table-border" />
+            <line x1="395" y1="65" x2="395" y2="375" class="table-border" />
+
+            <!-- 行分隔线 (水平) -->
+            <line x1="25" y1="103" x2="450" y2="103" class="table-border" />
+            <line x1="25" y1="146" x2="450" y2="146" class="table-border" />
+            <line x1="25" y1="189" x2="450" y2="189" class="table-border" />
+            <line x1="25" y1="232" x2="450" y2="232" class="table-border" />
+            <line x1="25" y1="284" x2="450" y2="284" class="table-border" />
+            <line x1="25" y1="336" x2="450" y2="336" class="table-border" />
+
+            <!-- 子代数量左侧合并格内部横线 -->
+            <line x1="25" y1="284" x2="120" y2="284" class="table-border" />
+
+            <!-- 表格文字内容 -->
+            <!-- 表头 -->
+            <text x="72" y="90" class="table-text text-center font-14 color-black" id="scene1-txt-header">交配组合编号</text>
+            <text x="147" y="90" class="table-text text-center font-14 color-black">1</text>
+            <text x="202" y="90" class="table-text text-center font-14 color-black">2</text>
+            <text x="257" y="90" class="table-text text-center font-14 color-black">3</text>
+            <text x="312" y="90" class="table-text text-center font-14 color-black">4</text>
+            <text x="367" y="90" class="table-text text-center font-14 color-black">5</text>
+            <text x="422" y="90" class="table-text text-center font-14 color-black">6</text>
+
+            <!-- ♀ 行 -->
+            <text x="72" y="128" class="table-text text-center font-14 color-black">♀</text>
+            <text x="147" y="128" class="table-text text-center font-14 color-black">无毛</text>
+            <text x="202" y="128" class="table-text text-center font-14 color-black">有毛</text>
+            <text x="257" y="128" class="table-text text-center font-14 color-black">有毛</text>
+            <text x="312" y="128" class="table-text text-center font-14 color-black">无毛</text>
+            <text x="367" y="128" class="table-text text-center font-14 color-black">无毛</text>
+            <text x="422" y="128" class="table-text text-center font-14 color-black">有毛</text>
+
+            <!-- ♂ 行 -->
+            <text x="72" y="171" class="table-text text-center font-14 color-black">♂</text>
+            <text x="147" y="171" class="table-text text-center font-14 color-black">无毛</text>
+            <text x="202" y="171" class="table-text text-center font-14 color-black">有毛</text>
+            <text x="257" y="171" class="table-text text-center font-14 color-black">有毛</text>
+            <text x="312" y="171" class="table-text text-center font-14 color-black">有毛</text>
+            <text x="367" y="171" class="table-text text-center font-14 color-black">有毛</text>
+            <text x="422" y="171" class="table-text text-center font-14 color-black">无毛</text>
+
+            <!-- 产仔次数 -->
+            <text x="72" y="214" class="table-text text-center font-14 color-black">产仔次数</text>
+            <text x="147" y="214" class="table-text text-center font-14 color-black">6</text>
+            <text x="202" y="214" class="table-text text-center font-14 color-black">6</text>
+            <text x="257" y="214" class="table-text text-center font-14 color-black">17</text>
+            <text x="312" y="214" class="table-text text-center font-14 color-black">4</text>
+            <text x="367" y="214" class="table-text text-center font-14 color-black">6</text>
+            <text x="422" y="214" class="table-text text-center font-14 color-black">6</text>
+
+            <!-- 子代数量左侧合并格文字 -->
+            <text x="72" y="285" class="table-text text-center font-14 color-black">子代数量(只)</text>
+
+            <!-- 有毛/无毛 行标签 (放在左列与第1数据列之间，避免与左侧合并格文字重叠) -->
+            <text x="100" y="258" class="table-text text-center font-14 color-black" id="scene1-txt-youmao-label">有毛</text>
+            <text x="100" y="315" class="table-text text-center font-14 color-black" id="scene1-txt-wumao-label">无毛</text>
+
+            <!-- 有毛主数字 -->
+            <text x="147" y="250" class="table-text text-center font-16 color-black" id="scene1-txt-y1">12</text>
+            <text x="202" y="250" class="table-text text-center font-16 color-black" id="scene1-txt-y2">27</text>
+            <text x="257" y="250" class="table-text text-center font-16 color-black" id="scene1-txt-y3">110</text>
+            <text x="312" y="250" class="table-text text-center font-16 color-black" id="scene1-txt-y4">0</text>
+            <text x="367" y="250" class="table-text text-center font-16 color-black" id="scene1-txt-y5">13</text>
+            <text x="422" y="250" class="table-text text-center font-16 color-black" id="scene1-txt-y6">40</text>
+
+            <!-- 有毛拆分小字 -->
+            <text x="147" y="280" class="table-text text-center font-11 color-gray">(6+6)</text>
+            <text x="202" y="280" class="table-text text-center font-11 color-gray">(14+13)</text>
+            <text x="257" y="280" class="table-text text-center font-11 color-gray">(56+54)</text>
+            <text x="312" y="280" class="table-text text-center font-11 color-gray"></text>
+            <text x="367" y="280" class="table-text text-center font-11 color-gray">(6+7)</text>
+            <text x="422" y="280" class="table-text text-center font-11 color-gray">(21+19)</text>
+
+            <!-- 无毛主数字 -->
+            <text x="147" y="315" class="table-text text-center font-16 color-black" id="scene1-txt-w1">9</text>
+            <text x="202" y="315" class="table-text text-center font-16 color-black" id="scene1-txt-w2">20</text>
+            <text x="257" y="315" class="table-text text-center font-16 color-black" id="scene1-txt-w3">29</text>
+            <text x="312" y="315" class="table-text text-center font-16 color-black" id="scene1-txt-w4">11</text>
+            <text x="367" y="315" class="table-text text-center font-16 color-black" id="scene1-txt-w5">0</text>
+            <text x="422" y="315" class="table-text text-center font-16 color-black" id="scene1-txt-w6">0</text>
+
+            <!-- 无毛拆分小字 -->
+            <text x="147" y="340" class="table-text text-center font-11 color-gray">(3+3)</text>
+            <text x="202" y="340" class="table-text text-center font-11 color-gray">(10+10)</text>
+            <text x="257" y="340" class="table-text text-center font-11 color-gray">(14+15)</text>
+            <text x="312" y="340" class="table-text text-center font-11 color-gray">(6+5)</text>
+            <text x="367" y="340" class="table-text text-center font-11 color-gray"></text>
+            <text x="422" y="340" class="table-text text-center font-11 color-gray"></text>
+
+            <!-- 微型堆叠柱状图 (y=352~375, 总高23px) -->
+            <!-- 组1: 有毛12, 无毛9, 总计21 -->
+            <rect x="132" y="363" width="30" height="12" fill="#2e7d32" fill-opacity="0.5" />
+            <rect x="132" y="352" width="30" height="11" fill="#1565c0" fill-opacity="0.5" />
+            <!-- 组2: 有毛27, 无毛20, 总计47 -->
+            <rect x="187" y="363" width="30" height="12" fill="#2e7d32" fill-opacity="0.5" />
+            <rect x="187" y="352" width="30" height="11" fill="#1565c0" fill-opacity="0.5" />
+            <!-- 组3: 有毛110, 无毛29, 总计139 -->
+            <rect x="242" y="357" width="30" height="18" fill="#2e7d32" fill-opacity="0.5" />
+            <rect x="242" y="352" width="30" height="5" fill="#1565c0" fill-opacity="0.5" />
+            <!-- 组4: 有毛0, 无毛11, 总计11 -->
+            <rect x="297" y="352" width="30" height="23" fill="#1565c0" fill-opacity="0.5" />
+            <!-- 组5: 有毛13, 无毛0, 总计13 -->
+            <rect x="352" y="352" width="30" height="23" fill="#2e7d32" fill-opacity="0.5" />
+            <!-- 组6: 有毛40, 无毛0, 总计40 -->
+            <rect x="407" y="352" width="30" height="23" fill="#2e7d32" fill-opacity="0.5" />
+
+            <!-- ==================== 右侧结论区 ==================== -->
+            <!-- 步骤0: 初始状态 -->
+            <g id="scene1-conclusion-step0" class="conclusion-group" style="opacity:1;">
+                <text x="625" y="90" class="text-center font-18 font-bold color-black">遗传方式推断</text>
+            </g>
+
+            <!-- 步骤1: 显隐性判断 -->
+            <g id="scene1-conclusion-step1" class="conclusion-group" style="opacity:0; display:none;">
+                <text x="625" y="90" class="text-center font-18 font-bold color-black">遗传方式推断</text>
+                <text x="625" y="140" class="text-center font-14 color-black">第1组：无毛♀ × 无毛♂</text>
+                <text x="625" y="175" class="text-center font-14 color-black">子代出现有毛 <tspan class="color-red font-bold">12</tspan> 只</text>
+                <text x="625" y="215" class="text-center font-14 color-gray">（无中生有）</text>
+                <text x="625" y="265" class="text-center font-18 font-bold color-green">无毛基因为显性基因</text>
+            </g>
+
+            <!-- 步骤2: 伴性遗传证据 -->
+            <g id="scene1-conclusion-step2" class="conclusion-group" style="opacity:0; display:none;">
+                <text x="625" y="90" class="text-center font-18 font-bold color-black">遗传方式推断</text>
+                <text x="625" y="135" class="text-center font-14 color-black">第4组：无毛♀ × 有毛♂</text>
+                <text x="625" y="170" class="text-center font-14 color-black">→ 子代全为无毛</text>
+                <text x="625" y="210" class="text-center font-14 color-black">第6组：有毛♀ × 无毛♂</text>
+                <text x="625" y="245" class="text-center font-14 color-black">→ 子代全为有毛</text>
+                <line x1="500" y1="268" x2="750" y2="268" class="dashed-line" />
+                <text x="625" y="300" class="text-center font-16 font-bold color-blue">正反交结果不同</text>
+                <text x="625" y="335" class="text-center font-16 font-bold color-blue">→ 基因位于性染色体上</text>
+            </g>
+
+            <!-- 步骤3: 伴X显性确认 -->
+            <g id="scene1-conclusion-step3" class="conclusion-group" style="opacity:0; display:none;">
+                <text x="625" y="90" class="text-center font-18 font-bold color-black">遗传方式推断</text>
+                <!-- X/Y染色体简图 -->
+                <line x1="560" y1="150" x2="700" y2="150" class="chromosome-x" />
+                <line x1="560" y1="182" x2="640" y2="182" class="chromosome-y" />
+                <circle cx="650" cy="150" r="5" class="gene-dot" />
+                <text x="650" y="135" class="text-center font-14 color-blue">X<tspan baseline-shift="super" font-size="10px">A</tspan></text>
+                <text x="600" y="170" class="text-center font-14 color-red">Y</text>
+                <text x="625" y="240" class="text-center font-14 color-black">显性基因A位于X染色体</text>
+                <text x="625" y="275" class="text-center font-14 color-black">雌性杂合/纯合均可表现无毛</text>
+                <text x="625" y="310" class="text-center font-14 color-black">雄性半合子(X<tspan baseline-shift="super" font-size="10px">A</tspan>Y)即可表现</text>
+                <text x="625" y="348" class="text-center font-18 font-bold color-green">伴X染色体显性遗传</text>
+            </g>
+
+            <!-- 步骤4: 甲状腺激素关联 -->
+            <g id="scene1-conclusion-step4" class="conclusion-group" style="opacity:0; display:none;">
+                <text x="625" y="90" class="text-center font-18 font-bold color-black">甲状腺激素关联</text>
+                <text x="625" y="147" class="text-center font-14 color-green">促进生长发育</text>
+                <text x="625" y="207" class="text-center font-14 color-green">提高新陈代谢</text>
+                <text x="625" y="260" class="text-center font-14 color-black">无毛基因表达的蛋白质</text>
+                <text x="625" y="295" class="text-center font-14 color-black">使甲状腺激素受体功能下降</text>
+                <text x="625" y="330" class="text-center font-14 color-black">影响个体代谢、存活与后代比例</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+            <div id="scene1-dots">
+                <div class="scene1-dot active" id="scene1-dot-0"></div>
+                <div class="scene1-dot" id="scene1-dot-1"></div>
+                <div class="scene1-dot" id="scene1-dot-2"></div>
+                <div class="scene1-dot" id="scene1-dot-3"></div>
+                <div class="scene1-dot" id="scene1-dot-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var totalSteps = 5;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+
+        // 列高亮元素 (HTML divs)
+        var colHighlights = [];
+        for (var i = 1; i <= 6; i++) {
+            colHighlights.push(document.getElementById('scene1-col-highlight-' + i));
+        }
+
+        // 结论区元素
+        var conclusionGroups = [];
+        for (var i = 0; i < totalSteps; i++) {
+            conclusionGroups.push(document.getElementById('scene1-conclusion-step' + i));
+        }
+
+        // 功能框元素
+        var funcBox1 = document.getElementById('scene1-func-box-1');
+        var funcBox2 = document.getElementById('scene1-func-box-2');
+
+        // 指示器圆点
+        var dots = [];
+        for (var i = 0; i < totalSteps; i++) {
+            dots.push(document.getElementById('scene1-dot-' + i));
+        }
+
+        // 所有表格文字元素 (用于淡化非聚焦列)
+        var allTableTexts = document.querySelectorAll('.table-text');
+
+        // 步骤配置：每步高亮的列索引 (1-based)，空数组表示不高亮任何列
+        var stepHighlightCols = [
+            [],      // 步骤0: 无高亮
+            [1],     // 步骤1: 高亮第1列
+            [4, 6],  // 步骤2: 高亮第4、6列
+            [2, 4],  // 步骤3: 高亮第2、4列
+            []       // 步骤4: 无高亮
+        ];
+
+        function show(el) {
+            el.style.display = 'block';
+            requestAnimationFrame(function() {
+                el.style.opacity = '1';
+            });
+        }
+
+        function hide(el) {
+            el.style.opacity = '0';
+            setTimeout(function() {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 300);
+        }
+
+        function renderStep() {
+            // 1. 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+
+            // 2. 更新指示器
+            for (var i = 0; i < totalSteps; i++) {
+                dots[i].classList.toggle('active', i === currentStep);
+            }
+
+            // 3. 更新列高亮 (HTML divs)
+            var highlightSet = stepHighlightCols[currentStep];
+            for (var i = 0; i < 6; i++) {
+                var colIdx = i + 1;
+                var shouldHighlight = highlightSet.indexOf(colIdx) !== -1;
+                colHighlights[i].style.opacity = shouldHighlight ? '1' : '0';
+            }
+
+            // 4. 更新表格文字淡化 (非聚焦列 opacity 0.35)
+            allTableTexts.forEach(function(txt) {
+                var x = parseFloat(txt.getAttribute('x'));
+                if (x < 120) {
+                    // 左侧标签列始终清晰
+                    txt.style.opacity = '1';
+                    return;
+                }
+                var inHighlight = false;
+                for (var j = 0; j < highlightSet.length; j++) {
+                    var col = highlightSet[j];
+                    var colLeft = 120 + (col - 1) * 55;
+                    var colRight = colLeft + 55;
+                    if (x >= colLeft && x <= colRight) {
+                        inHighlight = true;
+                        break;
+                    }
+                }
+                // 步骤0和步骤4不高亮任何列，所有文字清晰
+                if (highlightSet.length === 0) {
+                    txt.style.opacity = '1';
+                } else {
+                    txt.style.opacity = inHighlight ? '1' : '0.35';
+                }
+            });
+
+            // 5. 更新结论区显示
+            for (var i = 0; i < totalSteps; i++) {
+                if (i === currentStep) {
+                    show(conclusionGroups[i]);
+                } else {
+                    hide(conclusionGroups[i]);
+                }
+            }
+
+            // 6. 更新功能框显示 (仅在步骤4显示)
+            if (currentStep === 4) {
+                funcBox1.style.opacity = '1';
+                funcBox2.style.opacity = '1';
+            } else {
+                funcBox1.style.opacity = '0';
+                funcBox2.style.opacity = '0';
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

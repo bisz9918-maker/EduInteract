@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - U 形框架电磁感应装置与受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; transition: all 0.2s; }
+        .scene1-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+        .scene1-label { font-size: 14px; fill: #000000; }
+        .scene1-label-bold { font-size: 16px; fill: #000000; font-weight: bold; }
+        .scene1-force-label { font-size: 15px; fill: #000000; font-weight: bold; }
+        .scene1-equation { font-size: 18px; fill: #2e7d32; font-weight: bold; }
+        @keyframes scene1-flash {
+            0%, 100% { stroke-width: 3; }
+            50% { stroke-width: 6; }
+        }
+        .scene1-flash { animation: scene1-flash 0.3s ease-in-out 2; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 上导轨 -->
+            <line x1="150" y1="200" x2="650" y2="200" stroke="#000000" stroke-width="2" id="scene1-rail-top"/>
+            <!-- 下导轨 -->
+            <line x1="150" y1="300" x2="650" y2="300" stroke="#000000" stroke-width="2" id="scene1-rail-bottom"/>
+            <!-- 电阻 R -->
+            <rect x="630" y="190" width="40" height="120" stroke="#000000" stroke-width="2" fill="none" id="scene1-resistor"/>
+            <!-- 金属棒 ab -->
+            <line x1="250" y1="300" x2="350" y2="200" stroke="#000000" stroke-width="3" id="scene1-rod-ab"/>
+            <!-- 点 a -->
+            <circle cx="350" cy="200" r="4" fill="#000000" id="scene1-point-a"/>
+            <!-- 点 b -->
+            <circle cx="250" cy="300" r="4" fill="#000000" id="scene1-point-b"/>
+            
+            <!-- 标签 a -->
+            <text x="360" y="190" class="scene1-label-bold" id="scene1-label-a">a</text>
+            <!-- 标签 b (调整位置，避免与 m=0.2kg 重叠) -->
+            <text x="235" y="325" class="scene1-label-bold" id="scene1-label-b">b</text>
+            <!-- 标签 L=1m -->
+            <text x="400" y="320" class="scene1-label" text-anchor="middle" id="scene1-label-L">L=1m</text>
+            <!-- 标签 R=0.8Ω -->
+            <text x="680" y="250" class="scene1-label" id="scene1-label-R">R=0.8Ω</text>
+            <!-- 标签 r=0.2Ω (调整位置，向右移动，避免与 a 重叠) -->
+            <text x="385" y="205" class="scene1-label" id="scene1-label-r">r=0.2Ω</text>
+            <!-- 标签 m=0.2kg (调整位置，避免与 b 重叠) -->
+            <text x="180" y="340" class="scene1-label" id="scene1-label-m">m=0.2kg</text>
+            <!-- 标签 μ=0.5 -->
+            <text x="260" y="340" class="scene1-label" id="scene1-label-mu">μ=0.5</text>
+            
+            <!-- 步骤 1: 磁场箭头组 -->
+            <g id="scene1-magnetic-field" style="display: none; opacity: 0;">
+                <line x1="200" y1="180" x2="200" y2="150" stroke="#000000" stroke-width="2" id="scene1-field-1"/>
+                <polygon points="200,145 195,155 205,155" fill="#000000" id="scene1-field-arrow-1"/>
+                <line x1="300" y1="180" x2="300" y2="150" stroke="#000000" stroke-width="2" id="scene1-field-2"/>
+                <polygon points="300,145 295,155 305,155" fill="#000000" id="scene1-field-arrow-2"/>
+                <line x1="400" y1="180" x2="400" y2="150" stroke="#000000" stroke-width="2" id="scene1-field-3"/>
+                <polygon points="400,145 395,155 405,155" fill="#000000" id="scene1-field-arrow-3"/>
+                <line x1="500" y1="180" x2="500" y2="150" stroke="#000000" stroke-width="2" id="scene1-field-4"/>
+                <polygon points="500,145 495,155 505,155" fill="#000000" id="scene1-field-arrow-4"/>
+                <line x1="600" y1="180" x2="600" y2="150" stroke="#000000" stroke-width="2" id="scene1-field-5"/>
+                <polygon points="600,145 595,155 605,155" fill="#000000" id="scene1-field-arrow-5"/>
+                <!-- 标签 B=1T -->
+                <text x="400" y="140" class="scene1-label-bold" text-anchor="middle" id="scene1-label-B">B=1T</text>
+            </g>
+            
+            <!-- 步骤 2: 外力 F 箭头 -->
+            <g id="scene1-force-F" style="display: none; opacity: 0;">
+                <line x1="300" y1="250" x2="180" y2="250" stroke="#1565c0" stroke-width="4" id="scene1-force-F-line"/>
+                <polygon points="175,245 175,255 180,250" fill="#1565c0" id="scene1-force-F-arrow"/>
+                <!-- 标签 F=3N (调整位置，向左移动，避免与 f=μmg 重叠) -->
+                <text x="110" y="235" class="scene1-force-label" id="scene1-label-F">F=3N</text>
+            </g>
+            
+            <!-- 步骤 3: 摩擦力 f 箭头 -->
+            <g id="scene1-force-f" style="display: none; opacity: 0;">
+                <line x1="300" y1="250" x2="400" y2="250" stroke="#c62828" stroke-width="3" id="scene1-force-f-line"/>
+                <polygon points="405,247 405,253 400,250" fill="#c62828" id="scene1-force-f-arrow"/>
+                <!-- 标签 f=μmg (调整位置，向右移动，避免与 FA 重叠) -->
+                <text x="420" y="270" class="scene1-force-label" id="scene1-label-f">f=μmg</text>
+            </g>
+            
+            <!-- 步骤 4: 安培力 FA 箭头（与 f 错开 10px） -->
+            <g id="scene1-force-FA" style="display: none; opacity: 0;">
+                <line x1="300" y1="270" x2="420" y2="270" stroke="#c62828" stroke-width="3" id="scene1-force-FA-line"/>
+                <polygon points="425,267 425,273 420,270" fill="#c62828" id="scene1-force-FA-arrow"/>
+                <!-- 标签 FA (调整位置，避免与 f=μmg 重叠) -->
+                <text x="440" y="290" class="scene1-force-label" id="scene1-label-FA">F<sub>A</sub></text>
+            </g>
+            
+            <!-- 步骤 5: 平衡条件文字 -->
+            <text x="400" y="400" class="scene1-equation" text-anchor="middle" id="scene1-equation" style="display: none; opacity: 0;">F = F<sub>A</sub> + f（稳定状态）</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button class="scene1-btn" id="scene1-btn-prev">◀ 上一步</button>
+            <button class="scene1-btn" id="scene1-btn-reset">重置</button>
+            <button class="scene1-btn" id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 - U 形框架电磁感应装置与受力分析
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 上导轨 | 线段 | (150,200)-(650,200) | 500×2 | - | 水平导轨 |
+        // | 下导轨 | 线段 | (150,300)-(650,300) | 500×2 | - | 水平导轨 |
+        // | 电阻 R | 矩形 | (630,190)-(670,310) | 40×120 | 右侧 | 右端电阻 |
+        // | 金属棒 ab | 线段 | (250,300)-(350,200) | ~141×3 | - | 斜置金属棒 |
+        // | 点 a | 点 | (350,200) | 4 | 右上 | 金属棒上端 |
+        // | 点 b | 点 | (250,300) | 4 | 左下 | 金属棒下端 |
+        // | 磁场箭头 1-5 | 箭头 | x=200,300,400,500,600, y=180→150 | 20×3 | 上方 | B 方向 |
+        // | 外力 F 箭头 | 箭头 | (300,250)→(180,250) | 120×4 | 左侧 | 蓝色主动力 |
+        // | 摩擦力 f 箭头 | 箭头 | (300,250)→(400,250) | 100×3 | 右侧 | 红色阻力 |
+        // | 安培力 FA 箭头 | 箭头 | (300,270)→(420,270) | 120×3 | 右侧 | 红色阻力，与 f 错开 |
+        // | 标签 L=1m | text | (400,320) | ~50×16 | 下方 | 框架宽度 |
+        // | 标签 R=0.8Ω | text | (680,250) | ~60×16 | 右侧 | 电阻值 |
+        // | 标签 r=0.2Ω | text | (385,205) | ~60×16 | 右上 | 金属棒电阻 |
+        // | 标签 B=1T | text | (400,140) | ~50×16 | 上方 | 磁感应强度 |
+        // | 标签 F=3N | text | (110,235) | ~50×16 | 左上 | 外力 |
+        // | 标签 f=μmg | text | (420,270) | ~70×16 | 右上 | 摩擦力 |
+        // | 标签 FA | text | (440,290) | ~40×16 | 右上 | 安培力 |
+        // | 标签 m=0.2kg | text | (180,340) | ~80×16 | 左下 | 质量 |
+        // | 标签 μ=0.5 | text | (260,340) | ~60×16 | 下方 | 动摩擦因数 |
+        // | 平衡条件文字 | text | (400,400) | ~200×20 | - | 绿色高亮 |
+        
+        // 状态变量
+        var currentStep = 0;
+        var totalSteps = 6; // 0-5 共 6 个步骤
+        
+        // 元素分组（按步骤）
+        var stepElements = {
+            0: [], // 初始状态：基础结构（已默认显示）
+            1: ['scene1-magnetic-field'], // 步骤 1：磁场
+            2: ['scene1-force-F'], // 步骤 2：外力 F
+            3: ['scene1-force-f'], // 步骤 3：摩擦力 f
+            4: ['scene1-force-FA'], // 步骤 4：安培力 FA
+            5: ['scene1-equation'] // 步骤 5：平衡条件
+        };
+        
+        // 工具函数：显示元素（同时处理 display 和 opacity）
+        function showElement(elementId) {
+            var el = document.getElementById(elementId);
+            if (el) {
+                el.style.display = 'block';
+                if (el.tagName === 'g') {
+                    el.style.opacity = '1';
+                    var children = el.querySelectorAll('*');
+                    for (var i = 0; i < children.length; i++) {
+                        children[i].style.opacity = '1';
+                    }
+                } else {
+                    el.style.opacity = '1';
+                }
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(elementId) {
+            var el = document.getElementById(elementId);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新当前步骤的显示状态
+        function updateStepDisplay() {
+            // 隐藏所有步骤元素
+            for (var step = 1; step < totalSteps; step++) {
+                var elements = stepElements[step] || [];
+                for (var i = 0; i < elements.length; i++) {
+                    hideElement(elements[i]);
+                }
+            }
+            
+            // 显示当前步骤及之前的所有元素
+            for (var s = 1; s <= currentStep; s++) {
+                var elements = stepElements[s] || [];
+                for (var j = 0; j < elements.length; j++) {
+                    showElement(elements[j]);
+                }
+            }
+            
+            // 步骤 5 时，添加力箭头闪烁动画
+            if (currentStep === 5) {
+                var forceLines = ['scene1-force-F-line', 'scene1-force-f-line', 'scene1-force-FA-line'];
+                for (var k = 0; k < forceLines.length; k++) {
+                    var line = document.getElementById(forceLines[k]);
+                    if (line) {
+                        line.classList.remove('scene1-flash');
+                        void line.offsetWidth;
+                        line.classList.add('scene1-flash');
+                    }
+                }
+            }
+            
+            // 更新按钮状态
+            var prevBtn = document.getElementById('scene1-btn-prev');
+            var nextBtn = document.getElementById('scene1-btn-next');
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps - 1);
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStepDisplay();
+            }
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStepDisplay();
+            }
+        }
+        
+        // 重置
+        function resetStep() {
+            currentStep = 0;
+            updateStepDisplay();
+        }
+        
+        // 初始化
+        function init() {
+            document.getElementById('scene1-btn-next').addEventListener('click', nextStep);
+            document.getElementById('scene1-btn-prev').addEventListener('click', prevStep);
+            document.getElementById('scene1-btn-reset').addEventListener('click', resetStep);
+            updateStepDisplay();
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

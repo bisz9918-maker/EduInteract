@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 太阳直射点与北京时间推算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            font-family: "Microsoft YaHei", sans-serif;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene2-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene2-controls button:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        #scene2-step-text {
+            font-size: 12px;
+            color: #666;
+            min-width: 70px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <clipPath id="scene2-earth-clip">
+                    <circle cx="280" cy="230" r="140"/>
+                </clipPath>
+            </defs>
+
+            <!-- 地球圆 -->
+            <circle id="scene2-earth-circle" cx="280" cy="230" r="140" fill="#f8fbff" stroke="#000000" stroke-width="2"/>
+
+            <!-- 夜半球填充（弓形：晨昏线 + 经过北极的圆弧） -->
+            <path d="M 154.8 292.6 A 140 140 0 1 1 405.2 167.4 L 154.8 292.6 Z" fill="#000000" fill-opacity="0.08"/>
+
+            <!-- 地轴 -->
+            <line id="scene2-axis" x1="280" y1="90" x2="280" y2="370" stroke="#000000" stroke-width="2"/>
+
+            <!-- 赤道 -->
+            <line id="scene2-equator" x1="140" y1="230" x2="420" y2="230" stroke="#000000" stroke-width="1"/>
+
+            <!-- 南回归线（虚线） -->
+            <line id="scene2-tropic" x1="140" y1="286" x2="420" y2="286" stroke="#999999" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- 北极圈（虚线） -->
+            <line id="scene2-arctic" x1="152" y1="146" x2="408" y2="146" stroke="#999999" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- 经线网格（10条淡灰垂直线，限制在圆内） -->
+            <g clip-path="url(#scene2-earth-clip)" stroke="#e0e0e0" stroke-width="1">
+                <line x1="141" y1="90" x2="141" y2="370"/>
+                <line x1="164" y1="90" x2="164" y2="370"/>
+                <line x1="187" y1="90" x2="187" y2="370"/>
+                <line x1="210" y1="90" x2="210" y2="370"/>
+                <line x1="233" y1="90" x2="233" y2="370"/>
+                <line x1="256" y1="90" x2="256" y2="370"/>
+                <line x1="279" y1="90" x2="279" y2="370"/>
+                <line x1="302" y1="90" x2="302" y2="370"/>
+                <line x1="325" y1="90" x2="325" y2="370"/>
+                <line x1="348" y1="90" x2="348" y2="370"/>
+            </g>
+
+            <!-- 晨昏线（红色） -->
+            <line id="scene2-twilight" x1="154.8" y1="292.6" x2="405.2" y2="167.4" stroke="#c62828" stroke-width="2"/>
+
+            <!-- 经线标签（仅标注主要经线，位于圆上方避免重叠） -->
+            <text x="210" y="58" text-anchor="middle" font-size="11" font-weight="bold" fill="#000000">0°</text>
+            <text x="258" y="58" text-anchor="middle" font-size="11" font-weight="bold" fill="#000000">60°E</text>
+            <text x="306" y="58" text-anchor="middle" font-size="11" font-weight="bold" fill="#000000">120°E</text>
+            <text x="354" y="58" text-anchor="middle" font-size="11" font-weight="bold" fill="#000000">180°</text>
+
+            <!-- 北极点 A（左移避免与经线标签重叠） -->
+            <text x="220" y="48" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">A</text>
+
+            <!-- ========== 步骤1：0°经线高亮 ========== -->
+            <line id="scene2-meridian-highlight-0" x1="210" y1="90" x2="210" y2="370" stroke="#000000" stroke-width="2.5" clip-path="url(#scene2-earth-clip)" style="display:none"/>
+            <text id="scene2-time-0" x="435" y="155" font-size="13" font-weight="bold" fill="#000000" style="display:none">0:00</text>
+
+            <!-- ========== 步骤2：180°经线高亮 ========== -->
+            <line id="scene2-meridian-highlight-180" x1="348" y1="90" x2="348" y2="370" stroke="#000000" stroke-width="2" stroke-dasharray="8,4" clip-path="url(#scene2-earth-clip)" style="display:none"/>
+            <text id="scene2-time-180" x="435" y="195" font-size="13" font-weight="bold" fill="#000000" style="display:none">12:00</text>
+
+            <!-- ========== 步骤3：太阳直射点 P ========== -->
+            <g id="scene2-p-dot" style="display:none">
+                <circle cx="348" cy="286" r="4" fill="#2e7d32"/>
+                <line x1="340" y1="286" x2="356" y2="286" stroke="#2e7d32" stroke-width="2"/>
+                <line x1="348" y1="278" x2="348" y2="294" stroke="#2e7d32" stroke-width="2"/>
+            </g>
+            <text id="scene2-p-label-1" x="440" y="230" font-size="13" font-weight="bold" fill="#2e7d32" style="display:none">P点</text>
+            <text id="scene2-p-label-2" x="440" y="260" font-size="13" fill="#2e7d32" style="display:none">(23°26′S, 180°)</text>
+
+            <!-- ========== 步骤4：120°E经线高亮 ========== -->
+            <line id="scene2-meridian-highlight-120e" x1="302" y1="90" x2="302" y2="370" stroke="#1565c0" stroke-width="2.5" clip-path="url(#scene2-earth-clip)" style="display:none"/>
+            <text id="scene2-time-120e" x="435" y="300" font-size="13" font-weight="bold" fill="#1565c0" style="display:none">北京时间 8:00</text>
+
+            <!-- ========== 右侧信息面板 ========== -->
+            <text id="scene2-info-0" x="500" y="105" font-size="13" fill="#000000" style="display:none">0°经线：0:00（子夜线）</text>
+            <text id="scene2-info-180" x="500" y="155" font-size="13" fill="#000000" style="display:none">180°经线：12:00（太阳直射经线）</text>
+            <text id="scene2-info-hint" x="500" y="195" font-size="13" fill="#000000" style="display:none">0°经线地方时0:00，经度差180°→时差12h</text>
+            <text id="scene2-info-120e" x="500" y="340" font-size="13" fill="#000000" style="display:none">120°E：北京时间 8:00</text>
+            <text id="scene2-info-calc" x="500" y="360" font-size="13" fill="#000000" style="display:none">0:00 + (120°÷15°/h) = 8:00</text>
+
+            <!-- ========== 步骤5-6：日期范围条 ========== -->
+            <g id="scene2-date-bar" style="display:none">
+                <rect x="100" y="412" width="600" height="16" fill="#f5f5f5" rx="2"/>
+                <g stroke="#cccccc" stroke-width="1">
+                    <line x1="150" y1="423" x2="150" y2="428"/>
+                    <line x1="200" y1="423" x2="200" y2="428"/>
+                    <line x1="250" y1="423" x2="250" y2="428"/>
+                    <line x1="300" y1="423" x2="300" y2="428"/>
+                    <line x1="350" y1="423" x2="350" y2="428"/>
+                    <line x1="400" y1="423" x2="400" y2="428"/>
+                    <line x1="450" y1="423" x2="450" y2="428"/>
+                    <line x1="500" y1="423" x2="500" y2="428"/>
+                    <line x1="550" y1="423" x2="550" y2="428"/>
+                    <line x1="600" y1="423" x2="600" y2="428"/>
+                    <line x1="650" y1="423" x2="650" y2="428"/>
+                </g>
+                <text x="100" y="450" font-size="11" fill="#666666">0° 0:00</text>
+                <text x="640" y="450" font-size="11" fill="#666666">180° 日期变更线</text>
+            </g>
+
+            <!-- 步骤6：日期范围填充与标签 -->
+            <rect id="scene2-date-new" x="100" y="412" width="300" height="16" fill="#2e7d32" fill-opacity="0.25" style="display:none"/>
+            <rect id="scene2-date-old" x="400" y="412" width="300" height="16" fill="#1565c0" fill-opacity="0.10" style="display:none"/>
+            <text id="scene2-date-label-new" x="230" y="405" text-anchor="middle" font-size="11" fill="#2e7d32" style="display:none">新一天</text>
+            <text id="scene2-date-label-old" x="580" y="405" text-anchor="middle" font-size="11" fill="#1565c0" style="display:none">旧一天</text>
+            <text id="scene2-date-conclusion" x="400" y="450" text-anchor="middle" font-size="11" font-weight="bold" fill="#000000" style="display:none">新一天占全球 1/2</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-text">步骤 1 / 7</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const totalSteps = 7;
+
+        const els = {
+            highlight0: document.getElementById('scene2-meridian-highlight-0'),
+            time0: document.getElementById('scene2-time-0'),
+            info0: document.getElementById('scene2-info-0'),
+            highlight180: document.getElementById('scene2-meridian-highlight-180'),
+            time180: document.getElementById('scene2-time-180'),
+            info180: document.getElementById('scene2-info-180'),
+            infoHint: document.getElementById('scene2-info-hint'),
+            pDot: document.getElementById('scene2-p-dot'),
+            pLabel1: document.getElementById('scene2-p-label-1'),
+            pLabel2: document.getElementById('scene2-p-label-2'),
+            highlight120e: document.getElementById('scene2-meridian-highlight-120e'),
+            time120e: document.getElementById('scene2-time-120e'),
+            info120e: document.getElementById('scene2-info-120e'),
+            infoCalc: document.getElementById('scene2-info-calc'),
+            dateBar: document.getElementById('scene2-date-bar'),
+            dateNew: document.getElementById('scene2-date-new'),
+            dateOld: document.getElementById('scene2-date-old'),
+            dateLabelNew: document.getElementById('scene2-date-label-new'),
+            dateLabelOld: document.getElementById('scene2-date-label-old'),
+            dateConclusion: document.getElementById('scene2-date-conclusion'),
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next'),
+            stepText: document.getElementById('scene2-step-text')
+        };
+
+        function setDisplay(el, show) {
+            if (!el) return;
+            if (show) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            } else {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        function renderStep() {
+            setDisplay(els.highlight0, currentStep >= 1);
+            setDisplay(els.time0, currentStep >= 1);
+            setDisplay(els.info0, currentStep >= 1);
+            setDisplay(els.highlight180, currentStep >= 2);
+            setDisplay(els.time180, currentStep >= 2);
+            setDisplay(els.info180, currentStep >= 2);
+            setDisplay(els.infoHint, currentStep >= 2);
+            setDisplay(els.pDot, currentStep >= 3);
+            setDisplay(els.pLabel1, currentStep >= 3);
+            setDisplay(els.pLabel2, currentStep >= 3);
+            setDisplay(els.highlight120e, currentStep >= 4);
+            setDisplay(els.time120e, currentStep >= 4);
+            setDisplay(els.info120e, currentStep >= 4);
+            setDisplay(els.infoCalc, currentStep >= 4);
+            setDisplay(els.dateBar, currentStep >= 5);
+            setDisplay(els.dateNew, currentStep >= 6);
+            setDisplay(els.dateOld, currentStep >= 6);
+            setDisplay(els.dateLabelNew, currentStep >= 6);
+            setDisplay(els.dateLabelOld, currentStep >= 6);
+            setDisplay(els.dateConclusion, currentStep >= 6);
+
+            els.btnPrev.disabled = currentStep <= 0;
+            els.btnNext.disabled = currentStep >= 6;
+            els.stepText.textContent = '步骤 ' + (currentStep + 1) + ' / ' + totalSteps;
+        }
+
+        els.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        els.btnNext.addEventListener('click', function() {
+            if (currentStep < 6) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图对应关系与信息提取</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 18px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 13px; color: #666; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 灰色箭头标记 -->
+                <marker id="scene1-arrow-gray" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#888888"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== 主视图 ==================== -->
+            <!-- 主视图填充格 -->
+            <rect id="scene1-main-cell1" x="140" y="180" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-main-cell2" x="140" y="220" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-main-cell3" x="180" y="220" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-main-cell4" x="220" y="220" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <!-- 主视图外框 -->
+            <rect id="scene1-main-frame" x="140" y="180" width="120" height="80" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 主视图内部网格线 -->
+            <line x1="180" y1="180" x2="180" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="220" y1="180" x2="220" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="140" y1="220" x2="260" y2="220" stroke="#000000" stroke-width="1"/>
+            <!-- 主视图名称 -->
+            <text id="scene1-main-label" x="200" y="170" font-size="14" text-anchor="middle" fill="#000000">从正面看</text>
+
+            <!-- ==================== 左视图 ==================== -->
+            <!-- 左视图填充格 -->
+            <rect id="scene1-left-cell1" x="360" y="180" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-left-cell2" x="360" y="220" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-left-cell3" x="400" y="220" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <!-- 左视图外框 -->
+            <rect id="scene1-left-frame" x="360" y="180" width="80" height="80" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 左视图内部网格线 -->
+            <line x1="400" y1="180" x2="400" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="360" y1="220" x2="440" y2="220" stroke="#000000" stroke-width="1"/>
+            <!-- 左视图名称 -->
+            <text id="scene1-left-label" x="400" y="170" font-size="14" text-anchor="middle" fill="#000000">从左面看</text>
+
+            <!-- ==================== 俯视图 ==================== -->
+            <!-- 俯视图填充格 -->
+            <rect id="scene1-top-cell1" x="560" y="180" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-top-cell2" x="600" y="180" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-top-cell3" x="640" y="180" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-top-cell4" x="560" y="220" width="40" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="1"/>
+            <!-- 俯视图外框 -->
+            <rect id="scene1-top-frame" x="560" y="180" width="120" height="80" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 俯视图内部网格线 -->
+            <line x1="600" y1="180" x2="600" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="640" y1="180" x2="640" y2="260" stroke="#000000" stroke-width="1"/>
+            <line x1="560" y1="220" x2="680" y2="220" stroke="#000000" stroke-width="1"/>
+            <!-- 俯视图名称 -->
+            <text id="scene1-top-label" x="620" y="170" font-size="14" text-anchor="middle" fill="#000000">从上面看</text>
+
+            <!-- ==================== 步骤1标签（主视图列高，蓝色） ==================== -->
+            <!-- 坐标调整：y=135/100，避免与"从正面看"(y=170)重叠，间距≥12px -->
+            <g id="scene1-step1-group" style="display:none; opacity:0;">
+                <text x="150" y="135" font-size="12" text-anchor="middle" fill="#1565c0">第1列</text>
+                <text x="150" y="100" font-size="12" text-anchor="middle" fill="#1565c0">高=2</text>
+                <text x="200" y="135" font-size="12" text-anchor="middle" fill="#1565c0">第2列</text>
+                <text x="200" y="100" font-size="12" text-anchor="middle" fill="#1565c0">高=1</text>
+                <text x="250" y="135" font-size="12" text-anchor="middle" fill="#1565c0">第3列</text>
+                <text x="250" y="100" font-size="12" text-anchor="middle" fill="#1565c0">高=1</text>
+            </g>
+
+            <!-- ==================== 步骤2标签（左视图行高，绿色） ==================== -->
+            <!-- 坐标调整：放置在主视图与左视图之间的空隙（x=310），避免与主视图重叠 -->
+            <g id="scene1-step2-group" style="display:none; opacity:0;">
+                <text x="310" y="200" font-size="12" text-anchor="middle" fill="#2e7d32">后排 高=2</text>
+                <text x="310" y="240" font-size="12" text-anchor="middle" fill="#2e7d32">前排 高=1</text>
+            </g>
+
+            <!-- ==================== 步骤3标签（俯视图坐标，红色） ==================== -->
+            <!-- 坐标调整：列标签间距加大，行标签右移避免与俯视图拥挤 -->
+            <g id="scene1-step3-group" style="display:none; opacity:0;">
+                <text x="575" y="295" font-size="12" text-anchor="middle" fill="#c62828">列1</text>
+                <text x="620" y="295" font-size="12" text-anchor="middle" fill="#c62828">列2</text>
+                <text x="665" y="295" font-size="12" text-anchor="middle" fill="#c62828">列3</text>
+                <text x="725" y="200" font-size="12" text-anchor="middle" fill="#c62828">行1(后)</text>
+                <text x="725" y="240" font-size="12" text-anchor="middle" fill="#c62828">行2(前)</text>
+            </g>
+
+            <!-- ==================== 步骤4连线（灰色虚线箭头） ==================== -->
+            <g id="scene1-step4-group" style="display:none; opacity:0;">
+                <!-- 主列1→俯列1 -->
+                <line x1="175" y1="220" x2="580" y2="175" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-gray)"/>
+                <!-- 主列2→俯列2 -->
+                <line x1="215" y1="240" x2="620" y2="175" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-gray)"/>
+                <!-- 主列3→俯列3 -->
+                <line x1="255" y1="240" x2="660" y2="175" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-gray)"/>
+                <!-- 左行1→俯行1 -->
+                <line x1="445" y1="220" x2="555" y2="200" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-gray)"/>
+                <!-- 左行2→俯行2 -->
+                <line x1="445" y1="240" x2="555" y2="240" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-gray)"/>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1 / 5</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：三视图对应关系与信息提取
+
+        // 状态变量
+        var currentStep = 0;
+        var MAX_STEP = 4;
+
+        // 获取元素引用
+        var mainFrame = document.getElementById('scene1-main-frame');
+        var leftFrame = document.getElementById('scene1-left-frame');
+        var topFrame = document.getElementById('scene1-top-frame');
+
+        var mainLabel = document.getElementById('scene1-main-label');
+        var leftLabel = document.getElementById('scene1-left-label');
+        var topLabel = document.getElementById('scene1-top-label');
+
+        var step1Group = document.getElementById('scene1-step1-group');
+        var step2Group = document.getElementById('scene1-step2-group');
+        var step3Group = document.getElementById('scene1-step3-group');
+        var step4Group = document.getElementById('scene1-step4-group');
+
+        var topCells = [
+            document.getElementById('scene1-top-cell1'),
+            document.getElementById('scene1-top-cell2'),
+            document.getElementById('scene1-top-cell3'),
+            document.getElementById('scene1-top-cell4')
+        ];
+
+        var prevBtn = document.getElementById('scene1-prev-btn');
+        var nextBtn = document.getElementById('scene1-next-btn');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 工具函数：显示元素（带淡入效果）
+        function show(el) {
+            if (!el) return;
+            // 清除可能存在的隐藏定时器
+            if (el._hideTimeout) {
+                clearTimeout(el._hideTimeout);
+                el._hideTimeout = null;
+            }
+            el.style.display = '';
+            el.style.opacity = '0';
+            requestAnimationFrame(function() {
+                el.style.transition = 'opacity 200ms ease-out';
+                el.style.opacity = '1';
+            });
+        }
+
+        // 工具函数：隐藏元素（带淡出效果）
+        function hide(el) {
+            if (!el) return;
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 200ms ease-out';
+            // 清除之前的定时器，避免冲突
+            if (el._hideTimeout) {
+                clearTimeout(el._hideTimeout);
+            }
+            el._hideTimeout = setTimeout(function() {
+                el.style.display = 'none';
+                el._hideTimeout = null;
+            }, 200);
+        }
+
+        // 重置所有高亮和标签
+        function resetAll() {
+            // 恢复外框颜色
+            mainFrame.setAttribute('stroke', '#000000');
+            mainFrame.setAttribute('stroke-width', '2');
+            leftFrame.setAttribute('stroke', '#000000');
+            leftFrame.setAttribute('stroke-width', '2');
+            topFrame.setAttribute('stroke', '#000000');
+            topFrame.setAttribute('stroke-width', '2');
+
+            // 恢复标签颜色
+            mainLabel.setAttribute('fill', '#000000');
+            leftLabel.setAttribute('fill', '#000000');
+            topLabel.setAttribute('fill', '#000000');
+
+            // 恢复俯视图填充格外框
+            topCells.forEach(function(cell) {
+                cell.setAttribute('stroke', '#000000');
+                cell.setAttribute('stroke-width', '1');
+            });
+
+            // 隐藏所有步骤组
+            hide(step1Group);
+            hide(step2Group);
+            hide(step3Group);
+            hide(step4Group);
+        }
+
+        // 跳转到指定步骤
+        function goToStep(step) {
+            currentStep = step;
+
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === MAX_STEP);
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + ' / ' + (MAX_STEP + 1);
+
+            // 先重置所有
+            resetAll();
+
+            // 根据步骤显示对应内容
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：仅显示三个视图，无高亮无标注
+                    break;
+                case 1:
+                    // 步骤1：主视图高亮（蓝色），显示列高标签
+                    mainFrame.setAttribute('stroke', '#1565c0');
+                    mainFrame.setAttribute('stroke-width', '3');
+                    mainLabel.setAttribute('fill', '#1565c0');
+                    show(step1Group);
+                    break;
+                case 2:
+                    // 步骤2：左视图高亮（绿色），显示行高标签
+                    leftFrame.setAttribute('stroke', '#2e7d32');
+                    leftFrame.setAttribute('stroke-width', '3');
+                    leftLabel.setAttribute('fill', '#2e7d32');
+                    show(step2Group);
+                    break;
+                case 3:
+                    // 步骤3：俯视图高亮（红色），显示行列标签，填充格加红框
+                    topFrame.setAttribute('stroke', '#c62828');
+                    topFrame.setAttribute('stroke-width', '3');
+                    topLabel.setAttribute('fill', '#c62828');
+                    topCells.forEach(function(cell) {
+                        cell.setAttribute('stroke', '#c62828');
+                        cell.setAttribute('stroke-width', '2');
+                    });
+                    show(step3Group);
+                    break;
+                case 4:
+                    // 步骤4：保持俯视图红色高亮，显示连线
+                    topFrame.setAttribute('stroke', '#c62828');
+                    topFrame.setAttribute('stroke-width', '3');
+                    topLabel.setAttribute('fill', '#c62828');
+                    topCells.forEach(function(cell) {
+                        cell.setAttribute('stroke', '#c62828');
+                        cell.setAttribute('stroke-width', '2');
+                    });
+                    show(step3Group);
+                    show(step4Group);
+                    break;
+            }
+        }
+
+        // 事件绑定
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                goToStep(currentStep - 1);
+            }
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < MAX_STEP) {
+                goToStep(currentStep + 1);
+            }
+        });
+
+        // 初始化
+        goToStep(0);
+    })();
+    </script>
+</body>
+</html>

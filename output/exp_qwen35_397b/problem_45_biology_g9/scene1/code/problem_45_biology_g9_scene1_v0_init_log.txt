@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>血液流经器官示意图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .scene1-btn:disabled { background: #cccccc; color: #666666; cursor: not-allowed; }
+        .scene1-btn-primary { background: #1565c0; color: #ffffff; }
+        .scene1-btn-primary:hover:not(:disabled) { background: #0d47a1; }
+        .scene1-step-indicator { font-size: 14px; color: #333333; min-width: 80px; text-align: center; }
+        
+        /* 元素显隐类 */
+        .scene1-hidden { display: none; opacity: 0; }
+        .scene1-visible { display: block; opacity: 1; }
+        
+        /* 血流箭头脉动动画 */
+        @keyframes scene1-pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1.0; }
+        }
+        .scene1-pulsing { animation: scene1-pulse 1.5s ease-in-out infinite; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 血管 a（左管）轮廓 -->
+            <path id="scene1-vessel-a-outline" d="M 100 230 L 320 230 L 320 270 L 100 270 Z" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <!-- 血管 a 内部线条（上下管壁） -->
+            <line id="scene1-vessel-a-top" x1="100" y1="240" x2="320" y2="240" stroke="#000000" stroke-width="1"/>
+            <line id="scene1-vessel-a-bottom" x1="100" y1="260" x2="320" y2="260" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 器官 b（圆形） -->
+            <circle id="scene1-organ-b" cx="400" cy="250" r="80" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 血管 c（右管）轮廓 -->
+            <path id="scene1-vessel-c-outline" d="M 480 230 L 700 230 L 700 270 L 480 270 Z" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <!-- 血管 c 内部线条（上下管壁） -->
+            <line id="scene1-vessel-c-top" x1="480" y1="240" x2="700" y2="240" stroke="#000000" stroke-width="1"/>
+            <line id="scene1-vessel-c-bottom" x1="480" y1="260" x2="700" y2="260" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 基础标签 -->
+            <text id="scene1-label-a" x="210" y="215" font-size="16" fill="#000000" text-anchor="middle">a</text>
+            <text id="scene1-label-b" x="400" y="255" font-size="16" fill="#000000" text-anchor="middle">b</text>
+            <text id="scene1-label-c" x="590" y="215" font-size="16" fill="#000000" text-anchor="middle">c</text>
+            
+            <!-- 血流箭头 a（左侧，指向右） -->
+            <g id="scene1-arrow-a" class="scene1-hidden">
+                <polygon points="140,250 160,245 160,255" fill="#1565c0" class="scene1-pulsing"/>
+                <line x1="100" y1="250" x2="160" y2="250" stroke="#1565c0" stroke-width="3"/>
+            </g>
+            
+            <!-- 血流箭头 c（右侧，指向右） -->
+            <g id="scene1-arrow-c" class="scene1-hidden">
+                <polygon points="620,250 640,245 640,255" fill="#1565c0" class="scene1-pulsing"/>
+                <line x1="560" y1="250" x2="640" y2="250" stroke="#1565c0" stroke-width="3"/>
+            </g>
+            
+            <!-- 标注引线和文本 - a 流入血管 -->
+            <g id="scene1-annotation-a" class="scene1-hidden">
+                <line x1="210" y1="215" x2="210" y2="195" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+                <text x="210" y="180" font-size="14" fill="#000000" text-anchor="middle">a 流入血管</text>
+            </g>
+            
+            <!-- 标注引线和文本 - b 器官 -->
+            <g id="scene1-annotation-b" class="scene1-hidden">
+                <line x1="400" y1="170" x2="400" y2="165" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+                <text x="400" y="150" font-size="14" fill="#000000" text-anchor="middle">b 器官</text>
+            </g>
+            
+            <!-- 标注引线和文本 - c 流出血管 -->
+            <g id="scene1-annotation-c" class="scene1-hidden">
+                <line x1="590" y1="215" x2="590" y2="195" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+                <text x="590" y="180" font-size="14" fill="#000000" text-anchor="middle">c 流出血管</text>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-primary" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn scene1-btn-primary">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：血液流经器官示意图
+        
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 5;
+        
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 可显隐的元素组
+        const annotationA = document.getElementById('scene1-annotation-a');
+        const annotationB = document.getElementById('scene1-annotation-b');
+        const annotationC = document.getElementById('scene1-annotation-c');
+        const arrowA = document.getElementById('scene1-arrow-a');
+        const arrowC = document.getElementById('scene1-arrow-c');
+        
+        // 标签元素
+        const labelA = document.getElementById('scene1-label-a');
+        const labelB = document.getElementById('scene1-label-b');
+        const labelC = document.getElementById('scene1-label-c');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.classList.remove('scene1-hidden');
+            el.classList.add('scene1-visible');
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.classList.remove('scene1-visible');
+            el.classList.add('scene1-hidden');
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 更新状态显示
+        function updateState() {
+            // 重置所有标注和箭头
+            hide(annotationA);
+            hide(annotationB);
+            hide(annotationC);
+            hide(arrowA);
+            hide(arrowC);
+            
+            // 重置标签颜色
+            labelA.setAttribute('fill', '#000000');
+            labelB.setAttribute('fill', '#000000');
+            labelC.setAttribute('fill', '#000000');
+            
+            // 根据当前状态显示相应元素
+            if (currentState >= 1) {
+                show(annotationA);
+                labelA.setAttribute('fill', '#1565c0');
+            }
+            if (currentState >= 2) {
+                show(annotationB);
+                labelB.setAttribute('fill', '#1565c0');
+            }
+            if (currentState >= 3) {
+                show(annotationC);
+                labelC.setAttribute('fill', '#1565c0');
+            }
+            if (currentState >= 4) {
+                show(arrowA);
+                show(arrowC);
+            }
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps - 1);
+        }
+        
+        // 事件处理：上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+        
+        // 事件处理：下一步
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                updateState();
+            }
+        });
+        
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

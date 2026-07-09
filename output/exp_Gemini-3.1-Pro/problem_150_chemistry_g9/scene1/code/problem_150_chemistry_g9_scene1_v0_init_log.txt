@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .device { transition: transform 1s ease-in-out; }
+        .fade { transition: opacity 0.5s ease-in-out; }
+        .delay-fade { transition: opacity 0.5s ease-in-out 1s; }
+        .liquid { transition: fill 0.5s ease-in-out 1s, fill-opacity 0.5s ease-in-out 1s; }
+        .flame { transition: fill 0.5s ease-in-out 1s; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <defs>
+                <!-- Wash bottle template -->
+                <g id="wash-bottle">
+                    <!-- Bottle -->
+                    <path d="M -20 -10 L -20 40 A 5 5 0 0 0 -15 45 L 15 45 A 5 5 0 0 0 20 40 L 20 -10 L 10 -20 L 10 -30 L -10 -30 L -10 -20 Z" fill="none" stroke="#000" stroke-width="2"/>
+                    <!-- Stopper -->
+                    <rect x="-12" y="-32" width="24" height="8" fill="#555"/>
+                    <!-- Long tube (left) -->
+                    <polyline points="-5,-45 -5,35" fill="none" stroke="#000" stroke-width="2"/>
+                    <polyline points="-25,-45 -5,-45" fill="none" stroke="#000" stroke-width="2"/>
+                    <!-- Short tube (right) -->
+                    <polyline points="5,-45 5,-25" fill="none" stroke="#000" stroke-width="2"/>
+                    <polyline points="5,-45 25,-45" fill="none" stroke="#000" stroke-width="2"/>
+                </g>
+                <!-- Alcohol lamp template -->
+                <g id="alcohol-lamp">
+                    <path d="M -25 20 L 25 20 L 15 -10 L -15 -10 Z" fill="none" stroke="#000" stroke-width="2"/>
+                    <rect x="-8" y="-15" width="16" height="5" fill="#000"/>
+                    <path d="M -5 -15 L -5 -25 L 5 -25 L 5 -15 Z" fill="#ccc" stroke="#000" stroke-width="1"/>
+                </g>
+            </defs>
+
+            <!-- Texts -->
+            <text id="scene1-prompt" x="400" y="40" text-anchor="middle" font-size="16" fill="#333">实验目的：测定相同条件下CO和H2还原氧化铁的量。请组装实验装置。</text>
+            
+            <!-- Equations -->
+            <g id="scene1-equations" class="fade" opacity="0" transform="translate(120, 80)">
+                <foreignObject x="-100" y="0" width="200" height="60">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: 12px; text-align: center;">
+                        <div>\(3CO + Fe_2O_3 \xrightarrow{\Delta} 2Fe + 3CO_2\)</div>
+                        <div>\(3H_2 + Fe_2O_3 \xrightarrow{\Delta} 2Fe + 3H_2O\)</div>
+                    </div>
+                </foreignObject>
+            </g>
+
+            <!-- Figure Jia -->
+            <g id="scene1-jia" transform="translate(120, 220)">
+                <!-- Stand -->
+                <rect x="-60" y="60" width="80" height="5" fill="#000"/>
+                <rect x="-25" y="-30" width="5" height="90" fill="#000"/>
+                <rect x="-25" y="-10" width="20" height="5" fill="#000"/>
+                <!-- Alcohol lamp -->
+                <g transform="translate(10, 40)">
+                    <use href="#alcohol-lamp"/>
+                    <path d="M 0 -25 Q -10 -40 0 -50 Q 10 -40 0 -25" fill="#ff9800"/>
+                </g>
+                <!-- Glass tube -->
+                <rect x="-40" y="-30" width="100" height="20" fill="none" stroke="#000" stroke-width="2"/>
+                <rect x="-45" y="-32" width="5" height="24" fill="#555"/>
+                <rect x="60" y="-32" width="5" height="24" fill="#555"/>
+                <line x1="-60" y1="-20" x2="-45" y2="-20" stroke="#000" stroke-width="2"/>
+                <line x1="65" y1="-20" x2="80" y2="-20" stroke="#000" stroke-width="2"/>
+                <!-- Iron oxide -->
+                <path d="M 0 -10 Q 10 -20 20 -10 Z" fill="#8b0000"/>
+                <text x="10" y="-35" text-anchor="middle" font-size="12">氧化铁</text>
+                <text x="10" y="85" text-anchor="middle" font-size="14">图甲</text>
+            </g>
+
+            <!-- Input Gas -->
+            <text x="40" y="195" font-size="12" fill="#888">CO, H2</text>
+
+            <!-- Lines (initially hidden) -->
+            <path id="scene1-line1" class="delay-fade" opacity="0" d="M 200 200 L 230 200 L 230 175 L 275 175" fill="none" stroke="#000" stroke-width="2"/>
+            <path id="scene1-line2" class="delay-fade" opacity="0" d="M 325 175 L 425 175" fill="none" stroke="#000" stroke-width="2"/>
+            <path id="scene1-line3" class="delay-fade" opacity="0" d="M 475 175 L 600 175 L 600 195" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- Output Gas Labels -->
+            <!-- Adjusted x positions to prevent overlap -->
+            <text id="scene1-out1" class="fade" opacity="0" x="245" y="135" font-size="12" fill="#888" text-anchor="middle">CO2, H2O, 剩余CO, 剩余H2</text>
+            <text id="scene1-out2" class="delay-fade" opacity="0" x="400" y="105" font-size="12" fill="#888" text-anchor="middle">CO2, 剩余CO, 剩余H2</text>
+            <text id="scene1-out3" class="delay-fade" opacity="0" x="540" y="135" font-size="12" fill="#888" text-anchor="middle">剩余CO, 剩余H2</text>
+
+            <!-- Devices -->
+            <!-- Adjusted y positions for labels to prevent crowding and overlap with buttons -->
+            <!-- Device c (浓硫酸) -->
+            <g id="scene1-dev-c" class="device" transform="translate(490, 350)">
+                <rect id="scene1-liquid-c" class="liquid" x="-19" y="10" width="38" height="34" fill="transparent" fill-opacity="0"/>
+                <use href="#wash-bottle"/>
+                <text x="0" y="65" text-anchor="middle" font-size="12">浓硫酸</text>
+                <text x="0" y="100" text-anchor="middle" font-size="14">c</text>
+            </g>
+
+            <!-- Device b (NaOH) -->
+            <g id="scene1-dev-b" class="device" transform="translate(320, 350)">
+                <rect id="scene1-liquid-b" class="liquid" x="-19" y="10" width="38" height="34" fill="transparent" fill-opacity="0"/>
+                <use href="#wash-bottle"/>
+                <text x="0" y="65" text-anchor="middle" font-size="12">氢氧化钠浓溶液</text>
+                <text x="0" y="100" text-anchor="middle" font-size="14">b</text>
+            </g>
+
+            <!-- Device a (酒精灯) -->
+            <g id="scene1-dev-a" class="device" transform="translate(150, 350)">
+                <use href="#alcohol-lamp"/>
+                <path id="scene1-flame-a" class="flame" d="M 0 -25 Q -10 -40 0 -50 Q 10 -40 0 -25" fill="#ff9800"/>
+                <text x="0" y="45" text-anchor="middle" font-size="14">a</text>
+            </g>
+
+            <!-- Device d (石灰水) -->
+            <g id="scene1-dev-d" class="device" transform="translate(660, 350)">
+                <rect x="-19" y="10" width="38" height="34" fill="#eeeeee" fill-opacity="0.5"/>
+                <use href="#wash-bottle"/>
+                <text x="0" y="65" text-anchor="middle" font-size="12">澄清石灰水</text>
+                <text x="0" y="100" text-anchor="middle" font-size="14">d</text>
+            </g>
+
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const promptText = document.getElementById('scene1-prompt');
+        
+        const equations = document.getElementById('scene1-equations');
+        const out1 = document.getElementById('scene1-out1');
+        const out2 = document.getElementById('scene1-out2');
+        const out3 = document.getElementById('scene1-out3');
+        
+        const devA = document.getElementById('scene1-dev-a');
+        const devB = document.getElementById('scene1-dev-b');
+        const devC = document.getElementById('scene1-dev-c');
+        
+        const line1 = document.getElementById('scene1-line1');
+        const line2 = document.getElementById('scene1-line2');
+        const line3 = document.getElementById('scene1-line3');
+        
+        const liquidB = document.getElementById('scene1-liquid-b');
+        const liquidC = document.getElementById('scene1-liquid-c');
+        const flameA = document.getElementById('scene1-flame-a');
+
+        const prompts = [
+            "实验目的：测定相同条件下CO和H2还原氧化铁的量。请组装实验装置。",
+            "加热通入混合气体，发生还原反应生成CO2和H2O。",
+            "先连接装置c（浓硫酸）吸收水分，测定H2的还原量，避免后续溶液带来水分干扰。",
+            "再连接装置b（NaOH浓溶液）吸收CO2，测定CO的还原量。",
+            "最后连接装置a（酒精灯）点燃尾气，处理有毒的CO，防止污染。"
+        ];
+
+        function updateStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            promptText.textContent = prompts[currentStep];
+
+            // Step 1
+            equations.style.opacity = currentStep >= 1 ? "1" : "0";
+            out1.style.opacity = currentStep >= 1 ? "1" : "0";
+
+            // Step 2
+            if (currentStep >= 2) {
+                devC.setAttribute('transform', 'translate(300, 220)');
+                line1.style.opacity = "1";
+                liquidC.setAttribute('fill', '#1565c0');
+                liquidC.setAttribute('fill-opacity', '0.2');
+                out2.style.opacity = "1";
+            } else {
+                devC.setAttribute('transform', 'translate(490, 350)');
+                line1.style.opacity = "0";
+                liquidC.setAttribute('fill', 'transparent');
+                liquidC.setAttribute('fill-opacity', '0');
+                out2.style.opacity = "0";
+            }
+
+            // Step 3
+            if (currentStep >= 3) {
+                devB.setAttribute('transform', 'translate(450, 220)');
+                line2.style.opacity = "1";
+                liquidB.setAttribute('fill', '#c62828');
+                liquidB.setAttribute('fill-opacity', '0.2');
+                out3.style.opacity = "1";
+            } else {
+                devB.setAttribute('transform', 'translate(320, 350)');
+                line2.style.opacity = "0";
+                liquidB.setAttribute('fill', 'transparent');
+                liquidB.setAttribute('fill-opacity', '0');
+                out3.style.opacity = "0";
+            }
+
+            // Step 4
+            if (currentStep >= 4) {
+                devA.setAttribute('transform', 'translate(600, 220)');
+                line3.style.opacity = "1";
+                flameA.setAttribute('fill', '#2e7d32');
+            } else {
+                devA.setAttribute('transform', 'translate(150, 350)');
+                line3.style.opacity = "0";
+                flameA.setAttribute('fill', '#ff9800');
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

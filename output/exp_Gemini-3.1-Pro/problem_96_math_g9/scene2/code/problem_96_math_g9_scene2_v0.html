@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; z-index: 10; }
+        #scene2-slider { width: 400px; cursor: pointer; }
+        #scene2-labels { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .scene2-label {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #000;
+            border: 1px solid #999;
+            opacity: 0;
+            transition: opacity 0.2s;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
+            "three/addons/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene2-container">
+        <div id="scene2-labels">
+            <div id="scene2-label-left" class="scene2-label" style="margin: -20px 0 0 -100px;">左侧面</div>
+            <div id="scene2-label-back" class="scene2-label" style="margin: -20px 0 0 100px;">后侧面</div>
+            <div id="scene2-label-edge" class="scene2-label" style="margin: 60px 0 0 -80px;">公共拼接棱</div>
+        </div>
+        <div id="scene2-controls">
+            <input type="range" id="scene2-slider" min="0" max="100" value="0">
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+
+        const container = document.getElementById('scene2-container');
+        const slider = document.getElementById('scene2-slider');
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#ffffff');
+
+        const camera = new THREE.PerspectiveCamera(45, 800 / 500, 0.1, 100);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(800, 500);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.insertBefore(renderer.domElement, container.firstChild);
+
+        // Texture generation
+        function createFaceTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 512, 512);
+
+            if (type === 'face1') {
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(512, 512);
+                ctx.lineTo(0, 512);
+                ctx.closePath();
+                
+                ctx.save();
+                ctx.clip();
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 4;
+                for (let i = 0; i < 1500; i += 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i - 512, 512);
+                    ctx.stroke();
+                }
+                ctx.restore();
+                
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(512, 512);
+                ctx.stroke();
+            } else if (type === 'face4') {
+                ctx.beginPath();
+                ctx.moveTo(0, 512);
+                ctx.lineTo(512, 0);
+                ctx.lineTo(512, 512);
+                ctx.closePath();
+                
+                ctx.save();
+                ctx.clip();
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 4;
+                for (let i = -512; i < 1024; i += 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i + 512, 512);
+                    ctx.stroke();
+                }
+                ctx.restore();
+                
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(0, 512);
+                ctx.lineTo(512, 0);
+                ctx.stroke();
+            } else if (type === 'face5') {
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(256, 256, 128, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(0, 0, 512, 512);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        }
+
+        const materials = {
+            face1: new THREE.MeshBasicMaterial({ map: createFaceTexture('face1'), side: THREE.DoubleSide }),
+            face2: new THREE.MeshBasicMaterial({ map: createFaceTexture('face2'), side: THREE.DoubleSide }),
+            face3: new THREE.MeshBasicMaterial({ map: createFaceTexture('face3'), side: THREE.DoubleSide }),
+            face4: new THREE.MeshBasicMaterial({ map: createFaceTexture('face4'), side: THREE.DoubleSide }),
+            face5: new THREE.MeshBasicMaterial({ map: createFaceTexture('face5'), side: THREE.DoubleSide }),
+            face6: new THREE.MeshBasicMaterial({ map: createFaceTexture('face6'), side: THREE.DoubleSide }),
+        };
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const rootGroup = new THREE.Group();
+        scene.add(rootGroup);
+
+        // Face 2 (Center)
+        const face2 = new THREE.Mesh(geometry, materials.face2);
+        rootGroup.add(face2);
+
+        // Face 1 (Left)
+        const face1Group = new THREE.Group();
+        face1Group.position.set(-1, 0, 0);
+        const face1 = new THREE.Mesh(geometry, materials.face1);
+        face1.position.set(-1, 0, 0);
+        face1Group.add(face1);
+        rootGroup.add(face1Group);
+
+        // Face 3 (Right)
+        const face3Group = new THREE.Group();
+        face3Group.position.set(1, 0, 0);
+        const face3 = new THREE.Mesh(geometry, materials.face3);
+        face3.position.set(1, 0, 0);
+        face3Group.add(face3);
+        rootGroup.add(face3Group);
+
+        // Face 4 (Back, child of Face 3)
+        const face4Group = new THREE.Group();
+        face4Group.position.set(1, 0, 0);
+        const face4 = new THREE.Mesh(geometry, materials.face4);
+        face4.position.set(1, 0, 0);
+        face4Group.add(face4);
+        face3.add(face4Group);
+
+        // Face 5 (Top)
+        const face5Group = new THREE.Group();
+        face5Group.position.set(0, 1, 0);
+        const face5 = new THREE.Mesh(geometry, materials.face5);
+        face5.position.set(0, 1, 0);
+        face5Group.add(face5);
+        rootGroup.add(face5Group);
+
+        // Face 6 (Bottom)
+        const face6Group = new THREE.Group();
+        face6Group.position.set(0, -1, 0);
+        const face6 = new THREE.Mesh(geometry, materials.face6);
+        face6.position.set(0, -1, 0);
+        face6Group.add(face6);
+        rootGroup.add(face6Group);
+
+        // Highlight Edge
+        const edgeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 2, 16);
+        const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0xc62828 });
+        const highlightEdge = new THREE.Mesh(edgeGeometry, edgeMaterial);
+        highlightEdge.position.set(-1, 0, -2);
+        highlightEdge.visible = false;
+        scene.add(highlightEdge);
+
+        // Camera animation paths
+        const startCamPos = new THREE.Vector3(0, 0, 11);
+        const endCamPos = new THREE.Vector3(-6, 4, -7);
+        const startTarget = new THREE.Vector3(0, 0, 0);
+        const endTarget = new THREE.Vector3(0, 0, -1);
+
+        const labels = [
+            { id: 'scene2-label-left', pos: new THREE.Vector3(-1, 0, -1) },
+            { id: 'scene2-label-back', pos: new THREE.Vector3(0, 0, -2) },
+            { id: 'scene2-label-edge', pos: new THREE.Vector3(-1, 0, -2) }
+        ];
+
+        function updateScene(t) {
+            const angle = t * Math.PI / 2;
+            
+            face1Group.rotation.y = -angle;
+            face3Group.rotation.y = angle;
+            face4Group.rotation.y = angle;
+            face5Group.rotation.x = -angle;
+            face6Group.rotation.x = angle;
+            
+            camera.position.lerpVectors(startCamPos, endCamPos, t);
+            const currentTarget = new THREE.Vector3().lerpVectors(startTarget, endTarget, t);
+            camera.lookAt(currentTarget);
+            
+            highlightEdge.visible = (t === 1);
+        }
+
+        function updateLabels(t) {
+            if (t < 1) {
+                labels.forEach(l => {
+                    const el = document.getElementById(l.id);
+                    if (el) el.style.opacity = '0';
+                });
+                return;
+            }
+            
+            labels.forEach(labelData => {
+                const el = document.getElementById(labelData.id);
+                if (!el) return;
+                
+                const vector = labelData.pos.clone();
+                vector.project(camera);
+                
+                const x = (vector.x * 0.5 + 0.5) * 800;
+                const y = (vector.y * -0.5 + 0.5) * 500;
+                
+                el.style.left = `${x}px`;
+                el.style.top = `${y}px`;
+                el.style.opacity = '1';
+            });
+        }
+
+        slider.addEventListener('input', (e) => {
+            const t = parseInt(e.target.value) / 100;
+            updateScene(t);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = parseInt(slider.value) / 100;
+            updateLabels(t);
+            renderer.render(scene, camera);
+        }
+
+        // Initialize
+        updateScene(0);
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光照图基础要素识别与日期分界线分析</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-fade {
+            transition: opacity 0.3s ease;
+        }
+        .scene1-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene1-visible {
+            opacity: 1;
+            display: block;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #scene1-btn-prev:hover:not(:disabled), #scene1-btn-next:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #555;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 标题 -->
+            <text id="scene1-title" x="400" y="35" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">光照图基础要素识别与日期分界线分析</text>
+
+            <!-- 外框矩形（向左缩小，给右侧图例留出空间） -->
+            <rect id="scene1-frame" x="120" y="80" width="480" height="300" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- 纬线 -->
+            <!-- 0°纬线（赤道）- 顶部 -->
+            <line id="scene1-lat-0" x1="120" y1="80" x2="600" y2="80" stroke="#000" stroke-width="2"/>
+            <!-- 23.5°纬线 - 虚线 -->
+            <line id="scene1-lat-235" x1="120" y1="155" x2="600" y2="155" stroke="#000" stroke-width="2" stroke-dasharray="5,5"/>
+            <!-- 70°纬线 - 虚线 -->
+            <line id="scene1-lat-70" x1="120" y1="305" x2="600" y2="305" stroke="#000" stroke-width="2" stroke-dasharray="5,5"/>
+            <!-- 南极圈纬线 - 底部边界 -->
+            <line id="scene1-lat-antarctic" x1="120" y1="380" x2="600" y2="380" stroke="#000" stroke-width="2"/>
+
+            <!-- 经线（7 条竖线） -->
+            <line id="scene1-lon-1" x1="120" y1="80" x2="120" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-lon-2" x1="200" y1="80" x2="200" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-lon-3" x1="280" y1="80" x2="280" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-lon-4" x1="360" y1="80" x2="360" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-lon-5" x1="440" y1="80" x2="440" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-lon-6" x1="520" y1="80" x2="520" y2="380" stroke="#000" stroke-width="2"/>
+            <line id="scene1-lon-7" x1="600" y1="80" x2="600" y2="380" stroke="#000" stroke-width="2"/>
+
+            <!-- 昼半球区域（晨线 BO 右侧，蓝色 20% 透明） -->
+            <path id="scene1-day-area" class="scene1-fade scene1-hidden" 
+                  d="M 360,305 L 600,80 L 600,380 L 360,380 Z" 
+                  fill="#1565c0" fill-opacity="0.2" stroke="none"/>
+
+            <!-- 夜半球区域（昏线 AO 左侧，灰色 30% 透明） -->
+            <path id="scene1-night-area" class="scene1-fade scene1-hidden" 
+                  d="M 120,80 L 200,155 L 360,305 L 120,305 L 120,80 Z" 
+                  fill="#888888" fill-opacity="0.3" stroke="none"/>
+
+            <!-- 昏线 AO（红色加粗） -->
+            <line id="scene1-line-ao" class="scene1-fade scene1-hidden" 
+                  x1="200" y1="155" x2="360" y2="305" 
+                  stroke="#c62828" stroke-width="4"/>
+
+            <!-- 晨线 BO（绿色加粗） -->
+            <line id="scene1-line-bo" class="scene1-fade scene1-hidden" 
+                  x1="360" y1="305" x2="600" y2="80" 
+                  stroke="#2e7d32" stroke-width="4"/>
+
+            <!-- 日期分界线 -->
+            <!-- 0 时经线（最左侧，蓝色虚线） -->
+            <line id="scene1-date-line-0h" class="scene1-fade scene1-hidden" 
+                  x1="120" y1="80" x2="120" y2="380" 
+                  stroke="#1565c0" stroke-width="2" stroke-dasharray="8,4"/>
+            <!-- 180°经线（最右侧，蓝色虚线） -->
+            <line id="scene1-date-line-180" class="scene1-fade scene1-hidden" 
+                  x1="600" y1="80" x2="600" y2="380" 
+                  stroke="#1565c0" stroke-width="2" stroke-dasharray="8,4"/>
+
+            <!-- 阴影区域（斜线填充） -->
+            <g id="scene1-shadow-area" class="scene1-fade scene1-hidden">
+                <defs>
+                    <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                        <line x1="0" y1="0" x2="0" y2="10" stroke="#888888" stroke-width="2"/>
+                    </pattern>
+                </defs>
+                <rect x="120" y="80" width="160" height="300" fill="url(#scene1-hatch)" fill-opacity="0.4" stroke="none"/>
+            </g>
+
+            <!-- 点标注 -->
+            <!-- A 点 -->
+            <circle id="scene1-point-a" cx="200" cy="155" r="5" fill="#000"/>
+            <!-- B 点 -->
+            <circle id="scene1-point-b" cx="600" cy="80" r="5" fill="#000"/>
+            <!-- O 点 -->
+            <circle id="scene1-point-o" cx="360" cy="305" r="5" fill="#000"/>
+
+            <!-- 点标签（完全在外框外部） -->
+            <!-- A 点标签：向左上方，在外框外 -->
+            <text id="scene1-label-a" x="165" y="125" font-size="14" fill="#000">A</text>
+            <!-- B 点标签：向右上方 -->
+            <text id="scene1-label-b" x="610" y="70" font-size="14" fill="#000">B</text>
+            <!-- O 点标签：向下，在外框下方 -->
+            <text id="scene1-label-o" x="365" y="375" font-size="14" fill="#000">O</text>
+
+            <!-- 纬线标注（向右移动） -->
+            <text id="scene1-label-0deg" x="635" y="85" font-size="14" fill="#000">0°</text>
+            <text id="scene1-label-235deg" x="635" y="160" font-size="14" fill="#000">23.5°</text>
+            <text id="scene1-label-70deg" x="635" y="310" font-size="14" fill="#000">70°</text>
+
+            <!-- 晨昏线标签（移到图形内部中央空白区域，远离线条） -->
+            <!-- 晨线标签：放在晨线右侧空白区 -->
+            <text id="scene1-label-morning" class="scene1-fade scene1-hidden" x="530" y="140" font-size="14" fill="#2e7d32" font-weight="bold">晨线</text>
+            <!-- 昏线标签：放在昏线左侧空白区 -->
+            <text id="scene1-label-evening" class="scene1-fade scene1-hidden" x="190" y="200" font-size="14" fill="#c62828" font-weight="bold">昏线</text>
+
+            <!-- 日期分界线标签 -->
+            <text id="scene1-label-180" class="scene1-fade scene1-hidden" x="635" y="230" font-size="14" fill="#1565c0" font-weight="bold">180°</text>
+            <text id="scene1-label-0h" class="scene1-fade scene1-hidden" x="85" y="230" font-size="14" fill="#1565c0" font-weight="bold">0 时</text>
+
+            <!-- 图例区域（移到右侧空白区，x 从 680 开始，垂直间距加大） -->
+            <g id="scene1-legend-group">
+                <!-- 图例标题 -->
+                <text x="715" y="95" text-anchor="middle" font-size="12" fill="#000" font-weight="bold">图例</text>
+                
+                <!-- 晨线 -->
+                <line x1="685" y1="118" x2="710" y2="118" stroke="#2e7d32" stroke-width="4"/>
+                <text x="718" y="123" font-size="11" fill="#000">晨线</text>
+                
+                <!-- 昏线 -->
+                <line x1="685" y1="142" x2="710" y2="142" stroke="#c62828" stroke-width="4"/>
+                <text x="718" y="147" font-size="11" fill="#000">昏线</text>
+                
+                <!-- 昼半球 -->
+                <rect x="685" y="160" width="25" height="14" fill="#1565c0" fill-opacity="0.2"/>
+                <text x="718" y="170" font-size="11" fill="#000">昼半球</text>
+                
+                <!-- 夜半球 -->
+                <rect x="685" y="184" width="25" height="14" fill="#888888" fill-opacity="0.3"/>
+                <text x="718" y="194" font-size="11" fill="#000">夜半球</text>
+                
+                <!-- 日期线 -->
+                <line x1="685" y1="214" x2="710" y2="214" stroke="#1565c0" stroke-width="2" stroke-dasharray="4,2"/>
+                <text x="718" y="219" font-size="11" fill="#000">日期线</text>
+                
+                <!-- 阴影区 -->
+                <rect x="685" y="238" width="25" height="14" fill="url(#scene1-hatch)" fill-opacity="0.4"/>
+                <text x="718" y="248" font-size="11" fill="#000">阴影区</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：光照图基础要素识别与日期分界线分析
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 标题 | text | (400,35) | ~200×20 | - | 顶部居中 |
+        // | 外框矩形 | rect | (120,80)-(600,380) | 480×300 | - | 主图边框 |
+        // | 纬线 0° | line | (120,80)-(600,80) | 480×2 | - | 赤道，顶部 |
+        // | 纬线 23.5° | line | (120,155)-(600,155) | 480×2 | 虚线 | 回归线 |
+        // | 纬线 70° | line | (120,305)-(600,305) | 480×2 | 虚线 | 极圈 |
+        // | 纬线南极圈 | line | (120,380)-(600,380) | 480×2 | - | 底部边界 |
+        // | 经线 1-7 | line | x=120,200,280,360,440,520,600 | 2×300 | - | 竖线 |
+        // | O 点 | circle | (360,305) | r=5 | - | 晨昏线切点 |
+        // | A 点 | circle | (200,155) | r=5 | 左上 | 昏线上 |
+        // | B 点 | circle | (600,80) | r=5 | 右上 | 晨线上 |
+        // | 昏线 AO | line | (200,155)-(360,305) | 4×加粗 | - | 红色#c62828 |
+        // | 晨线 BO | line | (360,305)-(600,80) | 4×加粗 | - | 绿色#2e7d32 |
+        // | 昼半球 | path | 晨线 BO 右侧区域 | 填充 | - | 蓝色#1565c0 透明度 20% |
+        // | 夜半球 | path | 昏线 AO 左侧区域 | 填充 | - | 灰色#888888 透明度 30% |
+        // | 180°经线 | line | (600,80)-(600,380) | 2×虚线 | 右侧 | 蓝色#1565c0 |
+        // | 0 时经线 | line | (120,80)-(120,380) | 2×虚线 | 左侧 | 蓝色#1565c0 |
+        // | 阴影区 | rect | (120,80)-(280,380) | 160×300 | - | 斜线填充#888888 |
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步需要显示的元素（按步骤分组）
+        const stepElements = {
+            0: [], // 初始状态：只显示基础网格和点标注
+            1: ['scene1-line-ao', 'scene1-line-bo', 'scene1-label-morning', 'scene1-label-evening'],
+            2: ['scene1-day-area', 'scene1-night-area'],
+            3: ['scene1-date-line-0h', 'scene1-date-line-180', 'scene1-label-180', 'scene1-label-0h'],
+            4: ['scene1-shadow-area']
+        };
+
+        // 元素可见性状态跟踪
+        const elementVisibility = {};
+
+        // 工具函数：显示元素
+        function showElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                elementVisibility[elementId] = true;
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+                elementVisibility[elementId] = false;
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 根据当前步骤，显示/隐藏对应元素
+            for (let step = 0; step < totalSteps; step++) {
+                const elements = stepElements[step];
+                const shouldShow = step <= currentStep;
+                
+                elements.forEach(elId => {
+                    if (shouldShow && !elementVisibility[elId]) {
+                        showElement(elId);
+                    } else if (!shouldShow && elementVisibility[elId]) {
+                        hideElement(elId);
+                    }
+                });
+            }
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            const indicator = document.getElementById('scene1-step-indicator');
+
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps - 1);
+            indicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+
+        // 事件处理：上一步
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        // 事件处理：下一步
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

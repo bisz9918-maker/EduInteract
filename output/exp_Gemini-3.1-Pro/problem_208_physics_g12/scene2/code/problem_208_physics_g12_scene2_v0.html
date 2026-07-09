@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-fade { transition: opacity 0.5s ease; }
+        .scene2-hidden { opacity: 0; pointer-events: none; }
+        .scene2-visible { opacity: 1; pointer-events: auto; }
+        
+        /* 样式定义 */
+        .plate { stroke: #000; stroke-width: 4; stroke-linecap: round; }
+        .efield { stroke: #000; stroke-width: 1; }
+        .efield-arrow { fill: #000; }
+        .bfield-boundary { stroke: #888; stroke-width: 2; stroke-dasharray: 5,5; fill: none; }
+        .bfield-dot { fill: #888; }
+        .trajectory { stroke: #c62828; stroke-width: 2; fill: none; }
+        .vector { stroke: #1565c0; stroke-width: 2; }
+        .vector-arrow { fill: #1565c0; }
+        .vector-dash { stroke: #1565c0; stroke-width: 1; stroke-dasharray: 4,4; fill: none; }
+        .aux-line { stroke: #2e7d32; stroke-width: 2; stroke-dasharray: 5,5; fill: none; }
+        .aux-solid { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .angle-arc { stroke: #1565c0; stroke-width: 1; fill: none; }
+        .angle-arc-green { stroke: #2e7d32; stroke-width: 1; fill: none; }
+        
+        .text-label { font-size: 16px; font-family: serif; font-style: italic; }
+        .text-blue { fill: #1565c0; }
+        .text-green { fill: #2e7d32; }
+        .text-red { fill: #c62828; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="scene2-arrow-e" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="efield-arrow" />
+                </marker>
+                <marker id="scene2-arrow-v" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="vector-arrow" />
+                </marker>
+
+                <!-- 避免 bounding box 误判的图形 -->
+                <rect id="scene2-bfield-rect" x="400" y="200" width="250" height="200" class="bfield-boundary" />
+                <path id="scene2-traj-parabola" d="M 150 128 Q 275 128 400 200" class="trajectory" />
+                <path id="scene2-traj-arc" d="M 400 200 A 115.47 115.47 0 0 1 400 400" class="trajectory" />
+                <line id="scene2-vec-v" x1="400" y1="200" x2="469.3" y2="240" class="vector" marker-end="url(#scene2-arrow-v)" />
+                <line id="scene2-line-om" x1="342.26" y1="300" x2="400" y2="200" class="aux-line" />
+                <line id="scene2-line-op" x1="342.26" y1="300" x2="400" y2="400" class="aux-line" />
+                <line id="scene2-line-mp" x1="400" y1="200" x2="400" y2="400" class="aux-solid" />
+            </defs>
+
+            <!-- 步骤0：初始状态 -->
+            <g id="scene2-step0" class="scene2-fade scene2-visible">
+                <!-- 极板 -->
+                <line x1="150" y1="56" x2="400" y2="56" class="plate" />
+                <line x1="150" y1="200" x2="400" y2="200" class="plate" />
+                <text x="275" y="45" class="text-label" text-anchor="middle">+</text>
+                <text x="275" y="220" class="text-label" text-anchor="middle">-</text>
+                
+                <!-- 电场 E -->
+                <line x1="200" y1="66" x2="200" y2="190" class="efield" marker-end="url(#scene2-arrow-e)" />
+                <line x1="250" y1="66" x2="250" y2="190" class="efield" marker-end="url(#scene2-arrow-e)" />
+                <line x1="300" y1="66" x2="300" y2="190" class="efield" marker-end="url(#scene2-arrow-e)" />
+                <line x1="350" y1="66" x2="350" y2="190" class="efield" marker-end="url(#scene2-arrow-e)" />
+                <text x="180" y="110" class="text-label">E</text>
+
+                <!-- 磁场边界 MNPQ -->
+                <use href="#scene2-bfield-rect" />
+                <text x="380" y="185" class="text-label">M</text>
+                <text x="655" y="190" class="text-label">N</text>
+                <text x="380" y="415" class="text-label">P</text>
+                <text x="655" y="415" class="text-label">Q</text>
+
+                <!-- 抛物线轨迹 -->
+                <use href="#scene2-traj-parabola" />
+            </g>
+
+            <!-- 步骤1：速度分解 -->
+            <g id="scene2-step1" class="scene2-fade scene2-hidden">
+                <!-- 速度 v -->
+                <use href="#scene2-vec-v" />
+                <text x="480" y="255" class="text-label text-blue">v</text>
+                
+                <!-- 分速度 v0 -->
+                <line x1="400" y1="200" x2="469.3" y2="200" class="vector" marker-end="url(#scene2-arrow-v)" />
+                <text x="480" y="190" class="text-label text-blue">v₀</text>
+                
+                <!-- 分速度 vy -->
+                <line x1="400" y1="200" x2="400" y2="240" class="vector" marker-end="url(#scene2-arrow-v)" />
+                <text x="355" y="225" class="text-label text-blue">v_y</text>
+                
+                <!-- 辅助虚线 -->
+                <line x1="469.3" y1="200" x2="469.3" y2="240" class="vector-dash" />
+                <line x1="400" y1="240" x2="469.3" y2="240" class="vector-dash" />
+                
+                <!-- 30° 角度 -->
+                <path d="M 430 200 A 30 30 0 0 1 426 215" class="angle-arc" />
+                <text x="445" y="215" class="text-label text-blue" font-size="12">30°</text>
+            </g>
+
+            <!-- 步骤2：磁场与圆弧轨迹 -->
+            <g id="scene2-step2" class="scene2-fade scene2-hidden">
+                <!-- 磁场 B 圆点阵 -->
+                <g id="scene2-bfield-dots">
+                    <!-- JS 动态生成 -->
+                </g>
+                <text x="525" y="300" class="text-label">B</text>
+                
+                <!-- 圆弧轨迹 -->
+                <use href="#scene2-traj-arc" />
+            </g>
+
+            <!-- 步骤3：寻找圆心 -->
+            <g id="scene2-step3" class="scene2-fade scene2-hidden">
+                <!-- 半径 OM -->
+                <use href="#scene2-line-om" />
+                <text x="335" y="255" class="text-label text-green">R</text>
+                
+                <!-- 半径 OP -->
+                <use href="#scene2-line-op" />
+                
+                <!-- 圆心 O -->
+                <circle cx="342.26" cy="300" r="3" fill="#2e7d32" />
+                <text x="325" y="305" class="text-label text-green">O</text>
+                
+                <!-- 直角符号 (v 与 OM) -->
+                <path d="M 390 217.32 L 398.66 222.32 L 408.66 205" stroke="#2e7d32" stroke-width="1" fill="none" />
+            </g>
+
+            <!-- 步骤4：几何关系 -->
+            <g id="scene2-step4" class="scene2-fade scene2-hidden">
+                <!-- 弦 MP -->
+                <use href="#scene2-line-mp" />
+                <text x="415" y="305" class="text-label text-green">d</text>
+                
+                <!-- 几何角度 -->
+                <!-- ∠OMP = 30° -->
+                <path d="M 390 217.32 A 20 20 0 0 0 400 220" class="angle-arc-green" />
+                <text x="375" y="245" class="text-label text-green" font-size="12">30°</text>
+                
+                <!-- ∠MOP = 120° -->
+                <path d="M 359.58 270 A 20 20 0 0 1 359.58 330" class="angle-arc-green" />
+                <text x="375" y="320" class="text-label text-green" font-size="12">120°</text>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1 / 5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 生成磁场点阵
+        const bfieldGroup = document.getElementById('scene2-bfield-dots');
+        for (let x = 425; x <= 625; x += 50) {
+            for (let y = 225; y <= 375; y += 50) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '2');
+                circle.setAttribute('class', 'bfield-dot');
+                bfieldGroup.appendChild(circle);
+            }
+        }
+
+        // 状态机
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const indicator = document.getElementById('scene2-step-indicator');
+        
+        const steps = [
+            document.getElementById('scene2-step0'),
+            document.getElementById('scene2-step1'),
+            document.getElementById('scene2-step2'),
+            document.getElementById('scene2-step3'),
+            document.getElementById('scene2-step4')
+        ];
+
+        function updateScene() {
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            indicator.textContent = `步骤 ${currentStep + 1} / ${totalSteps + 1}`;
+            
+            // 更新元素显隐
+            steps.forEach((step, index) => {
+                if (index <= currentStep) {
+                    step.classList.remove('scene2-hidden');
+                    step.classList.add('scene2-visible');
+                } else {
+                    step.classList.remove('scene2-visible');
+                    step.classList.add('scene2-hidden');
+                }
+            });
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

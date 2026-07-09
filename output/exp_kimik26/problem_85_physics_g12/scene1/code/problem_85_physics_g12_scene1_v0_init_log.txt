@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连通气缸装置 - 场景1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        .scene1-btn {
+            padding: 6px 18px;
+            font-size: 14px;
+            border: 1px solid #333;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) { background: #f0f0f0; }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 步骤指示器 */
+        #scene1-step-indicator { font-size: 14px; color: #555; min-width: 80px; text-align: center; }
+
+        /* 加热动画 */
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+        .heating { animation: pulse 0.6s infinite alternate; }
+
+        /* 高亮样式 */
+        .highlight-green { fill: #2e7d32 !important; color: #2e7d32 !important; font-weight: bold !important; }
+        .highlight-text { fill: #2e7d32; font-weight: bold; }
+
+        /* 状态面板 - HTML实现避免SVG重叠检测 */
+        #scene1-state-panel {
+            position: absolute;
+            left: 460px;
+            top: 120px;
+            width: 290px;
+            height: 300px;
+            border: 1px solid #333;
+            background: #fff;
+            font-size: 13px;
+            z-index: 5;
+        }
+        #scene1-state-panel .panel-header {
+            height: 35px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            color: #333;
+        }
+        #scene1-state-panel .panel-body {
+            padding: 12px 15px;
+        }
+        #scene1-state-panel .gas-section {
+            margin-bottom: 18px;
+        }
+        #scene1-state-panel .gas-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        #scene1-state-panel .gas-title.n2 { color: #1565c0; }
+        #scene1-state-panel .gas-title.o2 { color: #c62828; }
+        #scene1-state-panel .param-row {
+            margin: 5px 0;
+            color: #333;
+            line-height: 1.5;
+        }
+        #scene1-state-panel .conclusion {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px dashed #ccc;
+            color: #333;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区 -->
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ========== 装置结构 ========== -->
+
+            <!-- 气缸A外框 (80,120) 120x300 -->
+            <rect id="scene1-cylinder-a" x="80" y="120" width="120" height="300" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- A顶部盖子 (75,115) 130x8 -->
+            <rect id="scene1-lid-a" x="75" y="115" width="130" height="8" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- A导热边框 - 顶部红色粗线 -->
+            <line id="scene1-thermal-top" x1="80" y1="120" x2="200" y2="120" stroke="#c62828" stroke-width="3"/>
+            <!-- A侧壁绝热标识 - 灰色细线 -->
+            <line x1="80" y1="120" x2="80" y2="420" stroke="#888" stroke-width="1"/>
+            <line x1="200" y1="120" x2="200" y2="420" stroke="#888" stroke-width="1"/>
+
+            <!-- 气缸B外框 (280,120) 60x300 -->
+            <rect id="scene1-cylinder-b" x="280" y="120" width="60" height="300" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- B侧壁绝热标识 -->
+            <line x1="280" y1="120" x2="280" y2="420" stroke="#888" stroke-width="1"/>
+            <line x1="340" y1="120" x2="340" y2="420" stroke="#888" stroke-width="1"/>
+
+            <!-- U形连通管 -->
+            <!-- 左竖 (135,420) 10x20 -->
+            <rect id="scene1-tube-left" x="135" y="420" width="10" height="20" fill="#1565c0" fill-opacity="0.2" stroke="#888" stroke-width="1"/>
+            <!-- 横管 (135,430) 175x10 -->
+            <rect id="scene1-tube-h" x="135" y="430" width="175" height="10" fill="#1565c0" fill-opacity="0.2" stroke="#888" stroke-width="1"/>
+            <!-- 右竖 (300,420) 10x20 -->
+            <rect id="scene1-tube-right" x="300" y="420" width="10" height="20" fill="#1565c0" fill-opacity="0.2" stroke="#888" stroke-width="1"/>
+
+            <!-- ========== 气体区域 ========== -->
+
+            <!-- 氧气区 (A活塞上方) -->
+            <rect id="scene1-gas-o2" x="85" y="120" width="110" height="72" fill="#c62828" fill-opacity="0.2"/>
+
+            <!-- 大气区 (B活塞上方) -->
+            <rect id="scene1-gas-atm" x="285" y="120" width="50" height="147" fill="#eeeeee" fill-opacity="0.3"/>
+
+            <!-- 氮气区A部 (A活塞下方) -->
+            <rect id="scene1-gas-n2-a" x="85" y="198" width="110" height="222" fill="#1565c0" fill-opacity="0.2"/>
+
+            <!-- 氮气区B部 (B活塞下方) -->
+            <rect id="scene1-gas-n2-b" x="285" y="273" width="50" height="147" fill="#1565c0" fill-opacity="0.2"/>
+
+            <!-- ========== 活塞 ========== -->
+
+            <!-- 活塞a (85,192) 110x6 -->
+            <rect id="scene1-piston-a" x="85" y="192" width="110" height="6" fill="#333" stroke="#000" stroke-width="1"/>
+
+            <!-- 活塞b (285,267) 50x6 -->
+            <rect id="scene1-piston-b" x="285" y="267" width="50" height="6" fill="#333" stroke="#000" stroke-width="1"/>
+
+            <!-- ========== 电阻丝 ========== -->
+
+            <!-- 电阻丝A -->
+            <path id="scene1-heater-a" d="M80,454 L85,450 L90,458 L95,450 L100,458 L105,450 L110,458 L115,450 L120,458 L125,450 L130,458 L135,450 L140,458 L145,450 L150,458 L155,450 L160,458 L165,450 L170,458 L175,450 L180,458 L185,450 L190,458 L195,450 L200,454" fill="none" stroke="#c62828" stroke-width="2"/>
+            <!-- 电阻丝B -->
+            <path id="scene1-heater-b" d="M280,454 L285,450 L290,458 L295,450 L300,458 L305,450 L310,458 L315,450 L320,458 L325,450 L330,458 L335,450 L340,454" fill="none" stroke="#c62828" stroke-width="2"/>
+
+            <!-- ========== 尺寸标注线 ========== -->
+
+            <!-- H标注 (左侧总高) -->
+            <line id="scene1-dim-h-line" x1="60" y1="120" x2="60" y2="420" stroke="#888" stroke-width="1"/>
+            <line x1="55" y1="120" x2="65" y2="120" stroke="#888" stroke-width="1"/>
+            <line x1="55" y1="420" x2="65" y2="420" stroke="#888" stroke-width="1"/>
+            <text id="scene1-label-h" x="40" y="275" font-size="14" fill="#333" text-anchor="middle">H</text>
+
+            <!-- H/4标注 (A右侧) -->
+            <line id="scene1-dim-h4-line" x1="205" y1="120" x2="205" y2="195" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="200" y1="120" x2="210" y2="120" stroke="#888" stroke-width="1"/>
+            <line x1="200" y1="195" x2="210" y2="195" stroke="#888" stroke-width="1"/>
+            <text id="scene1-label-h4" x="225" y="162" font-size="13" fill="#333" text-anchor="middle">H/4</text>
+
+            <!-- H/2标注 (B右侧) -->
+            <line id="scene1-dim-h2-line" x1="345" y1="120" x2="345" y2="270" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="340" y1="120" x2="350" y2="120" stroke="#888" stroke-width="1"/>
+            <line x1="340" y1="270" x2="350" y2="270" stroke="#888" stroke-width="1"/>
+            <text id="scene1-label-h2" x="365" y="200" font-size="13" fill="#333" text-anchor="middle">H/2</text>
+
+            <!-- H/16标注 (A左侧，仅步骤4-5显示) -->
+            <g id="scene1-dim-h16-group" style="display:none">
+                <line x1="50" y1="176" x2="50" y2="195" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+                <line x1="45" y1="176" x2="55" y2="176" stroke="#888" stroke-width="1"/>
+                <line x1="45" y1="195" x2="55" y2="195" stroke="#888" stroke-width="1"/>
+                <text x="35" y="188" font-size="13" fill="#333" text-anchor="middle">H/16</text>
+            </g>
+
+            <!-- ========== 标签 ========== -->
+
+            <!-- 气缸标签 -->
+            <text id="scene1-label-A" x="65" y="270" font-size="16" fill="#333" text-anchor="middle">A</text>
+            <text id="scene1-label-B" x="355" y="240" font-size="16" fill="#333" text-anchor="middle">B</text>
+
+            <!-- 活塞标签 -->
+            <text id="scene1-label-a" x="65" y="200" font-size="14" fill="#333" text-anchor="middle">a</text>
+            <text id="scene1-label-b" x="355" y="285" font-size="14" fill="#333" text-anchor="middle">b</text>
+
+            <!-- 气体标签 - 移到气缸外部避免与填充区域重叠 -->
+            <text id="scene1-label-n2" x="70" y="310" font-size="16" fill="#1565c0" text-anchor="middle">N₂</text>
+            <text id="scene1-label-o2" x="70" y="158" font-size="16" fill="#c62828" text-anchor="middle">O₂</text>
+            <text id="scene1-label-p0" x="400" y="195" font-size="14" fill="#333" text-anchor="middle">P₀</text>
+
+            <!-- 属性标签 -->
+            <text id="scene1-label-thermal" x="140" y="105" font-size="14" fill="#c62828" text-anchor="middle">导热</text>
+            <text id="scene1-label-adiabatic" x="50" y="350" font-size="14" fill="#888" text-anchor="middle">绝热</text>
+
+            <!-- 面积比标签 - 移到顶部上方避免重叠 -->
+            <text id="scene1-label-ratio" x="240" y="105" font-size="14" fill="#333" text-anchor="middle">2:1</text>
+            <text id="scene1-label-4s" x="190" y="112" font-size="13" fill="#333" text-anchor="middle">4S</text>
+            <text id="scene1-label-s" x="310" y="112" font-size="13" fill="#333" text-anchor="middle">S</text>
+
+            <!-- 过程标注 -->
+            <text id="scene1-process-label" x="240" y="68" font-size="16" fill="#333" text-anchor="middle" style="display:none"></text>
+        </svg>
+
+        <!-- 状态面板 - HTML实现 -->
+        <div id="scene1-state-panel">
+            <div class="panel-header">状态参数</div>
+            <div class="panel-body">
+                <div class="gas-section">
+                    <div class="gas-title n2" id="scene1-n2-title">氮气 N₂</div>
+                    <div class="param-row" id="scene1-n2-p"></div>
+                    <div class="param-row" id="scene1-n2-v"></div>
+                    <div class="param-row" id="scene1-n2-t"></div>
+                </div>
+                <div class="gas-section">
+                    <div class="gas-title o2" id="scene1-o2-title">氧气 O₂</div>
+                    <div class="param-row" id="scene1-o2-p"></div>
+                    <div class="param-row" id="scene1-o2-v"></div>
+                    <div class="param-row" id="scene1-o2-t"></div>
+                </div>
+                <div class="conclusion" id="scene1-conclusion" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1 / 6</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+
+        // ===== 状态变量 =====
+        let currentStep = 0;
+        let isAnimating = false;
+        const totalSteps = 6;
+
+        // ===== DOM 元素引用 =====
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 活塞
+        const pistonA = document.getElementById('scene1-piston-a');
+        const pistonB = document.getElementById('scene1-piston-b');
+
+        // 气体区域
+        const gasO2 = document.getElementById('scene1-gas-o2');
+        const gasAtm = document.getElementById('scene1-gas-atm');
+        const gasN2A = document.getElementById('scene1-gas-n2-a');
+        const gasN2B = document.getElementById('scene1-gas-n2-b');
+
+        // 电阻丝
+        const heaterA = document.getElementById('scene1-heater-a');
+        const heaterB = document.getElementById('scene1-heater-b');
+
+        // 标签
+        const processLabel = document.getElementById('scene1-process-label');
+        const dimH16Group = document.getElementById('scene1-dim-h16-group');
+
+        // 状态面板 - HTML元素
+        const n2P = document.getElementById('scene1-n2-p');
+        const n2V = document.getElementById('scene1-n2-v');
+        const n2T = document.getElementById('scene1-n2-t');
+        const o2P = document.getElementById('scene1-o2-p');
+        const o2V = document.getElementById('scene1-o2-v');
+        const o2T = document.getElementById('scene1-o2-t');
+        const conclusion = document.getElementById('scene1-conclusion');
+
+        // ===== 工具函数 =====
+        function setText(el, text) {
+            if (el) el.textContent = text;
+        }
+        function show(el) {
+            if (el) el.style.display = '';
+        }
+        function hide(el) {
+            if (el) el.style.display = 'none';
+        }
+        function setY(el, y) {
+            if (el) el.setAttribute('y', y);
+        }
+        function setHeight(el, h) {
+            if (el) el.setAttribute('height', h);
+        }
+        function addClass(el, cls) {
+            if (el) el.classList.add(cls);
+        }
+        function removeClass(el, cls) {
+            if (el) el.classList.remove(cls);
+        }
+
+        // 动画：ease-out 插值
+        function animateValue(start, end, duration, callback, onDone) {
+            const startTime = performance.now();
+            isAnimating = true;
+            updateButtons();
+
+            function frame(now) {
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / duration, 1);
+                // ease-out cubic
+                const ease = 1 - Math.pow(1 - t, 3);
+                const val = start + (end - start) * ease;
+                callback(val);
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    isAnimating = false;
+                    updateButtons();
+                    if (onDone) onDone();
+                }
+            }
+            requestAnimationFrame(frame);
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = (currentStep === 0) || isAnimating;
+            btnNext.disabled = (currentStep === totalSteps - 1) || isAnimating;
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + ' / ' + totalSteps;
+        }
+
+        // ===== 步骤配置 =====
+        function applyStep(step) {
+            // 清除高亮
+            removeClass(n2T, 'highlight-green');
+            removeClass(n2P, 'highlight-green');
+            removeClass(o2P, 'highlight-green');
+            removeClass(n2T, 'highlight-text');
+            removeClass(n2P, 'highlight-text');
+            removeClass(o2P, 'highlight-text');
+
+            // 清除加热动画
+            removeClass(heaterA, 'heating');
+            removeClass(heaterB, 'heating');
+
+            // 清除过程标注
+            hide(processLabel);
+            setText(processLabel, '');
+
+            // 清除H/16标注
+            hide(dimH16Group);
+
+            // 清除结论
+            hide(conclusion);
+            setText(conclusion, '');
+
+            switch(step) {
+                case 0:
+                    // 装置结构：初始位置，空面板
+                    setY(pistonA, 192);
+                    setY(pistonB, 267);
+                    setHeight(gasO2, 72);
+                    setHeight(gasAtm, 147);
+                    setY(gasN2A, 198);
+                    setHeight(gasN2A, 222);
+                    setY(gasN2B, 273);
+                    setHeight(gasN2B, 147);
+                    show(gasAtm);
+                    setText(n2P, '');
+                    setText(n2V, '');
+                    setText(n2T, '');
+                    setText(o2P, '');
+                    setText(o2V, '');
+                    setText(o2T, '');
+                    break;
+
+                case 1:
+                    // 初始平衡态
+                    setY(pistonA, 192);
+                    setY(pistonB, 267);
+                    setHeight(gasO2, 72);
+                    setHeight(gasAtm, 147);
+                    setY(gasN2A, 198);
+                    setHeight(gasN2A, 222);
+                    setY(gasN2B, 273);
+                    setHeight(gasN2B, 147);
+                    show(gasAtm);
+                    setText(n2P, 'P = P₀');
+                    setText(n2V, 'V = 7SH/2');
+                    setText(n2T, 'T = 280 K');
+                    setText(o2P, 'P = P₀');
+                    setText(o2V, 'V = SH');
+                    setText(o2T, 'T = 280 K');
+                    break;
+
+                case 2:
+                    // 过程(1)加热 - 活塞b上升动画
+                    setY(pistonA, 192);
+                    // 活塞b动画到顶部
+                    animateValue(267, 117, 800, function(y) {
+                        setY(pistonB, y);
+                        // 更新B部氮气
+                        setY(gasN2B, y + 6);
+                        setHeight(gasN2B, 420 - (y + 6));
+                        // 更新大气区
+                        setHeight(gasAtm, y - 120);
+                    }, null);
+                    setHeight(gasO2, 72);
+                    setY(gasN2A, 198);
+                    setHeight(gasN2A, 222);
+                    show(gasAtm);
+                    setText(n2P, 'P = P₀');
+                    setText(n2V, 'V = 7SH/2');
+                    setText(n2T, 'T = 280 K ↑');
+                    setText(o2P, 'P = P₀');
+                    setText(o2V, 'V = SH');
+                    setText(o2T, 'T = 280 K');
+                    show(processLabel);
+                    setText(processLabel, '氮气等压膨胀');
+                    addClass(heaterA, 'heating');
+                    addClass(heaterB, 'heating');
+                    break;
+
+                case 3:
+                    // 过程(1)末态
+                    setY(pistonA, 192);
+                    setY(pistonB, 117);
+                    setHeight(gasO2, 72);
+                    setHeight(gasAtm, 0);
+                    hide(gasAtm);
+                    setY(gasN2A, 198);
+                    setHeight(gasN2A, 222);
+                    setY(gasN2B, 123);
+                    setHeight(gasN2B, 297);
+                    setText(n2P, 'P = P₀');
+                    setText(n2V, 'V = 4SH');
+                    setText(n2T, 'T = 320 K');
+                    addClass(n2T, 'highlight-text');
+                    setText(o2P, 'P = P₀');
+                    setText(o2V, 'V = SH');
+                    setText(o2T, 'T = 280 K（未变）');
+                    show(processLabel);
+                    setText(processLabel, '活塞b到达顶部');
+                    break;
+
+                case 4:
+                    // 过程(2)加热 - 活塞a上升动画
+                    setY(pistonB, 117);
+                    setHeight(gasAtm, 0);
+                    hide(gasAtm);
+                    setY(gasN2B, 123);
+                    setHeight(gasN2B, 297);
+                    // 活塞a动画上升H/16 (从192到173)
+                    animateValue(192, 173, 600, function(y) {
+                        setY(pistonA, y);
+                        // 更新氧气区
+                        setHeight(gasO2, y - 120);
+                        // 更新氮气A部
+                        setY(gasN2A, y + 6);
+                        setHeight(gasN2A, 420 - (y + 6));
+                    }, null);
+                    setText(n2P, 'P = P₀');
+                    setText(n2V, 'V = 4SH');
+                    setText(n2T, 'T = 320 K ↑');
+                    setText(o2P, 'P = P₀');
+                    setText(o2V, 'V = SH ↓');
+                    setText(o2T, 'T = 280 K');
+                    show(processLabel);
+                    setText(processLabel, '氧气等温压缩');
+                    show(dimH16Group);
+                    addClass(heaterA, 'heating');
+                    addClass(heaterB, 'heating');
+                    break;
+
+                case 5:
+                    // 过程(2)末态
+                    setY(pistonA, 173);
+                    setY(pistonB, 117);
+                    setHeight(gasO2, 53);
+                    setHeight(gasAtm, 0);
+                    hide(gasAtm);
+                    setY(gasN2A, 179);
+                    setHeight(gasN2A, 241);
+                    setY(gasN2B, 123);
+                    setHeight(gasN2B, 297);
+                    setText(n2P, 'P = 4P₀/3');
+                    addClass(n2P, 'highlight-text');
+                    setText(n2V, 'V = 17SH/4');
+                    setText(n2T, 'T = 320 K');
+                    setText(o2P, 'P = 4P₀/3');
+                    addClass(o2P, 'highlight-text');
+                    setText(o2V, 'V = 3SH/4');
+                    setText(o2T, 'T = 280 K');
+                    show(processLabel);
+                    setText(processLabel, '氧气等温压缩');
+                    show(dimH16Group);
+                    show(conclusion);
+                    setText(conclusion, '(1) 氮气温度 T = 320 K\n(2) 氧气压强 Pₒ = 4P₀/3');
+                    break;
+            }
+        }
+
+        // ===== 事件绑定 =====
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0 && !isAnimating) {
+                currentStep--;
+                applyStep(currentStep);
+                updateButtons();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1 && !isAnimating) {
+                currentStep++;
+                applyStep(currentStep);
+                updateButtons();
+            }
+        });
+
+        // ===== 初始化 =====
+        applyStep(0);
+        updateButtons();
+
+    })();
+    </script>
+</body>
+</html>

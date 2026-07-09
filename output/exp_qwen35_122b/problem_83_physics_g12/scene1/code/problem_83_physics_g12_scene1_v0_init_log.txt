@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景 1：子弹射入滑块瞬间的动量守恒</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn:disabled { background: #90a4ae; cursor: not-allowed; }
+        .scene1-btn:hover:not(:disabled) { background: #0d47a1; }
+        .scene1-status { font-size: 14px; font-weight: bold; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 地面阴影（斜线） -->
+            <defs>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#888888" stroke-width="2"/>
+                </pattern>
+            </defs>
+            <rect id="scene1-ground-shadow" x="50" y="380" width="700" height="40" fill="url(#scene1-hatch)"/>
+            
+            <!-- 地面线 -->
+            <line id="scene1-ground" x1="50" y1="380" x2="750" y2="380" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 小车底板 -->
+            <rect id="scene1-cart-base" x="100" y="320" width="400" height="60" fill="#e3f2fd" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 小车左挡板 -->
+            <rect id="scene1-cart-wall" x="100" y="260" width="30" height="60" fill="#e3f2fd" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 小车左轮 -->
+            <circle id="scene1-wheel-left" cx="160" cy="380" r="20" fill="#1565c0" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 小车右轮 -->
+            <circle id="scene1-wheel-right" cx="440" cy="380" r="20" fill="#1565c0" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 弹簧（原长状态，8 个波峰） -->
+            <polyline id="scene1-spring" points="130,290 145,280 160,300 175,280 190,300 205,280 220,300 235,280 250,300 265,280 280,300 295,280 310,300 325,280 340,300 355,280 370,300 385,280 400,290" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 滑块 -->
+            <rect id="scene1-block" x="400" y="300" width="80" height="40" fill="#e3f2fd" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 子弹 -->
+            <rect id="scene1-bullet" x="620" y="310" width="40" height="20" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 质量标签 -->
+            <text id="scene1-label-M" x="70" y="280" font-size="16" font-weight="bold" fill="#000000">M</text>
+            <text id="scene1-label-m" x="420" y="285" font-size="16" font-weight="bold" fill="#000000">m</text>
+            <text id="scene1-label-m0" x="630" y="275" font-size="16" font-weight="bold" fill="#000000">m₀</text>
+            
+            <!-- v₁箭头（小车 + 滑块速度，向右，蓝色） -->
+            <g id="scene1-v1-group">
+                <line id="scene1-v1-arrow" x1="280" y1="240" x2="340" y2="240" stroke="#1565c0" stroke-width="4" marker-end="url(#scene1-arrowhead-blue)"/>
+                <defs>
+                    <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+                        <polygon points="0,0 10,5 0,10" fill="#1565c0"/>
+                    </marker>
+                </defs>
+                <text id="scene1-v1-label" x="310" y="220" font-size="16" font-weight="bold" fill="#1565c0">v₁=10m/s</text>
+            </g>
+            
+            <!-- v₀箭头（子弹速度，向左，红色） -->
+            <g id="scene1-v0-group">
+                <line id="scene1-v0-arrow" x1="640" y1="250" x2="580" y2="250" stroke="#c62828" stroke-width="4" marker-end="url(#scene1-arrowhead-red)"/>
+                <defs>
+                    <marker id="scene1-arrowhead-red" markerWidth="10" markerHeight="10" refX="0" refY="5" orient="auto">
+                        <polygon points="10,0 0,5 10,10" fill="#c62828"/>
+                    </marker>
+                </defs>
+                <text id="scene1-v0-label" x="610" y="230" font-size="16" font-weight="bold" fill="#c62828">v₀=50m/s</text>
+            </g>
+            
+            <!-- v₂箭头（共同速度，向右，绿色）- 步骤 2 显示 -->
+            <g id="scene1-v2-group" style="display: none; opacity: 0;">
+                <line id="scene1-v2-arrow" x1="440" y1="240" x2="500" y2="240" stroke="#2e7d32" stroke-width="4" marker-end="url(#scene1-arrowhead-green)"/>
+                <defs>
+                    <marker id="scene1-arrowhead-green" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+                        <polygon points="0,0 10,5 0,10" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <text id="scene1-v2-label" x="470" y="220" font-size="16" font-weight="bold" fill="#2e7d32">v₂=4m/s</text>
+            </g>
+            
+            <!-- 弹簧原长标注 - 步骤 0 显示 -->
+            <text id="scene1-spring-label" x="265" y="310" font-size="14" fill="#000000" style="display: none; opacity: 0;">原长</text>
+            
+            <!-- 接触点高亮 - 步骤 1 显示 -->
+            <circle id="scene1-contact-highlight" cx="480" cy="320" r="15" fill="none" stroke="#c62828" stroke-width="3" style="display: none; opacity: 0;">
+                <animate attributeName="opacity" values="0;1;0;1;0" dur="1s" repeatCount="indefinite"/>
+            </circle>
+            
+            <!-- 动量守恒方程 - 步骤 3 显示（使用 foreignObject 在 SVG 内显示 HTML 内容） -->
+            <g id="scene1-equation-group" style="display: none; opacity: 0;">
+                <foreignObject id="scene1-equation-foreign" x="150" y="350" width="500" height="60">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="background:#ffffff;border:1px solid #cccccc;padding:10px;border-radius:4px;text-align:center;font-family:'Microsoft YaHei',sans-serif;">
+                        <div style="font-size:14px;font-weight:bold;color:#000000;margin-bottom:5px;">动量守恒方程：</div>
+                        <div style="font-size:13px;color:#000000;">m₀v₀（←）+ mv₁（→）= (m₀+m)v₂（→）</div>
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-status" class="scene1-status">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：子弹射入滑块瞬间的动量守恒
+        // 布局坐标表（参考）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地面 | 线段 | (50,380)-(750,380) | 700×2 | - | 水平地面线 |
+        // | 地面阴影 | 斜线 | (50,380)-(750,420) | 700×40 | - | 斜线阴影表示光滑水平面 |
+        // | 小车底板 | 矩形 | (100,320)-(500,380) | 400×60 | - | 小车主体 |
+        // | 小车左挡板 | 矩形 | (100,260)-(130,320) | 30×60 | - | 弹簧固定端 |
+        // | 小车左轮 | 圆 | (160,380) | r=20 | - | 轮子 |
+        // | 小车右轮 | 圆 | (440,380) | r=20 | - | 轮子 |
+        // | 弹簧 | 折线 | (130,290)-(400,290) | 270×20 | - | 原长状态，8 个波峰 |
+        // | 滑块 | 矩形 | (400,300)-(480,340) | 80×40 | - | 位于小车上表面 |
+        // | 子弹 | 矩形 | (620,310)-(660,330) | 40×20 | - | 从右侧入射 |
+        // | M 标签 | text | (70,280) | ~30×16 | 左方 | 小车质量标注 |
+        // | m 标签 | text | (420,285) | ~30×16 | 上方 | 滑块质量标注 |
+        // | m₀标签 | text | (640,275) | ~35×16 | 上方 | 子弹质量标注 |
+        // | v₁箭头 | 箭头 | (280,240)-(340,240) | 60×4 | - | 向右，小车 + 滑块速度 |
+        // | v₁标签 | text | (310,220) | ~60×16 | 上方 | v₁=10m/s |
+        // | v₀箭头 | 箭头 | (640,250)-(580,250) | 60×4 | - | 向左，子弹速度 |
+        // | v₀标签 | text | (610,230) | ~60×16 | 上方 | v₀=50m/s |
+        // | v₂箭头 | 箭头 | (440,240)-(500,240) | 60×4 | - | 向右，共同速度（步骤 2 显示）|
+        // | v₂标签 | text | (470,220) | ~60×16 | 上方 | v₂=4m/s（步骤 2 显示）|
+        // | 弹簧原长标注 | text | (265,310) | ~50×16 | 下方 | 原长（步骤 0 显示）|
+        
+        // 状态变量
+        var currentStep = 1;
+        var totalSteps = 4;
+        
+        // 元素引用
+        var bullet = document.getElementById('scene1-bullet');
+        var v0Group = document.getElementById('scene1-v0-group');
+        var v2Group = document.getElementById('scene1-v2-group');
+        var v2Label = document.getElementById('scene1-v2-label');
+        var springLabel = document.getElementById('scene1-spring-label');
+        var contactHighlight = document.getElementById('scene1-contact-highlight');
+        var equationGroup = document.getElementById('scene1-equation-group');
+        var block = document.getElementById('scene1-block');
+        var statusEl = document.getElementById('scene1-status');
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 步骤 1：初始状态
+            if (currentStep === 1) {
+                // 子弹在右侧远处
+                bullet.setAttribute('x', '620');
+                hide(v2Group);
+                hide(springLabel);
+                hide(contactHighlight);
+                hide(equationGroup);
+                block.setAttribute('fill', '#e3f2fd');
+                v2Label.textContent = 'v₂=?';
+            }
+            // 步骤 2：子弹接触滑块
+            else if (currentStep === 2) {
+                // 子弹移动至紧贴滑块右侧
+                bullet.setAttribute('x', '480');
+                // v₀箭头跟随子弹
+                document.getElementById('scene1-v0-arrow').setAttribute('x1', '520');
+                document.getElementById('scene1-v0-arrow').setAttribute('x2', '460');
+                document.getElementById('scene1-v0-label').setAttribute('x', '490');
+                hide(v2Group);
+                hide(springLabel);
+                show(contactHighlight);
+                hide(equationGroup);
+                block.setAttribute('fill', '#e3f2fd');
+            }
+            // 步骤 3：子弹嵌入滑块，获得共同速度
+            else if (currentStep === 3) {
+                // 子弹与滑块合并（视觉上子弹嵌入）
+                bullet.setAttribute('x', '400');
+                // 滑块向右移动一小段
+                block.setAttribute('x', '420');
+                // v₀箭头消失
+                hide(v0Group);
+                // v₂箭头显示
+                show(v2Group);
+                hide(springLabel);
+                hide(contactHighlight);
+                hide(equationGroup);
+                // 滑块填充色变为绿色调
+                block.setAttribute('fill', '#e8f5e9');
+            }
+            // 步骤 4：标注动量守恒方程
+            else if (currentStep === 4) {
+                // 保持步骤 3 的状态
+                bullet.setAttribute('x', '400');
+                block.setAttribute('x', '420');
+                hide(v0Group);
+                show(v2Group);
+                show(equationGroup);
+                block.setAttribute('fill', '#e8f5e9');
+            }
+            
+            // 更新状态指示器
+            statusEl.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 1);
+            btnNext.disabled = (currentStep === totalSteps);
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>串联电路动态分析 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #e3f2fd;
+            color: #1565c0;
+            transition: all 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) {
+            background: #1565c0;
+            color: #fff;
+        }
+        #scene1-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .highlight { stroke: #1565c0; stroke-width: 3px !important; }
+        .indicator { opacity: 0; transition: opacity 0.3s; }
+        .indicator-up { fill: #c62828; }
+        .indicator-down { fill: #2e7d32; }
+        .conclusion-box { opacity: 0; transition: opacity 0.5s; }
+        .wire { stroke: #000000; stroke-width: 2px; fill: none; }
+        .wire-dashed { stroke: #888888; stroke-width: 1px; fill: none; stroke-dasharray: 5,5; }
+        .component { stroke: #000000; stroke-width: 2px; fill: none; }
+        .component-fill { fill: rgba(21, 101, 192, 0.2); }
+        .label { font-size: 14px; fill: #000000; }
+        .label-small { font-size: 12px; fill: #000000; }
+        .slide-anim { transition: transform 0.5s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- 主电路导线 -->
+            <!-- 电源到开关 -->
+            <line id="scene1-wire1" class="wire" x1="150" y1="220" x2="150" y2="160"/>
+            <!-- 开关到上方 -->
+            <line id="scene1-wire2" class="wire" x1="150" y1="120" x2="150" y2="80"/>
+            <line id="scene1-wire3" class="wire" x1="150" y1="80" x2="450" y2="80"/>
+            <!-- 上方到变阻器 -->
+            <line id="scene1-wire4" class="wire" x1="450" y1="80" x2="450" y2="120"/>
+            <!-- 变阻器到电流表 -->
+            <line id="scene1-wire5" class="wire" x1="650" y1="150" x2="700" y2="150"/>
+            <line id="scene1-wire6" class="wire" x1="700" y1="150" x2="700" y2="240"/>
+            <!-- 电流表到下方 -->
+            <line id="scene1-wire7" class="wire" x1="720" y1="240" x2="720" y2="420"/>
+            <line id="scene1-wire8" class="wire" x1="720" y1="420" x2="150" y2="420"/>
+            <!-- 下方到灯泡 -->
+            <line id="scene1-wire9" class="wire" x1="150" y1="420" x2="150" y2="380"/>
+            <!-- 灯泡到电源 -->
+            <line id="scene1-wire10" class="wire" x1="180" y1="250" x2="450" y2="250"/>
+            <line id="scene1-wire11" class="wire" x1="450" y1="250" x2="450" y2="150"/>
+
+            <!-- 电源（电池组） -->
+            <g id="scene1-power">
+                <!-- 电池符号 -->
+                <line class="component" x1="140" y1="230" x2="140" y2="270"/>
+                <line class="component" x1="160" y1="230" x2="160" y2="270"/>
+                <line class="component" x1="135" y1="240" x2="165" y2="240"/>
+                <line class="component" x1="135" y1="260" x2="165" y2="260"/>
+                <line class="component" x1="140" y1="230" x2="135" y2="240"/>
+                <line class="component" x1="140" y1="270" x2="135" y2="260"/>
+                <line class="component" x1="160" y1="230" x2="165" y2="240"/>
+                <line class="component" x1="160" y1="270" x2="165" y2="260"/>
+            </g>
+
+            <!-- 开关（闭合状态） -->
+            <g id="scene1-switch">
+                <line class="component" x1="120" y1="140" x2="180" y2="140"/>
+                <circle class="component" cx="120" cy="140" r="4" fill="#000"/>
+                <circle class="component" cx="180" cy="140" r="4" fill="#000"/>
+                <line class="component" x1="120" y1="140" x2="180" y2="140" stroke="#000" stroke-width="3"/>
+            </g>
+
+            <!-- 灯泡 L -->
+            <g id="scene1-lamp">
+                <circle class="component" cx="150" cy="350" r="25"/>
+                <line class="component" x1="135" y1="335" x2="165" y2="365"/>
+                <line class="component" x1="165" y1="335" x2="135" y2="365"/>
+            </g>
+
+            <!-- 滑动变阻器 R -->
+            <g id="scene1-rheostat">
+                <!-- 电阻丝 -->
+                <rect class="component" x="450" y="130" width="200" height="40" fill="none"/>
+                <!-- 电阻丝内部线条 -->
+                <line class="component" x1="460" y1="150" x2="640" y2="150" stroke="#666" stroke-width="2"/>
+                <!-- 滑片 -->
+                <g id="scene1-slide" class="slide-anim">
+                    <rect class="component" x="540" y="120" width="20" height="50" fill="#ddd"/>
+                    <line class="component" x1="550" y1="130" x2="550" y2="170" stroke="#333" stroke-width="3"/>
+                </g>
+            </g>
+
+            <!-- 电流表 A -->
+            <g id="scene1-ammeter">
+                <circle class="component component-fill" cx="720" cy="240" r="20"/>
+                <text class="label" x="715" y="245">A</text>
+            </g>
+
+            <!-- 电压表 V₁ -->
+            <g id="scene1-volt1">
+                <circle class="component component-fill" cx="470" cy="80" r="20"/>
+                <text class="label" x="462" y="85">V₁</text>
+            </g>
+
+            <!-- 电压表 V₂ -->
+            <g id="scene1-volt2">
+                <circle class="component component-fill" cx="470" cy="440" r="20"/>
+                <text class="label" x="462" y="445">V₂</text>
+            </g>
+
+            <!-- V₁并联线（虚线） -->
+            <line id="scene1-volt1-wire1" class="wire-dashed" x1="450" y1="130" x2="470" y2="100"/>
+            <line id="scene1-volt1-wire2" class="wire-dashed" x1="650" y1="130" x2="490" y2="100"/>
+
+            <!-- V₂并联线（虚线） -->
+            <line id="scene1-volt2-wire1" class="wire-dashed" x1="450" y1="390" x2="470" y2="420"/>
+            <line id="scene1-volt2-wire2" class="wire-dashed" x1="180" y1="390" x2="450" y2="420"/>
+
+            <!-- 静态标签 -->
+            <text id="scene1-label-u" class="label" x="80" y="255">U 恒定</text>
+            <text id="scene1-label-l" class="label" x="145" y="400">L</text>
+            <text id="scene1-label-r" class="label" x="545" y="200">R</text>
+            <text id="scene1-label-a" class="label" x="745" y="245">A</text>
+
+            <!-- 动态元素（初始隐藏） -->
+            <!-- 滑片移动箭头 -->
+            <g id="scene1-slide-arrow" class="indicator">
+                <line x1="550" y1="140" x2="620" y2="140" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+            </g>
+
+            <!-- 电流变化指示 -->
+            <g id="scene1-current-ind" class="indicator">
+                <text class="label-small indicator-down" x="760" y="225">↓</text>
+                <text class="label-small" x="765" y="225">I 变小</text>
+            </g>
+
+            <!-- V₁变化指示 -->
+            <g id="scene1-volt1-ind" class="indicator">
+                <text class="label-small indicator-up" x="500" y="85">↑</text>
+                <text class="label-small" x="505" y="85">V₁变大</text>
+            </g>
+
+            <!-- V₂变化指示 -->
+            <g id="scene1-volt2-ind" class="indicator">
+                <text class="label-small indicator-down" x="500" y="445">↓</text>
+                <text class="label-small" x="505" y="445">V₂变小</text>
+            </g>
+
+            <!-- 灯泡亮度指示 -->
+            <g id="scene1-lamp-ind" class="indicator">
+                <text class="label" x="140" y="420" fill="#c62828">变暗</text>
+            </g>
+
+            <!-- 功率指示 -->
+            <g id="scene1-power-ind" class="indicator">
+                <text class="label" x="180" y="255">P 总=UI，I↓→P↓</text>
+            </g>
+
+            <!-- 结论文本框 -->
+            <g id="scene1-conclusion" class="conclusion-box">
+                <rect x="200" y="260" width="380" height="120" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="8"/>
+                <text class="label" x="220" y="290" font-weight="bold" fill="#e65100">结论：A 正确 ✓</text>
+                <text class="label-small" x="220" y="320">A. 电流表示数变小，电压表 V₁示数变大 ✓</text>
+                <text class="label-small" x="220" y="345">B. × (灯泡变暗✓，但 V₂示数变小✓)</text>
+                <text class="label-small" x="220" y="370">C. × (V₁+V₂=U 恒定)</text>
+                <text class="label-small" x="220" y="395">D. × (总功率变小)</text>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 串联电路动态分析
+        // 布局坐标表（参考）：
+        // | 元素 | 位置 | 备注 |
+        // | 电源 | (120,220)-(180,280) | 电池组 |
+        // | 开关 | (120,120)-(180,160) | 闭合状态 |
+        // | 灯泡 L | (120,320)-(180,380) | 圆形加叉 |
+        // | 滑动变阻器 R | (450,120)-(650,180) | 滑片初始 (550,150) |
+        // | 电流表 A | (700,220)-(740,260) | 圆形仪表 |
+        // | 电压表 V₁ | (450,60)-(490,100) | 并联在 R 两端 |
+        // | 电压表 V₂ | (450,420)-(490,460) | 并联在 L 两端 |
+
+        const MAX_STEP = 5;
+        let currentStep = 0;
+
+        // 获取 DOM 元素
+        const svg = document.getElementById('scene1-svg');
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const slide = document.getElementById('scene1-slide');
+        const slideArrow = document.getElementById('scene1-slide-arrow');
+        const currentInd = document.getElementById('scene1-current-ind');
+        const volt1Ind = document.getElementById('scene1-volt1-ind');
+        const volt2Ind = document.getElementById('scene1-volt2-ind');
+        const lampInd = document.getElementById('scene1-lamp-ind');
+        const powerInd = document.getElementById('scene1-power-ind');
+        const conclusion = document.getElementById('scene1-conclusion');
+
+        // 元件高亮元素
+        const components = {
+            rheostat: document.getElementById('scene1-rheostat'),
+            ammeter: document.getElementById('scene1-ammeter'),
+            volt1: document.getElementById('scene1-volt1'),
+            volt2: document.getElementById('scene1-volt2'),
+            lamp: document.getElementById('scene1-lamp')
+        };
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 工具函数：移除高亮
+        function removeHighlight(el) {
+            if (el) {
+                el.classList.remove('highlight');
+            }
+        }
+
+        // 工具函数：添加高亮
+        function addHighlight(el) {
+            if (el) {
+                el.classList.add('highlight');
+            }
+        }
+
+        // 更新场景状态
+        function updateScene() {
+            // 重置所有高亮
+            Object.values(components).forEach(removeHighlight);
+
+            // 重置所有动态元素
+            hide(slideArrow);
+            hide(currentInd);
+            hide(volt1Ind);
+            hide(volt2Ind);
+            hide(lampInd);
+            hide(powerInd);
+            hide(conclusion);
+
+            // 重置滑片位置
+            slide.setAttribute('transform', 'translate(0, 0)');
+
+            // 根据步骤更新状态
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：显示电路图，无高亮
+                    prevBtn.disabled = true;
+                    nextBtn.disabled = false;
+                    break;
+
+                case 1:
+                    // 滑片右移，电阻变大
+                    show(slideArrow);
+                    addHighlight(components.rheostat);
+                    // 滑片移动到右侧
+                    slide.setAttribute('transform', 'translate(70, 0)');
+                    prevBtn.disabled = false;
+                    nextBtn.disabled = false;
+                    break;
+
+                case 2:
+                    // 总电流变小
+                    show(currentInd);
+                    addHighlight(components.ammeter);
+                    prevBtn.disabled = false;
+                    nextBtn.disabled = false;
+                    break;
+
+                case 3:
+                    // V₁变大、V₂变小
+                    show(volt1Ind);
+                    show(volt2Ind);
+                    addHighlight(components.volt1);
+                    addHighlight(components.volt2);
+                    prevBtn.disabled = false;
+                    nextBtn.disabled = false;
+                    break;
+
+                case 4:
+                    // 灯泡变暗、总功率变小
+                    show(lampInd);
+                    show(powerInd);
+                    addHighlight(components.lamp);
+                    prevBtn.disabled = false;
+                    nextBtn.disabled = false;
+                    break;
+
+                case 5:
+                    // 结论汇总
+                    show(currentInd);
+                    show(volt1Ind);
+                    show(volt2Ind);
+                    show(lampInd);
+                    show(powerInd);
+                    show(conclusion);
+                    prevBtn.disabled = false;
+                    nextBtn.disabled = true;
+                    break;
+            }
+        }
+
+        // 按钮事件绑定
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < MAX_STEP) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

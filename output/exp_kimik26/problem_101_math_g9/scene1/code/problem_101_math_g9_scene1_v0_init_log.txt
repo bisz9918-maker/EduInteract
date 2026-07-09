@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正方形折叠打孔问题</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #333; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888888" />
+                </marker>
+            </defs>
+
+            <!-- 步骤0-2,5-7: 正方形ABCD -->
+            <rect id="scene1-square" x="300" y="120" width="200" height="200" fill="none" stroke="#000000" stroke-width="2" />
+            <text id="scene1-label-a" x="290" y="115" font-size="16" fill="#000000" text-anchor="end">A</text>
+            <text id="scene1-label-b" x="510" y="115" font-size="16" fill="#000000" text-anchor="start">B</text>
+            <text id="scene1-label-c" x="510" y="325" font-size="16" fill="#000000" text-anchor="start">C</text>
+            <text id="scene1-label-d" x="290" y="325" font-size="16" fill="#000000" text-anchor="end">D</text>
+
+            <!-- 步骤1-2: 对角线AC折痕 -->
+            <line id="scene1-diagonal" x1="300" y1="120" x2="500" y2="320" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" />
+            <text id="scene1-crease-label" x="420" y="105" font-size="14" fill="#333333" text-anchor="start">折痕</text>
+
+            <!-- 步骤2: 折叠三角形ABC（动态） -->
+            <path id="scene1-fold-tri" fill="rgba(21,101,192,0.15)" stroke="#000000" stroke-width="1.5" />
+
+            <!-- 步骤3-4: 折叠结果三角形 A(320,130)-C(320,310)-DB(410,220) -->
+            <path id="scene1-result-tri" d="M 320 130 L 410 220 L 320 310 Z" fill="none" stroke="#000000" stroke-width="2" />
+            <text id="scene1-tri-a" x="300" y="118" font-size="16" fill="#000000" text-anchor="end">A</text>
+            <text id="scene1-tri-c" x="300" y="322" font-size="16" fill="#000000" text-anchor="end">C</text>
+            <text id="scene1-tri-db" x="440" y="245" font-size="16" fill="#c62828" text-anchor="start">D/B</text>
+            <text id="scene1-angle-a" x="260" y="148" font-size="14" fill="#333333" text-anchor="end">45°</text>
+            <text id="scene1-angle-c" x="260" y="292" font-size="14" fill="#333333" text-anchor="end">45°</text>
+            <text id="scene1-angle-db" x="440" y="200" font-size="14" fill="#c62828" text-anchor="start">90°</text>
+
+            <!-- 步骤4-5: 三角形上的洞 -->
+            <circle id="scene1-tri-hole-a" cx="330" cy="140" r="8" fill="#1565c0" />
+            <circle id="scene1-tri-hole-c" cx="330" cy="300" r="8" fill="#1565c0" />
+            <circle id="scene1-tri-hole-db" cx="400" cy="220" r="8" fill="#c62828" />
+
+            <!-- 步骤4-5: 图例 -->
+            <circle id="scene1-legend-blue" cx="530" cy="35" r="6" fill="#1565c0" />
+            <circle id="scene1-legend-red" cx="530" cy="72" r="6" fill="#c62828" />
+            <text id="scene1-legend-text1" x="545" y="40" font-size="12" fill="#333333" text-anchor="start">折痕端点（1个洞）</text>
+            <text id="scene1-legend-text2" x="545" y="77" font-size="12" fill="#333333" text-anchor="start">重合点（2个洞）</text>
+
+            <!-- 步骤5: 小三角形示意 A_s(200,170), C_s(200,290), DB_s(280,230) -->
+            <path id="scene1-small-tri" d="M 200 170 L 280 230 L 200 290 Z" fill="none" stroke="#888888" stroke-width="1" />
+            <circle id="scene1-small-hole-a" cx="210" cy="180" r="6" fill="#1565c0" />
+            <circle id="scene1-small-hole-c" cx="210" cy="280" r="6" fill="#1565c0" />
+            <circle id="scene1-small-hole-db" cx="270" cy="230" r="6" fill="#c62828" />
+
+            <!-- 步骤5: 映射箭头 -->
+            <line id="scene1-arrow-1" x1="210" y1="180" x2="310" y2="130" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#scene1-arrowhead)" />
+            <line id="scene1-arrow-2" x1="210" y1="280" x2="490" y2="310" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#scene1-arrowhead)" />
+            <line id="scene1-arrow-3" x1="270" y1="230" x2="490" y2="130" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#scene1-arrowhead)" />
+            <line id="scene1-arrow-4" x1="270" y1="230" x2="310" y2="310" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#scene1-arrowhead)" />
+            <text id="scene1-arrow-label-1" x="240" y="110" font-size="12" fill="#666666" text-anchor="middle">×1</text>
+            <text id="scene1-arrow-label-2" x="520" y="290" font-size="12" fill="#666666" text-anchor="middle">×1</text>
+            <text id="scene1-arrow-label-3" x="560" y="120" font-size="12" fill="#666666" text-anchor="middle">×2</text>
+            <text id="scene1-arrow-label-4" x="240" y="335" font-size="12" fill="#666666" text-anchor="middle">×2</text>
+
+            <!-- 步骤5-7: 正方形上的洞 -->
+            <circle id="scene1-hole-a" cx="310" cy="130" r="8" fill="#1565c0" />
+            <circle id="scene1-hole-b" cx="490" cy="130" r="8" fill="#c62828" />
+            <circle id="scene1-hole-c" cx="490" cy="310" r="8" fill="#1565c0" />
+            <circle id="scene1-hole-d" cx="310" cy="310" r="8" fill="#c62828" />
+
+            <!-- 步骤7: 选项小图 -->
+            <!-- 选项A: 四角各1个洞 -->
+            <g id="scene1-option-a">
+                <rect x="195" y="360" width="80" height="80" fill="none" stroke="#2e7d32" stroke-width="2" />
+                <circle cx="210" cy="375" r="5" fill="#2e7d32" />
+                <circle cx="260" cy="375" r="5" fill="#2e7d32" />
+                <circle cx="210" cy="425" r="5" fill="#2e7d32" />
+                <circle cx="260" cy="425" r="5" fill="#2e7d32" />
+            </g>
+            <!-- 选项B: 四角各1个+中心2个 -->
+            <g id="scene1-option-b">
+                <rect x="305" y="360" width="80" height="80" fill="none" stroke="#cccccc" stroke-width="2" />
+                <circle cx="320" cy="375" r="5" fill="#cccccc" />
+                <circle cx="370" cy="375" r="5" fill="#cccccc" />
+                <circle cx="320" cy="425" r="5" fill="#cccccc" />
+                <circle cx="370" cy="425" r="5" fill="#cccccc" />
+                <circle cx="340" cy="395" r="5" fill="#cccccc" />
+                <circle cx="350" cy="405" r="5" fill="#cccccc" />
+            </g>
+            <!-- 选项C: 左下和右上各2个 -->
+            <g id="scene1-option-c">
+                <rect x="415" y="360" width="80" height="80" fill="none" stroke="#cccccc" stroke-width="2" />
+                <circle cx="430" cy="375" r="5" fill="#cccccc" />
+                <circle cx="440" cy="385" r="5" fill="#cccccc" />
+                <circle cx="470" cy="375" r="5" fill="#cccccc" />
+                <circle cx="430" cy="425" r="5" fill="#cccccc" />
+                <circle cx="470" cy="415" r="5" fill="#cccccc" />
+                <circle cx="480" cy="425" r="5" fill="#cccccc" />
+            </g>
+            <!-- 选项D: 四角各2个 -->
+            <g id="scene1-option-d">
+                <rect x="525" y="360" width="80" height="80" fill="none" stroke="#cccccc" stroke-width="2" />
+                <circle cx="540" cy="375" r="5" fill="#cccccc" />
+                <circle cx="550" cy="385" r="5" fill="#cccccc" />
+                <circle cx="580" cy="375" r="5" fill="#cccccc" />
+                <circle cx="590" cy="385" r="5" fill="#cccccc" />
+                <circle cx="540" cy="415" r="5" fill="#cccccc" />
+                <circle cx="550" cy="425" r="5" fill="#cccccc" />
+                <circle cx="580" cy="415" r="5" fill="#cccccc" />
+                <circle cx="590" cy="425" r="5" fill="#cccccc" />
+            </g>
+
+            <!-- 步骤7: 选项标签 -->
+            <text id="scene1-opt-label-a" x="235" y="448" font-size="14" fill="#2e7d32" text-anchor="middle" font-weight="bold">A</text>
+            <text id="scene1-opt-label-b" x="345" y="448" font-size="14" fill="#999999" text-anchor="middle">B</text>
+            <text id="scene1-opt-label-c" x="455" y="448" font-size="14" fill="#999999" text-anchor="middle">C</text>
+            <text id="scene1-opt-label-d" x="565" y="448" font-size="14" fill="#999999" text-anchor="middle">D</text>
+            <text id="scene1-correct-label" x="235" y="478" font-size="9" fill="#2e7d32" text-anchor="middle">正确答案</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 7;
+        let isAnimating = false;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        // 元素引用
+        const els = {
+            square: document.getElementById('scene1-square'),
+            labelA: document.getElementById('scene1-label-a'),
+            labelB: document.getElementById('scene1-label-b'),
+            labelC: document.getElementById('scene1-label-c'),
+            labelD: document.getElementById('scene1-label-d'),
+            diagonal: document.getElementById('scene1-diagonal'),
+            creaseLabel: document.getElementById('scene1-crease-label'),
+            foldTri: document.getElementById('scene1-fold-tri'),
+            resultTri: document.getElementById('scene1-result-tri'),
+            triA: document.getElementById('scene1-tri-a'),
+            triC: document.getElementById('scene1-tri-c'),
+            triDb: document.getElementById('scene1-tri-db'),
+            angleA: document.getElementById('scene1-angle-a'),
+            angleC: document.getElementById('scene1-angle-c'),
+            angleDb: document.getElementById('scene1-angle-db'),
+            triHoleA: document.getElementById('scene1-tri-hole-a'),
+            triHoleC: document.getElementById('scene1-tri-hole-c'),
+            triHoleDb: document.getElementById('scene1-tri-hole-db'),
+            legendBlue: document.getElementById('scene1-legend-blue'),
+            legendRed: document.getElementById('scene1-legend-red'),
+            legendText1: document.getElementById('scene1-legend-text1'),
+            legendText2: document.getElementById('scene1-legend-text2'),
+            smallTri: document.getElementById('scene1-small-tri'),
+            smallHoleA: document.getElementById('scene1-small-hole-a'),
+            smallHoleC: document.getElementById('scene1-small-hole-c'),
+            smallHoleDb: document.getElementById('scene1-small-hole-db'),
+            arrow1: document.getElementById('scene1-arrow-1'),
+            arrow2: document.getElementById('scene1-arrow-2'),
+            arrow3: document.getElementById('scene1-arrow-3'),
+            arrow4: document.getElementById('scene1-arrow-4'),
+            arrowLabel1: document.getElementById('scene1-arrow-label-1'),
+            arrowLabel2: document.getElementById('scene1-arrow-label-2'),
+            arrowLabel3: document.getElementById('scene1-arrow-label-3'),
+            arrowLabel4: document.getElementById('scene1-arrow-label-4'),
+            holeA: document.getElementById('scene1-hole-a'),
+            holeB: document.getElementById('scene1-hole-b'),
+            holeC: document.getElementById('scene1-hole-c'),
+            holeD: document.getElementById('scene1-hole-d'),
+            optionA: document.getElementById('scene1-option-a'),
+            optionB: document.getElementById('scene1-option-b'),
+            optionC: document.getElementById('scene1-option-c'),
+            optionD: document.getElementById('scene1-option-d'),
+            optLabelA: document.getElementById('scene1-opt-label-a'),
+            optLabelB: document.getElementById('scene1-opt-label-b'),
+            optLabelC: document.getElementById('scene1-opt-label-c'),
+            optLabelD: document.getElementById('scene1-opt-label-d'),
+            correctLabel: document.getElementById('scene1-correct-label'),
+        };
+
+        function show(el) { if(el) { el.style.display = 'block'; el.style.opacity = '1'; } }
+        function hide(el) { if(el) { el.style.display = 'none'; el.style.opacity = '0'; } }
+
+        function render() {
+            // 先隐藏所有元素
+            hide(els.square);
+            hide(els.labelA); hide(els.labelB); hide(els.labelC); hide(els.labelD);
+            hide(els.diagonal);
+            hide(els.creaseLabel);
+            hide(els.foldTri);
+            hide(els.resultTri);
+            hide(els.triA); hide(els.triC); hide(els.triDb);
+            hide(els.angleA); hide(els.angleC); hide(els.angleDb);
+            hide(els.triHoleA); hide(els.triHoleC); hide(els.triHoleDb);
+            hide(els.legendBlue); hide(els.legendRed);
+            hide(els.legendText1); hide(els.legendText2);
+            hide(els.smallTri);
+            hide(els.smallHoleA); hide(els.smallHoleC); hide(els.smallHoleDb);
+            hide(els.arrow1); hide(els.arrow2); hide(els.arrow3); hide(els.arrow4);
+            hide(els.arrowLabel1); hide(els.arrowLabel2); hide(els.arrowLabel3); hide(els.arrowLabel4);
+            hide(els.holeA); hide(els.holeB); hide(els.holeC); hide(els.holeD);
+            hide(els.optionA); hide(els.optionB); hide(els.optionC); hide(els.optionD);
+            hide(els.optLabelA); hide(els.optLabelB); hide(els.optLabelC); hide(els.optLabelD);
+            hide(els.correctLabel);
+
+            // 重置正方形洞颜色
+            els.holeA.setAttribute('fill', '#1565c0');
+            els.holeB.setAttribute('fill', '#c62828');
+            els.holeC.setAttribute('fill', '#1565c0');
+            els.holeD.setAttribute('fill', '#c62828');
+
+            // 按钮状态
+            btnPrev.disabled = currentStep === 0 || isAnimating;
+            btnNext.disabled = currentStep === totalSteps || isAnimating;
+
+            switch(currentStep) {
+                case 0:
+                    show(els.square);
+                    show(els.labelA); show(els.labelB); show(els.labelC); show(els.labelD);
+                    break;
+                case 1:
+                    show(els.square);
+                    show(els.labelA); show(els.labelB); show(els.labelC); show(els.labelD);
+                    show(els.diagonal);
+                    show(els.creaseLabel);
+                    break;
+                case 2:
+                    show(els.square);
+                    show(els.labelA); show(els.labelB); show(els.labelC); show(els.labelD);
+                    show(els.diagonal);
+                    show(els.creaseLabel);
+                    show(els.foldTri);
+                    break;
+                case 3:
+                    show(els.resultTri);
+                    show(els.triA); show(els.triC); show(els.triDb);
+                    show(els.angleA); show(els.angleC); show(els.angleDb);
+                    break;
+                case 4:
+                    show(els.resultTri);
+                    show(els.triA); show(els.triC); show(els.triDb);
+                    show(els.angleA); show(els.angleC); show(els.angleDb);
+                    show(els.triHoleA); show(els.triHoleC); show(els.triHoleDb);
+                    show(els.legendBlue); show(els.legendRed);
+                    show(els.legendText1); show(els.legendText2);
+                    break;
+                case 5:
+                    show(els.square);
+                    show(els.labelA); show(els.labelB); show(els.labelC); show(els.labelD);
+                    show(els.smallTri);
+                    show(els.smallHoleA); show(els.smallHoleC); show(els.smallHoleDb);
+                    show(els.arrow1); show(els.arrow2); show(els.arrow3); show(els.arrow4);
+                    show(els.arrowLabel1); show(els.arrowLabel2); show(els.arrowLabel3); show(els.arrowLabel4);
+                    show(els.holeA); show(els.holeB); show(els.holeC); show(els.holeD);
+                    break;
+                case 6:
+                    show(els.square);
+                    show(els.labelA); show(els.labelB); show(els.labelC); show(els.labelD);
+                    show(els.holeA); show(els.holeB); show(els.holeC); show(els.holeD);
+                    els.holeA.setAttribute('fill', '#2e7d32');
+                    els.holeB.setAttribute('fill', '#2e7d32');
+                    els.holeC.setAttribute('fill', '#2e7d32');
+                    els.holeD.setAttribute('fill', '#2e7d32');
+                    break;
+                case 7:
+                    show(els.square);
+                    show(els.labelA); show(els.labelB); show(els.labelC); show(els.labelD);
+                    show(els.holeA); show(els.holeB); show(els.holeC); show(els.holeD);
+                    els.holeA.setAttribute('fill', '#2e7d32');
+                    els.holeB.setAttribute('fill', '#2e7d32');
+                    els.holeC.setAttribute('fill', '#2e7d32');
+                    els.holeD.setAttribute('fill', '#2e7d32');
+                    show(els.optionA); show(els.optionB); show(els.optionC); show(els.optionD);
+                    show(els.optLabelA); show(els.optLabelB); show(els.optLabelC); show(els.optLabelD);
+                    show(els.correctLabel);
+                    break;
+            }
+        }
+
+        function easeInOut(t) {
+            return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        }
+
+        function animateFold() {
+            isAnimating = true;
+            btnPrev.disabled = true;
+            btnNext.disabled = true;
+            const startTime = performance.now();
+            const duration = 800;
+            const startX = 500, startY = 120;
+            const endX = 300, endY = 320;
+
+            function frame(now) {
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / duration, 1);
+                const e = easeInOut(t);
+                const Bx = startX + (endX - startX) * e;
+                const By = startY + (endY - startY) * e;
+                els.foldTri.setAttribute('d', `M 300 120 L ${Bx} ${By} L 500 320 Z`);
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    isAnimating = false;
+                    btnPrev.disabled = currentStep === 0;
+                    btnNext.disabled = currentStep === totalSteps;
+                }
+            }
+            requestAnimationFrame(frame);
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps && !isAnimating) {
+                currentStep++;
+                render();
+                if (currentStep === 2) {
+                    animateFold();
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0 && !isAnimating) {
+                currentStep--;
+                render();
+            }
+        }
+
+        btnPrev.addEventListener('click', prevStep);
+        btnNext.addEventListener('click', nextStep);
+
+        // 初始渲染
+        render();
+    })();
+    </script>
+</body>
+</html>

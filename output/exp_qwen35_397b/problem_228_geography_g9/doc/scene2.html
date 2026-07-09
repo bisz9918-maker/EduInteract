@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点位置推导</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-title {
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-step-group {
+            display: none;
+        }
+        .scene2-visible {
+            display: block;
+        }
+        #scene2-btn-prev, #scene2-btn-next {
+            background: #1565c0;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #scene2-btn-prev:hover, #scene2-btn-next:hover {
+            background: #0d47a1;
+        }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #666;
+            min-width: 80px;
+            text-align: center;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 8px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+        }
+        @keyframes scene2-pulse {
+            0%, 100% { r: 6; }
+            50% { r: 8; }
+        }
+        .scene2-pulsing {
+            animation: scene2-pulse 1.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <div id="scene2-title">太阳直射点位置推导</div>
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 光照图外框 (40,60)-(340,360) - 左侧图 -->
+            <rect id="scene2-frame" x="40" y="60" width="300" height="300" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 纬线组 - 根据原图：0°在顶部，23.5°在中间，70°S 在底部 -->
+            <!-- 0°赤道 (y=140) -->
+            <line id="scene2-equator" x1="40" y1="140" x2="340" y2="140" stroke="#000000" stroke-width="2"/>
+            <!-- 23.5°S 南回归线 (y=220) -->
+            <line id="scene2-tropic" x1="40" y1="220" x2="340" y2="220" stroke="#666666" stroke-width="2" stroke-dasharray="5,5"/>
+            <!-- 70°S 切点纬线 (y=320) -->
+            <line id="scene2-70s" x1="40" y1="320" x2="340" y2="320" stroke="#c62828" stroke-width="3"/>
+            
+            <!-- 晨昏线 -->
+            <!-- AO 昏线：从左侧 (40,220) 到 O 点 (190,320) -->
+            <line id="scene2-ao" x1="40" y1="220" x2="190" y2="320" stroke="#000000" stroke-width="3"/>
+            <!-- BO 晨线：从 O 点 (190,320) 到右上 (340,140) -->
+            <line id="scene2-bo" x1="190" y1="320" x2="340" y2="140" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 关键点 -->
+            <circle id="scene2-point-a" cx="40" cy="220" r="5" fill="#000000"/>
+            <circle id="scene2-point-b" cx="340" cy="140" r="5" fill="#000000"/>
+            <circle id="scene2-point-o" cx="190" cy="320" r="5" fill="#000000"/>
+            
+            <!-- 标签 - 所有标签放在外框外，留足间距 -->
+            <text id="scene2-label-a" x="20" y="215" font-size="14" fill="#000000">A</text>
+            <text id="scene2-label-b" x="355" y="135" font-size="14" fill="#000000">B</text>
+            <text id="scene2-label-o" x="190" y="355" font-size="14" fill="#000000" text-anchor="middle">O</text>
+            <text id="scene2-label-0" x="360" y="145" font-size="14" fill="#000000">0°</text>
+            <text id="scene2-label-235" x="360" y="225" font-size="14" fill="#000000">23.5°S</text>
+            <text id="scene2-label-70" x="360" y="325" font-size="14" fill="#000000">70°S</text>
+            
+            <!-- 步骤 1: 极昼区填充 -->
+            <g id="scene2-step1-group" class="scene2-step-group">
+                <rect id="scene2-polar-day" x="40" y="320" width="300" height="40" fill="#2e7d32" opacity="0.25"/>
+                <!-- 极昼区标签移到框内底部中央 -->
+                <text id="scene2-polar-label" x="190" y="348" font-size="13" fill="#2e7d32" text-anchor="middle">极昼区</text>
+            </g>
+            
+            <!-- 步骤 2: 直射点和光线 -->
+            <g id="scene2-step2-group" class="scene2-step-group">
+                <!-- 20°S 纬线 (y=260) -->
+                <line id="scene2-20s" x1="40" y1="260" x2="340" y2="260" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- 直射点 (190, 260) -->
+                <circle id="scene2-sun-point" cx="190" cy="260" r="8" fill="#1565c0"/>
+                <!-- 直射光线 -->
+                <line id="scene2-ray1" x1="90" y1="80" x2="190" y2="260" stroke="#ffa000" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+                <line id="scene2-ray2" x1="145" y1="80" x2="190" y2="260" stroke="#ffa000" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+                <line id="scene2-ray3" x1="235" y1="80" x2="190" y2="260" stroke="#ffa000" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+                <!-- 直射点坐标标签 - 移到直射点上方 -->
+                <text id="scene2-sun-coord" x="190" y="240" font-size="13" fill="#1565c0" text-anchor="middle">(20°S, 60°W)</text>
+            </g>
+            
+            <!-- 步骤 3: 冬至日标签 - 移到推导框内顶部 -->
+            <g id="scene2-step3-group" class="scene2-step-group">
+                <text id="scene2-winter-label" x="625" y="100" font-size="16" fill="#c62828" font-weight="bold" text-anchor="middle">冬至日前后</text>
+            </g>
+            
+            <!-- 步骤 4: 日期分界线和阴影区 -->
+            <g id="scene2-step4-group" class="scene2-step-group">
+                <!-- 180°经线 -->
+                <line id="scene2-180meridian" x1="115" y1="160" x2="115" y2="360" stroke="#666666" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- 0 时经线 -->
+                <line id="scene2-0hmeridian" x1="265" y1="160" x2="265" y2="360" stroke="#666666" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- 阴影区 -->
+                <rect id="scene2-date-shadow" x="115" y="160" width="150" height="200" fill="#90a4ae" opacity="0.2"/>
+                <!-- 0°经线 -->
+                <line id="scene2-0meridian" x1="190" y1="160" x2="190" y2="360" stroke="#666666" stroke-width="2"/>
+                <!-- 经线标签 - 移到顶部上方 y=150 -->
+                <text id="scene2-0meridian-label" x="190" y="150" font-size="11" fill="#666666" text-anchor="middle">0°</text>
+                <text id="scene2-180meridian-label" x="115" y="150" font-size="11" fill="#666666" text-anchor="middle">180°</text>
+            </g>
+            
+            <!-- 推导框 - 背景矩形 (380,60)-(780,360) -->
+            <rect id="scene2-derivation-box" x="380" y="60" width="400" height="300" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+            <!-- 推导文字 - 居中显示，上移 -->
+            <text id="scene2-derivation-text" x="580" y="110" font-size="13" fill="#333" text-anchor="middle">
+                <tspan x="580" dy="0">步骤 0：观察晨昏线</tspan>
+                <tspan x="580" dy="22">与纬线的关系</tspan>
+            </text>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#ffa000"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/4</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：太阳直射点位置推导
+        
+        const currentStep = { value: 0 };
+        const totalSteps = 4;
+        
+        // 推导文字 - 每行缩短，使用数组存储多行
+        const derivationTexts = [
+            ["步骤 0：观察晨昏线", "与纬线的关系"],
+            ["步骤 1：晨昏线与 70°S 相切", "→ 70°S 以南出现极昼"],
+            ["步骤 2：极昼范围边界 70°S", "→ 直射点纬度=90°-70°=20°S"],
+            ["步骤 3：直射点在南半球 20°S", "→ 北半球冬至日前后"],
+            ["步骤 4：直射点经度为 12 时经线", "→ 直射点坐标 (20°S, 60°W)"]
+        ];
+        
+        function updateDisplay() {
+            const step = currentStep.value;
+            
+            // 更新步骤组显示
+            for (let i = 1; i <= totalSteps; i++) {
+                const group = document.getElementById(`scene2-step${i}-group`);
+                if (group) {
+                    if (i <= step) {
+                        group.classList.add('scene2-visible');
+                        group.style.display = 'block';
+                        group.style.opacity = '1';
+                    } else {
+                        group.classList.remove('scene2-visible');
+                        group.style.display = 'none';
+                        group.style.opacity = '0';
+                    }
+                }
+            }
+            
+            // 更新直射点脉冲动画（步骤 3 开始）
+            const sunPoint = document.getElementById('scene2-sun-point');
+            if (sunPoint) {
+                if (step >= 3) {
+                    sunPoint.classList.add('scene2-pulsing');
+                } else {
+                    sunPoint.classList.remove('scene2-pulsing');
+                }
+            }
+            
+            // 更新推导文字
+            const derivationText = document.getElementById('scene2-derivation-text');
+            if (derivationText) {
+                const lines = derivationTexts[step];
+                derivationText.innerHTML = '';
+                lines.forEach((line, i) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', '580');
+                    tspan.setAttribute('dy', i === 0 ? '0' : '22');
+                    tspan.textContent = line;
+                    derivationText.appendChild(tspan);
+                });
+            }
+            
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene2-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤${step}/${totalSteps}`;
+            }
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            if (prevBtn) {
+                prevBtn.disabled = (step === 0);
+            }
+            if (nextBtn) {
+                nextBtn.disabled = (step === totalSteps);
+            }
+        }
+        
+        function goToStep(step) {
+            if (step < 0) step = 0;
+            if (step > totalSteps) step = totalSteps;
+            currentStep.value = step;
+            updateDisplay();
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    goToStep(currentStep.value - 1);
+                });
+            }
+            
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    goToStep(currentStep.value + 1);
+                });
+            }
+            
+            // 初始显示
+            updateDisplay();
+        });
+    })();
+    </script>
+</body>
+</html>

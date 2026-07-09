@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四棱锥 P-ABCD 空间结构 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
+        }
+        #scene1-btn-prev { background-color: #9e9e9e; color: white; }
+        #scene1-btn-prev:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-btn-next { background-color: #1976d2; color: white; }
+        #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+        }
+        svg { display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 坐标表对照（实现依据）：
+                P(400,60), A(180,320), B(320,360), C(580,340), D(380,280)
+                可见棱线：PA, PB, PC, AB, BC（黑色实线）
+                被遮挡棱线：PD, AD, DC（灰色虚线）
+                平面 PAB 填充：蓝色 #1565c0 半透明
+                平面 PDC 填充：红色 #c62828 半透明
+            -->
+            
+            <!-- 平面填充（初始隐藏，通过 opacity 控制） -->
+            <polygon id="scene1-poly-pab" points="400,60 180,320 320,360" fill="#1565c0" opacity="0" style="transition: opacity 0.3s ease-in-out"/>
+            <polygon id="scene1-poly-pdc" points="400,60 380,280 580,340" fill="#c62828" opacity="0" style="transition: opacity 0.3s ease-in-out"/>
+            
+            <!-- 棱线（按从后到前顺序绘制） -->
+            <!-- 被遮挡棱线（灰色虚线） -->
+            <line id="scene1-edge-pd" x1="400" y1="60" x2="380" y2="280" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            <line id="scene1-edge-ad" x1="180" y1="320" x2="380" y2="280" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            <line id="scene1-edge-dc" x1="380" y1="280" x2="580" y2="340" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 可见棱线（黑色实线） -->
+            <line id="scene1-edge-pa" x1="400" y1="60" x2="180" y2="320" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-edge-pb" x1="400" y1="60" x2="320" y2="360" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-edge-pc" x1="400" y1="60" x2="580" y2="340" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-edge-ab" x1="180" y1="320" x2="320" y2="360" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-edge-bc" x1="320" y1="360" x2="580" y2="340" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 顶点 -->
+            <circle id="scene1-vert-p" cx="400" cy="60" r="4" fill="#000000"/>
+            <circle id="scene1-vert-a" cx="180" cy="320" r="4" fill="#000000"/>
+            <circle id="scene1-vert-b" cx="320" cy="360" r="4" fill="#000000"/>
+            <circle id="scene1-vert-c" cx="580" cy="340" r="4" fill="#000000"/>
+            <circle id="scene1-vert-d" cx="380" cy="280" r="4" fill="#000000"/>
+            
+            <!-- 顶点标签（调整 D 标签位置以避免重叠：从 (450,260) 移至 (460,255)） -->
+            <text id="scene1-label-p" x="390" y="45" font-size="16" font-weight="bold" fill="#000000">P</text>
+            <text id="scene1-label-a" x="155" y="340" font-size="16" font-weight="bold" fill="#000000">A</text>
+            <text id="scene1-label-b" x="310" y="380" font-size="16" font-weight="bold" fill="#000000">B</text>
+            <text id="scene1-label-c" x="595" y="360" font-size="16" font-weight="bold" fill="#000000">C</text>
+            <text id="scene1-label-d" x="460" y="255" font-size="16" font-weight="bold" fill="#000000">D</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <text id="scene1-step-indicator" x="360" y="460" font-size="14">步骤 1/4</text>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：四棱锥 P-ABCD 空间结构
+        // 分步序列：0-初始线框 → 1-平面 PAB 高亮 → 2-平面 PDC 高亮 → 3-两平面同时显示
+        
+        const currentStep = { value: 0 };
+        const totalSteps = 4;
+        
+        // DOM 元素引用
+        const polyPab = document.getElementById('scene1-poly-pab');
+        const polyPdc = document.getElementById('scene1-poly-pdc');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 更新场景显示状态
+        function updateScene() {
+            // 更新平面填充显示状态（opacity 控制，配合 CSS transition 实现渐变）
+            polyPab.style.opacity = currentStep.value >= 1 ? '0.2' : '0';
+            polyPdc.style.opacity = currentStep.value >= 2 ? '0.2' : '0';
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep.value === 0;
+            btnNext.disabled = currentStep.value === totalSteps - 1;
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep.value + 1) + '/' + totalSteps;
+        }
+        
+        // 上一步按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep.value > 0) {
+                currentStep.value--;
+                updateScene();
+            }
+        });
+        
+        // 下一步按钮事件
+        btnNext.addEventListener('click', function() {
+            if (currentStep.value < totalSteps - 1) {
+                currentStep.value++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

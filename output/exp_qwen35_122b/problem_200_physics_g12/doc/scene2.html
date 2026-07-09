@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 活塞上移过程动态演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-data-panel { position: absolute; right: 10px; top: 10px; width: 190px; background: #f5f5f5; border: 1px solid #333; border-radius: 5px; padding: 10px; z-index: 5; }
+        #scene2-data-panel h3 { margin: 0 0 10px 0; font-size: 14px; text-align: center; color: #333; }
+        .data-row { margin: 6px 0; font-size: 12px; }
+        .data-label { color: #333; }
+        .data-value { color: #1565c0; font-weight: bold; }
+        #scene2-formula-panel { position: absolute; bottom: 50px; left: 10px; right: 210px; height: 35px; background: #f5f5f5; border: 1px solid #333; border-radius: 5px; display: flex; align-items: center; justify-content: center; z-index: 5; }
+        #scene2-formula-text { font-size: 13px; color: #333; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 10; }
+        #scene2-slider { width: 300px; height: 20px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 位移标尺 -->
+            <line id="scene2-ruler" x1="120" y1="80" x2="120" y2="380" stroke="#666" stroke-width="2" stroke-dasharray="4,4"/>
+            
+            <!-- 标尺刻度 -->
+            <g id="scene2-ruler-markings"></g>
+            
+            <!-- A 管左壁 -->
+            <line id="scene2-tube-a-left" x1="320" y1="60" x2="320" y2="200" stroke="#333" stroke-width="3"/>
+            <!-- A 管右壁 -->
+            <line id="scene2-tube-a-right" x1="480" y1="60" x2="480" y2="200" stroke="#333" stroke-width="3"/>
+            <!-- A 管底 -->
+            <line id="scene2-tube-a-bottom" x1="320" y1="200" x2="480" y2="200" stroke="#333" stroke-width="3"/>
+            
+            <!-- B 管左壁 -->
+            <line id="scene2-tube-b-left" x1="360" y1="200" x2="360" y2="420" stroke="#333" stroke-width="3"/>
+            <!-- B 管右壁 -->
+            <line id="scene2-tube-b-right" x1="440" y1="200" x2="440" y2="420" stroke="#333" stroke-width="3"/>
+            <!-- B 管底 -->
+            <line id="scene2-tube-b-bottom" x1="360" y1="420" x2="440" y2="420" stroke="#333" stroke-width="3"/>
+            
+            <!-- A 管水银区域 -->
+            <rect id="scene2-mercury-a" x="320" y="140" width="160" height="60" fill="#1565c0" fill-opacity="0.3"/>
+            <!-- 水银斜线纹理 -->
+            <defs>
+                <pattern id="scene2-hatch-pattern" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#1565c0" stroke-width="1" opacity="0.5"/>
+                </pattern>
+            </defs>
+            <rect id="scene2-mercury-a-texture" x="320" y="140" width="160" height="60" fill="url(#scene2-hatch-pattern)"/>
+            <rect id="scene2-mercury-b-texture" x="360" y="280" width="80" height="60" fill="url(#scene2-hatch-pattern)"/>
+            
+            <!-- B 管水银区域 -->
+            <rect id="scene2-mercury-b" x="360" y="280" width="80" height="60" fill="#1565c0" fill-opacity="0.3"/>
+            
+            <!-- 气柱区域 -->
+            <rect id="scene2-gas" x="360" y="340" width="80" height="80" fill="#e3f2fd" fill-opacity="0.6"/>
+            
+            <!-- 活塞主体 -->
+            <rect id="scene2-piston" x="320" y="120" width="160" height="20" fill="#424242"/>
+            
+            <!-- 活塞手柄 -->
+            <rect id="scene2-piston-handle" x="390" y="100" width="20" height="20" fill="#616161" style="cursor: grab;"/>
+            
+            <!-- 拉力 F 箭头 -->
+            <line id="scene2-force-arrow" x1="400" y1="60" x2="400" y2="100" stroke="#c62828" stroke-width="3"/>
+            <polygon id="scene2-force-arrowhead" points="400,60 395,75 405,75" fill="#c62828"/>
+            
+            <!-- A 管标签 -->
+            <text id="scene2-label-a" x="300" y="130" font-size="16" fill="#333">A</text>
+            <!-- B 管标签 -->
+            <text id="scene2-label-b" x="340" y="260" font-size="16" fill="#333">B</text>
+            
+            <!-- Δh₁标注（动态） -->
+            <line id="scene2-delta-h1-arrow" x1="280" y1="140" x2="280" y2="200" stroke="#2e7d32" stroke-width="2" opacity="0"/>
+            <polygon id="scene2-delta-h1-arrowhead-top" points="280,140 275,150 285,150" fill="#2e7d32" opacity="0"/>
+            <polygon id="scene2-delta-h1-arrowhead-bottom" points="280,200 275,190 285,190" fill="#2e7d32" opacity="0"/>
+            <text id="scene2-label-dh1" x="260" y="170" font-size="14" fill="#2e7d32" opacity="0">Δh₁</text>
+            
+            <!-- Δh₂标注（动态） -->
+            <line id="scene2-delta-h2-arrow" x1="500" y1="280" x2="500" y2="340" stroke="#2e7d32" stroke-width="2" opacity="0"/>
+            <polygon id="scene2-delta-h2-arrowhead-top" points="500,280 495,290 505,290" fill="#2e7d32" opacity="0"/>
+            <polygon id="scene2-delta-h2-arrowhead-bottom" points="500,340 495,330 505,330" fill="#2e7d32" opacity="0"/>
+            <text id="scene2-label-dh2" x="520" y="310" font-size="14" fill="#2e7d32" opacity="0">Δh₂</text>
+            
+            <!-- L'标注（动态） -->
+            <line id="scene2-l-arrow" x1="450" y1="340" x2="450" y2="420" stroke="#1976d2" stroke-width="2"/>
+            <polygon id="scene2-l-arrowhead-top" points="450,340 445,350 455,350" fill="#1976d2"/>
+            <polygon id="scene2-l-arrowhead-bottom" points="450,420 445,410 455,410" fill="#1976d2"/>
+            <text id="scene2-label-l" x="470" y="380" font-size="14" fill="#1976d2">L'</text>
+            
+            <!-- F 标签 -->
+            <text id="scene2-label-f" x="405" y="50" font-size="16" fill="#c62828" font-weight="bold">F</text>
+            
+            <!-- 公式文本（SVG 内） -->
+            <text id="scene2-formula-svg-text" x="400" y="465" font-size="13" fill="#333" text-anchor="middle">体积守恒：Δh₂ = 4Δh₁ | 玻意耳定律：p'L' = p₀L</text>
+        </svg>
+        
+        <!-- 数据面板（HTML div，不在 SVG 内） -->
+        <div id="scene2-data-panel">
+            <h3>实时数据</h3>
+            <div class="data-row"><span class="data-label">活塞位移 x:</span> <span class="data-value" id="scene2-data-x-val">0</span> cm</div>
+            <div class="data-row"><span class="data-label">A 管水银下降Δh₁:</span> <span class="data-value" id="scene2-data-dh1-val">0</span> cm</div>
+            <div class="data-row"><span class="data-label">B 管水银上升Δh₂:</span> <span class="data-value" id="scene2-data-dh2-val">0</span> cm</div>
+            <div class="data-row"><span class="data-label">气柱长度 L':</span> <span class="data-value" id="scene2-data-l-val">112</span> cm</div>
+            <div class="data-row"><span class="data-label">气体压强 p':</span> <span class="data-value" id="scene2-data-p-val">90</span> cmHg</div>
+            <div class="data-row"><span class="data-label">拉力 F:</span> <span class="data-value" id="scene2-data-f-val">0</span> N</div>
+        </div>
+        
+        <!-- 公式面板（HTML div） -->
+        <div id="scene2-formula-panel">
+            <span id="scene2-formula-text">体积守恒：Δh₂ = 4Δh₁ | 玻意耳定律：p'L' = p₀L</span>
+        </div>
+        
+        <!-- 滑块控件 -->
+        <div id="scene2-controls">
+            <input type="range" id="scene2-slider" min="0" max="20" step="0.1" value="0">
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 活塞上移过程动态演示
+        // 物理参数
+        const P0 = 75;      // 大气压 (cmHg)
+        const L0 = 112;     // 初始气柱长度 (cm)
+        const H1_0 = 5;     // 初始 A 管水银高度 (cm)
+        const H2_0 = 10;    // 初始 B 管水银高度 (cm)
+        const SA = 4;       // A 管截面积比例（是 B 管的 4 倍）
+        const SB = 1;       // B 管截面积比例
+        
+        // SVG 元素引用
+        const svg = document.getElementById('scene2-svg');
+        const slider = document.getElementById('scene2-slider');
+        const mercuryA = document.getElementById('scene2-mercury-a');
+        const mercuryATexture = document.getElementById('scene2-mercury-a-texture');
+        const mercuryB = document.getElementById('scene2-mercury-b');
+        const mercuryBTexture = document.getElementById('scene2-mercury-b-texture');
+        const gas = document.getElementById('scene2-gas');
+        const piston = document.getElementById('scene2-piston');
+        const pistonHandle = document.getElementById('scene2-piston-handle');
+        const forceArrow = document.getElementById('scene2-force-arrow');
+        const forceArrowhead = document.getElementById('scene2-force-arrowhead');
+        
+        // 动态标注元素
+        const deltaH1Arrow = document.getElementById('scene2-delta-h1-arrow');
+        const deltaH1ArrowheadTop = document.getElementById('scene2-delta-h1-arrowhead-top');
+        const deltaH1ArrowheadBottom = document.getElementById('scene2-delta-h1-arrowhead-bottom');
+        const labelDH1 = document.getElementById('scene2-label-dh1');
+        
+        const deltaH2Arrow = document.getElementById('scene2-delta-h2-arrow');
+        const deltaH2ArrowheadTop = document.getElementById('scene2-delta-h2-arrowhead-top');
+        const deltaH2ArrowheadBottom = document.getElementById('scene2-delta-h2-arrowhead-bottom');
+        const labelDH2 = document.getElementById('scene2-label-dh2');
+        
+        const lArrow = document.getElementById('scene2-l-arrow');
+        const lArrowheadTop = document.getElementById('scene2-l-arrowhead-top');
+        const lArrowheadBottom = document.getElementById('scene2-l-arrowhead-bottom');
+        const labelL = document.getElementById('scene2-label-l');
+        
+        // 数据显示元素（HTML div）
+        const dataXVal = document.getElementById('scene2-data-x-val');
+        const dataDH1Val = document.getElementById('scene2-data-dh1-val');
+        const dataDH2Val = document.getElementById('scene2-data-dh2-val');
+        const dataLVal = document.getElementById('scene2-data-l-val');
+        const dataPVal = document.getElementById('scene2-data-p-val');
+        const dataFVal = document.getElementById('scene2-data-f-val');
+        
+        // 标尺刻度生成
+        function generateRulerMarkings() {
+            const markingsGroup = document.getElementById('scene2-ruler-markings');
+            for (let i = 0; i <= 15; i++) {
+                const y = 80 + i * 20;
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', 115);
+                line.setAttribute('y1', y);
+                line.setAttribute('x2', 125);
+                line.setAttribute('y2', y);
+                line.setAttribute('stroke', '#666');
+                line.setAttribute('stroke-width', i % 5 === 0 ? 2 : 1);
+                markingsGroup.appendChild(line);
+                
+                if (i % 5 === 0) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', 130);
+                    text.setAttribute('y', y + 5);
+                    text.setAttribute('font-size', '12');
+                    text.setAttribute('fill', '#666');
+                    text.textContent = i;
+                    markingsGroup.appendChild(text);
+                }
+            }
+        }
+        
+        // 核心计算函数
+        function calculateState(x) {
+            // x: 活塞向上移动距离 (cm)
+            const dh1 = x / 5;           // A 管水银下降
+            const dh2 = 4 * dh1;         // B 管水银上升
+            const L_prime = L0 - dh2;    // 气柱长度
+            const p_prime = P0 * L0 / L_prime;  // 气体压强 (玻意耳定律)
+            
+            // 拉力 F 计算（简化公式）
+            // F = (p' - P0 - dh1 - dh2) * SB * ρg，这里用 cmHg 单位简化
+            const F = (p_prime - P0 - dh1 - dh2) * SB;
+            
+            return { dh1, dh2, L_prime, p_prime, F };
+        }
+        
+        // 更新显示
+        function updateDisplay(x) {
+            const state = calculateState(x);
+            const { dh1, dh2, L_prime, p_prime, F } = state;
+            
+            // 活塞位置（向上移动 x cm，y 坐标减小）
+            const pistonY = 120 - x;
+            piston.setAttribute('y', pistonY);
+            pistonHandle.setAttribute('y', pistonY - 20);
+            
+            // A 管水银面（下降 dh1，y 坐标增加）
+            const mercuryAY = 140 + dh1;
+            const mercuryAHeight = 60 - dh1;
+            mercuryA.setAttribute('y', mercuryAY);
+            mercuryA.setAttribute('height', Math.max(0, mercuryAHeight));
+            mercuryATexture.setAttribute('y', mercuryAY);
+            mercuryATexture.setAttribute('height', Math.max(0, mercuryAHeight));
+            
+            // B 管水银面（上升 dh2，y 坐标减小）
+            const mercuryBY = 280 - dh2;
+            const mercuryBHeight = 60 + dh2;
+            mercuryB.setAttribute('y', mercuryBY);
+            mercuryB.setAttribute('height', Math.min(140, mercuryBHeight));
+            mercuryBTexture.setAttribute('y', mercuryBY);
+            mercuryBTexture.setAttribute('height', Math.min(140, mercuryBHeight));
+            
+            // 气柱区域（被压缩，顶部上升）
+            const gasTop = 340 - dh2;
+            const gasHeight = 80 - dh2;
+            gas.setAttribute('y', gasTop);
+            gas.setAttribute('height', Math.max(0, gasHeight));
+            
+            // 更新 L'标注
+            lArrow.setAttribute('y1', gasTop);
+            lArrowheadTop.setAttribute('points', `450,${gasTop} 445,${gasTop+10} 455,${gasTop+10}`);
+            lArrowheadBottom.setAttribute('points', `450,420 445,410 455,410`);
+            
+            // 更新Δh₁标注（仅当 dh1 > 0 时显示）
+            if (dh1 > 0.1) {
+                deltaH1Arrow.setAttribute('opacity', 1);
+                deltaH1ArrowheadTop.setAttribute('opacity', 1);
+                deltaH1ArrowheadBottom.setAttribute('opacity', 1);
+                labelDH1.setAttribute('opacity', 1);
+                deltaH1Arrow.setAttribute('y2', 140 + dh1);
+                deltaH1ArrowheadBottom.setAttribute('points', `280,${140+dh1} 275,${130+dh1} 285,${130+dh1}`);
+            } else {
+                deltaH1Arrow.setAttribute('opacity', 0);
+                deltaH1ArrowheadTop.setAttribute('opacity', 0);
+                deltaH1ArrowheadBottom.setAttribute('opacity', 0);
+                labelDH1.setAttribute('opacity', 0);
+            }
+            
+            // 更新Δh₂标注（仅当 dh2 > 0 时显示）
+            if (dh2 > 0.1) {
+                deltaH2Arrow.setAttribute('opacity', 1);
+                deltaH2ArrowheadTop.setAttribute('opacity', 1);
+                deltaH2ArrowheadBottom.setAttribute('opacity', 1);
+                labelDH2.setAttribute('opacity', 1);
+                deltaH2Arrow.setAttribute('y1', 280 - dh2);
+                deltaH2ArrowheadTop.setAttribute('points', `500,${280-dh2} 495,${290-dh2} 505,${290-dh2}`);
+            } else {
+                deltaH2Arrow.setAttribute('opacity', 0);
+                deltaH2ArrowheadTop.setAttribute('opacity', 0);
+                deltaH2ArrowheadBottom.setAttribute('opacity', 0);
+                labelDH2.setAttribute('opacity', 0);
+            }
+            
+            // 更新数据显示（HTML div）
+            dataXVal.textContent = x.toFixed(1);
+            dataDH1Val.textContent = dh1.toFixed(2);
+            dataDH2Val.textContent = dh2.toFixed(2);
+            dataLVal.textContent = L_prime.toFixed(2);
+            dataPVal.textContent = p_prime.toFixed(2);
+            dataFVal.textContent = F.toFixed(2);
+        }
+        
+        // 滑块事件
+        slider.addEventListener('input', function(e) {
+            const x = parseFloat(e.target.value);
+            updateDisplay(x);
+        });
+        
+        // 活塞手柄拖拽
+        let isDragging = false;
+        let startY = 0;
+        let startX = 0;
+        
+        pistonHandle.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            startY = e.clientY;
+            startX = parseFloat(slider.value);
+            pistonHandle.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            const deltaY = startY - e.clientY;  // 向上为正
+            const deltaX = deltaY * 0.05;       // 缩放比例
+            let newX = startX + deltaX;
+            newX = Math.max(0, Math.min(20, newX));
+            slider.value = newX;
+            updateDisplay(newX);
+        });
+        
+        document.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                pistonHandle.style.cursor = 'grab';
+            }
+        });
+        
+        // 触摸事件支持
+        pistonHandle.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            startY = e.touches[0].clientY;
+            startX = parseFloat(slider.value);
+            e.preventDefault();
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            const deltaY = startY - e.touches[0].clientY;
+            const deltaX = deltaY * 0.05;
+            let newX = startX + deltaX;
+            newX = Math.max(0, Math.min(20, newX));
+            slider.value = newX;
+            updateDisplay(newX);
+            e.preventDefault();
+        });
+        
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // 初始化
+        generateRulerMarkings();
+        updateDisplay(0);
+    })();
+    </script>
+</body>
+</html>

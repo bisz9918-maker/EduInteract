@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小车下滑过程中的能量转化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-prev-btn, #scene1-next-btn { width: 80px; height: 30px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        #scene1-prev-btn:hover, #scene1-next-btn:hover { background: #e0e0e0; }
+        #scene1-prev-btn:disabled, #scene1-next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        .scene1-energy-bar-bg { fill: #e0e0e0; }
+        .scene1-energy-bar-fill { transition: width 0.5s ease; }
+        .scene1-cart { transition: transform 0.5s ease-out; }
+        .scene1-block { transition: transform 0.5s ease-out; }
+        .scene1-hidden { opacity: 0; }
+        .scene1-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 斜面支撑三角形 -->
+            <polygon id="scene1-ramp-support" points="60,340 260,340 260,140" fill="#f5f5f5" stroke="none"/>
+            
+            <!-- 斜面 -->
+            <line id="scene1-ramp" x1="60" y1="140" x2="260" y2="340" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 水平木板 -->
+            <line id="scene1-board" x1="260" y1="340" x2="460" y2="340" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 高度 h 标注线（虚线） -->
+            <line id="scene1-height-line" x1="40" y1="140" x2="40" y2="340" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            <!-- 高度上下界线 -->
+            <line id="scene1-height-top" x1="35" y1="140" x2="45" y2="140" stroke="#888888" stroke-width="2"/>
+            <line id="scene1-height-bottom" x1="35" y1="340" x2="45" y2="340" stroke="#888888" stroke-width="2"/>
+            <!-- 高度 h 标签 -->
+            <text id="scene1-height-label" x="25" y="240" font-size="14" fill="#000000" text-anchor="middle">h</text>
+            
+            <!-- 小车（初始位置 90,160） -->
+            <g id="scene1-cart" class="scene1-cart" transform="translate(90,160)">
+                <!-- 车身 -->
+                <rect x="0" y="0" width="50" height="30" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+                <!-- 轮子 -->
+                <circle cx="10" cy="30" r="6" fill="#333333"/>
+                <circle cx="40" cy="30" r="6" fill="#333333"/>
+            </g>
+            <!-- 小车标签 -->
+            <text id="scene1-cart-label" x="115" y="145" font-size="14" fill="#000000" text-anchor="middle">小车</text>
+            
+            <!-- 木块（初始位置 340,310） -->
+            <g id="scene1-block" class="scene1-block" transform="translate(340,310)">
+                <rect x="0" y="0" width="40" height="30" fill="#2e7d32" fill-opacity="0.2" stroke="#2e7d32" stroke-width="2"/>
+            </g>
+            <!-- 木块标签 -->
+            <text id="scene1-block-label" x="360" y="295" font-size="14" fill="#000000" text-anchor="middle">木块</text>
+            
+            <!-- 木板标签 -->
+            <text id="scene1-board-label" x="400" y="355" font-size="14" fill="#000000" text-anchor="middle">木板</text>
+            
+            <!-- 速度 v 箭头（步骤1显示） -->
+            <g id="scene1-velocity-arrow" class="scene1-hidden">
+                <line x1="140" y1="175" x2="170" y2="175" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arrowhead)"/>
+                <text x="155" y="165" font-size="12" fill="#c62828" text-anchor="middle">v</text>
+            </g>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828"/>
+                </marker>
+            </defs>
+            
+            <!-- 能量条区域 -->
+            <!-- Ep 背景 -->
+            <rect id="scene1-ep-bg" x="520" y="120" width="120" height="15" class="scene1-energy-bar-bg"/>
+            <!-- Ep 填充 -->
+            <rect id="scene1-ep-fill" x="520" y="120" width="0" height="15" fill="#1565c0" class="scene1-energy-bar-fill"/>
+            <!-- Ep 标签 -->
+            <text id="scene1-ep-label" x="500" y="131" font-size="14" fill="#000000" text-anchor="end">Ep</text>
+            <!-- Ep 值标签 -->
+            <text id="scene1-ep-value" x="650" y="131" font-size="14" fill="#000000" text-anchor="start" class="scene1-hidden"></text>
+            
+            <!-- Ek 背景 -->
+            <rect id="scene1-ek-bg" x="520" y="180" width="120" height="15" class="scene1-energy-bar-bg"/>
+            <!-- Ek 填充 -->
+            <rect id="scene1-ek-fill" x="520" y="180" width="0" height="15" fill="#c62828" class="scene1-energy-bar-fill"/>
+            <!-- Ek 标签 -->
+            <text id="scene1-ek-label" x="500" y="191" font-size="14" fill="#000000" text-anchor="end">Ek</text>
+            <!-- Ek 值标签 -->
+            <text id="scene1-ek-value" x="650" y="191" font-size="14" fill="#000000" text-anchor="start" class="scene1-hidden"></text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：小车下滑过程中的能量转化
+        
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 步骤配置
+        const steps = [
+            { // 步骤 0：初始状态
+                cartX: 90, cartY: 160,
+                blockX: 340, blockY: 310,
+                showVelocity: false,
+                epPercent: 0, ekPercent: 0,
+                epValue: "", ekValue: ""
+            },
+            { // 步骤 1：小车下滑中
+                cartX: 160, cartY: 250,
+                blockX: 340, blockY: 310,
+                showVelocity: true,
+                epPercent: 0, ekPercent: 0,
+                epValue: "", ekValue: ""
+            },
+            { // 步骤 2：能量转化展示
+                cartX: 160, cartY: 250,
+                blockX: 340, blockY: 310,
+                showVelocity: true,
+                epPercent: 70, ekPercent: 30,
+                epValue: "70%", ekValue: "30%"
+            },
+            { // 步骤 3：撞击后
+                cartX: 240, cartY: 330,
+                blockX: 420, blockY: 310,
+                showVelocity: true,
+                epPercent: 10, ekPercent: 90,
+                epValue: "10%", ekValue: "90%"
+            }
+        ];
+        
+        // 获取 DOM 元素
+        const cart = document.getElementById('scene1-cart');
+        const block = document.getElementById('scene1-block');
+        const velocityArrow = document.getElementById('scene1-velocity-arrow');
+        const epFill = document.getElementById('scene1-ep-fill');
+        const ekFill = document.getElementById('scene1-ek-fill');
+        const epValue = document.getElementById('scene1-ep-value');
+        const ekValue = document.getElementById('scene1-ek-value');
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 更新场景状态
+        function updateScene() {
+            const step = steps[currentStep];
+            
+            // 更新小车位置
+            cart.setAttribute('transform', `translate(${step.cartX},${step.cartY})`);
+            
+            // 更新木块位置
+            block.setAttribute('transform', `translate(${step.blockX},${step.blockY})`);
+            
+            // 更新速度箭头可见性
+            if (step.showVelocity) {
+                velocityArrow.classList.remove('scene1-hidden');
+                velocityArrow.classList.add('scene1-visible');
+                // 更新箭头位置（跟随小车）
+                const arrowLine = velocityArrow.querySelector('line');
+                const arrowText = velocityArrow.querySelector('text');
+                arrowLine.setAttribute('x1', step.cartX + 50);
+                arrowLine.setAttribute('y1', step.cartY + 15);
+                arrowLine.setAttribute('x2', step.cartX + 80);
+                arrowLine.setAttribute('y2', step.cartY + 15);
+                arrowText.setAttribute('x', step.cartX + 65);
+                arrowText.setAttribute('y', step.cartY + 5);
+            } else {
+                velocityArrow.classList.remove('scene1-visible');
+                velocityArrow.classList.add('scene1-hidden');
+            }
+            
+            // 更新能量条
+            epFill.setAttribute('width', step.epPercent * 1.2);
+            ekFill.setAttribute('width', step.ekPercent * 1.2);
+            
+            // 更新能量值标签
+            if (step.epValue) {
+                epValue.textContent = step.epValue;
+                epValue.classList.remove('scene1-hidden');
+                epValue.classList.add('scene1-visible');
+            } else {
+                epValue.classList.remove('scene1-visible');
+                epValue.classList.add('scene1-hidden');
+            }
+            
+            if (step.ekValue) {
+                ekValue.textContent = step.ekValue;
+                ekValue.classList.remove('scene1-hidden');
+                ekValue.classList.add('scene1-visible');
+            } else {
+                ekValue.classList.remove('scene1-visible');
+                ekValue.classList.add('scene1-hidden');
+            }
+            
+            // 更新按钮状态
+            prevBtn.disabled = currentStep === 0;
+            nextBtn.disabled = currentStep === totalSteps - 1;
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+        
+        // 事件监听
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

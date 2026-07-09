@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:hover { background: #e9e9e9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .wire { fill: none; stroke: #000; stroke-width: 2; }
+        .component { fill: #fff; stroke: #000; stroke-width: 2; }
+        .label { font-size: 16px; fill: #000; }
+        .dynamic { transition: all 0.5s ease; }
+        .hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Definitions -->
+            <defs>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <marker id="arrow-green" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                <marker id="arrow-black" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />
+                </marker>
+                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+            </defs>
+
+            <!-- Static Wires -->
+            <path class="wire" d="M 120 220 L 120 360 L 220 360" />
+            <path class="wire" d="M 280 360 L 372 360" />
+            <path class="wire" d="M 408 360 L 605 360" />
+            <path class="wire" d="M 555 220 L 480 220 L 440 220" />
+            <path class="wire" d="M 280 220 L 340 220" />
+            <path class="wire" d="M 280 220 L 280 280 L 372 280" />
+            <path class="wire" d="M 408 280 L 480 280 L 480 220" />
+            
+            <!-- Battery -->
+            <path class="wire" d="M 180 220 L 210 220" />
+            <line x1="210" y1="205" x2="210" y2="235" stroke="#000" stroke-width="2" />
+            <line x1="220" y1="212" x2="220" y2="228" stroke="#000" stroke-width="4" />
+            <line x1="230" y1="205" x2="230" y2="235" stroke="#000" stroke-width="2" />
+            <line x1="240" y1="212" x2="240" y2="228" stroke="#000" stroke-width="4" />
+            <path class="wire" d="M 240 220 L 280 220" />
+            <text x="205" y="195" class="label">+</text>
+            <text x="235" y="195" class="label">-</text>
+
+            <!-- Switch -->
+            <circle cx="120" cy="220" r="3" fill="#000" />
+            <circle cx="180" cy="220" r="3" fill="#000" />
+            <line id="scene1-switch-blade" x1="120" y1="220" x2="170" y2="190" stroke="#000" stroke-width="2" class="dynamic" />
+            <text x="145" y="180" class="label">S</text>
+
+            <!-- R0 -->
+            <rect x="220" y="350" width="60" height="20" class="component" />
+            <text x="240" y="340" class="label">R0</text>
+
+            <!-- Ammeter -->
+            <circle cx="390" cy="360" r="18" class="component" />
+            <text x="390" y="395" class="label" text-anchor="middle">A</text>
+            <line id="scene1-ammeter-ptr" x1="390" y1="370" x2="380" y2="345" stroke="red" stroke-width="2" class="dynamic" transform="rotate(-30, 390, 370)" />
+
+            <!-- Voltmeter -->
+            <circle cx="390" cy="280" r="18" class="component" />
+            <text x="390" y="315" class="label" text-anchor="middle">V</text>
+            <line id="scene1-voltmeter-ptr" x1="390" y1="290" x2="380" y2="265" stroke="red" stroke-width="2" class="dynamic" transform="rotate(-30, 390, 290)" />
+
+            <!-- Rheostat -->
+            <rect x="340" y="210" width="100" height="20" class="component" />
+            <rect id="scene1-rheostat-eff" x="360" y="211" width="80" height="18" fill="#bbdefb" class="dynamic" />
+            <text x="450" y="200" class="label">R</text>
+            
+            <!-- Slider -->
+            <g id="scene1-slider-group" class="dynamic">
+                <path class="wire" d="M 280 220 L 280 180 L 360 180 L 360 210" marker-end="url(#arrow-black)" />
+            </g>
+
+            <!-- Solenoid -->
+            <rect x="555" y="220" width="50" height="140" fill="#e0e0e0" stroke="#000" stroke-width="1" />
+            <text x="535" y="400" class="label">B</text>
+            <!-- Back windings -->
+            <path d="M 605 235 Q 580 250 555 245" fill="none" stroke="#999" stroke-width="2" stroke-dasharray="4,4" />
+            <path d="M 605 260 Q 580 275 555 270" fill="none" stroke="#999" stroke-width="2" stroke-dasharray="4,4" />
+            <path d="M 605 285 Q 580 300 555 295" fill="none" stroke="#999" stroke-width="2" stroke-dasharray="4,4" />
+            <path d="M 605 310 Q 580 325 555 320" fill="none" stroke="#999" stroke-width="2" stroke-dasharray="4,4" />
+            <path d="M 605 335 Q 580 350 555 345" fill="none" stroke="#999" stroke-width="2" stroke-dasharray="4,4" />
+            <!-- Front windings -->
+            <path d="M 555 220 L 605 235" fill="none" stroke="#000" stroke-width="3" />
+            <path d="M 555 245 L 605 260" fill="none" stroke="#000" stroke-width="3" />
+            <path d="M 555 270 L 605 285" fill="none" stroke="#000" stroke-width="3" />
+            <path d="M 555 295 L 605 310" fill="none" stroke="#000" stroke-width="3" />
+            <path d="M 555 320 L 605 335" fill="none" stroke="#000" stroke-width="3" />
+            <path d="M 555 345 L 605 360" fill="none" stroke="#000" stroke-width="3" />
+
+            <!-- Suspension & Dynamometer -->
+            <line x1="550" y1="30" x2="610" y2="30" stroke="#000" stroke-width="2" />
+            <path d="M 555 30 L 565 20 M 575 30 L 585 20 M 595 30 L 605 20" stroke="#000" stroke-width="1" />
+            <line x1="580" y1="30" x2="580" y2="40" stroke="#000" stroke-width="2" />
+            <rect x="570" y="40" width="20" height="80" class="component" />
+            <line x1="580" y1="120" x2="580" y2="140" stroke="#000" stroke-width="2" />
+            <line id="scene1-dyn-ptr" x1="570" y1="70" x2="590" y2="70" stroke="red" stroke-width="2" class="dynamic" />
+            <line x1="570" y1="50" x2="575" y2="50" stroke="#000" stroke-width="1" />
+            <line x1="570" y1="60" x2="575" y2="60" stroke="#000" stroke-width="1" />
+            <line x1="570" y1="70" x2="575" y2="70" stroke="#000" stroke-width="1" />
+            <line x1="570" y1="80" x2="575" y2="80" stroke="#000" stroke-width="1" />
+            <line x1="570" y1="90" x2="575" y2="90" stroke="#000" stroke-width="1" />
+            <line x1="570" y1="100" x2="575" y2="100" stroke="#000" stroke-width="1" />
+            <line x1="570" y1="110" x2="575" y2="110" stroke="#000" stroke-width="1" />
+
+            <!-- Magnet A -->
+            <g id="scene1-magnet" class="dynamic">
+                <rect x="565" y="140" width="30" height="25" fill="#90caf9" stroke="#000" stroke-width="1" />
+                <rect x="565" y="165" width="30" height="25" fill="#ef9a9a" stroke="#000" stroke-width="1" />
+                <text x="610" y="150" class="label" text-anchor="middle" fill="#000">S</text>
+                <text x="610" y="191" class="label" text-anchor="middle" fill="#000">N</text>
+                <text x="530" y="170" class="label">A</text>
+            </g>
+
+            <!-- Dynamic Elements -->
+            <!-- Current Arrows -->
+            <g id="scene1-currents" class="dynamic hidden" fill="#1565c0">
+                <path d="M 115 290 L 125 290 L 120 300 Z" />
+                <path d="M 170 355 L 170 365 L 180 360 Z" />
+                <path d="M 330 355 L 330 365 L 340 360 Z" />
+                <path d="M 480 355 L 480 365 L 490 360 Z" />
+                <path d="M 520 215 L 520 225 L 510 220 Z" />
+                <path d="M 470 215 L 470 225 L 460 220 Z" />
+                <path d="M 320 215 L 320 225 L 310 220 Z" />
+                <path d="M 270 215 L 270 225 L 260 220 Z" />
+                <path d="M 320 175 L 320 185 L 330 180 Z" />
+                <path d="M 330 275 L 330 285 L 340 280 Z" />
+            </g>
+
+            <!-- Solenoid Poles -->
+            <text id="scene1-pole-n" x="670" y="210" class="label dynamic hidden" fill="#c62828" font-weight="bold" text-anchor="middle">N</text>
+            <text id="scene1-pole-s" x="580" y="380" class="label dynamic hidden" fill="#c62828" font-weight="bold" text-anchor="middle">S</text>
+
+            <!-- Right Hand Rule -->
+            <g id="scene1-rhr" class="dynamic hidden">
+                <path d="M 615 290 Q 640 290 640 260 Q 640 230 615 230" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue)" />
+                <line x1="650" y1="290" x2="650" y2="230" stroke="#1565c0" stroke-width="3" marker-end="url(#arrow-blue)" />
+                <text x="660" y="265" class="label" fill="#1565c0">右手定则</text>
+            </g>
+
+            <!-- Forces -->
+            <g id="scene1-forces" class="dynamic hidden">
+                <line id="scene1-force-g" x1="580" y1="165" x2="580" y2="215" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrow-green)" class="dynamic" />
+                <text x="675" y="225" class="label" fill="#2e7d32">G</text>
+                
+                <line id="scene1-force-pull" x1="580" y1="165" x2="580" y2="115" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrow-green)" class="dynamic" />
+                <text id="scene1-label-pull" x="480" y="125" class="label dynamic" fill="#2e7d32">F_拉</text>
+                
+                <line id="scene1-force-repel" x1="580" y1="165" x2="580" y2="135" stroke="#c62828" stroke-width="2" marker-end="url(#arrow-red)" class="dynamic" />
+                <text id="scene1-label-repel" x="635" y="145" class="label dynamic" fill="#c62828">F_斥</text>
+            </g>
+
+            <!-- Equation -->
+            <foreignObject id="scene1-equation" x="630" y="150" width="150" height="40" class="dynamic hidden">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: 16px; color: #000;">
+                    $F_{拉} = G - F_{斥}$
+                </div>
+            </foreignObject>
+
+            <!-- Magnetic Field Lines -->
+            <g id="scene1-mag-lines" class="dynamic hidden" fill="none" stroke="#ef9a9a" stroke-width="2" stroke-dasharray="5,5">
+                <path d="M 570 215 Q 500 150 500 290 Q 500 430 570 365" />
+                <path d="M 590 215 Q 660 150 660 290 Q 660 430 590 365" />
+            </g>
+
+            <!-- Conclusion -->
+            <foreignObject id="scene1-conclusion" x="200" y="40" width="400" height="60" class="dynamic hidden">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: 16px; color: #c62828; text-align: center; background: rgba(255,255,255,0.9); padding: 5px; border-radius: 4px;">
+                    滑片右移 $ightarrow R\downarrow ightarrow I\uparrow ightarrow$ 磁性增强 $ightarrow F_{斥}\uparrow ightarrow F_{拉}\downarrow$。选C
+                </div>
+            </foreignObject>
+
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-reset">重置</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let step = 0;
+        const maxStep = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const btnReset = document.getElementById('scene1-btn-reset');
+
+        const switchBlade = document.getElementById('scene1-switch-blade');
+        const ammeterPtr = document.getElementById('scene1-ammeter-ptr');
+        const voltmeterPtr = document.getElementById('scene1-voltmeter-ptr');
+        const rheostatEff = document.getElementById('scene1-rheostat-eff');
+        const sliderGroup = document.getElementById('scene1-slider-group');
+        const dynPtr = document.getElementById('scene1-dyn-ptr');
+        const magnet = document.getElementById('scene1-magnet');
+        
+        const currents = document.getElementById('scene1-currents');
+        const poleN = document.getElementById('scene1-pole-n');
+        const poleS = document.getElementById('scene1-pole-s');
+        const rhr = document.getElementById('scene1-rhr');
+        const forces = document.getElementById('scene1-forces');
+        const forcePull = document.getElementById('scene1-force-pull');
+        const forceRepel = document.getElementById('scene1-force-repel');
+        const labelPull = document.getElementById('scene1-label-pull');
+        const labelRepel = document.getElementById('scene1-label-repel');
+        const equation = document.getElementById('scene1-equation');
+        const magLines = document.getElementById('scene1-mag-lines');
+        const conclusion = document.getElementById('scene1-conclusion');
+
+        function updateState() {
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === maxStep;
+
+            // Step 0: Initial
+            if (step === 0) {
+                switchBlade.setAttribute('y2', '190');
+                ammeterPtr.setAttribute('transform', 'rotate(-30, 390, 370)');
+                voltmeterPtr.setAttribute('transform', 'rotate(-30, 390, 290)');
+                
+                sliderGroup.innerHTML = '<path class="wire" d="M 280 220 L 280 180 L 360 180 L 360 210" marker-end="url(#arrow-black)" />';
+                rheostatEff.setAttribute('x', '360');
+                rheostatEff.setAttribute('width', '80');
+                
+                dynPtr.setAttribute('y1', '70');
+                dynPtr.setAttribute('y2', '70');
+                
+                magnet.style.filter = 'none';
+                
+                currents.classList.add('hidden');
+                poleN.classList.add('hidden');
+                poleS.classList.add('hidden');
+                rhr.classList.add('hidden');
+                forces.classList.add('hidden');
+                equation.classList.add('hidden');
+                magLines.classList.add('hidden');
+                conclusion.classList.add('hidden');
+                
+                forcePull.setAttribute('y2', '115');
+                forceRepel.setAttribute('y2', '135');
+                labelPull.setAttribute('y', '125');
+                labelRepel.setAttribute('y', '145');
+            }
+            
+            // Step 1: Switch closed, currents, poles
+            if (step >= 1) {
+                switchBlade.setAttribute('y2', '220');
+                currents.classList.remove('hidden');
+                poleN.classList.remove('hidden');
+                poleS.classList.remove('hidden');
+                rhr.classList.remove('hidden');
+                
+                if (step === 1) {
+                    ammeterPtr.setAttribute('transform', 'rotate(0, 390, 370)');
+                    voltmeterPtr.setAttribute('transform', 'rotate(0, 390, 290)');
+                }
+            } else {
+                currents.classList.add('hidden');
+                poleN.classList.add('hidden');
+                poleS.classList.add('hidden');
+                rhr.classList.add('hidden');
+            }
+
+            // Step 2: Forces
+            if (step >= 2) {
+                magnet.style.filter = 'url(#glow)';
+                forces.classList.remove('hidden');
+                equation.classList.remove('hidden');
+            } else {
+                magnet.style.filter = 'none';
+                forces.classList.add('hidden');
+                equation.classList.add('hidden');
+            }
+
+            // Step 3: Slider moves
+            if (step >= 3) {
+                sliderGroup.innerHTML = '<path class="wire" d="M 280 220 L 280 180 L 420 180 L 420 210" marker-end="url(#arrow-black)" />';
+                rheostatEff.setAttribute('x', '420');
+                rheostatEff.setAttribute('width', '20');
+                
+                ammeterPtr.setAttribute('transform', 'rotate(30, 390, 370)');
+                voltmeterPtr.setAttribute('transform', 'rotate(-15, 390, 290)');
+            } else if (step > 0) {
+                sliderGroup.innerHTML = '<path class="wire" d="M 280 220 L 280 180 L 360 180 L 360 210" marker-end="url(#arrow-black)" />';
+                rheostatEff.setAttribute('x', '360');
+                rheostatEff.setAttribute('width', '80');
+            }
+
+            // Step 4: Mechanical response
+            if (step >= 4) {
+                magLines.classList.remove('hidden');
+                conclusion.classList.remove('hidden');
+                
+                forceRepel.setAttribute('y2', '115'); // longer
+                labelRepel.setAttribute('y', '125');
+                
+                forcePull.setAttribute('y2', '135'); // shorter
+                labelPull.setAttribute('y', '145');
+                
+                dynPtr.setAttribute('y1', '50');
+                dynPtr.setAttribute('y2', '50');
+            } else if (step > 0) {
+                magLines.classList.add('hidden');
+                conclusion.classList.add('hidden');
+                
+                forceRepel.setAttribute('y2', '135');
+                labelRepel.setAttribute('y', '145');
+                
+                forcePull.setAttribute('y2', '115');
+                labelPull.setAttribute('y', '125');
+                
+                dynPtr.setAttribute('y1', '70');
+                dynPtr.setAttribute('y2', '70');
+            }
+        }
+
+        btnPrev.addEventListener('click', () => { if (step > 0) { step--; updateState(); } });
+        btnNext.addEventListener('click', () => { if (step < maxStep) { step++; updateState(); } });
+        btnReset.addEventListener('click', () => { step = 0; updateState(); });
+
+        updateState();
+    })();
+    </script>
+</body>
+</html>

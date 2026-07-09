@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 经纬网基础结构</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 100px; text-align: center; }
+        #scene1-btn-prev, #scene1-btn-next { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; cursor: pointer; transition: all 0.2s; }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover { background: #1565c0; color: #ffffff; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+        #scene1-btn-prev:disabled:hover, #scene1-btn-next:disabled:hover { background: #ffffff; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 极点 O -->
+            <circle id="scene1-dot-O" cx="400" cy="80" r="6" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;"/>
+            <!-- O 标签 -->
+            <text id="scene1-label-O" x="395" y="65" font-size="14" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;">O</text>
+            
+            <!-- 经线 OP -->
+            <line id="scene1-line-OP" x1="400" y1="80" x2="250" y2="300" stroke="#000000" stroke-width="2" style="opacity: 0; transition: opacity 0.3s ease;"/>
+            <!-- 经线 OQ -->
+            <line id="scene1-line-OQ" x1="400" y1="80" x2="550" y2="300" stroke="#000000" stroke-width="2" style="opacity: 0; transition: opacity 0.3s ease;"/>
+            
+            <!-- 纬线 L (弧线，向下凸出) -->
+            <path id="scene1-arc-L" d="M 250 300 Q 400 320 550 300" stroke="#000000" stroke-width="2" fill="none" style="opacity: 0; transition: opacity 0.3s ease;"/>
+            
+            <!-- P 点 -->
+            <circle id="scene1-dot-P" cx="250" cy="300" r="4" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;"/>
+            <!-- Q 点 -->
+            <circle id="scene1-dot-Q" cx="550" cy="300" r="4" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;"/>
+            
+            <!-- P 标签 -->
+            <text id="scene1-label-P" x="230" y="315" font-size="14" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;">P</text>
+            <!-- Q 标签 -->
+            <text id="scene1-label-Q" x="570" y="315" font-size="14" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;">Q</text>
+            
+            <!-- L 标签 -->
+            <text id="scene1-label-L" x="190" y="275" font-size="14" fill="#000000" style="opacity: 0; transition: opacity 0.3s ease;">L</text>
+            
+            <!-- 45° 标签 (左侧经度标注，蓝色加粗) -->
+            <text id="scene1-label-45" x="210" y="360" font-size="16" fill="#1565c0" font-weight="bold" style="opacity: 0; transition: opacity 0.3s ease;">45°</text>
+            <!-- 15°E 标签 (右侧经度标注，蓝色加粗) -->
+            <text id="scene1-label-15E" x="570" y="360" font-size="16" fill="#1565c0" font-weight="bold" style="opacity: 0; transition: opacity 0.3s ease;">15°E</text>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene1-controls">
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 极点 O | 实心圆 | (400,80) | 6×6 | - | 顶部中心 |
+        // | O 标签 | text | (395,65) | ~16×16 | 上方 | 在极点圆上方 15px |
+        // | 经线 OP | 线段 | (400,80)-(250,300) | - | - | 黑色实线 2px |
+        // | 经线 OQ | 线段 | (400,80)-(550,300) | - | - | 黑色实线 2px |
+        // | 纬线 L | 弧线 | P(250,300) 到 Q(550,300) | - | - | 向下凸出，最低点 (400,320) |
+        // | P 点 | 实心圆 | (250,300) | 4×4 | - | 经线与纬线交点 |
+        // | Q 点 | 实心圆 | (550,300) | 4×4 | - | 经线与纬线交点 |
+        // | P 标签 | text | (230,315) | ~16×16 | 左下方 | 在 P 点左下方 |
+        // | Q 标签 | text | (570,315) | ~16×16 | 右下方 | 在 Q 点右下方 |
+        // | L 标签 | text | (190,275) | ~16×16 | 左上方 | 在纬线左侧上方 |
+        // | 45° 标签 | text | (210,360) | ~40×18 | 下方 | 左侧经度标注，蓝色加粗 |
+        // | 15°E 标签 | text | (570,360) | ~50×18 | 下方 | 右侧经度标注，蓝色加粗 |
+
+        // 步骤配置：每个步骤应显示的元素 ID 列表
+        const stepConfig = [
+            // 步骤 0：空白画布
+            [],
+            // 步骤 1：极点 O 及 O 标签
+            ['scene1-dot-O', 'scene1-label-O'],
+            // 步骤 2：添加经线 OP 和 OQ
+            ['scene1-dot-O', 'scene1-label-O', 'scene1-line-OP', 'scene1-line-OQ'],
+            // 步骤 3：添加纬线 L
+            ['scene1-dot-O', 'scene1-label-O', 'scene1-line-OP', 'scene1-line-OQ', 'scene1-arc-L'],
+            // 步骤 4：添加 P、Q 两点及标签
+            ['scene1-dot-O', 'scene1-label-O', 'scene1-line-OP', 'scene1-line-OQ', 'scene1-arc-L', 'scene1-dot-P', 'scene1-dot-Q', 'scene1-label-P', 'scene1-label-Q'],
+            // 步骤 5：添加 L 标签及经度标注
+            ['scene1-dot-O', 'scene1-label-O', 'scene1-line-OP', 'scene1-line-OQ', 'scene1-arc-L', 'scene1-dot-P', 'scene1-dot-Q', 'scene1-label-P', 'scene1-label-Q', 'scene1-label-L', 'scene1-label-45', 'scene1-label-15E']
+        ];
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = '0';
+                // 等待过渡完成后设置 display
+                setTimeout(() => {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 300);
+            }
+        }
+
+        // 更新当前步骤的显示状态
+        function updateStep() {
+            // 获取当前步骤和上一步骤需要显示的元素
+            const currentElements = stepConfig[currentStep];
+            const prevElements = currentStep > 0 ? stepConfig[currentStep - 1] : [];
+            
+            // 隐藏上一步骤有但当前步骤没有的元素
+            prevElements.forEach(elId => {
+                if (!currentElements.includes(elId)) {
+                    hide(elId);
+                }
+            });
+            
+            // 显示当前步骤有但上一步骤没有的元素
+            currentElements.forEach(elId => {
+                if (!prevElements.includes(elId)) {
+                    show(elId);
+                }
+            });
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === totalSteps);
+        }
+
+        // 绑定按钮事件
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化：步骤 0 为空白画布
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

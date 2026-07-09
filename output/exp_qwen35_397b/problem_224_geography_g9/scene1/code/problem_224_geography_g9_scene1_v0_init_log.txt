@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>晨昏线识别与昼夜半球划分</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-status { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义斜线填充图案 -->
+            <defs>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#888888" stroke-width="1" />
+                </pattern>
+            </defs>
+
+            <!-- 外框矩形 -->
+            <rect id="scene1-grid-outer" x="60" y="40" width="680" height="380" fill="none" stroke="#000000" stroke-width="1" />
+
+            <!-- 经线 (3 条) -->
+            <line id="scene1-meridian-135E" x1="173" y1="40" x2="173" y2="420" stroke="#000000" stroke-width="1" />
+            <line id="scene1-meridian-45W" x1="400" y1="40" x2="400" y2="420" stroke="#000000" stroke-width="1" />
+            <line id="scene1-meridian-45E" x1="627" y1="40" x2="627" y2="420" stroke="#000000" stroke-width="1" />
+
+            <!-- 纬线 (7 条) -->
+            <line id="scene1-parallel-90N" x1="60" y1="40" x2="740" y2="40" stroke="#000000" stroke-width="1" />
+            <line id="scene1-parallel-66.5N" x1="60" y1="97" x2="740" y2="97" stroke="#000000" stroke-width="1" />
+            <line id="scene1-parallel-23.5N" x1="60" y1="168" x2="740" y2="168" stroke="#000000" stroke-width="1" />
+            <line id="scene1-parallel-equator" x1="60" y1="230" x2="740" y2="230" stroke="#000000" stroke-width="1" />
+            <line id="scene1-parallel-23.5S" x1="60" y1="292" x2="740" y2="292" stroke="#000000" stroke-width="1" />
+            <line id="scene1-parallel-66.5S" x1="60" y1="363" x2="740" y2="363" stroke="#000000" stroke-width="1" />
+            <line id="scene1-parallel-90S" x1="60" y1="420" x2="740" y2="420" stroke="#000000" stroke-width="1" />
+
+            <!-- 晨昏线 EDF (初始细线，步骤 1 加粗) -->
+            <polyline id="scene1-晨昏线-EDF" points="60,363 400,40 740,363" fill="none" stroke="#cccccc" stroke-width="1" />
+
+            <!-- 晨线 ED 段 (步骤 2 显示) -->
+            <line id="scene1-晨线-ED" x1="60" y1="363" x2="400" y2="40" fill="none" stroke="#1565c0" stroke-width="3" style="display:none;" />
+            <!-- 昏线 DF 段 (步骤 2 显示) -->
+            <line id="scene1-昏线-DF" x1="400" y1="40" x2="740" y2="363" fill="none" stroke="#c62828" stroke-width="3" style="display:none;" />
+
+            <!-- 夜半球填充 (步骤 3 显示) -->
+            <polygon id="scene1-夜半球-fill" points="60,40 400,40 740,40 740,363 400,40 60,363" fill="url(#scene1-hatch)" opacity="0.3" style="display:none;" />
+
+            <!-- 点 E, D, F -->
+            <circle id="scene1-point-E" cx="60" cy="363" r="4" fill="#000000" />
+            <circle id="scene1-point-D" cx="400" cy="40" r="4" fill="#000000" />
+            <circle id="scene1-point-F" cx="740" cy="363" r="4" fill="#000000" />
+
+            <!-- 点 A, B, C -->
+            <circle id="scene1-point-A" cx="173" cy="363" r="4" fill="#000000" />
+            <circle id="scene1-point-B" cx="400" cy="230" r="4" fill="#000000" />
+            <circle id="scene1-point-C" cx="627" cy="97" r="4" fill="#000000" />
+
+            <!-- 经度标签 (y=15 确保距边缘≥20px) -->
+            <text id="scene1-label-135E" x="173" y="15" text-anchor="middle" font-size="14" fill="#000000">135°E</text>
+            <text id="scene1-label-45W" x="400" y="15" text-anchor="middle" font-size="14" fill="#000000">45°W</text>
+            <text id="scene1-label-45E" x="627" y="15" text-anchor="middle" font-size="14" fill="#000000">45°E</text>
+
+            <!-- 纬度标签 (x=745 确保在画布内) -->
+            <text id="scene1-label-90N" x="745" y="45" text-anchor="start" font-size="14" fill="#000000">90°N</text>
+            <text id="scene1-label-66.5N" x="745" y="102" text-anchor="start" font-size="14" fill="#000000">66.5°N</text>
+            <text id="scene1-label-23.5N" x="745" y="173" text-anchor="start" font-size="14" fill="#000000">23.5°N</text>
+            <text id="scene1-label-equator" x="745" y="235" text-anchor="start" font-size="14" fill="#000000">赤道</text>
+            <text id="scene1-label-23.5S" x="745" y="297" text-anchor="start" font-size="14" fill="#000000">23.5°S</text>
+            <text id="scene1-label-66.5S" x="745" y="368" text-anchor="start" font-size="14" fill="#000000">66.5°S</text>
+            <text id="scene1-label-90S" x="745" y="425" text-anchor="start" font-size="14" fill="#000000">90°S</text>
+
+            <!-- 点标签 (调整位置避免与图形重叠) -->
+            <text id="scene1-label-E" x="45" y="385" text-anchor="end" font-size="14" fill="#000000" font-weight="bold">E</text>
+            <!-- D 标签移到右上方，避免与 45°W 重叠 -->
+            <text id="scene1-label-D" x="415" y="30" text-anchor="start" font-size="14" fill="#000000" font-weight="bold">D</text>
+            <text id="scene1-label-F" x="755" y="390" text-anchor="start" font-size="14" fill="#000000" font-weight="bold">F</text>
+            <text id="scene1-label-A" x="173" y="385" text-anchor="middle" font-size="14" fill="#000000" font-weight="bold">A</text>
+            <text id="scene1-label-B" x="420" y="235" text-anchor="start" font-size="14" fill="#000000" font-weight="bold">B</text>
+            <text id="scene1-label-C" x="645" y="85" text-anchor="start" font-size="14" fill="#000000" font-weight="bold">C</text>
+
+            <!-- 晨线标注 (步骤 2 显示) -->
+            <g id="scene1-晨线标注" style="display:none;">
+                <text x="150" y="250" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">晨线</text>
+                <line x1="150" y1="245" x2="170" y2="220" stroke="#1565c0" stroke-width="1" />
+            </g>
+
+            <!-- 昏线标注 (步骤 2 显示) -->
+            <g id="scene1-昏线标注" style="display:none;">
+                <text x="650" y="250" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">昏线</text>
+                <line x1="650" y1="245" x2="630" y2="220" stroke="#c62828" stroke-width="1" />
+            </g>
+
+            <!-- 夜半球标签 (步骤 4 显示) -->
+            <text id="scene1-标签 - 夜半球" x="400" y="80" text-anchor="middle" font-size="16" fill="#888888" font-weight="bold" style="opacity:0;">夜半球</text>
+
+            <!-- 昼半球标签 (步骤 4 显示) -->
+            <text id="scene1-标签 - 昼半球" x="400" y="300" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold" style="opacity:0;">昼半球</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-status">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：晨昏线识别与昼夜半球划分
+
+        let currentState = 0;
+        const totalSteps = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const statusEl = document.getElementById('scene1-status');
+
+        // 元素引用
+        const 晨昏线 EDF = document.getElementById('scene1-晨昏线 -EDF');
+        const 晨线 ED = document.getElementById('scene1-晨线 -ED');
+        const 昏线 DF = document.getElementById('scene1-昏线 -DF');
+        const 夜半球 Fill = document.getElementById('scene1-夜半球-fill');
+        const 晨线标注 = document.getElementById('scene1-晨线标注');
+        const 昏线标注 = document.getElementById('scene1-昏线标注');
+        const 夜半球标签 = document.getElementById('scene1-标签 - 夜半球');
+        const 昼半球标签 = document.getElementById('scene1-标签 - 昼半球');
+
+        function updateScene() {
+            // 更新状态显示
+            statusEl.textContent = `步骤 ${currentState}/4`;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps);
+
+            // 步骤 0: 初始状态 - 晨昏线细线
+            // 步骤 1+: 晨昏线加粗
+            if (currentState >= 1) {
+                晨昏线 EDF.setAttribute('stroke', '#1565c0');
+                晨昏线 EDF.setAttribute('stroke-width', '3');
+            } else {
+                晨昏线 EDF.setAttribute('stroke', '#cccccc');
+                晨昏线 EDF.setAttribute('stroke-width', '1');
+            }
+
+            // 步骤 2+: 显示晨线/昏线标注
+            if (currentState >= 2) {
+                晨线 ED.style.display = 'block';
+                昏线 DF.style.display = 'block';
+                晨线标注.style.display = 'block';
+                昏线标注.style.display = 'block';
+            } else {
+                晨线 ED.style.display = 'none';
+                昏线 DF.style.display = 'none';
+                晨线标注.style.display = 'none';
+                昏线标注.style.display = 'none';
+            }
+
+            // 步骤 3+: 显示夜半球填充
+            if (currentState >= 3) {
+                夜半球 Fill.style.display = 'block';
+            } else {
+                夜半球 Fill.style.display = 'none';
+            }
+
+            // 步骤 4: 显示昼/夜半球文字标签
+            if (currentState >= 4) {
+                夜半球标签.style.opacity = '1';
+                昼半球标签.style.opacity = '1';
+            } else {
+                夜半球标签.style.opacity = '0';
+                昼半球标签.style.opacity = '0';
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

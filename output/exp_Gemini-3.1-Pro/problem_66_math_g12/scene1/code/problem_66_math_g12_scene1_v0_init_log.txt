@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .slider-container { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        input[type="range"] { width: 150px; }
+        
+        /* SVG Styles */
+        .base-line { stroke: #000000; stroke-width: 2; fill: none; }
+        .aux-line { stroke: #888888; stroke-width: 1.5; stroke-dasharray: 5,5; fill: none; }
+        .fold-line { stroke: #000000; stroke-width: 2; fill: none; }
+        .point { fill: #000000; }
+        .label { font-size: 16px; fill: #000000; user-select: none; }
+        
+        /* Step 1 Styles */
+        .step1-highlight { stroke: #1565c0; stroke-width: 3; fill: none; opacity: 0; transition: opacity 0.3s; }
+        .step1-plane { fill: #1565c0; opacity: 0; transition: opacity 0.3s; }
+        .step1-plane-light { fill: #1565c0; opacity: 0; transition: opacity 0.3s; }
+        
+        /* Step 2 Styles */
+        .step2-line { stroke: #c62828; stroke-width: 3; stroke-dasharray: 5,5; fill: none; opacity: 0; transition: opacity 0.3s; }
+        .step2-point { fill: #c62828; opacity: 0; transition: opacity 0.3s; }
+        
+        /* Step 3 Styles */
+        .step3-outline { stroke: #2e7d32; stroke-width: 3; fill: none; opacity: 0; transition: opacity 0.3s; }
+        .step3-fill { fill: #2e7d32; opacity: 0; transition: opacity 0.3s; }
+        
+        /* Right Angle Markers */
+        .right-angle { stroke: #000000; stroke-width: 1.5; fill: none; opacity: 0; transition: opacity 0.3s; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- Planes -->
+            <polygon id="scene1-plane-bced" class="step1-plane-light" points="" />
+            <polygon id="scene1-plane-agf" class="step1-plane" points="" />
+            <polygon id="scene1-plane-afed" class="step3-fill" points="" />
+            
+            <!-- Base Triangle ABC -->
+            <path id="scene1-base-abc" class="base-line" d="" />
+            
+            <!-- Aux Lines -->
+            <line id="scene1-line-de" class="aux-line" />
+            <line id="scene1-line-af" class="aux-line" />
+            <line id="scene1-line-df" class="aux-line" />
+            <line id="scene1-line-ef" class="aux-line" />
+            
+            <!-- Fold Lines -->
+            <line id="scene1-line-ad" class="fold-line" />
+            <line id="scene1-line-ae" class="fold-line" />
+            <line id="scene1-line-af-fold" class="fold-line" />
+            
+            <!-- Step 1 Highlights -->
+            <line id="scene1-line-ag-hl" class="step1-highlight" />
+            <line id="scene1-line-fg-hl" class="step1-highlight" />
+            
+            <!-- Step 2 Highlights -->
+            <line id="scene1-line-ah" class="step2-line" />
+            
+            <!-- Step 3 Highlights -->
+            <path id="scene1-path-afed" class="step3-outline" d="" />
+            
+            <!-- Right Angles -->
+            <path id="scene1-ra-age" class="right-angle" d="" />
+            <path id="scene1-ra-fge" class="right-angle" d="" />
+            <path id="scene1-ra-ahf" class="right-angle" d="" />
+            
+            <!-- Points -->
+            <circle id="scene1-pt-g" class="point" r="3" />
+            <circle id="scene1-pt-a-base" class="point" r="3" />
+            <circle id="scene1-pt-f" class="point" r="3" />
+            <circle id="scene1-pt-d" class="point" r="3" />
+            <circle id="scene1-pt-e" class="point" r="3" />
+            <circle id="scene1-pt-b" class="point" r="3" />
+            <circle id="scene1-pt-c" class="point" r="3" />
+            <circle id="scene1-pt-h" class="step2-point" r="4" />
+            <circle id="scene1-pt-a-fold" class="point" r="3" />
+            
+            <!-- Labels -->
+            <text id="scene1-lbl-g" class="label">G</text>
+            <text id="scene1-lbl-a-base" class="label">A</text>
+            <text id="scene1-lbl-f" class="label">F</text>
+            <text id="scene1-lbl-d" class="label">D</text>
+            <text id="scene1-lbl-e" class="label">E</text>
+            <text id="scene1-lbl-b" class="label">B</text>
+            <text id="scene1-lbl-c" class="label">C</text>
+            <text id="scene1-lbl-h" class="label step2-point">H</text>
+            <text id="scene1-lbl-a-fold" class="label">A'</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+            <div class="slider-container">
+                <label for="scene1-slider-theta">翻折角度 θ:</label>
+                <input type="range" id="scene1-slider-theta" min="0" max="180" value="60">
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // State
+        let currentStep = 0;
+        let theta = 60 * Math.PI / 180;
+        
+        // DOM Elements
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const sliderTheta = document.getElementById('scene1-slider-theta');
+        
+        // Fixed Points (from plan)
+        const pts = {
+            G: { x: 500, y: 220 },
+            A_base: { x: 660, y: 200 },
+            F: { x: 340, y: 240 },
+            D: { x: 400, y: 140 },
+            E: { x: 600, y: 300 },
+            B: { x: 140, y: 80 },
+            C: { x: 540, y: 400 }
+        };
+        
+        // Dynamic Points
+        let H = { x: 0, y: 0 };
+        let A_fold = { x: 0, y: 0 };
+        
+        function updatePoints() {
+            // Hx = 500 + 160 * cos(θ)
+            // Hy = 220 - 20 * cos(θ)
+            // A'x = Hx
+            // A'y = Hy - 160 * sin(θ)
+            H.x = 500 + 160 * Math.cos(theta);
+            H.y = 220 - 20 * Math.cos(theta);
+            A_fold.x = H.x;
+            A_fold.y = H.y - 160 * Math.sin(theta);
+        }
+        
+        function setLine(id, p1, p2) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.setAttribute('x1', p1.x);
+                el.setAttribute('y1', p1.y);
+                el.setAttribute('x2', p2.x);
+                el.setAttribute('y2', p2.y);
+            }
+        }
+        
+        function setPos(id, p) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.setAttribute('cx', p.x);
+                el.setAttribute('cy', p.y);
+            }
+        }
+        
+        function setLabel(id, p, dx, dy) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.setAttribute('x', p.x + dx);
+                el.setAttribute('y', p.y + dy);
+            }
+        }
+        
+        function getRightAnglePath(p1, p2, p3, size = 15) {
+            // p2 is the vertex
+            const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+            const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+            
+            const len1 = Math.sqrt(v1.x*v1.x + v1.y*v1.y);
+            const len2 = Math.sqrt(v2.x*v2.x + v2.y*v2.y);
+            
+            if (len1 === 0 || len2 === 0) return "";
+            
+            const u1 = { x: v1.x/len1, y: v1.y/len1 };
+            const u2 = { x: v2.x/len2, y: v2.y/len2 };
+            
+            const pt1 = { x: p2.x + u1.x * size, y: p2.y + u1.y * size };
+            const pt2 = { x: p2.x + u2.x * size, y: p2.y + u2.y * size };
+            const pt3 = { x: pt1.x + u2.x * size, y: pt1.y + u2.y * size };
+            
+            return `M ${pt1.x} ${pt1.y} L ${pt3.x} ${pt3.y} L ${pt2.x} ${pt2.y}`;
+        }
+        
+        function updateScene() {
+            updatePoints();
+            
+            // Update static elements (only need to do once, but fine here)
+            setLine('scene1-line-de', pts.D, pts.E);
+            setLine('scene1-line-af', pts.A_base, pts.F);
+            setLine('scene1-line-df', pts.D, pts.F);
+            setLine('scene1-line-ef', pts.E, pts.F);
+            
+            document.getElementById('scene1-base-abc').setAttribute('d', `M ${pts.A_base.x} ${pts.A_base.y} L ${pts.B.x} ${pts.B.y} L ${pts.C.x} ${pts.C.y} Z`);
+            
+            // Update dynamic fold lines
+            setLine('scene1-line-ad', A_fold, pts.D);
+            setLine('scene1-line-ae', A_fold, pts.E);
+            setLine('scene1-line-af-fold', A_fold, pts.F);
+            
+            // Update points
+            setPos('scene1-pt-g', pts.G);
+            setPos('scene1-pt-a-base', pts.A_base);
+            setPos('scene1-pt-f', pts.F);
+            setPos('scene1-pt-d', pts.D);
+            setPos('scene1-pt-e', pts.E);
+            setPos('scene1-pt-b', pts.B);
+            setPos('scene1-pt-c', pts.C);
+            setPos('scene1-pt-h', H);
+            setPos('scene1-pt-a-fold', A_fold);
+            
+            // Update labels
+            setLabel('scene1-lbl-g', pts.G, 15, 25);
+            setLabel('scene1-lbl-a-base', pts.A_base, 20, 10);
+            setLabel('scene1-lbl-f', pts.F, -25, 25);
+            setLabel('scene1-lbl-d', pts.D, -25, -25);
+            setLabel('scene1-lbl-e', pts.E, 25, 25);
+            setLabel('scene1-lbl-b', pts.B, -30, 10);
+            setLabel('scene1-lbl-c', pts.C, 0, 30);
+            setLabel('scene1-lbl-h', H, 25, 20);
+            setLabel('scene1-lbl-a-fold', A_fold, 0, -25);
+            
+            // Step 1 updates
+            setLine('scene1-line-ag-hl', A_fold, pts.G);
+            setLine('scene1-line-fg-hl', pts.F, pts.G);
+            document.getElementById('scene1-plane-bced').setAttribute('points', `${pts.B.x},${pts.B.y} ${pts.C.x},${pts.C.y} ${pts.E.x},${pts.E.y} ${pts.D.x},${pts.D.y}`);
+            document.getElementById('scene1-plane-agf').setAttribute('points', `${A_fold.x},${A_fold.y} ${pts.G.x},${pts.G.y} ${pts.F.x},${pts.F.y}`);
+            
+            document.getElementById('scene1-ra-age').setAttribute('d', getRightAnglePath(A_fold, pts.G, pts.E));
+            document.getElementById('scene1-ra-fge').setAttribute('d', getRightAnglePath(pts.F, pts.G, pts.E));
+            
+            // Step 2 updates
+            setLine('scene1-line-ah', A_fold, H);
+            document.getElementById('scene1-ra-ahf').setAttribute('d', getRightAnglePath(A_fold, H, pts.F));
+            
+            // Step 3 updates
+            document.getElementById('scene1-plane-afed').setAttribute('points', `${A_fold.x},${A_fold.y} ${pts.F.x},${pts.F.y} ${pts.E.x},${pts.E.y} ${pts.D.x},${pts.D.y}`);
+            document.getElementById('scene1-path-afed').setAttribute('d', `M ${A_fold.x} ${A_fold.y} L ${pts.F.x} ${pts.F.y} L ${pts.E.x} ${pts.E.y} L ${pts.D.x} ${pts.D.y} Z M ${A_fold.x} ${A_fold.y} L ${pts.E.x} ${pts.E.y} M ${A_fold.x} ${A_fold.y} L ${pts.D.x} ${pts.D.y}`);
+            
+            updateVisibility();
+        }
+        
+        function updateVisibility() {
+            const setOpacity = (selector, opacity) => {
+                document.querySelectorAll(selector).forEach(el => el.style.opacity = opacity);
+            };
+            
+            // Reset all
+            setOpacity('.step1-highlight, .step1-plane, .step1-plane-light, .step2-line, .step2-point, .step3-outline, .step3-fill, .right-angle', 0);
+            
+            if (currentStep === 1) {
+                setOpacity('.step1-highlight', 1);
+                setOpacity('.step1-plane', 0.2);
+                setOpacity('.step1-plane-light', 0.1);
+                document.getElementById('scene1-ra-age').style.opacity = 1;
+                document.getElementById('scene1-ra-fge').style.opacity = 1;
+            } else if (currentStep === 2) {
+                setOpacity('.step2-line', 1);
+                setOpacity('.step2-point', 1);
+                document.getElementById('scene1-ra-ahf').style.opacity = 1;
+            } else if (currentStep === 3) {
+                setOpacity('.step2-line', 1); // Keep AH
+                setOpacity('.step2-point', 1);
+                setOpacity('.step3-outline', 1);
+                setOpacity('.step3-fill', 0.1);
+            }
+            
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === 3;
+        }
+        
+        // Event Listeners
+        sliderTheta.addEventListener('input', (e) => {
+            theta = e.target.value * Math.PI / 180;
+            updateScene();
+        });
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateVisibility();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < 3) {
+                currentStep++;
+                updateVisibility();
+            }
+        });
+        
+        // Init
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

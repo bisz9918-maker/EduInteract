@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>problem_79_physics_g12</title>
+    <!-- MathJax 配置：启用 $...$ 行内公式和 $$...$$ 块级公式 -->
+    <script>
+    MathJax = {
+      tex: { inlineMath: [["$","$"], ["\\(","\\)"]], displayMath: [["$$","$$"], ["\\[","\\]"]], processEscapes: true },
+      options: { skipHtmlTags: ["script","noscript","style","textarea","pre","code"] }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; max-width: 960px; margin: 0 auto; padding: 20px 32px; background: #fff; color: #222; }
+        h1 { font-size: 1.5em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .scene-container { border: 1px solid #ddd; border-radius: 8px; margin: 24px 0; padding: 16px; background: #fafafa; overflow: auto; }
+        .text-block { line-height: 1.9; margin: 16px 0; font-size: 1em; }
+        .text-block h1, .text-block h2, .text-block h3 { margin-top: 1em; }
+        .text-block ul, .text-block ol { padding-left: 1.8em; margin: 8px 0; }
+        .text-block li { margin: 4px 0; }
+        .text-block code { background: #f3f3f3; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+        .text-block strong { color: #111; }
+        .text-block hr { border: none; border-top: 1px solid #ddd; margin: 12px 0; }
+        nav { position: sticky; top: 0; background: white; padding: 8px 0; border-bottom: 1px solid #eee; z-index: 100; font-size: 14px; }
+        nav a { margin: 0 6px; text-decoration: none; color: #1565c0; }
+        nav a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>problem_79_physics_g12</h1>
+    <nav>场景导航：<a href="#scene1-wrapper">Scene 1</a> | <a href="#scene2-wrapper">Scene 2</a></nav>
+    <section class="text-block">
+        <p>题目原文：<br>如图所示，光滑水平面上静止放着长$L=1.6m$，质量为$M=3kg$的木板，一个质量为$m=1kg$的小物块放在木板的最右端，$m$与$M$之间的动摩擦因数为$μ=0.1$，现对木板施加一个水平向右的拉力$F$。（小物块可看作质点，$g=10m⋅s^{−2}$）<br>(1)施加$F$后，要想把木板从物体$m$的下方抽出来，求力$F$的大小应满足的条件；<br>(2)如果所施力$F=10N$，为了把木板从物体的下方抽出来，此力$F$的作用时间不得小于多少？</p>
+<p>题目分析与整体讲解思路：<br>本题是经典的“板块模型”动力学综合题。<br>第一问考查发生相对滑动的临界条件。关键在于理解当拉力$F$较小时，两者保持相对静止一起加速；当拉力$F$增大到某一临界值时，两者间的静摩擦力达到最大静摩擦力（等于滑动摩擦力），此时$m$的加速度达到最大值。若$F$继续增大，$M$的加速度将大于$m$的加速度，从而发生相对滑动。通过受力分析求出$m$的最大加速度，再整体或隔离分析求出临界拉力。<br>第二问考查多过程的动力学与运动学结合。拉力$F=10N$作用一段时间$t$后撤去，此时$M$的速度大于$m$的速度。撤去$F$后，$M$在摩擦力作用下减速，$m$继续加速，直到两者速度相等。要求作用时间最短，即两者共速时，$m$刚好滑到$M$的最左端（相对位移等于板长$L$）。<br>讲解时，首先通过图示1展示受力情况，通过拖动滑块改变拉力$F$，直观感受静摩擦力到滑动摩擦力的突变，以及加速度的差异，从而得出第一问的结论。<br>接着，通过图示2展示第二问的完整运动过程，并结合$v-t$图象。$v-t$图象能将复杂的位移关系转化为直观的面积关系，极大简化计算和理解。</p>
+    </section>
+    <section class="scene-container" id="scene1-wrapper">
+        <style>#scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        
+        #scene1-data-panel {
+            position: absolute;
+            top: 80px;
+            left: 600px;
+            width: 180px;
+            height: 160px;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            font-size: 14px;
+            z-index: 5;
+        }
+        .status-static { color: #2e7d32; font-weight: bold; }
+        .status-critical { color: #ef6c00; font-weight: bold; }
+        .status-sliding { color: #c62828; font-weight: bold; }</style>
+        <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <!-- Arrow markers -->
+                <marker id="scene1-arrow-F" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-f" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                
+                <!-- Ground pattern -->
+                <pattern id="scene1-ground-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="20" x2="20" y2="0" stroke="#000" stroke-width="1" />
+                </pattern>
+            </defs>
+
+            <!-- Ground -->
+            <rect x="50" y="350" width="700" height="20" fill="url(#scene1-ground-pattern)" />
+            <line x1="50" y1="350" x2="750" y2="350" stroke="#000" stroke-width="2" />
+
+            <!-- Length L -->
+            <line x1="100" y1="370" x2="500" y2="370" stroke="#888" stroke-width="1" stroke-dasharray="4,4" />
+            <line x1="100" y1="365" x2="100" y2="375" stroke="#888" stroke-width="1" />
+            <line x1="500" y1="365" x2="500" y2="375" stroke="#888" stroke-width="1" />
+            <text x="300" y="390" fill="#888" font-size="16" text-anchor="middle">L</text>
+
+            <!-- Board M -->
+            <rect x="100" y="290" width="400" height="60" fill="#1565c0" fill-opacity="0.1" stroke="#000" stroke-width="2" />
+            <text x="80" y="325" font-size="20" text-anchor="middle">M</text>
+
+            <!-- Block m -->
+            <rect x="440" y="230" width="60" height="60" fill="#c62828" fill-opacity="0.1" stroke="#000" stroke-width="2" />
+            <text x="470" y="220" font-size="20" text-anchor="middle">m</text>
+
+            <!-- Force F -->
+            <line id="scene1-line-F" x1="500" y1="320" x2="500" y2="320" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-F)" opacity="0" />
+            <text id="scene1-label-F" x="515" y="325" fill="#1565c0" font-size="16" opacity="0">F</text>
+
+            <!-- Friction f (on m) -->
+            <line id="scene1-line-f" x1="470" y1="280" x2="470" y2="280" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-f)" opacity="0" />
+            <text id="scene1-label-f" x="515" y="285" fill="#c62828" font-size="16" opacity="0">f</text>
+
+            <!-- Friction f' (on M) -->
+            <line id="scene1-line-f-prime" x1="470" y1="300" x2="470" y2="300" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-f)" opacity="0" />
+            <text id="scene1-label-f-prime" x="430" y="285" fill="#c62828" font-size="16" text-anchor="end" opacity="0">f'</text>
+        </svg>
+
+        <!-- HTML Data Panel -->
+        <div id="scene1-data-panel">
+            <div>拉力 F = <span id="scene1-val-F">0.0</span> N</div>
+            <div>摩擦力 f = <span id="scene1-val-f">0.00</span> N</div>
+            <div>a_m = <span id="scene1-val-am">0.00</span> m/s²</div>
+            <div>a_M = <span id="scene1-val-aM">0.00</span> m/s²</div>
+            <div>状态: <span id="scene1-val-status" class="status-static">相对静止</span></div>
+        </div>
+
+        <div id="scene1-controls">
+            <label for="scene1-slider-F" style="font-size: 16px;">拉力 F (N):</label>
+            <input type="range" id="scene1-slider-F" min="0" max="10" step="0.1" value="0" style="width: 400px;">
+            <span id="scene1-slider-val" style="font-size: 16px; width: 40px;">0.0</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const sliderF = document.getElementById('scene1-slider-F');
+        const sliderVal = document.getElementById('scene1-slider-val');
+        
+        const lineF = document.getElementById('scene1-line-F');
+        const labelF = document.getElementById('scene1-label-F');
+        
+        const linef = document.getElementById('scene1-line-f');
+        const labelf = document.getElementById('scene1-label-f');
+        
+        const linefPrime = document.getElementById('scene1-line-f-prime');
+        const labelfPrime = document.getElementById('scene1-label-f-prime');
+        
+        const valF = document.getElementById('scene1-val-F');
+        const valf = document.getElementById('scene1-val-f');
+        const valam = document.getElementById('scene1-val-am');
+        const valaM = document.getElementById('scene1-val-aM');
+        const valStatus = document.getElementById('scene1-val-status');
+
+        function updateScene() {
+            const F = parseFloat(sliderF.value);
+            sliderVal.textContent = F.toFixed(1);
+            valF.textContent = F.toFixed(1);
+
+            let f, am, aM, status, statusClass;
+
+            if (F === 0) {
+                f = 0;
+                am = 0;
+                aM = 0;
+                status = "相对静止";
+                statusClass = "status-static";
+            } else if (F <= 4) {
+                f = F / 4;
+                am = F / 4;
+                aM = F / 4;
+                if (F === 4) {
+                    status = "临界状态";
+                    statusClass = "status-critical";
+                } else {
+                    status = "相对静止";
+                    statusClass = "status-static";
+                }
+            } else {
+                f = 1;
+                am = 1;
+                aM = (F - 1) / 3;
+                status = "相对滑动";
+                statusClass = "status-sliding";
+            }
+
+            valf.textContent = f.toFixed(2);
+            valam.textContent = am.toFixed(2);
+            valaM.textContent = aM.toFixed(2);
+            
+            valStatus.textContent = status;
+            valStatus.className = statusClass;
+
+            // Update F arrow
+            if (F > 0) {
+                lineF.setAttribute('opacity', '1');
+                labelF.setAttribute('opacity', '1');
+                const lenF = F * 15;
+                lineF.setAttribute('x2', 500 + lenF);
+                labelF.setAttribute('x', 500 + lenF + 15);
+            } else {
+                lineF.setAttribute('opacity', '0');
+                labelF.setAttribute('opacity', '0');
+            }
+
+            // Update f and f' arrows
+            if (f > 0) {
+                linef.setAttribute('opacity', '1');
+                labelf.setAttribute('opacity', '1');
+                linefPrime.setAttribute('opacity', '1');
+                labelfPrime.setAttribute('opacity', '1');
+                
+                const lenf = f * 40;
+                linef.setAttribute('x2', 470 + lenf);
+                labelf.setAttribute('x', Math.max(515, 470 + lenf + 10));
+                
+                linefPrime.setAttribute('x2', 470 - lenf);
+                labelfPrime.setAttribute('x', Math.min(430, 470 - lenf - 10));
+            } else {
+                linef.setAttribute('opacity', '0');
+                labelf.setAttribute('opacity', '0');
+                linefPrime.setAttribute('opacity', '0');
+                labelfPrime.setAttribute('opacity', '0');
+            }
+        }
+
+        sliderF.addEventListener('input', updateScene);
+        updateScene(); // Initial call
+    })();
+    </script>
+    </section>
+    <section class="text-block">
+        <p>第一问推导过程：</p>
+<ol>
+<li>隔离小物块 $m$，其在水平方向只受木板给的摩擦力 $f$。</li>
+<li>要使 $M$ 从 $m$ 下方抽出，必须发生相对滑动，此时 $m$ 的加速度达到最大值。</li>
+<li>$m$ 的最大加速度由最大静摩擦力（等于滑动摩擦力）提供：$a_{m} = </li>
+</ol>
+<p>rac{\mu mg}{m} = \mu g = 0.1 	imes 10 = 1 m/s^2$。</p>
+<ol>
+<li>此时对整体进行受力分析，临界拉力 $F_0$ 满足：$F_0 = (M+m)a_{m} = (3+1) 	imes 1 = 4 N$。</li>
+<li>因此，要想把木板抽出来，拉力必须满足 $F > 4 N$。</li>
+</ol>
+<p>第二问教学说明：<br>当 $F = 10 N > 4 N$ 时，木板会被抽出。要求作用时间最短，意味着撤去拉力后，木板减速、物块加速，当两者刚好达到共速时，物块恰好滑到木板的最左端。<br>此时相对位移 $\Delta x$ 恰好等于木板长度 $L = 1.6 m$。</p>
+<p>利用 $v-t$ 图象可以极大地简化这一过程的讲解：</p>
+<ol>
+<li>0 到 $t$ 时间内：$M$ 和 $m$ 分别以 $a_M$ 和 $a_m$ 加速。</li>
+</ol>
+<p>$a_M =<br>rac{F - \mu mg}{M} =<br>rac{10 - 1}{3} = 3 m/s^2$<br>$a_m = \mu g = 1 m/s^2$</p>
+<ol>
+<li>撤去 $F$ 后：$m$ 继续以 $1 m/s^2$ 加速，$M$ 仅受摩擦力阻力，开始减速。</li>
+</ol>
+<p>$a_M' =<br>rac{-\mu mg}{M} = -<br>rac{1}{3} m/s^2$</p>
+<ol>
+<li>在 $v-t$ 图象中，两条速度曲线包围的面积即为相对位移。通过图示2的分步演示，引导学生观察物理过程与图象的对应关系，特别是“面积等于相对位移”这一核心几何意义。</li>
+</ol>
+    </section>
+    <section class="scene-container" id="scene2-wrapper">
+        <style>#scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e9e9e9; }
+        .math { font-family: "Times New Roman", Times, serif; font-style: italic; }</style>
+        <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- Definitions -->
+            <defs>
+                <marker id="scene2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000000" />
+                </marker>
+                <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="10" height="10">
+                    <path d="M-1,1 l2,-2 M0,10 l10,-10 M9,11 l2,-2" stroke="#000000" stroke-width="1" />
+                </pattern>
+            </defs>
+
+            <!-- Ground -->
+            <rect x="50" y="180" width="700" height="10" fill="url(#scene2-hatch)" />
+            <line x1="50" y1="180" x2="750" y2="180" stroke="#000000" stroke-width="2" />
+
+            <!-- Area -->
+            <polygon id="scene2-area" points="100,420 100,420 100,420 100,420" fill="#2e7d32" opacity="0" />
+
+            <!-- Axes -->
+            <line x1="100" y1="420" x2="700" y2="420" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrow)" />
+            <line x1="100" y1="420" x2="100" y2="230" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrow)" />
+            <text x="85" y="435" font-size="14" fill="#000000" class="math">O</text>
+            <text x="710" y="430" font-size="14" fill="#000000" class="math">t / s</text>
+            <text x="100" y="215" font-size="14" fill="#000000" text-anchor="middle" class="math">v / (m/s)</text>
+
+            <!-- Grid lines and labels -->
+            <g id="scene2-grid-lines" opacity="0">
+                <line id="scene2-line-t08" x1="300" y1="420" x2="300" y2="276" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" />
+                <line id="scene2-line-t20" x1="600" y1="420" x2="600" y2="300" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" />
+                <line id="scene2-line-v24" x1="100" y1="276" x2="300" y2="276" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" />
+                <line id="scene2-line-v20" x1="100" y1="300" x2="600" y2="300" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" />
+                <line id="scene2-line-v08" x1="100" y1="372" x2="300" y2="372" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" />
+
+                <text id="scene2-label-t08" x="300" y="445" font-size="14" fill="#000000" text-anchor="middle" opacity="0">0.8</text>
+                <text id="scene2-label-t20" x="600" y="445" font-size="14" fill="#000000" text-anchor="middle" opacity="0">2.0</text>
+                <text id="scene2-label-v24" x="90" y="270" font-size="14" fill="#000000" text-anchor="end" opacity="0">2.4</text>
+                <text id="scene2-label-v20" x="90" y="315" font-size="14" fill="#000000" text-anchor="end" opacity="0">2.0</text>
+                <text id="scene2-label-v08" x="90" y="385" font-size="14" fill="#000000" text-anchor="end" opacity="0">0.8</text>
+            </g>
+
+            <!-- Curves -->
+            <path id="scene2-path-vM" d="M 100 420 L 100 420 L 100 420" fill="none" stroke="#1565c0" stroke-width="2" />
+            <path id="scene2-path-vm" d="M 100 420 L 100 420 L 100 420" fill="none" stroke="#c62828" stroke-width="2" />
+            
+            <text id="scene2-label-vM" x="280" y="265" font-size="14" fill="#1565c0" opacity="0" class="math">v_M</text>
+            <text id="scene2-label-vm" x="320" y="372" font-size="14" fill="#c62828" opacity="0" class="math">v_m</text>
+
+            <!-- Co-speed point text -->
+            <text id="scene2-label-cospeed" x="620" y="295" font-size="14" fill="#000000" opacity="0">共速点</text>
+            
+            <!-- Area text -->
+            <text id="scene2-label-area" x="450" y="250" font-size="14" fill="#2e7d32" text-anchor="middle" opacity="0">总面积 = 相对位移 L = 1.6m</text>
+
+            <!-- Physical Model -->
+            <g id="scene2-model-M" transform="translate(100, 140)">
+                <rect x="0" y="0" width="160" height="40" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2" />
+                <text x="-15" y="25" font-size="16" fill="#1565c0" text-anchor="end" class="math">M</text>
+            </g>
+
+            <g id="scene2-model-m" transform="translate(230, 110)">
+                <rect x="0" y="0" width="30" height="30" fill="#c62828" fill-opacity="0.2" stroke="#c62828" stroke-width="2" />
+                <text x="15" y="-10" font-size="16" fill="#c62828" text-anchor="middle" class="math">m</text>
+            </g>
+
+            <g id="scene2-force-F" transform="translate(260, 160)" opacity="0">
+                <line x1="0" y1="0" x2="45" y2="0" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrow)" />
+                <text x="25" y="-10" font-size="16" fill="#000000" text-anchor="middle" class="math">F</text>
+            </g>
+
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const states = [
+            {
+                // Step 0: Initial
+                M_x: 100,
+                m_x: 230,
+                F_opacity: 0,
+                path_vM: "M 100 420 L 100 420 L 100 420",
+                path_vm: "M 100 420 L 100 420 L 100 420",
+                area_points: "100,420 100,420 100,420 100,420",
+                area_opacity: 0,
+                grid_opacity: 1,
+                t08_opacity: 0,
+                t20_opacity: 0,
+                v24_opacity: 0,
+                v20_opacity: 0,
+                v08_opacity: 0,
+                label_vM_opacity: 0,
+                label_vm_opacity: 0,
+                label_vm_x: 320,
+                label_vm_y: 372,
+                cospeed_opacity: 0,
+                area_text_opacity: 0
+            },
+            {
+                // Step 1: Accelerate
+                M_x: 196,
+                m_x: 262,
+                F_opacity: 1,
+                path_vM: "M 100 420 L 300 276 L 300 276",
+                path_vm: "M 100 420 L 300 372 L 300 372",
+                area_points: "100,420 300,276 300,372 100,420",
+                area_opacity: 0.2,
+                grid_opacity: 1,
+                t08_opacity: 0,
+                t20_opacity: 0,
+                v24_opacity: 0,
+                v20_opacity: 0,
+                v08_opacity: 0,
+                label_vM_opacity: 1,
+                label_vm_opacity: 1,
+                label_vm_x: 320,
+                label_vm_y: 372,
+                cospeed_opacity: 0,
+                area_text_opacity: 0
+            },
+            {
+                // Step 2: Critical point (F removed)
+                M_x: 196,
+                m_x: 262,
+                F_opacity: 0,
+                path_vM: "M 100 420 L 300 276 L 300 276",
+                path_vm: "M 100 420 L 300 372 L 300 372",
+                area_points: "100,420 300,276 300,372 100,420",
+                area_opacity: 0.2,
+                grid_opacity: 1,
+                t08_opacity: 1,
+                t20_opacity: 0,
+                v24_opacity: 1,
+                v20_opacity: 0,
+                v08_opacity: 1,
+                label_vM_opacity: 1,
+                label_vm_opacity: 1,
+                label_vm_x: 320,
+                label_vm_y: 372,
+                cospeed_opacity: 0,
+                area_text_opacity: 0
+            },
+            {
+                // Step 3: Decelerate and catch up
+                M_x: 460,
+                m_x: 430,
+                F_opacity: 0,
+                path_vM: "M 100 420 L 300 276 L 600 300",
+                path_vm: "M 100 420 L 300 372 L 600 300",
+                area_points: "100,420 300,276 600,300 300,372",
+                area_opacity: 0.2,
+                grid_opacity: 1,
+                t08_opacity: 1,
+                t20_opacity: 0,
+                v24_opacity: 1,
+                v20_opacity: 0,
+                v08_opacity: 1,
+                label_vM_opacity: 1,
+                label_vm_opacity: 1,
+                label_vm_x: 620,
+                label_vm_y: 325,
+                cospeed_opacity: 0,
+                area_text_opacity: 0
+            },
+            {
+                // Step 4: Co-speed
+                M_x: 460,
+                m_x: 430,
+                F_opacity: 0,
+                path_vM: "M 100 420 L 300 276 L 600 300",
+                path_vm: "M 100 420 L 300 372 L 600 300",
+                area_points: "100,420 300,276 600,300 300,372",
+                area_opacity: 0.2,
+                grid_opacity: 1,
+                t08_opacity: 1,
+                t20_opacity: 1,
+                v24_opacity: 1,
+                v20_opacity: 1,
+                v08_opacity: 1,
+                label_vM_opacity: 1,
+                label_vm_opacity: 1,
+                label_vm_x: 620,
+                label_vm_y: 325,
+                cospeed_opacity: 1,
+                area_text_opacity: 1
+            }
+        ];
+
+        let currentStep = 0;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+
+        function updateScene(step) {
+            const state = states[step];
+            const t = d3.transition().duration(1000);
+
+            // Update Model
+            d3.select('#scene2-model-M').transition(t).attr('transform', `translate(${state.M_x}, 140)`);
+            d3.select('#scene2-model-m').transition(t).attr('transform', `translate(${state.m_x}, 110)`);
+            
+            // Force F moves with M
+            d3.select('#scene2-force-F')
+                .transition(t)
+                .attr('transform', `translate(${state.M_x + 160}, 160)`)
+                .style('opacity', state.F_opacity);
+
+            // Update Paths
+            d3.select('#scene2-path-vM').transition(t).attr('d', state.path_vM);
+            d3.select('#scene2-path-vm').transition(t).attr('d', state.path_vm);
+
+            // Update Area
+            d3.select('#scene2-area').transition(t)
+                .attr('points', state.area_points)
+                .style('opacity', state.area_opacity);
+
+            // Update Grid and Labels
+            d3.select('#scene2-grid-lines').transition(t).style('opacity', state.grid_opacity);
+            
+            d3.select('#scene2-line-t08').transition(t).style('opacity', state.t08_opacity);
+            d3.select('#scene2-label-t08').transition(t).style('opacity', state.t08_opacity);
+            
+            d3.select('#scene2-line-t20').transition(t).style('opacity', state.t20_opacity);
+            d3.select('#scene2-label-t20').transition(t).style('opacity', state.t20_opacity);
+            
+            d3.select('#scene2-line-v24').transition(t).style('opacity', state.v24_opacity);
+            d3.select('#scene2-label-v24').transition(t).style('opacity', state.v24_opacity);
+            
+            d3.select('#scene2-line-v20').transition(t).style('opacity', state.v20_opacity);
+            d3.select('#scene2-label-v20').transition(t).style('opacity', state.v20_opacity);
+            
+            d3.select('#scene2-line-v08').transition(t).style('opacity', state.v08_opacity);
+            d3.select('#scene2-label-v08').transition(t).style('opacity', state.v08_opacity);
+
+            d3.select('#scene2-label-vM').transition(t).style('opacity', state.label_vM_opacity);
+            
+            d3.select('#scene2-label-vm')
+                .transition(t)
+                .attr('x', state.label_vm_x)
+                .attr('y', state.label_vm_y)
+                .style('opacity', state.label_vm_opacity);
+            
+            d3.select('#scene2-label-cospeed').transition(t).style('opacity', state.cospeed_opacity);
+            d3.select('#scene2-label-area').transition(t).style('opacity', state.area_text_opacity);
+
+            // Update Buttons
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === states.length - 1;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < states.length - 1) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+
+        // Initialize
+        updateScene(0);
+    })();
+    </script>
+    </section>
+    <section class="text-block">
+        <p>第二问通过 $v-t$ 图象的几何关系求解：</p>
+<ol>
+<li>设拉力作用时间为 $t$。在 $t$ 时刻，$v_M = 3t$，$v_m = t$。</li>
+<li>撤去拉力后，相对加速度大小为 $a_{rel} = a_m - a_M' = 1 - (-1/3) = 4/3 m/s^2$。</li>
+<li>达到共速所需的时间 $t'$ 为：$t' = </li>
+</ol>
+<p>rac{v<em>M - v</em>m}{a_{rel}} =<br>rac{3t - t}{4/3} = 1.5t$。</p>
+<ol>
+<li>在 $v-t$ 图象中，相对位移等于两条速度图线包围的三角形面积。我们可以沿 $t$ 时刻的竖直线将总面积分为左右两个三角形。</li>
+<li>两个三角形拥有共同的底，即 $t$ 时刻的相对速度 $\Delta v = v_M - v_m = 2t$。</li>
+<li>左侧三角形的高为 $t$，右侧三角形的高为 $t'$。</li>
+<li>总面积 $S = </li>
+</ol>
+<p>rac{1}{2} 	imes (2t) 	imes t +<br>rac{1}{2} 	imes (2t) 	imes t' = t^2 + t \cdot (1.5t) = 2.5t^2$。</p>
+<ol>
+<li>令总相对位移等于木板长度 $L$：$2.5t^2 = 1.6$，解得 $t^2 = 0.64$，即 $t = 0.8 s$。</li>
+<li>结论：此力 $F$ 的作用时间不得小于 $0.8 s$。</li>
+</ol>
+<p>课堂讲解建议：<br>本题是动力学的压轴题型，难点在于第二问的多过程分析。传统代数法需要列出多个位移公式并求解二次方程，容易出错且物理图像不直观。<br>建议教师在讲解时，重点利用图示2的 $v-t$ 图象。引导学生自己画出草图，并指出“相对位移即为图象中两线之间的面积”。这种“数形结合”的思想不仅能快速解题，还能加深学生对运动学规律的理解。</p>
+    </section>
+</body>
+</html>

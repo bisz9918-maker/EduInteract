@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单摆摆动 + 平抛运动 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { padding: 8px 16px; font-size: 14px; background: #e3f2fd; border-radius: 4px; }
+        .scene1-text { font-size: 14px; }
+        .scene1-label { font-size: 13px; }
+        .scene1-annotation { font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 岸：垂直线 (50,200)-(50,400) -->
+            <line x1="50" y1="200" x2="50" y2="400" stroke="black" stroke-width="2" id="scene1-shore"/>
+            
+            <!-- 水面：水平线 (50,400)-(750,400) -->
+            <line x1="50" y1="400" x2="750" y2="400" stroke="black" stroke-width="2" id="scene1-water"/>
+            
+            <!-- 浮台：矩形 (550,395)-(720,405) -->
+            <rect x="550" y="395" width="170" height="10" fill="black" id="scene1-platform"/>
+            <text x="635" y="415" class="scene1-label" id="scene1-platform-label">浮台</text>
+            
+            <!-- 悬挂点 O：实心圆 (300,80) 半径 8 -->
+            <circle cx="300" cy="80" r="8" fill="black" id="scene1-pivot"/>
+            <text x="310" y="70" class="scene1-label" id="scene1-pivot-label">O</text>
+            
+            <!-- 初始绳：线段 (300,80)-(166,181) 蓝色 -->
+            <line x1="300" y1="80" x2="166" y2="181" stroke="#1565c0" stroke-width="3" id="scene1-rope-init"/>
+            
+            <!-- 最低点绳：线段 (300,80)-(300,248) 黑色 -->
+            <line x1="300" y1="80" x2="300" y2="248" stroke="black" stroke-width="3" id="scene1-rope-low" style="display: none;"/>
+            
+            <!-- 初始质点 m：实心圆 (166,181) 半径 12 蓝色 -->
+            <circle cx="166" cy="181" r="12" fill="#1565c0" id="scene1-mass-init"/>
+            <text x="140" y="190" class="scene1-label" id="scene1-mass-init-label">m</text>
+            
+            <!-- 最低点质点：实心圆 (300,248) 半径 12 红色 -->
+            <circle cx="300" cy="248" r="12" fill="#c62828" id="scene1-mass-low" style="display: none;"/>
+            
+            <!-- 摆动轨迹：圆弧 圆心 (300,80)，半径 168，起始角 -53°，终止角 0° 蓝色虚线 -->
+            <path d="M 166 181 A 168 168 0 0 1 300 248" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" fill="none" opacity="0.3" id="scene1-swing-path" style="display: none;"/>
+            
+            <!-- 平抛轨迹：抛物线 (300,248) 到 (650,400) 绿色虚线 -->
+            <path d="M 300 248 Q 475 200 650 400" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" fill="none" id="scene1-projectile-path" style="display: none;"/>
+            
+            <!-- 速度矢量 v：箭头 (300,248)-(380,248) 红色 -->
+            <line x1="300" y1="248" x2="380" y2="248" stroke="#c62828" stroke-width="3" id="scene1-velocity-line" style="display: none;"/>
+            <polygon points="380,248 370,243 370,253" fill="#c62828" id="scene1-velocity-arrow" style="display: none;"/>
+            <text x="340" y="235" class="scene1-label" fill="#c62828" id="scene1-velocity-label" style="display: none;">v</text>
+            
+            <!-- 角度α弧线：圆弧 圆心 (300,80)，半径 40，起始角 -53°，终止角 0° 蓝色虚线 -->
+            <path d="M 300 40 A 40 40 0 0 1 320 52" stroke="#1565c0" stroke-width="2" stroke-dasharray="3,3" fill="none" id="scene1-angle-arc"/>
+            <text x="340" y="120" class="scene1-annotation" fill="#1565c0" id="scene1-angle-label">α=53°</text>
+            
+            <!-- 绳长 l 标注线：垂直线 (160,80)-(160,248) 灰色虚线（再左移） -->
+            <line x1="160" y1="80" x2="160" y2="248" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" id="scene1-l-line"/>
+            <text x="130" y="164" class="scene1-annotation" fill="#888888" id="scene1-l-label">l=2m</text>
+            
+            <!-- 悬挂高度 H 标注线：垂直线 (720,80)-(720,400) 灰色虚线 -->
+            <line x1="720" y1="80" x2="720" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" id="scene1-H-line"/>
+            <text x="730" y="240" class="scene1-annotation" fill="#888888" id="scene1-H-label">H=3.8m</text>
+            
+            <!-- 平抛高度 h₂标注线：垂直线 (720,248)-(720,400) 灰色虚线（再左移） -->
+            <line x1="720" y1="248" x2="720" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" id="scene1-h2-line" style="display: none;"/>
+            <text x="730" y="324" class="scene1-annotation" fill="#888888" id="scene1-h2-label" style="display: none;">h₂=1.8m</text>
+            
+            <!-- 水平位移 d 标注线：水平线 (300,420)-(650,420) 灰色虚线 -->
+            <line x1="300" y1="420" x2="650" y2="420" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" id="scene1-d-line" style="display: none;"/>
+            <text x="475" y="435" class="scene1-annotation" fill="#888888" id="scene1-d-label" style="display: none;">d</text>
+            
+            <!-- 步骤 1 新增标注：h₁=l(1-cosα)=0.4m（移到左侧，远离 m 标签） -->
+            <text x="40" y="210" class="scene1-annotation" fill="#1565c0" id="scene1-h1-label" style="display: none;">h₁=0.4m</text>
+            
+            <!-- 步骤 1 新增文字：重力势能→动能 -->
+            <text x="200" y="280" class="scene1-text" fill="#1565c0" id="scene1-energy-text" style="display: none;">重力势能 → 动能</text>
+            
+            <!-- 步骤 2 新增文字：F-mg=mv²/l -->
+            <text x="400" y="200" class="scene1-text" fill="#c62828" id="scene1-force-text" style="display: none;">F - mg = mv²/l</text>
+            
+            <!-- 步骤 3 新增文字：水平匀速 + 竖直自由落体（移到更上方避免重叠） -->
+            <text x="500" y="190" class="scene1-text" fill="#2e7d32" id="scene1-projectile-text" style="display: none;">水平匀速 + 竖直自由落体</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button class="scene1-btn" id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button class="scene1-btn" id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 单摆摆动 + 平抛运动全过程
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 岸 | 垂直线 | (50,200)-(50,400) | 2×200 | - | 左侧边界 |
+        // | 水面 | 水平线 | (50,400)-(750,400) | 700×2 | - | y=400 |
+        // | 浮台 | 矩形 | (550,395)-(720,405) | 170×10 | 上方 | 水面上的黑色矩形 |
+        // | 悬挂点 O | 实心圆 | (300,80) | 8 | 右上方 (310,70) | 固定点 |
+        // | 初始绳 | 线段 | (300,80)-(166,181) | - | - | 蓝色，初始位置 |
+        // | 最低点绳 | 线段 | (300,80)-(300,248) | - | - | 黑色，最低点位置 |
+        // | 初始质点 m | 实心圆 | (166,181) | 12 | 左下方 (140,190) | 蓝色 |
+        // | 最低点质点 | 实心圆 | (300,248) | 12 | 右下方 (320,260) | 红色 |
+        // | 摆动轨迹 | 圆弧 | 圆心 (300,80)，半径 168，角度 -53°到 0° | - | - | 蓝色虚线，透明度 30% |
+        // | 平抛轨迹 | 抛物线 | (300,248) 到 (650,400) | - | - | 绿色虚线 |
+        // | 速度矢量 v | 箭头 | (300,248)-(380,248) | 80×4 | 上方 (340,235) | 红色 |
+        // | 角度α弧线 | 圆弧 | 圆心 (300,80)，半径 40，角度 -53°到 0° | - | 右侧 (340,120) | 蓝色虚线 |
+        // | 绳长 l 标注线 | 垂直线 | (160,80)-(160,248) | 2×168 | 左侧 (130,164) | 灰色虚线（已左移避免重叠） |
+        // | 悬挂高度 H 标注线 | 垂直线 | (720,80)-(720,400) | 2×320 | 右侧 (730,240) | 灰色虚线（已左移避免越界） |
+        // | 平抛高度 h₂标注线 | 垂直线 | (720,248)-(720,400) | 2×152 | 右侧 (730,324) | 灰色虚线（已左移避免越界） |
+        // | 水平位移 d 标注线 | 水平线 | (300,420)-(650,420) | 350×2 | 下方 (475,435) | 灰色虚线 |
+        
+        // 状态变量
+        var currentStep = 0;
+        var totalSteps = 4;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 步骤 0（初始状态）：岸、水面、浮台、悬挂点 O、初始绳、初始质点 m、角度α弧线
+            // 步骤 1（摆动过程）：新增摆动轨迹弧线、h₁标注、重力势能→动能文字
+            // 步骤 2（最低点受力）：新增最低点绳、最低点质点、速度矢量 v、受力公式文字
+            // 步骤 3（平抛运动）：新增平抛轨迹抛物线、h₂标注、d 标注、水平匀速 + 竖直自由落体文字
+            
+            // 步骤 0 基础元素（始终显示）
+            show(document.getElementById('scene1-shore'));
+            show(document.getElementById('scene1-water'));
+            show(document.getElementById('scene1-platform'));
+            show(document.getElementById('scene1-platform-label'));
+            show(document.getElementById('scene1-pivot'));
+            show(document.getElementById('scene1-pivot-label'));
+            show(document.getElementById('scene1-rope-init'));
+            show(document.getElementById('scene1-mass-init'));
+            show(document.getElementById('scene1-mass-init-label'));
+            show(document.getElementById('scene1-angle-arc'));
+            show(document.getElementById('scene1-angle-label'));
+            show(document.getElementById('scene1-l-line'));
+            show(document.getElementById('scene1-l-label'));
+            show(document.getElementById('scene1-H-line'));
+            show(document.getElementById('scene1-H-label'));
+            
+            // 步骤 1 新增元素
+            if (currentStep >= 1) {
+                show(document.getElementById('scene1-swing-path'));
+                show(document.getElementById('scene1-h1-label'));
+                show(document.getElementById('scene1-energy-text'));
+            } else {
+                hide(document.getElementById('scene1-swing-path'));
+                hide(document.getElementById('scene1-h1-label'));
+                hide(document.getElementById('scene1-energy-text'));
+            }
+            
+            // 步骤 2 新增元素
+            if (currentStep >= 2) {
+                show(document.getElementById('scene1-rope-low'));
+                show(document.getElementById('scene1-mass-low'));
+                show(document.getElementById('scene1-velocity-line'));
+                show(document.getElementById('scene1-velocity-arrow'));
+                show(document.getElementById('scene1-velocity-label'));
+                show(document.getElementById('scene1-force-text'));
+            } else {
+                hide(document.getElementById('scene1-rope-low'));
+                hide(document.getElementById('scene1-mass-low'));
+                hide(document.getElementById('scene1-velocity-line'));
+                hide(document.getElementById('scene1-velocity-arrow'));
+                hide(document.getElementById('scene1-velocity-label'));
+                hide(document.getElementById('scene1-force-text'));
+            }
+            
+            // 步骤 3 新增元素
+            if (currentStep >= 3) {
+                show(document.getElementById('scene1-projectile-path'));
+                show(document.getElementById('scene1-h2-line'));
+                show(document.getElementById('scene1-h2-label'));
+                show(document.getElementById('scene1-d-line'));
+                show(document.getElementById('scene1-d-label'));
+                show(document.getElementById('scene1-projectile-text'));
+            } else {
+                hide(document.getElementById('scene1-projectile-path'));
+                hide(document.getElementById('scene1-h2-line'));
+                hide(document.getElementById('scene1-h2-label'));
+                hide(document.getElementById('scene1-d-line'));
+                hide(document.getElementById('scene1-d-label'));
+                hide(document.getElementById('scene1-projectile-text'));
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === totalSteps - 1);
+        }
+        
+        // 事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

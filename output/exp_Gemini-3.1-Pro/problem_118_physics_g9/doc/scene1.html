@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态电路分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .panel { position: absolute; left: 440px; top: 50px; width: 340px; height: 370px; display: none; font-size: 15px; line-height: 1.6; color: #333; }
+        .panel.active { display: block; }
+        .panel h3 { margin-top: 0; color: #1976d2; font-size: 18px; }
+        .formula { background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; text-align: center; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #f0f0f0; }
+        
+        /* SVG Styles */
+        svg { position: absolute; top: 0; left: 0; }
+        .wire { fill: none; stroke: #000; stroke-width: 2; }
+        .component { fill: #fff; stroke: #000; stroke-width: 2; }
+        .node { fill: #000; }
+        .label { font-size: 16px; font-family: serif; font-style: italic; fill: #000; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+        .label-normal { font-size: 14px; font-family: sans-serif; font-style: normal; pointer-events: none; }
+        
+        /* Highlights */
+        .hl-path { fill: none; stroke: #c62828; stroke-width: 4; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .hl-area-v1 { fill: #1565c0; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .hl-area-v2 { fill: #2e7d32; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .hl-border-r1 { fill: none; stroke: #f57f17; stroke-width: 4; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .dashed-wire { fill: none; stroke: #888; stroke-width: 2; stroke-dasharray: 4 4; opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- Highlights -->
+            <rect id="scene1-hl-v1" class="hl-area-v1" x="100" y="140" width="160" height="40" rx="4" />
+            <rect id="scene1-hl-v2" class="hl-area-v2" x="150" y="235" width="60" height="50" rx="4" />
+            <rect id="scene1-hl-r1" class="hl-border-r1" x="88" y="176" width="24" height="68" rx="2" />
+            
+            <!-- Highlight Path -->
+            <!-- Move highlight path to background so it doesn't overlap text -->
+            <path id="scene1-hl-path" class="hl-path" d="" />
+            
+            <!-- Wires -->
+            <!-- Top -->
+            <line class="wire" x1="100" y1="80" x2="164" y2="80" />
+            <line class="wire" x1="196" y1="80" x2="304" y2="80" />
+            <line class="wire" x1="336" y1="80" x2="380" y2="80" />
+            <!-- Middle -->
+            <line class="wire" x1="100" y1="160" x2="190" y2="160" />
+            <line id="scene1-wire-r2-right" class="wire" x1="290" y1="160" x2="380" y2="160" />
+            <line id="scene1-wire-r2-dashed" class="dashed-wire" x1="260" y1="160" x2="380" y2="160" />
+            <!-- Bottom -->
+            <line class="wire" x1="100" y1="260" x2="165" y2="260" />
+            <line class="wire" x1="175" y1="260" x2="185" y2="260" />
+            <line class="wire" x1="195" y1="260" x2="280" y2="260" />
+            <line class="wire" x1="320" y1="260" x2="380" y2="260" />
+            <!-- Very Bottom -->
+            <line class="wire" x1="100" y1="340" x2="224" y2="340" />
+            <line class="wire" x1="256" y1="340" x2="380" y2="340" />
+            <!-- Left -->
+            <line class="wire" x1="100" y1="80" x2="100" y2="180" />
+            <line class="wire" x1="100" y1="240" x2="100" y2="340" />
+            <!-- Right -->
+            <line class="wire" x1="380" y1="80" x2="380" y2="340" />
+            
+            <!-- Components -->
+            <!-- R1 -->
+            <rect class="component" x="92" y="180" width="16" height="60" />
+            <text class="label" x="70" y="210">R<tspan dy="5" font-size="12">1</tspan></text>
+            
+            <!-- R2 -->
+            <rect class="component" x="190" y="152" width="100" height="16" />
+            <!-- Move R2 label down to avoid overlap -->
+            <text class="label" x="240" y="190">R<tspan dy="5" font-size="12">2</tspan></text>
+            
+            <!-- Power -->
+            <line class="wire" x1="165" y1="245" x2="165" y2="275" />
+            <line class="wire" x1="175" y1="252" x2="175" y2="268" stroke-width="4" />
+            <line class="wire" x1="185" y1="245" x2="185" y2="275" />
+            <line class="wire" x1="195" y1="252" x2="195" y2="268" stroke-width="4" />
+            <text class="label" x="180" y="295">U</text>
+            
+            <!-- Switch S -->
+            <circle class="component" cx="280" cy="260" r="3" />
+            <circle class="component" cx="320" cy="260" r="3" />
+            <line class="wire" x1="280" y1="260" x2="315" y2="245" />
+            <!-- Move S label up to avoid overlap -->
+            <text class="label label-normal" x="300" y="225">S</text>
+            
+            <!-- Meters -->
+            <!-- V1 -->
+            <circle class="component" cx="180" cy="80" r="16" />
+            <!-- Move V1 label outside to avoid overlap with circle -->
+            <text class="label label-normal" x="180" y="50">V<tspan dy="4" font-size="10">1</tspan></text>
+            
+            <!-- A -->
+            <circle class="component" cx="320" cy="80" r="16" />
+            <!-- Move A label outside to avoid overlap with circle -->
+            <text class="label label-normal" x="320" y="50">A</text>
+            
+            <!-- V2 -->
+            <circle class="component" cx="240" cy="340" r="16" />
+            <!-- Move V2 label outside to avoid overlap with circle -->
+            <text class="label label-normal" x="240" y="370">V<tspan dy="4" font-size="10">2</tspan></text>
+            
+            <!-- Slider P -->
+            <g id="scene1-slider" transform="translate(260, 0)">
+                <line class="wire" x1="0" y1="80" x2="0" y2="152" />
+                <polygon points="0,152 -5,142 5,142" fill="#000" />
+                <!-- Move P label left to avoid overlap -->
+                <text class="label label-normal" x="-20" y="130">P</text>
+                <circle class="node" cx="0" cy="80" r="3" />
+            </g>
+            
+            <!-- Nodes -->
+            <circle class="node" cx="100" cy="160" r="3" />
+            <circle class="node" cx="380" cy="160" r="3" />
+            <circle class="node" cx="100" cy="260" r="3" />
+            <circle class="node" cx="380" cy="260" r="3" />
+        </svg>
+        
+        <!-- Panels -->
+        <div id="scene1-panel-0" class="panel active">
+            <h3>动态电路分析与电表示数关系推导</h3>
+            <p>如图所示的电路中，电源电压恒定；闭合开关S，当滑动变阻器 $R_2$ 的滑片P由如图位置向左滑动时，判断各选项的正确性。</p>
+            <p>请点击“下一步”开始分析。</p>
+        </div>
+        <div id="scene1-panel-1" class="panel">
+            <h3>1. 电路等效分析</h3>
+            <p>闭合开关S后，电流路径如红色高亮所示：</p>
+            <ul>
+                <li>$R_1$ 与 $R_2$ 的左半段串联。</li>
+                <li>$R_2$ 的右半段被滑片P短路（灰色虚线）。</li>
+                <li>电压表 $V_1$ 测量 $R_2$ 左半段两端的电压（蓝色区域）。</li>
+                <li>电压表 $V_2$ 测量电源电压（绿色区域）。</li>
+            </ul>
+        </div>
+        <div id="scene1-panel-2" class="panel">
+            <h3>2. 选项 A 分析</h3>
+            <p>滑片P向左滑动时，$R_2$ 接入电路的阻值变小。</p>
+            <div class="formula">
+                $$ rac{U_2}{I} = rac{U_{总}}{I} = R_{总} = R_1 + R_{2接入} $$
+            </div>
+            <p>因为 $R_{2接入}$ 变小，所以 $R_{总}$ 变小，即 $rac{U_2}{I}$ 的值变小。</p>
+            <p><strong>结论：选项 A 正确。</strong></p>
+        </div>
+        <div id="scene1-panel-3" class="panel">
+            <h3>3. 选项 B 分析</h3>
+            <p>根据串联电路电压规律：</p>
+            <div class="formula">
+                $$ U_2 - U_1 = U_{总} - U_{R2} = U_{R1} $$
+            </div>
+            <p>因此：</p>
+            <div class="formula">
+                $$ rac{U_2 - U_1}{I} = rac{U_{R1}}{I} = R_1 $$
+            </div>
+            <p>因为 $R_1$ 是定值电阻，所以该比值不变。</p>
+            <p><strong>结论：选项 B 错误。</strong></p>
+        </div>
+        <div id="scene1-panel-4" class="panel">
+            <h3>4. 选项 C、D 分析</h3>
+            <p>对于选项 C：</p>
+            <div class="formula">
+                $$ \left| rac{\Delta U_1}{\Delta I} ight| = \left| rac{\Delta U_{R2}}{\Delta I} ight| = R_1 $$
+            </div>
+            <p>该比值等于定值电阻 $R_1$ 的阻值，保持不变。<strong>选项 C 正确。</strong></p>
+            <p>对于选项 D：</p>
+            <p>因为 $U_2$ 测量电源电压，电源电压恒定，所以 $\Delta U_2 = 0$。而 $\Delta U_1 
+eq 0$，两者大小不同。<strong>选项 D 错误。</strong></p>
+        </div>
+        
+        <!-- Controls -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const slider = document.getElementById('scene1-slider');
+        const hlPath = document.getElementById('scene1-hl-path');
+        const hlV1 = document.getElementById('scene1-hl-v1');
+        const hlV2 = document.getElementById('scene1-hl-v2');
+        const hlR1 = document.getElementById('scene1-hl-r1');
+        const wireR2Dashed = document.getElementById('scene1-wire-r2-dashed');
+        
+        let sliderX = 260;
+        let animationId = null;
+        
+        function updatePath(x) {
+            // Adjust path to avoid overlapping with labels
+            // R2 label is at y=190, S label is at y=225, P label is at y=130
+            // The path is at y=160 and y=260, which is fine.
+            // The issue is the path overlapping with the text bounding boxes.
+            // We can fix this by making the path not overlap the text bounding boxes.
+            // Actually, the path is just a line. The text is drawn over it.
+            // The problem is that the text bounding box overlaps the path.
+            // Let's move the text further away.
+            const pathD = `M 165 260 L 100 260 L 100 160 L ${x} 160 L ${x} 80 L 380 80 L 380 260 L 195 260`;
+            hlPath.setAttribute('d', pathD);
+            
+            wireR2Dashed.setAttribute('x1', x);
+            hlV1.setAttribute('width', x - 100);
+        }
+        
+        function animateSlider(targetX, duration) {
+            const startX = sliderX;
+            const startTime = performance.now();
+            
+            function step(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                
+                sliderX = startX + (targetX - startX) * ease;
+                slider.setAttribute('transform', `translate(${sliderX}, 0)`);
+                updatePath(sliderX);
+                
+                if (progress < 1) {
+                    animationId = requestAnimationFrame(step);
+                }
+            }
+            
+            if (animationId) cancelAnimationFrame(animationId);
+            animationId = requestAnimationFrame(step);
+        }
+        
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            for (let i = 0; i <= maxStep; i++) {
+                document.getElementById(`scene1-panel-${i}`).classList.toggle('active', i === currentStep);
+            }
+            
+            if (currentStep === 0) {
+                hlPath.style.opacity = 0;
+                hlV1.style.opacity = 0;
+                hlV2.style.opacity = 0;
+                hlR1.style.opacity = 0;
+                wireR2Dashed.style.opacity = 0;
+                
+                if (sliderX !== 260) {
+                    animateSlider(260, 500);
+                } else {
+                    updatePath(260);
+                }
+            } else if (currentStep === 1) {
+                hlPath.style.opacity = 0.8;
+                hlV1.style.opacity = 0.2;
+                hlV2.style.opacity = 0.2;
+                hlR1.style.opacity = 0;
+                wireR2Dashed.style.opacity = 1;
+                
+                if (sliderX !== 260) {
+                    animateSlider(260, 500);
+                } else {
+                    updatePath(260);
+                }
+            } else if (currentStep === 2) {
+                hlPath.style.opacity = 0.8;
+                hlV1.style.opacity = 0.2;
+                hlV2.style.opacity = 0.2;
+                hlR1.style.opacity = 0;
+                wireR2Dashed.style.opacity = 1;
+                
+                if (sliderX !== 210) {
+                    animateSlider(210, 1000);
+                }
+            } else if (currentStep >= 3) {
+                hlPath.style.opacity = 0.8;
+                hlV1.style.opacity = 0.2;
+                hlV2.style.opacity = 0.2;
+                hlR1.style.opacity = 1;
+                wireR2Dashed.style.opacity = 1;
+                
+                if (sliderX !== 210) {
+                    animateSlider(210, 500);
+                }
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        updatePath(sliderX);
+    })();
+    </script>
+</body>
+</html>

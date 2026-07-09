@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 平面交线分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-svg { width: 800px; height: 500px; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene3-step-indicator { position: absolute; bottom: 45px; left: 0; right: 0; text-align: center; font-size: 14px; color: #666; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene3-text-label { font-size: 14px; font-family: "Microsoft YaHei", sans-serif; }
+        .scene3-vertex-label { font-size: 16px; font-weight: bold; }
+        .scene3-conclusion { font-size: 24px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 定义 -->
+            <defs>
+                <marker id="scene3-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888888"/>
+                </marker>
+            </defs>
+
+            <!-- 底面 ABCD 轮廓 -->
+            <polygon id="scene3-base-outline" points="200,350 350,380 600,360 300,320" fill="none" stroke="#000000" stroke-width="1.5" opacity="1"/>
+
+            <!-- 棱线（虚线：被遮挡） -->
+            <line id="scene3-line-PD" x1="400" y1="80" x2="300" y2="320" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" opacity="1"/>
+            <line id="scene3-line-CD" x1="600" y1="360" x2="300" y2="320" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" opacity="1"/>
+            <line id="scene3-line-DA" x1="300" y1="320" x2="200" y2="350" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" opacity="1"/>
+
+            <!-- 棱线（实线：可见） -->
+            <line id="scene3-line-PA" x1="400" y1="80" x2="200" y2="350" stroke="#000000" stroke-width="2" opacity="1"/>
+            <line id="scene3-line-PB" x1="400" y1="80" x2="350" y2="380" stroke="#000000" stroke-width="2" opacity="1"/>
+            <line id="scene3-line-PC" x1="400" y1="80" x2="600" y2="360" stroke="#000000" stroke-width="2" opacity="1"/>
+            <line id="scene3-line-AB" x1="200" y1="350" x2="350" y2="380" stroke="#000000" stroke-width="2" opacity="1"/>
+            <line id="scene3-line-BC" x1="350" y1="380" x2="600" y2="360" stroke="#000000" stroke-width="2" opacity="1"/>
+
+            <!-- 平面 PAB 填充（步骤 1 显示） -->
+            <polygon id="scene3-plane-PAB" points="400,80 200,350 350,380" fill="#1565c0" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 平面 PDC 填充（步骤 1 显示） -->
+            <polygon id="scene3-plane-PDC" points="400,80 300,320 600,360" fill="#c62828" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 延长线 AB 和 DC（步骤 2 显示） -->
+            <line id="scene3-line-AB-extend" x1="200" y1="350" x2="500" y2="400" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" opacity="0" style="transition: opacity 0.3s;"/>
+            <line id="scene3-line-DC-extend" x1="300" y1="320" x2="500" y2="400" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,3" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 交点 Q（步骤 2 显示） -->
+            <circle id="scene3-point-Q" cx="500" cy="400" r="5" fill="#2e7d32" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 交线 l = PQ（步骤 3 显示） -->
+            <line id="scene3-line-intersection" x1="400" y1="80" x2="500" y2="400" stroke="#2e7d32" stroke-width="3" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 交线延长线（步骤 4 显示） -->
+            <line id="scene3-line-intersection-extend" x1="500" y1="400" x2="520" y2="460" stroke="#888888" stroke-width="2" stroke-dasharray="5,3" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 箭头标注"不平行"（步骤 4 显示） -->
+            <line id="scene3-arrow-not-parallel" x1="470" y1="430" x2="510" y2="450" stroke="#888888" stroke-width="2" opacity="0" style="transition: opacity 0.3s;"/>
+            <polygon id="scene3-arrowhead-not-parallel" points="510,450 500,445 505,455" fill="#888888" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 顶点 P -->
+            <circle id="scene3-vertex-P" cx="400" cy="80" r="4" fill="#000000"/>
+            <!-- 步骤 1 高亮 P -->
+            <circle id="scene3-vertex-P-highlight" cx="400" cy="80" r="6" fill="#2e7d32" opacity="0" style="transition: opacity 0.3s;"/>
+
+            <!-- 顶点 A -->
+            <circle id="scene3-vertex-A" cx="200" cy="350" r="4" fill="#000000"/>
+            <!-- 顶点 B -->
+            <circle id="scene3-vertex-B" cx="350" cy="380" r="4" fill="#000000"/>
+            <!-- 顶点 C -->
+            <circle id="scene3-vertex-C" cx="600" cy="360" r="4" fill="#000000"/>
+            <!-- 顶点 D -->
+            <circle id="scene3-vertex-D" cx="300" cy="320" r="4" fill="#000000"/>
+
+            <!-- 顶点标签（调整位置避免与棱线重叠） -->
+            <text id="scene3-label-P" x="400" y="65" text-anchor="middle" class="scene3-vertex-label" fill="#000000">P</text>
+            <text id="scene3-label-A" x="175" y="355" text-anchor="middle" class="scene3-vertex-label" fill="#000000">A</text>
+            <text id="scene3-label-B" x="350" y="405" text-anchor="middle" class="scene3-vertex-label" fill="#000000">B</text>
+            <text id="scene3-label-C" x="620" y="365" text-anchor="middle" class="scene3-vertex-label" fill="#000000">C</text>
+            <text id="scene3-label-D" x="335" y="295" text-anchor="middle" class="scene3-vertex-label" fill="#000000">D</text>
+
+            <!-- 交点 Q 标签（步骤 2 显示，调整位置避免与圆点重叠） -->
+            <text id="scene3-label-Q" x="500" y="425" text-anchor="middle" class="scene3-vertex-label" fill="#2e7d32" opacity="0" style="transition: opacity 0.3s;">Q</text>
+
+            <!-- 交线标签 l（步骤 3 显示，调整位置避免与交线重叠） -->
+            <text id="scene3-label-l" x="480" y="240" text-anchor="middle" class="scene3-text-label" fill="#2e7d32" font-weight="bold" opacity="0" style="transition: opacity 0.3s;">l</text>
+
+            <!-- P 点说明标签（步骤 1 显示） -->
+            <text id="scene3-label-P-note" x="420" y="70" class="scene3-text-label" fill="#2e7d32" font-size="12" opacity="0" style="transition: opacity 0.3s;">交线上的点 P</text>
+
+            <!-- Q 点说明标签（步骤 2 显示，调整位置避免与图形重叠） -->
+            <text id="scene3-label-Q-note" x="560" y="340" class="scene3-text-label" fill="#888888" font-size="12" opacity="0" style="transition: opacity 0.3s;">Q = AB ∩ DC</text>
+
+            <!-- 不平行说明（步骤 4 显示，调整位置避免与按钮重叠） -->
+            <text id="scene3-label-not-parallel" x="480" y="475" text-anchor="middle" class="scene3-text-label" fill="#888888" font-size="12" opacity="0" style="transition: opacity 0.3s;">交线 l 与底面相交</text>
+
+            <!-- 结论标记 √（步骤 5 显示） -->
+            <text id="scene3-conclusion-check" x="650" y="135" text-anchor="middle" class="scene3-conclusion" fill="#2e7d32" opacity="0" style="transition: opacity 0.3s;">✓</text>
+
+            <!-- 结论文字（步骤 5 显示，调整位置避免与√重叠） -->
+            <text id="scene3-conclusion-text" x="650" y="170" text-anchor="middle" class="scene3-text-label" fill="#2e7d32" font-size="13" opacity="0" style="transition: opacity 0.3s;">命题③正确</text>
+        </svg>
+
+        <div id="scene3-step-indicator">步骤 1/6</div>
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 - 平面交线分析
+        // 坐标表：
+        // P(400,80), A(200,350), B(350,380), C(600,360), D(300,320), Q(500,400)
+
+        const scene3 = {
+            currentStep: 1,
+            totalSteps: 6,
+
+            // 元素显示步骤配置
+            elementSteps: {
+                // 步骤 1：平面填充 + P 高亮
+                'scene3-plane-PAB': [1, 2, 3, 4, 5, 6],
+                'scene3-plane-PDC': [1, 2, 3, 4, 5, 6],
+                'scene3-vertex-P-highlight': [1, 2, 3, 4, 5, 6],
+                'scene3-label-P-note': [1, 2, 3, 4, 5, 6],
+
+                // 步骤 2：延长线 + Q 点
+                'scene3-line-AB-extend': [2, 3, 4, 5, 6],
+                'scene3-line-DC-extend': [2, 3, 4, 5, 6],
+                'scene3-point-Q': [2, 3, 4, 5, 6],
+                'scene3-label-Q': [2, 3, 4, 5, 6],
+                'scene3-label-Q-note': [2, 3, 4, 5, 6],
+
+                // 步骤 3：交线 l
+                'scene3-line-intersection': [3, 4, 5, 6],
+                'scene3-label-l': [3, 4, 5, 6],
+
+                // 步骤 4：延长线 + 不平行标注
+                'scene3-line-intersection-extend': [4, 5, 6],
+                'scene3-arrow-not-parallel': [4, 5, 6],
+                'scene3-arrowhead-not-parallel': [4, 5, 6],
+                'scene3-label-not-parallel': [4, 5, 6],
+
+                // 步骤 5：结论标记
+                'scene3-conclusion-check': [5, 6],
+                'scene3-conclusion-text': [5, 6]
+            },
+
+            init: function() {
+                this.bindEvents();
+                this.renderStep();
+            },
+
+            bindEvents: function() {
+                const btnPrev = document.getElementById('scene3-btn-prev');
+                const btnNext = document.getElementById('scene3-btn-next');
+
+                btnPrev.addEventListener('click', () => {
+                    if (this.currentStep > 1) {
+                        this.currentStep--;
+                        this.renderStep();
+                    }
+                });
+
+                btnNext.addEventListener('click', () => {
+                    if (this.currentStep < this.totalSteps) {
+                        this.currentStep++;
+                        this.renderStep();
+                    }
+                });
+            },
+
+            renderStep: function() {
+                // 更新按钮状态
+                document.getElementById('scene3-btn-prev').disabled = (this.currentStep === 1);
+                document.getElementById('scene3-btn-next').disabled = (this.currentStep === this.totalSteps);
+
+                // 更新步骤指示器
+                document.getElementById('scene3-step-indicator').textContent = '步骤 ' + this.currentStep + '/' + this.totalSteps;
+
+                // 更新元素可见性
+                for (const [elemId, steps] of Object.entries(this.elementSteps)) {
+                    const el = document.getElementById(elemId);
+                    if (el) {
+                        if (steps.includes(this.currentStep)) {
+                            el.style.opacity = '1';
+                            el.style.display = 'block';
+                        } else {
+                            el.style.opacity = '0';
+                        }
+                    }
+                }
+            }
+        };
+
+        // 初始化
+        scene3.init();
+    })();
+    </script>
+</body>
+</html>

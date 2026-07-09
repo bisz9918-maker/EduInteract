@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活塞上拉过程动态分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-btn-extreme { padding: 6px 16px; font-size: 13px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9; }
+        #scene2-btn-extreme:hover { background: #eee; }
+        #scene2-btn-extreme.active { background: #2e7d32; color: white; border-color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <defs>
+                <pattern id="mercury-pattern" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#2e7d32" stroke-width="1.5"/>
+                </pattern>
+                <marker id="arrow-up" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+                    <path d="M0,8 L4,0 L8,8" fill="#333"/>
+                </marker>
+            </defs>
+            
+            <!-- 标题 -->
+            <text x="400" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">活塞上拉过程动态分析</text>
+            
+            <!-- 状态提示横幅 -->
+            <text id="scene2-status-hint" x="400" y="66" text-anchor="middle" font-size="14" fill="#1565c0" opacity="0" font-weight="bold"></text>
+            
+            <!-- ===== 装置主图 ===== -->
+            <!-- A 管外框 -->
+            <line x1="202" y1="145" x2="202" y2="176" stroke="#1565c0" stroke-width="2"/>
+            <line x1="298" y1="145" x2="298" y2="176" stroke="#1565c0" stroke-width="2"/>
+            <!-- 连接肩 -->
+            <line x1="202" y1="176" x2="238" y2="176" stroke="#000000" stroke-width="2"/>
+            <line x1="262" y1="176" x2="298" y2="176" stroke="#000000" stroke-width="2"/>
+            <!-- B 管外框 -->
+            <line x1="238" y1="176" x2="238" y2="420" stroke="#c62828" stroke-width="2"/>
+            <line x1="262" y1="176" x2="262" y2="420" stroke="#c62828" stroke-width="2"/>
+            <line x1="238" y1="420" x2="262" y2="420" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 活塞 -->
+            <rect id="scene2-piston" x="204" y="154" width="92" height="12" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="1"/>
+            
+            <!-- A 管水银 -->
+            <rect id="scene2-mercury-a" x="204" y="166" width="92" height="10" fill="url(#mercury-pattern)" fill-opacity="0.2" stroke="none"/>
+            
+            <!-- B 管水银 -->
+            <rect id="scene2-mercury-b" x="238" y="176" width="24" height="20" fill="url(#mercury-pattern)" fill-opacity="0.2" stroke="none"/>
+            
+            <!-- 气体区域 -->
+            <rect id="scene2-gas" x="238" y="196" width="24" height="224" fill="#c62828" fill-opacity="0.1" stroke="none"/>
+            
+            <!-- 力 F 箭头 -->
+            <line id="scene2-arrow-f" x1="250" y1="154" x2="250" y2="130" stroke="#888888" stroke-width="2" marker-end="url(#arrow-up)"/>
+            <text id="scene2-label-f" x="275" y="142" font-size="13" fill="#888888" font-style="italic">F</text>
+            
+            <!-- 压强标注 -->
+            <text id="scene2-label-p0" x="210" y="118" font-size="12" fill="#1565c0">p₀=75 cmHg</text>
+            <text id="scene2-label-pa" x="135" y="171" font-size="12" fill="#1565c0">p_A</text>
+            <text id="scene2-label-pgas" x="290" y="308" font-size="12" fill="#c62828">p_gas</text>
+            
+            <!-- 点 A、B 标签 -->
+            <text x="175" y="150" font-size="13" fill="#333">A</text>
+            <text x="175" y="188" font-size="13" fill="#333">B</text>
+            
+            <!-- 尺寸标注 -->
+            <!-- h₁′ -->
+            <line id="scene2-dim-h1-line" x1="310" y1="176" x2="310" y2="166" stroke="#333" stroke-width="1" marker-start="url(#arrow-up)" marker-end="url(#arrow-up)"/>
+            <text id="scene2-dim-h1-text" x="318" y="171" font-size="11" fill="#333">h₁′</text>
+            
+            <!-- h₂′ -->
+            <line id="scene2-dim-h2-line" x1="225" y1="176" x2="225" y2="196" stroke="#333" stroke-width="1" marker-start="url(#arrow-up)" marker-end="url(#arrow-up)"/>
+            <text id="scene2-dim-h2-text" x="210" y="186" font-size="11" fill="#333">h₂′</text>
+            
+            <!-- L′ -->
+            <line id="scene2-dim-l-line" x1="275" y1="196" x2="275" y2="420" stroke="#333" stroke-width="1" marker-start="url(#arrow-up)" marker-end="url(#arrow-up)"/>
+            <text id="scene2-dim-l-text" x="290" y="308" font-size="11" fill="#333">L′</text>
+            
+            <!-- 面积比提示 -->
+            <text x="310" y="135" font-size="12" fill="#333">S_A : S_B = 4 : 1</text>
+            
+            <!-- 装置标记线 -->
+            <line id="scene2-mark-x1" x1="180" y1="140" x2="180" y2="420" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+            <line id="scene2-mark-x2" x1="320" y1="140" x2="320" y2="420" stroke="#c62828" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+            <line id="scene2-mark-extreme" x1="200" y1="140" x2="200" y2="420" stroke="#2e7d32" stroke-width="1" stroke-dasharray="4,4" opacity="0"/>
+            
+            <!-- ===== 数据面板 ===== -->
+            <text x="480" y="78" font-size="14" font-weight="bold" fill="#333">实时数据面板</text>
+            <text x="480" y="102" font-size="11" fill="#2e7d32">p_gas·L′ = 10080 (cmHg·cm)</text>
+            
+            <!-- 数据行 -->
+            <text x="480" y="130" font-size="13" fill="#333">h₁′ = <tspan id="scene2-data-h1" fill="#1565c0" font-weight="bold">5.0</tspan> cm</text>
+            <text x="480" y="158" font-size="13" fill="#333">h₂′ = <tspan id="scene2-data-h2" fill="#c62828" font-weight="bold">10.0</tspan> cm</text>
+            <text x="480" y="186" font-size="13" fill="#333">L′ = <tspan id="scene2-data-l" fill="#2e7d32" font-weight="bold">112.0</tspan> cm</text>
+            <text x="480" y="214" font-size="13" fill="#333">p_gas = <tspan id="scene2-data-pgas" fill="#c62828" font-weight="bold">90.0</tspan> cmHg</text>
+            <text x="480" y="242" font-size="13" fill="#333">p_A = <tspan id="scene2-data-pa" fill="#1565c0" font-weight="bold">75.0</tspan> cmHg</text>
+            <text x="480" y="270" font-size="13" fill="#333">F/S_A = <tspan id="scene2-data-f" fill="#888888" font-weight="bold">0</tspan> <tspan id="scene2-data-f-arrow" fill="#333"></tspan> cmHg</text>
+            
+            <!-- ===== F-x 曲线图 ===== -->
+            <text x="480" y="300" font-size="14" font-weight="bold" fill="#333">F–x 关系曲线</text>
+            
+            <!-- 坐标轴 -->
+            <line x1="510" y1="340" x2="760" y2="340" stroke="#888888" stroke-width="1"/>
+            <line x1="510" y1="280" x2="510" y2="400" stroke="#888888" stroke-width="1"/>
+            
+            <!-- x 轴刻度 -->
+            <text x="510" y="412" font-size="10" fill="#888888" text-anchor="middle">0</text>
+            <text x="610" y="412" font-size="10" fill="#888888" text-anchor="middle">1</text>
+            <text x="710" y="412" font-size="10" fill="#888888" text-anchor="middle">2</text>
+            <text x="760" y="412" font-size="10" fill="#888888" text-anchor="middle">2.5</text>
+            
+            <!-- y 轴刻度 -->
+            <text x="498" y="268" font-size="10" fill="#888888" text-anchor="end">0.2</text>
+            <text x="498" y="343" font-size="10" fill="#888888" text-anchor="end">0</text>
+            <text x="498" y="403" font-size="10" fill="#888888" text-anchor="end">-0.2</text>
+            
+            <!-- F-x 曲线 -->
+            <path id="scene2-fx-path" d="" stroke="#888888" stroke-width="1.5" fill="none"/>
+            
+            <!-- F-x 标记线 -->
+            <line id="scene2-fx-mark-x1" x1="610" y1="280" x2="610" y2="400" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,4"/>
+            <line id="scene2-fx-mark-x2" x1="710" y1="280" x2="710" y2="400" stroke="#c62828" stroke-width="1" stroke-dasharray="4,4"/>
+            <line id="scene2-fx-mark-extreme" x1="610" y1="280" x2="610" y2="400" stroke="#2e7d32" stroke-width="1" stroke-dasharray="4,4" opacity="0"/>
+            
+            <!-- F-x 当前点 -->
+            <circle id="scene2-fx-current-point" cx="510" cy="340" r="4" fill="#1565c0" stroke="#ffffff" stroke-width="1"/>
+            
+            <!-- ===== 滑块控件 ===== -->
+            <!-- 轨道 -->
+            <line x1="150" y1="470" x2="650" y2="470" stroke="#cccccc" stroke-width="4" stroke-linecap="round"/>
+            <!-- 按钮 -->
+            <circle id="scene2-slider-thumb" cx="150" cy="470" r="10" fill="#1565c0" stroke="#ffffff" stroke-width="2" style="cursor: pointer;"/>
+            <!-- 标题 -->
+            <text x="400" y="445" text-anchor="middle" font-size="14" fill="#333">活塞上移距离 x / cm</text>
+            <!-- 端标签 -->
+            <text x="150" y="482" text-anchor="middle" font-size="11" fill="#888888">0</text>
+            <text x="650" y="482" text-anchor="middle" font-size="11" fill="#888888">2.5</text>
+            <!-- 当前值 -->
+            <text id="scene2-slider-value" x="670" y="474" font-size="14" fill="#1565c0" font-weight="bold">x = 0.0</text>
+            <!-- 边界提示 -->
+            <text id="scene2-boundary-hint" x="400" y="492" text-anchor="middle" font-size="11" fill="#c62828" opacity="0">B 管水银刚好耗尽</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-extreme">显示极值点</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        var currentX = 0;
+        var showExtreme = false;
+        var isDragging = false;
+        
+        var sliderThumb = document.getElementById('scene2-slider-thumb');
+        var sliderValue = document.getElementById('scene2-slider-value');
+        var statusHint = document.getElementById('scene2-status-hint');
+        var boundaryHint = document.getElementById('scene2-boundary-hint');
+        var btnExtreme = document.getElementById('scene2-btn-extreme');
+        
+        // 装置元素
+        var piston = document.getElementById('scene2-piston');
+        var mercuryA = document.getElementById('scene2-mercury-a');
+        var mercuryB = document.getElementById('scene2-mercury-b');
+        var gas = document.getElementById('scene2-gas');
+        var arrowF = document.getElementById('scene2-arrow-f');
+        var labelF = document.getElementById('scene2-label-f');
+        var labelPa = document.getElementById('scene2-label-pa');
+        var labelPgas = document.getElementById('scene2-label-pgas');
+        
+        // 尺寸标注
+        var dimH1Line = document.getElementById('scene2-dim-h1-line');
+        var dimH1Text = document.getElementById('scene2-dim-h1-text');
+        var dimH2Line = document.getElementById('scene2-dim-h2-line');
+        var dimH2Text = document.getElementById('scene2-dim-h2-text');
+        var dimLLine = document.getElementById('scene2-dim-l-line');
+        var dimLText = document.getElementById('scene2-dim-l-text');
+        
+        // 标记线
+        var markX1 = document.getElementById('scene2-mark-x1');
+        var markX2 = document.getElementById('scene2-mark-x2');
+        var markExtreme = document.getElementById('scene2-mark-extreme');
+        var fxMarkExtreme = document.getElementById('scene2-fx-mark-extreme');
+        
+        // 数据
+        var dataH1 = document.getElementById('scene2-data-h1');
+        var dataH2 = document.getElementById('scene2-data-h2');
+        var dataL = document.getElementById('scene2-data-l');
+        var dataPgas = document.getElementById('scene2-data-pgas');
+        var dataPa = document.getElementById('scene2-data-pa');
+        var dataF = document.getElementById('scene2-data-f');
+        var dataFArrow = document.getElementById('scene2-data-f-arrow');
+        
+        // F-x 曲线
+        var fxPath = document.getElementById('scene2-fx-path');
+        var fxCurrentPoint = document.getElementById('scene2-fx-current-point');
+        
+        // 预计算 F-x 曲线
+        function computeFxPath() {
+            var points = [];
+            for (var i = 0; i <= 100; i++) {
+                var x = i * 0.025;
+                var Lp = 112 + 4 * x;
+                var pGas = 10080 / Lp;
+                var pA = pGas - 15 + 3 * x;
+                var fPerS = 75 - pA;
+                var svgX = 510 + 100 * x;
+                var svgY = 340 - 300 * fPerS;
+                points.push((i === 0 ? 'M' : 'L') + svgX + ',' + svgY);
+            }
+            return points.join(' ');
+        }
+        
+        fxPath.setAttribute('d', computeFxPath());
+        
+        function update(x) {
+            x = Math.max(0, Math.min(2.5, x));
+            currentX = x;
+            
+            // 物理计算
+            var h1 = 5 + x;
+            var h2 = Math.max(0, 10 - 4 * x);
+            var Lp = 112 + 4 * x;
+            var pGas = 10080 / Lp;
+            var pA = pGas - h1 - h2;
+            var fPerS = 75 - pA;
+            
+            // 坐标计算 (1 cm = 2 px)
+            var pistonY = 154 - 2 * x;
+            var mercuryAY = 166 - 2 * x;
+            var mercuryAHeight = 10 + 2 * x;
+            var mercuryBHeight = Math.max(0, 20 - 8 * x);
+            var gasY = 196 - 8 * x;
+            var gasHeight = 224 + 8 * x;
+            
+            // 更新装置
+            piston.setAttribute('y', pistonY);
+            mercuryA.setAttribute('y', mercuryAY);
+            mercuryA.setAttribute('height', mercuryAHeight);
+            mercuryB.setAttribute('height', mercuryBHeight);
+            gas.setAttribute('y', gasY);
+            gas.setAttribute('height', gasHeight);
+            
+            // 更新 F 箭头
+            var arrowColor, arrowEndY;
+            if (fPerS > 0.001) {
+                arrowColor = '#1565c0';
+                arrowEndY = pistonY - 24;
+            } else if (fPerS < -0.001) {
+                arrowColor = '#c62828';
+                arrowEndY = pistonY + 16;
+            } else {
+                arrowColor = '#888888';
+                arrowEndY = pistonY - 24;
+            }
+            arrowF.setAttribute('stroke', arrowColor);
+            arrowF.setAttribute('y1', pistonY);
+            arrowF.setAttribute('y2', arrowEndY);
+            labelF.setAttribute('fill', arrowColor);
+            labelF.setAttribute('y', (pistonY + arrowEndY) / 2 + 4);
+            
+            // 更新标签位置
+            labelPa.setAttribute('y', 171 - x);
+            labelPgas.setAttribute('y', 308 - 4 * x);
+            
+            // 更新尺寸标注
+            dimH1Line.setAttribute('y1', 176);
+            dimH1Line.setAttribute('y2', mercuryAY);
+            dimH1Text.setAttribute('y', (176 + mercuryAY) / 2 + 4);
+            
+            dimH2Line.setAttribute('y1', 176);
+            dimH2Line.setAttribute('y2', 196 - 8 * x);
+            dimH2Text.setAttribute('y', (176 + 196 - 8 * x) / 2 + 4);
+            
+            dimLLine.setAttribute('y1', 196 - 8 * x);
+            dimLLine.setAttribute('y2', 420);
+            dimLText.setAttribute('y', (196 - 8 * x + 420) / 2 + 4);
+            
+            // 更新数据面板
+            dataH1.textContent = h1.toFixed(1);
+            dataH2.textContent = h2.toFixed(1);
+            dataL.textContent = Lp.toFixed(1);
+            dataPgas.textContent = pGas.toFixed(1);
+            dataPa.textContent = pA.toFixed(1);
+            dataF.textContent = fPerS.toFixed(2);
+            
+            // F 趋势箭头
+            var trend = 40320 / Math.pow(112 + 4 * x, 2) - 3;
+            if (trend > 0.01) {
+                dataFArrow.textContent = '↑';
+            } else if (trend < -0.01) {
+                dataFArrow.textContent = '↓';
+            } else {
+                dataFArrow.textContent = '→';
+            }
+            
+            // F 颜色
+            if (fPerS > 0.001) {
+                dataF.setAttribute('fill', '#1565c0');
+            } else if (fPerS < -0.001) {
+                dataF.setAttribute('fill', '#c62828');
+            } else {
+                dataF.setAttribute('fill', '#888888');
+            }
+            
+            // 更新 F-x 当前点
+            var fxX = 510 + 100 * x;
+            var fxY = 340 - 300 * fPerS;
+            fxCurrentPoint.setAttribute('cx', fxX);
+            fxCurrentPoint.setAttribute('cy', fxY);
+            
+            // 更新滑块
+            var thumbX = 150 + 200 * x;
+            sliderThumb.setAttribute('cx', thumbX);
+            sliderValue.textContent = 'x = ' + x.toFixed(1);
+            
+            // 更新标记线高亮
+            if (Math.abs(x - 1.0) < 0.05) {
+                markX1.setAttribute('opacity', '1');
+                markX1.setAttribute('stroke-width', '2');
+            } else {
+                markX1.setAttribute('opacity', '0.3');
+                markX1.setAttribute('stroke-width', '1');
+            }
+            
+            if (Math.abs(x - 2.0) < 0.05) {
+                markX2.setAttribute('opacity', '1');
+                markX2.setAttribute('stroke-width', '2');
+            } else {
+                markX2.setAttribute('opacity', '0.3');
+                markX2.setAttribute('stroke-width', '1');
+            }
+            
+            // 边界提示
+            if (x >= 2.48) {
+                boundaryHint.setAttribute('opacity', '1');
+            } else {
+                boundaryHint.setAttribute('opacity', '0');
+            }
+        }
+        
+        // 状态提示动画
+        function showStatus(text, color) {
+            statusHint.textContent = text;
+            statusHint.setAttribute('fill', color);
+            statusHint.setAttribute('opacity', '1');
+            setTimeout(function() {
+                statusHint.setAttribute('opacity', '0');
+            }, 1500);
+        }
+        
+        // 吸附逻辑
+        function snap() {
+            if (Math.abs(currentX - 1.0) < 0.08) {
+                animateTo(1.0);
+                showStatus('第(2)问状态：x = 1.0 cm', '#1565c0');
+            } else if (Math.abs(currentX - 2.0) < 0.08) {
+                animateTo(2.0);
+                showStatus('第(3)问状态：F = 0', '#c62828');
+            }
+        }
+        
+        function animateTo(targetX) {
+            var startX = currentX;
+            var startTime = Date.now();
+            var duration = 200;
+            
+            function step() {
+                var elapsed = Date.now() - startTime;
+                var t = Math.min(1, elapsed / duration);
+                var eased = 1 - Math.pow(1 - t, 3);
+                var newX = startX + (targetX - startX) * eased;
+                update(newX);
+                if (t < 1) {
+                    requestAnimationFrame(step);
+                }
+            }
+            requestAnimationFrame(step);
+        }
+        
+        // 滑块事件
+        sliderThumb.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        sliderThumb.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            var rect = document.getElementById('scene2-svg').getBoundingClientRect();
+            var mouseX = e.clientX - rect.left;
+            var x = (mouseX - 150) / 200;
+            update(x);
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            var rect = document.getElementById('scene2-svg').getBoundingClientRect();
+            var mouseX = e.touches[0].clientX - rect.left;
+            var x = (mouseX - 150) / 200;
+            update(x);
+        });
+        
+        document.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                snap();
+            }
+        });
+        
+        document.addEventListener('touchend', function() {
+            if (isDragging) {
+                isDragging = false;
+                snap();
+            }
+        });
+        
+        // 极值点按钮
+        btnExtreme.addEventListener('click', function() {
+            showExtreme = !showExtreme;
+            if (showExtreme) {
+                btnExtreme.classList.add('active');
+                btnExtreme.textContent = '隐藏极值点';
+                fxMarkExtreme.setAttribute('opacity', '1');
+                markExtreme.setAttribute('opacity', '1');
+            } else {
+                btnExtreme.classList.remove('active');
+                btnExtreme.textContent = '显示极值点';
+                fxMarkExtreme.setAttribute('opacity', '0');
+                markExtreme.setAttribute('opacity', '0');
+            }
+        });
+        
+        // 初始化
+        update(0);
+    })();
+    </script>
+</body>
+</html>

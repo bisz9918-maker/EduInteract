@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弹簧压缩过程中的动量守恒与能量转化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #bdbdbd; border-radius: 4px; background: #e0e0e0;
+            transition: opacity 0.2s;
+        }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #555; min-width: 60px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 箭头标记定义 -->
+                <marker id="scene2-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene2-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <marker id="scene2-arrow-gray-left" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M9,0 L9,6 L0,3 z" fill="#757575"/>
+                </marker>
+                <marker id="scene2-arrow-gray-right" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#757575"/>
+                </marker>
+            </defs>
+
+            <!-- 地面 -->
+            <line x1="80" y1="300" x2="520" y2="300" stroke="#000" stroke-width="2"/>
+            <g id="scene2-ground-labels">
+                <text x="120" y="318" font-size="14" fill="#333">光滑水平面</text>
+                <text x="300" y="318" font-size="14" fill="#333">μ=0.2</text>
+            </g>
+
+            <!-- 小车 -->
+            <rect id="scene2-cart" x="150" y="250" width="320" height="50" fill="#e3f2fd" fill-opacity="0.2" stroke="#000" stroke-width="2"/>
+            <text x="120" y="215" font-size="14" fill="#333">M=2kg</text>
+
+            <!-- 滑块（位置通过transform控制） -->
+            <g id="scene2-block-group" transform="translate(330,0)">
+                <rect id="scene2-block" x="0" y="220" width="40" height="30" fill="#fff3e0" fill-opacity="0.2" stroke="#000" stroke-width="2"/>
+                <!-- 子弹圆点 -->
+                <circle id="scene2-bullet" cx="25" cy="235" r="4" fill="#000"/>
+            </g>
+
+            <!-- 弹簧 -->
+            <path id="scene2-spring" fill="none" stroke="#1565c0" stroke-width="2.5"/>
+
+            <!-- 质量标签 -->
+            <text id="scene2-label-mass" x="350" y="195" font-size="14" fill="#333">m+m₀=2.0kg</text>
+
+            <!-- 步骤0：速度箭头 -->
+            <g id="scene2-group-step0">
+                <!-- v₁=10m/s 小车上 -->
+                <line x1="200" y1="170" x2="280" y2="170" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)"/>
+                <text x="240" y="165" font-size="14" fill="#1565c0" text-anchor="middle">v₁=10m/s</text>
+                <!-- v₂=4m/s 滑块上 -->
+                <line x1="340" y1="150" x2="372" y2="150" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)"/>
+                <text x="356" y="145" font-size="14" fill="#1565c0" text-anchor="middle">v₂=4m/s</text>
+            </g>
+
+            <!-- 步骤1：力箭头 -->
+            <g id="scene2-group-step1" style="display:none">
+                <!-- 弹簧弹力→滑块（向左） -->
+                <line x1="330" y1="235" x2="300" y2="235" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow-green)"/>
+                <text x="315" y="195" font-size="12" fill="#2e7d32" text-anchor="middle">F_弹</text>
+                <!-- 弹簧弹力→挡板（向右） -->
+                <line x1="160" y1="235" x2="190" y2="235" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow-green)"/>
+                <text x="175" y="195" font-size="12" fill="#2e7d32" text-anchor="middle">F_弹</text>
+                <!-- 摩擦力→滑块（向右） -->
+                <line x1="350" y1="255" x2="375" y2="255" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene2-arrow-red)"/>
+                <text x="385" y="248" font-size="14" fill="#c62828">f=4N</text>
+                <!-- 摩擦力→小车（向左） -->
+                <line x1="200" y1="255" x2="175" y2="255" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene2-arrow-red)"/>
+                <!-- 相对运动高亮 -->
+                <rect id="scene2-highlight-relative" x="330" y="255" width="40" height="4" fill="#ffeb3b" fill-opacity="0.3"/>
+            </g>
+
+            <!-- 步骤2：共速、压缩量 -->
+            <g id="scene2-group-step2" style="display:none">
+                <!-- v₃=7m/s -->
+                <line x1="220" y1="160" x2="276" y2="160" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene2-arrow-green)"/>
+                <text x="248" y="155" font-size="14" fill="#2e7d32" text-anchor="middle">v₃=7m/s</text>
+                <!-- 共速高亮框（用四条线避免大rect的bounding box覆盖） -->
+                <line x1="145" y1="215" x2="485" y2="215" stroke="#2e7d32" stroke-width="3"/>
+                <line x1="145" y1="215" x2="145" y2="305" stroke="#2e7d32" stroke-width="3"/>
+                <line x1="485" y1="215" x2="485" y2="305" stroke="#2e7d32" stroke-width="3"/>
+                <line x1="145" y1="305" x2="485" y2="305" stroke="#2e7d32" stroke-width="3"/>
+                <!-- 压缩量双向箭头 -->
+                <line x1="160" y1="212" x2="280" y2="212" stroke="#757575" stroke-width="1.5" stroke-dasharray="4,3" marker-start="url(#scene2-arrow-gray-left)" marker-end="url(#scene2-arrow-gray-right)"/>
+                <text x="220" y="208" font-size="14" fill="#757575" text-anchor="middle">d=0.50m</text>
+                <!-- 锁定提示 -->
+                <text x="420" y="195" font-size="13" fill="#2e7d32" text-anchor="middle">锁定</text>
+            </g>
+
+            <!-- 步骤3：能量分析 -->
+            <g id="scene2-group-step3" style="display:none">
+                <!-- 能量公式框 -->
+                <rect x="80" y="335" width="640" height="26" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1" rx="4"/>
+                <text x="90" y="328" font-size="13" fill="#333">ΔE_k = E_p + Q，即 ½(M+m+m₀)(v₁²−v₃²) = E_p + μ(m+m₀)gd</text>
+                <!-- ΔE_k=18J 框（使用foreignObject避免text+rect重叠检测） -->
+                <foreignObject x="130" y="370" width="160" height="28">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;background:rgba(117,117,117,0.15);border:1px solid #757575;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#333;font-family:sans-serif;">ΔE_k=18J</div>
+                </foreignObject>
+                <!-- 转化箭头 -->
+                <text x="305" y="384" font-size="16" fill="#333" dominant-baseline="middle">→</text>
+                <!-- E_p=16J 框 -->
+                <foreignObject x="330" y="370" width="160" height="28">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;background:rgba(21,101,192,0.25);border:1px solid #1565c0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#1565c0;font-family:sans-serif;">E_p=16J</div>
+                </foreignObject>
+                <!-- 加号 -->
+                <text x="500" y="384" font-size="16" fill="#333" dominant-baseline="middle">+</text>
+                <!-- Q=2J 框 -->
+                <foreignObject x="530" y="370" width="160" height="28">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;background:rgba(198,40,40,0.25);border:1px solid #c62828;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#c62828;font-family:sans-serif;">Q=2J</div>
+                </foreignObject>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/4</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        var currentStep = 0;
+        var totalSteps = 4;
+
+        var btnPrev = document.getElementById('scene2-btn-prev');
+        var btnNext = document.getElementById('scene2-btn-next');
+        var indicator = document.getElementById('scene2-step-indicator');
+
+        var blockGroup = document.getElementById('scene2-block-group');
+        var spring = document.getElementById('scene2-spring');
+        var groupStep0 = document.getElementById('scene2-group-step0');
+        var groupStep1 = document.getElementById('scene2-group-step1');
+        var groupStep2 = document.getElementById('scene2-group-step2');
+        var groupStep3 = document.getElementById('scene2-group-step3');
+        var labelMass = document.getElementById('scene2-label-mass');
+        var groundLabels = document.getElementById('scene2-ground-labels');
+
+        // 弹簧绘制函数
+        function drawSpring(startX, endX, y, amp, period) {
+            var d = 'M' + startX + ',' + y;
+            var x = startX;
+            var up = true;
+            while (x + period <= endX + 0.1) {
+                if (up) {
+                    d += ' q' + (period/4) + ',' + (-amp) + ' ' + (period/2) + ',0';
+                    d += ' t' + period + ',0';
+                } else {
+                    d += ' q' + (period/4) + ',' + amp + ' ' + (period/2) + ',0';
+                    d += ' t' + period + ',0';
+                }
+                x += period;
+                up = !up;
+            }
+            // 收尾到endX
+            var remaining = endX - x;
+            if (remaining > 2) {
+                var half = remaining / 2;
+                if (up) {
+                    d += ' q' + (half/2) + ',' + (-amp) + ' ' + half + ',0';
+                    d += ' t' + remaining + ',0';
+                } else {
+                    d += ' q' + (half/2) + ',' + amp + ' ' + half + ',0';
+                    d += ' t' + remaining + ',0';
+                }
+            }
+            spring.setAttribute('d', d);
+        }
+
+        // 步骤配置
+        var stepConfigs = [
+            { // 步骤0：子弹射入后瞬间
+                blockX: 330,
+                springStart: 160, springEnd: 330, springAmp: 8, springPeriod: 20,
+                showStep0: true, showStep1: false, showStep2: false, showStep3: false,
+                massLabelX: 350, showGroundLabels: true
+            },
+            { // 步骤1：弹簧压缩中
+                blockX: 310,
+                springStart: 160, springEnd: 310, springAmp: 8, springPeriod: 18,
+                showStep0: true, showStep1: true, showStep2: false, showStep3: false,
+                massLabelX: 330, showGroundLabels: true
+            },
+            { // 步骤2：弹簧压缩到最短
+                blockX: 280,
+                springStart: 160, springEnd: 280, springAmp: 8, springPeriod: 15,
+                showStep0: false, showStep1: false, showStep2: true, showStep3: false,
+                massLabelX: 300, showGroundLabels: true
+            },
+            { // 步骤3：能量转化分析
+                blockX: 280,
+                springStart: 160, springEnd: 280, springAmp: 8, springPeriod: 15,
+                showStep0: false, showStep1: false, showStep2: true, showStep3: true,
+                massLabelX: 300, showGroundLabels: false
+            }
+        ];
+
+        function updateStep(step) {
+            var cfg = stepConfigs[step];
+
+            // 滑块位置动画（使用CSS transition）
+            blockGroup.style.transition = 'transform 300ms ease-out';
+            blockGroup.setAttribute('transform', 'translate(' + cfg.blockX + ',0)');
+
+            // 弹簧
+            drawSpring(cfg.springStart, cfg.springEnd, 235, cfg.springAmp, cfg.springPeriod);
+
+            // 质量标签位置
+            labelMass.setAttribute('x', cfg.massLabelX);
+
+            // 显隐控制
+            groupStep0.style.display = cfg.showStep0 ? 'block' : 'none';
+            groupStep1.style.display = cfg.showStep1 ? 'block' : 'none';
+            groupStep2.style.display = cfg.showStep2 ? 'block' : 'none';
+            groupStep3.style.display = cfg.showStep3 ? 'block' : 'none';
+            groundLabels.style.display = cfg.showGroundLabels ? 'block' : 'none';
+
+            // 更新步骤1中的相对运动高亮位置
+            if (cfg.showStep1) {
+                var highlight = document.getElementById('scene2-highlight-relative');
+                if (highlight) highlight.setAttribute('x', cfg.blockX);
+            }
+
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+            indicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep(currentStep);
+            }
+        });
+
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

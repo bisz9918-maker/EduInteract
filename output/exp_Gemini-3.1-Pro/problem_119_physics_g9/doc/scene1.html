@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑动变阻器对并联电路各支路的影响</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        .wire { fill: none; stroke: #000000; stroke-width: 2; }
+        .component { fill: #ffffff; stroke: #000000; stroke-width: 2; }
+        .node { fill: #000000; }
+        .label { font-size: 24px; font-family: serif; font-style: italic; user-select: none; }
+        .halo { fill: #fbc02d; opacity: 0; transition: opacity 0.1s, r 0.1s; }
+        .arrow { fill: none; stroke: #1565c0; stroke-width: 2; }
+        .arrow-head { fill: #1565c0; }
+        #scene1-drag-area { cursor: ew-resize; fill: transparent; }
+        .hint { position: absolute; bottom: 30px; width: 100%; text-align: center; font-size: 18px; color: #666; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 光晕 -->
+            <circle id="scene1-l2-halo" cx="500" cy="250" r="35" class="halo" />
+            <circle id="scene1-l1-halo" cx="500" cy="400" r="35" class="halo" />
+
+            <!-- 导线 -->
+            <!-- 顶部导线 -->
+            <line x1="200" y1="100" x2="280" y2="100" class="wire" />
+            <line x1="340" y1="100" x2="460" y2="100" class="wire" />
+            <line x1="505" y1="100" x2="600" y2="100" class="wire" />
+            
+            <!-- 左侧导线 -->
+            <line x1="200" y1="100" x2="200" y2="400" class="wire" />
+            
+            <!-- 右侧导线 -->
+            <line x1="600" y1="100" x2="600" y2="400" class="wire" />
+            
+            <!-- 底部导线 (L1支路) -->
+            <line x1="200" y1="400" x2="475" y2="400" class="wire" />
+            <line x1="525" y1="400" x2="600" y2="400" class="wire" />
+            
+            <!-- L2支路导线 -->
+            <line id="scene1-wire-slider-h" x1="200" y1="220" x2="325" y2="220" class="wire" />
+            <line id="scene1-wire-slider-v" x1="325" y1="220" x2="325" y2="240" class="wire" />
+            <line x1="400" y1="250" x2="475" y2="250" class="wire" />
+            <line x1="525" y1="250" x2="600" y2="250" class="wire" />
+
+            <!-- 节点 -->
+            <circle cx="200" cy="220" r="4" class="node" />
+            <circle cx="600" cy="250" r="4" class="node" />
+            <circle cx="200" cy="400" r="4" class="node" />
+            <circle cx="600" cy="400" r="4" class="node" />
+
+            <!-- 开关 S -->
+            <line x1="280" y1="100" x2="340" y2="100" class="wire" />
+            <circle cx="280" cy="100" r="3" class="component" />
+            <circle cx="340" cy="100" r="3" class="component" />
+            <text x="305" y="80" class="label">S</text>
+
+            <!-- 电源 -->
+            <line x1="460" y1="85" x2="460" y2="115" stroke="#000" stroke-width="4" />
+            <line x1="475" y1="75" x2="475" y2="125" stroke="#000" stroke-width="2" />
+            <line x1="475" y1="100" x2="490" y2="100" class="wire" />
+            <line x1="490" y1="85" x2="490" y2="115" stroke="#000" stroke-width="4" />
+            <line x1="505" y1="75" x2="505" y2="125" stroke="#000" stroke-width="2" />
+
+            <!-- 变阻器 -->
+            <rect x="250" y="240" width="150" height="20" class="component" />
+            <rect id="scene1-resistor-active" x="325" y="240" width="75" height="20" fill="#ffcdd2" stroke="#c62828" stroke-width="2" />
+            
+            <!-- 滑块 P -->
+            <g id="scene1-slider-group">
+                <path id="scene1-slider-path" d="M 325 220 L 325 240 M 319 232 L 325 240 L 331 232" fill="none" stroke="#000" stroke-width="2" />
+                <text id="scene1-slider-label" x="340" y="215" class="label">P</text>
+                <rect id="scene1-drag-area" x="305" y="200" width="40" height="60" />
+            </g>
+
+            <!-- 灯泡 L2 -->
+            <circle cx="500" cy="250" r="25" class="component" />
+            <path d="M 482.3 232.3 L 517.7 267.7 M 482.3 267.7 L 517.7 232.3" class="wire" />
+            <text x="485" y="215" class="label">L<tspan dy="5" font-size="16">2</tspan></text>
+
+            <!-- 灯泡 L1 -->
+            <circle cx="500" cy="400" r="25" class="component" />
+            <path d="M 482.3 382.3 L 517.7 417.7 M 482.3 417.7 L 517.7 382.3" class="wire" />
+            <text x="485" y="365" class="label">L<tspan dy="5" font-size="16">1</tspan></text>
+
+            <!-- 电流箭头 -->
+            <!-- 主干路 -->
+            <g id="scene1-arrow-main" transform="translate(240, 100)">
+                <line id="scene1-arrow-main-line" x1="-15" y1="0" x2="10" y2="0" class="arrow" />
+                <polygon points="10,-5 20,0 10,5" class="arrow-head" />
+            </g>
+            <!-- L2支路 -->
+            <g id="scene1-arrow-l2" transform="translate(560, 250)">
+                <line id="scene1-arrow-l2-line" x1="15" y1="0" x2="-10" y2="0" class="arrow" />
+                <polygon points="-10,-5 -20,0 -10,5" class="arrow-head" />
+            </g>
+            <!-- L1支路 -->
+            <g id="scene1-arrow-l1" transform="translate(560, 400)">
+                <line id="scene1-arrow-l1-line" x1="15" y1="0" x2="-10" y2="0" class="arrow" />
+                <polygon points="-10,-5 -20,0 -10,5" class="arrow-head" />
+            </g>
+        </svg>
+        <div class="hint">提示：左右拖拽滑块 P，观察各支路电流和灯泡亮度的变化</div>
+    </div>
+    <script>
+    (function() {
+        const svg = document.getElementById('scene1-svg');
+        const dragArea = document.getElementById('scene1-drag-area');
+        const sliderGroup = document.getElementById('scene1-slider-group');
+        const sliderPath = document.getElementById('scene1-slider-path');
+        const sliderLabel = document.getElementById('scene1-slider-label');
+        const wireSliderH = document.getElementById('scene1-wire-slider-h');
+        const wireSliderV = document.getElementById('scene1-wire-slider-v');
+        const resistorActive = document.getElementById('scene1-resistor-active');
+        
+        const l2Halo = document.getElementById('scene1-l2-halo');
+        const l1Halo = document.getElementById('scene1-l1-halo');
+        
+        const arrowMainLine = document.getElementById('scene1-arrow-main-line');
+        const arrowL2Line = document.getElementById('scene1-arrow-l2-line');
+        const arrowL1Line = document.getElementById('scene1-arrow-l1-line');
+        
+        let isDragging = false;
+        let px = 325; // 初始位置
+        const minPx = 250;
+        const maxPx = 400;
+        
+        function updateScene() {
+            // 更新滑块和导线位置
+            wireSliderH.setAttribute('x2', px);
+            wireSliderV.setAttribute('x1', px);
+            wireSliderV.setAttribute('x2', px);
+            
+            sliderPath.setAttribute('d', `M ${px} 220 L ${px} 240 M ${px-6} 232 L ${px} 240 L ${px+6} 232`);
+            sliderLabel.setAttribute('x', px + 15);
+            dragArea.setAttribute('x', px - 20);
+            
+            // 更新变阻器有效段
+            resistorActive.setAttribute('x', px);
+            resistorActive.setAttribute('width', 400 - px);
+            
+            // 计算物理量
+            // t = 0 时 px=250 (电阻最大)
+            // t = 1 时 px=400 (电阻最小)
+            const t = (px - 250) / 150;
+            
+            // 假设 L1, L2 基础电阻为 R, 变阻器最大电阻为 2R
+            // L2 支路电阻 R2 = R + 2R * (1 - t) = R * (3 - 2t)
+            // L2 支路电流 I2 ∝ 1 / (3 - 2t)
+            // t=0 -> I2 ∝ 1/3
+            // t=0.5 -> I2 ∝ 1/2
+            // t=1 -> I2 ∝ 1
+            const i2_relative = 1 / (3 - 2 * t); // 范围 1/3 到 1
+            
+            // L1 支路电阻 R1 = R
+            // L1 支路电流 I1 ∝ 1
+            const i1_relative = 1;
+            
+            // 总电流 I_main = I1 + I2 ∝ 1 + 1/(3-2t)
+            const i_main_relative = 1 + i2_relative; // 范围 4/3 到 2
+            
+            // 视觉映射
+            // L2 光晕
+            const l2Opacity = 0.3 + 0.6 * ((i2_relative - 1/3) / (1 - 1/3)); // 0.3 到 0.9
+            const l2Radius = 30 + 15 * ((i2_relative - 1/3) / (1 - 1/3)); // 30 到 45
+            l2Halo.setAttribute('opacity', l2Opacity);
+            l2Halo.setAttribute('r', l2Radius);
+            
+            // L1 光晕 (恒定)
+            l1Halo.setAttribute('opacity', 0.8);
+            l1Halo.setAttribute('r', 40);
+            
+            // 电流箭头粗细
+            // I2: 1/3 -> 1, 映射到 stroke-width 1 -> 4
+            const l2Stroke = 1 + 3 * ((i2_relative - 1/3) / (1 - 1/3));
+            arrowL2Line.setAttribute('stroke-width', l2Stroke);
+            arrowL2Line.nextElementSibling.setAttribute('transform', `scale(${l2Stroke/2})`);
+            
+            // I1: 恒定, stroke-width 4
+            arrowL1Line.setAttribute('stroke-width', 4);
+            arrowL1Line.nextElementSibling.setAttribute('transform', `scale(2)`);
+            
+            // I_main: 4/3 -> 2, 映射到 stroke-width 5 -> 8
+            const mainStroke = 5 + 3 * ((i_main_relative - 4/3) / (2 - 4/3));
+            arrowMainLine.setAttribute('stroke-width', mainStroke);
+            arrowMainLine.nextElementSibling.setAttribute('transform', `scale(${mainStroke/2})`);
+        }
+        
+        // 初始化
+        updateScene();
+        
+        // 拖拽事件
+        function getMouseX(e) {
+            const rect = svg.getBoundingClientRect();
+            let clientX = e.clientX;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+            }
+            return clientX - rect.left;
+        }
+        
+        function onDragStart(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function onDragMove(e) {
+            if (!isDragging) return;
+            let x = getMouseX(e);
+            px = Math.max(minPx, Math.min(maxPx, x));
+            updateScene();
+        }
+        
+        function onDragEnd() {
+            isDragging = false;
+        }
+        
+        dragArea.addEventListener('mousedown', onDragStart);
+        dragArea.addEventListener('touchstart', onDragStart, {passive: false});
+        
+        window.addEventListener('mousemove', onDragMove);
+        window.addEventListener('touchmove', onDragMove, {passive: false});
+        
+        window.addEventListener('mouseup', onDragEnd);
+        window.addEventListener('touchend', onDragEnd);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态电路的等效分析与极值状态演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .draggable { cursor: ew-resize; }
+        text { user-select: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 静态导线 -->
+            <path d="M 200 120 L 360 120 M 440 120 L 480 120 M 540 120 L 600 120" stroke="black" stroke-width="2" fill="none"/>
+            <path d="M 200 120 L 200 180 M 200 220 L 200 370 L 300 370" stroke="black" stroke-width="2" fill="none"/>
+            <path d="M 600 120 L 600 180 M 600 220 L 600 300 L 320 300" stroke="black" stroke-width="2" fill="none"/>
+            <path d="M 200 300 L 280 300" stroke="black" stroke-width="2" fill="none"/>
+            
+            <!-- 电源 -->
+            <g id="scene1-power-supply">
+                <line x1="370" y1="105" x2="370" y2="135" stroke="black" stroke-width="2"/>
+                <line x1="380" y1="112" x2="380" y2="128" stroke="black" stroke-width="4"/>
+                <line x1="385" y1="120" x2="415" y2="120" stroke="black" stroke-width="2" stroke-dasharray="4,4"/>
+                <line x1="420" y1="105" x2="420" y2="135" stroke="black" stroke-width="2"/>
+                <line x1="430" y1="112" x2="430" y2="128" stroke="black" stroke-width="4"/>
+                <text x="400" y="90" text-anchor="middle" font-size="16">U=6V</text>
+            </g>
+
+            <!-- 开关 -->
+            <g id="scene1-switch">
+                <circle cx="490" cy="120" r="2" fill="black"/>
+                <circle cx="530" cy="120" r="2" fill="black"/>
+                <line x1="490" y1="120" x2="525" y2="105" stroke="black" stroke-width="2"/>
+                <text x="510" y="90" text-anchor="middle" font-size="16">S</text>
+            </g>
+
+            <!-- 电流表 -->
+            <g id="scene1-ammeter">
+                <circle cx="200" cy="200" r="20" fill="white" stroke="black" stroke-width="2"/>
+                <text x="200" y="206" text-anchor="middle" font-size="16">A</text>
+                <text id="scene1-text-i-label" x="170" y="206" text-anchor="end" font-size="16">0.20A</text>
+            </g>
+
+            <!-- 电压表 -->
+            <g id="scene1-voltmeter">
+                <circle cx="300" cy="300" r="20" fill="white" stroke="black" stroke-width="2"/>
+                <text x="300" y="306" text-anchor="middle" font-size="16">V</text>
+                <text id="scene1-text-u-label" x="300" y="270" text-anchor="middle" font-size="16">4.00V</text>
+            </g>
+
+            <!-- 灯泡 -->
+            <g id="scene1-lamp">
+                <circle id="scene1-lamp-glow" cx="600" cy="200" r="20" fill="#fbc02d" opacity="0.3"/>
+                <circle cx="600" cy="200" r="20" fill="none" stroke="black" stroke-width="2"/>
+                <line x1="586" y1="186" x2="614" y2="214" stroke="black" stroke-width="2"/>
+                <line x1="586" y1="214" x2="614" y2="186" stroke="black" stroke-width="2"/>
+                <text x="630" y="195" font-size="16">L</text>
+                <text id="scene1-text-p-label" x="630" y="220" text-anchor="start" font-size="16">0.40W</text>
+            </g>
+
+            <!-- 滑动变阻器 -->
+            <g id="scene1-rheostat">
+                <rect x="300" y="360" width="200" height="20" fill="none" stroke="black" stroke-width="2"/>
+                <line id="scene1-rheostat-active" x1="300" y1="370" x2="500" y2="370" stroke="#c62828" stroke-width="6"/>
+                <line id="scene1-rheostat-inactive" x1="500" y1="370" x2="500" y2="370" stroke="#888888" stroke-width="4" stroke-dasharray="4,4"/>
+                <text x="520" y="375" font-size="16">R</text>
+                <text x="400" y="435" text-anchor="middle" font-size="14" fill="#666">中点</text>
+                <text x="500" y="435" text-anchor="middle" font-size="14" fill="#666">右端</text>
+                <line x1="400" y1="385" x2="400" y2="415" stroke="#ccc" stroke-width="1"/>
+                <line x1="500" y1="385" x2="500" y2="415" stroke="#ccc" stroke-width="1"/>
+            </g>
+
+            <!-- 测量范围指示 -->
+            <g id="scene1-measure-range">
+                <path id="scene1-measure-path" d="M 300 395 L 300 405 M 300 400 L 500 400 M 500 395 L 500 405" stroke="#1565c0" stroke-width="2" fill="none"/>
+                <text id="scene1-measure-text" x="400" y="390" text-anchor="middle" font-size="14" fill="#1565c0">U_V</text>
+            </g>
+
+            <!-- 滑片 P (可拖拽) -->
+            <g id="scene1-slider-group" class="draggable" transform="translate(500, 0)">
+                <line x1="0" y1="300" x2="0" y2="350" stroke="black" stroke-width="2"/>
+                <polygon points="0,360 -6,348 6,348" fill="black"/>
+                <text x="15" y="330" font-size="16">P</text>
+                <!-- 扩大点击区 -->
+                <rect x="-20" y="290" width="40" height="80" fill="transparent"/>
+            </g>
+
+            <!-- 状态数据面板 -->
+            <g id="scene1-data-panel">
+                <rect x="640" y="120" width="140" height="140" fill="#f5f5f5" stroke="#ddd" stroke-width="1" rx="5"/>
+                <text x="650" y="145" font-size="14" font-family="monospace">R_P = <tspan id="scene1-panel-rp">20.0</tspan> Ω</text>
+                <text x="650" y="175" font-size="14" font-family="monospace">I   = <tspan id="scene1-panel-i">0.20</tspan> A</text>
+                <text x="650" y="205" font-size="14" font-family="monospace">U_V = <tspan id="scene1-panel-u">4.00</tspan> V</text>
+                <text x="650" y="235" font-size="14" font-family="monospace">P_L = <tspan id="scene1-panel-p">0.40</tspan> W</text>
+            </g>
+        </svg>
+        <div id="scene1-controls">
+            <input type="range" id="scene1-slider-input" min="400" max="500" value="500" style="width: 200px;">
+        </div>
+    </div>
+    <script>
+    (function() {
+        const svg = document.getElementById('scene1-svg');
+        const sliderGroup = document.getElementById('scene1-slider-group');
+        const rheostatActive = document.getElementById('scene1-rheostat-active');
+        const rheostatInactive = document.getElementById('scene1-rheostat-inactive');
+        const measurePath = document.getElementById('scene1-measure-path');
+        const measureText = document.getElementById('scene1-measure-text');
+        const lampGlow = document.getElementById('scene1-lamp-glow');
+        
+        const textILabel = document.getElementById('scene1-text-i-label');
+        const textULabel = document.getElementById('scene1-text-u-label');
+        const textPLabel = document.getElementById('scene1-text-p-label');
+        
+        const panelRp = document.getElementById('scene1-panel-rp');
+        const panelI = document.getElementById('scene1-panel-i');
+        const panelU = document.getElementById('scene1-panel-u');
+        const panelP = document.getElementById('scene1-panel-p');
+        
+        const sliderInput = document.getElementById('scene1-slider-input');
+
+        let isDragging = false;
+        let currentPx = 500;
+
+        function updateScene(px) {
+            currentPx = Math.max(400, Math.min(500, px));
+            
+            // Update slider position
+            sliderGroup.setAttribute('transform', `translate(${currentPx}, 0)`);
+            
+            // Update rheostat lines
+            rheostatActive.setAttribute('x2', currentPx);
+            rheostatInactive.setAttribute('x1', currentPx);
+            
+            // Update measurement range
+            measurePath.setAttribute('d', `M 300 395 L 300 405 M 300 400 L ${currentPx} 400 M ${currentPx} 395 L ${currentPx} 405`);
+            measureText.setAttribute('x', (300 + currentPx) / 2);
+            
+            // Physics calculations
+            const Rp = (currentPx - 300) / 10;
+            const I = 6 / (10 + Rp);
+            const U_V = I * Rp;
+            const P_L = I * I * 10;
+            
+            // Update labels
+            const iStr = I.toFixed(2);
+            const uStr = U_V.toFixed(2);
+            const pStr = P_L.toFixed(2);
+            const rpStr = Rp.toFixed(1);
+            
+            textILabel.textContent = iStr + 'A';
+            textULabel.textContent = uStr + 'V';
+            textPLabel.textContent = pStr + 'W';
+            
+            panelRp.textContent = rpStr.padStart(4, ' ');
+            panelI.textContent = iStr.padStart(4, ' ');
+            panelU.textContent = uStr.padStart(4, ' ');
+            panelP.textContent = pStr.padStart(4, ' ');
+            
+            // Update lamp glow (P_L ranges from 0.4 to 0.9)
+            // Map 0.4 -> 0.3 opacity, 0.9 -> 1.0 opacity
+            const opacity = 0.3 + (P_L - 0.4) / 0.5 * 0.7;
+            lampGlow.setAttribute('opacity', opacity.toFixed(2));
+            
+            // Sync input
+            sliderInput.value = currentPx;
+        }
+
+        // Drag events
+        function getMouseX(evt) {
+            const CTM = svg.getScreenCTM();
+            if (evt.touches && evt.touches.length > 0) {
+                return (evt.touches[0].clientX - CTM.e) / CTM.a;
+            }
+            return (evt.clientX - CTM.e) / CTM.a;
+        }
+
+        function startDrag(evt) {
+            isDragging = true;
+            evt.preventDefault();
+        }
+
+        function drag(evt) {
+            if (isDragging) {
+                evt.preventDefault();
+                const x = getMouseX(evt);
+                updateScene(x);
+            }
+        }
+
+        function endDrag(evt) {
+            if (isDragging) {
+                isDragging = false;
+            }
+        }
+
+        sliderGroup.addEventListener('mousedown', startDrag);
+        sliderGroup.addEventListener('touchstart', startDrag, {passive: false});
+        
+        window.addEventListener('mousemove', drag);
+        window.addEventListener('touchmove', drag, {passive: false});
+        
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchend', endDrag);
+
+        sliderInput.addEventListener('input', (e) => {
+            updateScene(parseFloat(e.target.value));
+        });
+
+        // Initialize
+        updateScene(500);
+    })();
+    </script>
+</body>
+</html>

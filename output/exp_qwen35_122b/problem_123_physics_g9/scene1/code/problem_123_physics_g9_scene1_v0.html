@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三容器连通系统 - 水位与气体压强变化分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 10; }
+        #scene1-controls button { padding: 8px 20px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 5px; background: #f5f5f5; }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; font-weight: bold; color: #333; }
+        #scene1-conclusion { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); font-size: 16px; font-weight: bold; color: #d32f2f; display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 定义斜线填充图案 -->
+            <defs>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10">
+                    <line x1="0" y1="0" x2="10" y2="10" stroke="#999" stroke-width="1"/>
+                    <line x1="10" y1="0" x2="0" y2="10" stroke="#999" stroke-width="1"/>
+                </pattern>
+            </defs>
+            
+            <!-- 大气标签（调整位置，向上移动） -->
+            <text id="scene1-label-atmosphere" x="300" y="20" font-size="16" fill="#333" text-anchor="middle">大气</text>
+            
+            <!-- 甲容器 -->
+            <rect id="scene1-container-jia" x="200" y="50" width="200" height="100" fill="none" stroke="#333" stroke-width="2"/>
+            <text id="scene1-label-jia" x="170" y="95" font-size="18" fill="#333" text-anchor="end">甲</text>
+            
+            <!-- 甲水体 -->
+            <rect id="scene1-water-jia" x="210" y="100" width="180" height="50" fill="#4fc3f7" opacity="0.3"/>
+            <!-- 甲水位线 -->
+            <line id="scene1-waterline-jia" x1="210" y1="100" x2="390" y2="100" stroke="#0288d1" stroke-width="2"/>
+            
+            <!-- 开关 M（调整位置，放在容器内部左侧） -->
+            <circle id="scene1-switch-m" cx="250" cy="120" r="8" fill="#f44336" stroke="#d32f2f" stroke-width="1.5"/>
+            <text id="scene1-label-m" x="250" y="125" font-size="12" fill="#ffffff" font-weight="bold" text-anchor="middle">M</text>
+            
+            <!-- 中间连通管（甲底部到乙水内） -->
+            <rect id="scene1-tube-middle" x="296" y="150" width="8" height="130" fill="none" stroke="#333" stroke-width="2"/>
+            
+            <!-- 乙容器 -->
+            <rect id="scene1-container-yi" x="200" y="200" width="200" height="100" fill="none" stroke="#333" stroke-width="2"/>
+            <text id="scene1-label-yi" x="140" y="245" font-size="18" fill="#333" text-anchor="end">乙</text>
+            
+            <!-- 乙气体区域 -->
+            <rect id="scene1-gas-yi" x="210" y="200" width="180" height="50" fill="url(#scene1-hatch)" opacity="0.5"/>
+            <text id="scene1-label-vyi" x="300" y="190" font-size="14" fill="#333" text-anchor="middle">V<tspan baseline-shift="sub" font-size="10">乙</tspan></text>
+            
+            <!-- 乙水体 -->
+            <rect id="scene1-water-yi" x="210" y="250" width="180" height="50" fill="#4fc3f7" opacity="0.3"/>
+            <!-- 乙水位线 -->
+            <line id="scene1-waterline-yi" x1="210" y1="250" x2="390" y2="250" stroke="#0288d1" stroke-width="2"/>
+            
+            <!-- 左侧连通管（乙气体到丙气体） -->
+            <path id="scene1-tube-left" d="M 170 220 L 150 220 L 150 370 L 170 370" fill="none" stroke="#333" stroke-width="2"/>
+            
+            <!-- 丙容器 -->
+            <rect id="scene1-container-bing" x="200" y="350" width="200" height="100" fill="none" stroke="#333" stroke-width="2"/>
+            <text id="scene1-label-bing" x="170" y="395" font-size="18" fill="#333" text-anchor="end">丙</text>
+            
+            <!-- 丙气体区域 -->
+            <rect id="scene1-gas-bing" x="210" y="350" width="180" height="50" fill="url(#scene1-hatch)" opacity="0.5"/>
+            <text id="scene1-label-vbing" x="300" y="340" font-size="14" fill="#333" text-anchor="middle">V<tspan baseline-shift="sub" font-size="10">丙</tspan></text>
+            
+            <!-- 丙水体 -->
+            <rect id="scene1-water-bing" x="210" y="400" width="180" height="50" fill="#4fc3f7" opacity="0.3"/>
+            <!-- 丙水位线 -->
+            <line id="scene1-waterline-bing" x1="210" y1="400" x2="390" y2="400" stroke="#0288d1" stroke-width="2"/>
+            
+            <!-- 右侧连通管（甲底部到丙底部） -->
+            <rect id="scene1-tube-right" x="410" y="150" width="20" height="300" fill="none" stroke="#333" stroke-width="2"/>
+            
+            <!-- 步骤 1：水流箭头 -->
+            <g id="scene1-flow-arrows" style="display: none;">
+                <!-- 中间管水流 -->
+                <defs>
+                    <marker id="scene1-arrowhead-green" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                        <polygon points="0,0 10,5 0,10" fill="#4caf50"/>
+                    </marker>
+                </defs>
+                <line id="scene1-arrow-middle" x1="300" y1="130" x2="300" y2="150" stroke="#4caf50" stroke-width="3" marker-end="url(#scene1-arrowhead-green)"/>
+                <text id="scene1-label-flow" x="315" y="145" font-size="14" fill="#4caf50">水流</text>
+                
+                <!-- 右侧管水流 -->
+                <line id="scene1-arrow-right" x1="420" y1="160" x2="420" y2="440" stroke="#4caf50" stroke-width="3" marker-end="url(#scene1-arrowhead-green)"/>
+            </g>
+            
+            <!-- 步骤 2：乙水位变化箭头 -->
+            <g id="scene1-yi-change" style="display: none;">
+                <defs>
+                    <marker id="scene1-arrowhead-red-up" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                        <polygon points="0,10 10,0 0,0" fill="#f44336"/>
+                    </marker>
+                </defs>
+                <line id="scene1-arrow-yi" x1="410" y1="250" x2="410" y2="230" stroke="#f44336" stroke-width="3" marker-end="url(#scene1-arrowhead-red-up)"/>
+                <text id="scene1-label-yi-up" x="420" y="240" font-size="16" fill="#f44336" font-weight="bold">↑</text>
+            </g>
+            
+            <!-- 步骤 3：丙水位变化箭头 -->
+            <g id="scene1-bing-change" style="display: none;">
+                <defs>
+                    <marker id="scene1-arrowhead-red-up2" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                        <polygon points="0,10 10,0 0,0" fill="#f44336"/>
+                    </marker>
+                </defs>
+                <line id="scene1-arrow-bing" x1="410" y1="400" x2="410" y2="380" stroke="#f44336" stroke-width="3" marker-end="url(#scene1-arrowhead-red-up2)"/>
+                <text id="scene1-label-bing-up" x="420" y="390" font-size="16" fill="#f44336" font-weight="bold">↑</text>
+            </g>
+            
+            <!-- 步骤 3：乙丙气体压强增大标注 -->
+            <g id="scene1-pressure-label" style="display: none;">
+                <rect id="scene1-pressure-box-yi" x="210" y="200" width="180" height="50" fill="none" stroke="#ff9800" stroke-width="2" stroke-dasharray="5,5"/>
+                <rect id="scene1-pressure-box-bing" x="210" y="350" width="180" height="50" fill="none" stroke="#ff9800" stroke-width="2" stroke-dasharray="5,5"/>
+                <text id="scene1-label-pressure" x="300" y="310" font-size="14" fill="#ff9800" font-weight="bold" text-anchor="middle">压强增大</text>
+            </g>
+            
+            <!-- 步骤 4：甲水位变化箭头 -->
+            <g id="scene1-jia-change" style="display: none;">
+                <defs>
+                    <marker id="scene1-arrowhead-red-down" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                        <polygon points="0,0 10,10 0,10" fill="#f44336"/>
+                    </marker>
+                </defs>
+                <line id="scene1-arrow-jia" x1="410" y1="100" x2="410" y2="120" stroke="#f44336" stroke-width="3" marker-end="url(#scene1-arrowhead-red-down)"/>
+                <text id="scene1-label-jia-down" x="420" y="110" font-size="16" fill="#f44336" font-weight="bold">↓</text>
+            </g>
+            
+            <!-- 步骤 5：最终状态高亮 -->
+            <g id="scene1-final-highlight" style="display: none;">
+                <rect id="scene1-yi-highlight" x="210" y="200" width="180" height="50" fill="none" stroke="#f44336" stroke-width="3"/>
+                <rect id="scene1-bing-highlight" x="210" y="350" width="180" height="50" fill="none" stroke="#4caf50" stroke-width="3"/>
+            </g>
+        </svg>
+        
+        <!-- 结论文字 -->
+        <div id="scene1-conclusion">结论：V<sub>乙</sub>减少，V<sub>丙</sub>增大，且△V<sub>乙</sub>＞△V<sub>丙</sub></div>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现 - 三容器连通系统水位与气体压强变化分析
+        // 布局坐标表（参考）：
+        // | 元素 | 位置 | 备注 |
+        // | 甲容器 | (200,50)-(400,150) | 最上方容器 |
+        // | 乙容器 | (200,200)-(400,300) | 中间容器 |
+        // | 丙容器 | (200,350)-(400,450) | 最下方容器 |
+        // | 甲水位线 | y=100 | 初始水位 |
+        // | 乙水位线 | y=250 | 初始水位 |
+        // | 丙水位线 | y=400 | 初始水位 |
+        
+        const svg = document.getElementById('scene1-svg');
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const conclusion = document.getElementById('scene1-conclusion');
+        
+        // 水位线初始位置
+        const INITIAL_WATERLINE = {
+            jia: 100,
+            yi: 250,
+            bing: 400
+        };
+        
+        // 最终水位位置
+        const FINAL_WATERLINE = {
+            jia: 120,  // 下降 20px
+            yi: 230,   // 上升 20px
+            bing: 380  // 上升 20px
+        };
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新水位线和水体
+        function updateWaterLevel(container, level) {
+            const waterline = document.getElementById(`scene1-waterline-${container}`);
+            const water = document.getElementById(`scene1-water-${container}`);
+            
+            if (waterline && water) {
+                waterline.setAttribute('y1', level);
+                waterline.setAttribute('y2', level);
+                
+                // 计算水体高度（容器底部 - 水位线）
+                const containerBottom = container === 'jia' ? 150 : (container === 'yi' ? 300 : 450);
+                const waterHeight = containerBottom - level;
+                water.setAttribute('y', level);
+                water.setAttribute('height', waterHeight);
+            }
+        }
+        
+        // 更新气体区域高度
+        function updateGasLevel(container, gasHeight) {
+            const gas = document.getElementById(`scene1-gas-${container}`);
+            if (gas) {
+                gas.setAttribute('height', gasHeight);
+            }
+        }
+        
+        // 更新步骤显示
+        function updateScene() {
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            prevBtn.disabled = currentStep === 0;
+            nextBtn.disabled = currentStep === totalSteps;
+            
+            // 隐藏所有动态元素
+            hide(document.getElementById('scene1-flow-arrows'));
+            hide(document.getElementById('scene1-yi-change'));
+            hide(document.getElementById('scene1-bing-change'));
+            hide(document.getElementById('scene1-pressure-label'));
+            hide(document.getElementById('scene1-jia-change'));
+            hide(document.getElementById('scene1-final-highlight'));
+            hide(conclusion);
+            
+            // 重置水位线到初始状态
+            updateWaterLevel('jia', INITIAL_WATERLINE.jia);
+            updateWaterLevel('yi', INITIAL_WATERLINE.yi);
+            updateWaterLevel('bing', INITIAL_WATERLINE.bing);
+            
+            // 根据步骤显示对应元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示基础结构
+                    break;
+                    
+                case 1:
+                    // 步骤 1：显示水流箭头
+                    show(document.getElementById('scene1-flow-arrows'));
+                    break;
+                    
+                case 2:
+                    // 步骤 2：乙水位上升，气体压缩
+                    show(document.getElementById('scene1-yi-change'));
+                    updateWaterLevel('yi', FINAL_WATERLINE.yi);
+                    updateGasLevel('yi', 30);  // 气体高度从 50 减少到 30
+                    // 高亮 V_乙标签
+                    const vyLabel = document.getElementById('scene1-label-vyi');
+                    vyLabel.style.fill = '#f44336';
+                    vyLabel.style.fontWeight = 'bold';
+                    break;
+                    
+                case 3:
+                    // 步骤 3：丙水位上升，气体压缩
+                    show(document.getElementById('scene1-yi-change'));
+                    show(document.getElementById('scene1-bing-change'));
+                    show(document.getElementById('scene1-pressure-label'));
+                    updateWaterLevel('yi', FINAL_WATERLINE.yi);
+                    updateWaterLevel('bing', FINAL_WATERLINE.bing);
+                    updateGasLevel('yi', 30);
+                    updateGasLevel('bing', 30);
+                    // 高亮 V_丙标签
+                    const vbLabel = document.getElementById('scene1-label-vbing');
+                    vbLabel.style.fill = '#f44336';
+                    vbLabel.style.fontWeight = 'bold';
+                    break;
+                    
+                case 4:
+                    // 步骤 4：甲水位下降
+                    show(document.getElementById('scene1-yi-change'));
+                    show(document.getElementById('scene1-bing-change'));
+                    show(document.getElementById('scene1-pressure-label'));
+                    show(document.getElementById('scene1-jia-change'));
+                    updateWaterLevel('jia', FINAL_WATERLINE.jia);
+                    updateWaterLevel('yi', FINAL_WATERLINE.yi);
+                    updateWaterLevel('bing', FINAL_WATERLINE.bing);
+                    updateGasLevel('yi', 30);
+                    updateGasLevel('bing', 30);
+                    break;
+                    
+                case 5:
+                    // 步骤 5：最终状态，显示结论
+                    show(document.getElementById('scene1-yi-change'));
+                    show(document.getElementById('scene1-bing-change'));
+                    show(document.getElementById('scene1-pressure-label'));
+                    show(document.getElementById('scene1-jia-change'));
+                    show(document.getElementById('scene1-final-highlight'));
+                    show(conclusion);
+                    updateWaterLevel('jia', FINAL_WATERLINE.jia);
+                    updateWaterLevel('yi', FINAL_WATERLINE.yi);
+                    updateWaterLevel('bing', FINAL_WATERLINE.bing);
+                    updateGasLevel('yi', 30);
+                    updateGasLevel('bing', 30);
+                    break;
+            }
+        }
+        
+        // 按钮事件绑定
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                // 清除高亮
+                const vyLabel = document.getElementById('scene1-label-vyi');
+                const vbLabel = document.getElementById('scene1-label-vbing');
+                vyLabel.style.fill = '#333';
+                vyLabel.style.fontWeight = 'normal';
+                vbLabel.style.fill = '#333';
+                vbLabel.style.fontWeight = 'normal';
+                
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>
