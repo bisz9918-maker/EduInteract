@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-status { position: absolute; left: 550px; top: 50px; width: 140px; height: 70px; background: rgba(255,255,255,0.9); border: 1px solid #ccc; border-radius: 4px; padding: 10px; box-sizing: border-box; font-size: 14px; display: flex; flex-direction: column; justify-content: center; }
+        .scene2-slider { width: 300px; }
+        .scene2-label { font-size: 14px; fill: #000000; text-anchor: middle; }
+        .scene2-block-text { font-size: 16px; fill: #1565c0; font-weight: bold; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <defs>
+                <pattern id="scene2-hatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#888888" stroke-width="1.5" />
+                </pattern>
+                <marker id="scene2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+            
+            <!-- Hatching for walls and ground -->
+            <rect x="80" y="70" width="20" height="100" fill="url(#scene2-hatch)" />
+            <rect x="100" y="170" width="300" height="20" fill="url(#scene2-hatch)" />
+            <rect x="380" y="190" width="20" height="220" fill="url(#scene2-hatch)" />
+            <rect x="400" y="410" width="300" height="20" fill="url(#scene2-hatch)" />
+
+            <!-- Wall and platform lines (broken into separate lines to avoid bounding box overlaps) -->
+            <line x1="100" y1="70" x2="100" y2="170" stroke="#000000" stroke-width="2" />
+            <line x1="100" y1="170" x2="400" y2="170" stroke="#000000" stroke-width="2" />
+            <line x1="400" y1="170" x2="400" y2="410" stroke="#000000" stroke-width="2" />
+            <line x1="400" y1="410" x2="700" y2="410" stroke="#000000" stroke-width="2" />
+
+            <!-- Marks -->
+            <line x1="170" y1="100" x2="170" y2="170" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,4" />
+            <text x="170" y="80" class="scene2-label">\(x=-A\)</text>
+            
+            <line x1="250" y1="100" x2="250" y2="170" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,4" />
+            <text x="250" y="80" class="scene2-label">\(x=0\)</text>
+            
+            <line x1="330" y1="100" x2="330" y2="170" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,4" />
+            <text x="330" y="80" class="scene2-label">\(x=A\)</text>
+
+            <!-- Spring -->
+            <path id="scene2-spring" d="" fill="none" stroke="#000000" stroke-width="2" />
+
+            <!-- Block A -->
+            <g id="scene2-block-a-group">
+                <rect id="scene2-block-a" x="310" y="130" width="40" height="40" fill="rgba(21,101,192,0.2)" stroke="#1565c0" stroke-width="2" />
+                <text id="scene2-block-a-text" x="330" y="115" class="scene2-block-text">A</text>
+            </g>
+
+            <!-- Block B -->
+            <g id="scene2-block-b-group">
+                <rect id="scene2-block-b" x="480" y="130" width="40" height="40" fill="rgba(21,101,192,0.2)" stroke="#1565c0" stroke-width="2" />
+                <text id="scene2-block-b-text" x="500" y="115" class="scene2-block-text">B</text>
+            </g>
+
+            <!-- Velocity Vector B -->
+            <line id="scene2-vb-arrow" x1="530" y1="150" x2="530" y2="150" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow)" opacity="0" />
+            <text id="scene2-vb-label" x="555" y="150" fill="#2e7d32" font-size="14px" opacity="0" dominant-baseline="central">\(v_B\)</text>
+        </svg>
+
+        <div id="scene2-status">
+            <div id="scene2-status-t">\(t = 0\)</div>
+            <div id="scene2-status-v">\(v_B = 0\)</div>
+        </div>
+
+        <div id="scene2-controls">
+            <span style="font-size: 14px;">时间流逝:</span>
+            <input type="range" id="scene2-slider" class="scene2-slider" min="0" max="100" value="0">
+        </div>
+    </div>
+    <script>
+    (function() {
+        const slider = document.getElementById('scene2-slider');
+        const blockA = document.getElementById('scene2-block-a');
+        const blockAText = document.getElementById('scene2-block-a-text');
+        const blockB = document.getElementById('scene2-block-b');
+        const blockBText = document.getElementById('scene2-block-b-text');
+        const spring = document.getElementById('scene2-spring');
+        const vbArrow = document.getElementById('scene2-vb-arrow');
+        const vbLabel = document.getElementById('scene2-vb-label');
+        const statusT = document.getElementById('scene2-status-t');
+        const statusV = document.getElementById('scene2-status-v');
+        const statusBox = document.getElementById('scene2-status');
+
+        function drawSpring(startX, startY, endX, endY) {
+            const segments = 16;
+            const width = endX - startX;
+            const segWidth = width / segments;
+            const amp = 10;
+            let d = `M ${startX} ${startY} `;
+            for (let i = 1; i <= segments; i++) {
+                const x = startX + i * segWidth;
+                const y = startY + (i % 2 === 0 ? 0 : (i % 4 === 1 ? -amp : amp));
+                d += `L ${x} ${y} `;
+            }
+            spring.setAttribute('d', d);
+        }
+
+        function updateScene(s) {
+            // s from 0 to 1
+            // A position: x_A = 250 + 80 * cos(pi * s)
+            const xA = 250 + 80 * Math.cos(Math.PI * s);
+            blockA.setAttribute('x', xA - 20);
+            blockAText.setAttribute('x', xA);
+            
+            // Spring
+            drawSpring(100, 150, xA - 20, 150);
+
+            // B position: y_B = 150 + 240 * s^2
+            const yB = 150 + 240 * s * s;
+            blockB.setAttribute('y', yB - 20);
+            blockBText.setAttribute('y', yB - 35);
+
+            // Velocity B
+            const vLength = 50 * s;
+            if (vLength > 2) {
+                vbArrow.setAttribute('opacity', '1');
+                vbLabel.setAttribute('opacity', '1');
+                vbArrow.setAttribute('y1', yB);
+                vbArrow.setAttribute('y2', yB + vLength);
+                vbLabel.setAttribute('y', yB);
+            } else {
+                vbArrow.setAttribute('opacity', '0');
+                vbLabel.setAttribute('opacity', '0');
+            }
+
+            // Status
+            if (s === 0) {
+                statusT.innerHTML = '\(t = 0\)';
+                statusV.innerHTML = '\(v_B = 0\)';
+                statusBox.style.color = '#000';
+                statusBox.style.fontWeight = 'normal';
+            } else if (s === 1) {
+                statusT.innerHTML = '\(t = rac{T}{2}\)';
+                statusV.innerHTML = '\(v_B = rac{gT}{2}\)';
+                statusBox.style.color = '#c62828';
+                statusBox.style.fontWeight = 'bold';
+            } else {
+                statusT.innerHTML = `\(t = ${(s/2).toFixed(2)}T\)`;
+                statusV.innerHTML = `\(v_B = ${(s/2).toFixed(2)}gT\)`;
+                statusBox.style.color = '#000';
+                statusBox.style.fontWeight = 'normal';
+            }
+            
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise([statusBox]).catch(err => console.log(err));
+            }
+        }
+
+        slider.addEventListener('input', (e) => {
+            const s = parseFloat(e.target.value) / 100;
+            updateScene(s);
+        });
+
+        // Initial draw
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

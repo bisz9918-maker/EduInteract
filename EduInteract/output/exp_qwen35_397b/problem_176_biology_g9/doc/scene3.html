@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动脉血与静脉血的含氧量对比</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene3-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene3-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene3-btn:hover {
+            background: #f0f0f0;
+        }
+        .scene3-btn.active {
+            background: #333;
+            color: #fff;
+        }
+        .scene3-o2-bar {
+            transition: width 0.3s ease;
+        }
+        .scene3-highlight {
+            stroke-width: 4px !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 标题区 (y=45, 原 40 下移 5px 避免裁切) -->
+            <text id="scene3-title" x="400" y="45" text-anchor="middle" font-size="18" font-weight="bold" fill="#000">
+                动脉血与静脉血的含氧量对比
+            </text>
+
+            <!-- 丝带线 -->
+            <line id="scene3-tourniquet" x1="200" y1="250" x2="600" y2="250" stroke="#000" stroke-width="3"/>
+            <text id="scene3-tourniquet-label" x="620" y="255" font-size="14" fill="#000">丝带</text>
+
+            <!-- 左侧血管（静脉，向上箭头） -->
+            <line id="scene3-vein-left" x1="300" y1="150" x2="300" y2="350" stroke="#1565c0" stroke-width="3" fill="none"/>
+            <!-- 向上箭头 -->
+            <path id="scene3-vein-arrow" d="M295 160 L300 150 L305 160" fill="#1565c0"/>
+
+            <!-- 右侧血管（动脉，向下箭头） -->
+            <line id="scene3-artery-right" x1="500" y1="150" x2="500" y2="350" stroke="#c62828" stroke-width="3" fill="none"/>
+            <!-- 向下箭头 -->
+            <path id="scene3-artery-arrow" d="M495 340 L500 350 L505 340" fill="#c62828"/>
+
+            <!-- 血管编号标签 -->
+            <text id="scene3-label-1" x="255" y="320" font-size="16" fill="#000">①</text>
+            <text id="scene3-label-2" x="525" y="320" font-size="16" fill="#000">②</text>
+            <text id="scene3-label-3" x="525" y="200" font-size="16" fill="#000">③</text>
+            <text id="scene3-label-4" x="255" y="200" font-size="16" fill="#000">④</text>
+
+            <!-- 状态 1：左侧含氧指示条（①静脉血低含氧，③动脉血高含氧） -->
+            <g id="scene3-state1-group" style="display:none; opacity:0;">
+                <!-- ①含氧条（低含氧 30%） -->
+                <rect id="scene3-o2-bar-1-bg" x="50" y="300" width="100" height="20" fill="#e0e0e0" stroke="#999"/>
+                <rect id="scene3-o2-bar-1" x="50" y="300" width="30" height="20" fill="#1565c0" class="scene3-o2-bar"/>
+                <text x="160" y="314" font-size="12" fill="#1565c0">静脉血</text>
+
+                <!-- ③含氧条（高含氧 80%） -->
+                <rect id="scene3-o2-bar-3-bg" x="50" y="180" width="100" height="20" fill="#e0e0e0" stroke="#999"/>
+                <rect id="scene3-o2-bar-3" x="50" y="180" width="80" height="20" fill="#c62828" class="scene3-o2-bar"/>
+                <text x="160" y="194" font-size="12" fill="#c62828">动脉血</text>
+
+                <!-- 氧分子图标（①少量，③多个） -->
+                <circle id="scene3-o2-mol-1a" cx="165" cy="310" r="4" fill="#1565c0"/>
+                <circle id="scene3-o2-mol-1b" cx="175" cy="310" r="4" fill="#1565c0"/>
+
+                <circle id="scene3-o2-mol-3a" cx="165" cy="190" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-3b" cx="175" cy="190" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-3c" cx="185" cy="190" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-3d" cx="165" cy="200" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-3e" cx="175" cy="200" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-3f" cx="185" cy="200" r="4" fill="#c62828"/>
+
+                <!-- 对比箭头 -->
+                <path id="scene3-compare-arrow-1" d="M180 290 L180 210 M175 220 L180 210 L185 220" stroke="#000" stroke-width="2" fill="none"/>
+                <text x="200" y="255" font-size="14" font-weight="bold" fill="#000">① &lt; ③</text>
+            </g>
+
+            <!-- 状态 2：右侧含氧指示条（②动脉血高含氧，④静脉血低含氧） -->
+            <g id="scene3-state2-group" style="display:none; opacity:0;">
+                <!-- ②含氧条（高含氧 80%） -->
+                <rect id="scene3-o2-bar-2-bg" x="650" y="300" width="100" height="20" fill="#e0e0e0" stroke="#999"/>
+                <rect id="scene3-o2-bar-2" x="650" y="300" width="80" height="20" fill="#c62828" class="scene3-o2-bar"/>
+                <text x="620" y="314" font-size="12" fill="#c62828">动脉血</text>
+
+                <!-- ④含氧条（低含氧 30%） -->
+                <rect id="scene3-o2-bar-4-bg" x="650" y="180" width="100" height="20" fill="#e0e0e0" stroke="#999"/>
+                <rect id="scene3-o2-bar-4" x="650" y="180" width="30" height="20" fill="#1565c0" class="scene3-o2-bar"/>
+                <text x="620" y="194" font-size="12" fill="#1565c0">静脉血</text>
+
+                <!-- 氧分子图标（②多个，④少量） -->
+                <circle id="scene3-o2-mol-2a" cx="765" cy="310" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-2b" cx="775" cy="310" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-2c" cx="785" cy="310" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-2d" cx="765" cy="320" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-2e" cx="775" cy="320" r="4" fill="#c62828"/>
+                <circle id="scene3-o2-mol-2f" cx="785" cy="320" r="4" fill="#c62828"/>
+
+                <circle id="scene3-o2-mol-4a" cx="765" cy="190" r="4" fill="#1565c0"/>
+                <circle id="scene3-o2-mol-4b" cx="775" cy="190" r="4" fill="#1565c0"/>
+
+                <!-- 对比箭头（左移避免与丝带文字重叠） -->
+                <path id="scene3-compare-arrow-2" d="M600 210 L600 290 M595 280 L600 290 L605 280" stroke="#000" stroke-width="2" fill="none"/>
+                <text x="565" y="255" font-size="14" font-weight="bold" fill="#000">④ &lt; ②</text>
+            </g>
+
+            <!-- 状态 3：总结 -->
+            <g id="scene3-state3-group" style="display:none; opacity:0;">
+                <!-- 总结文字合并为一行，增加垂直间距到 15px -->
+                <text id="scene3-summary-text" x="400" y="360" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">
+                    动脉血（②③）含氧量高 → 鲜红色
+                </text>
+                <text id="scene3-summary-text2" x="400" y="400" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">
+                    静脉血（①④）含氧量低 → 暗蓝色
+                </text>
+                <!-- 总结框放在文字下方，不遮挡文字 -->
+                <rect id="scene3-summary-box" x="200" y="410" width="400" height="50" fill="#f5f5f5" stroke="#cccccc" stroke-width="1" opacity="0.5"/>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-state1" class="scene3-btn" onclick="scene3UpdateState(1)">①vs③</button>
+            <button id="scene3-btn-state2" class="scene3-btn" onclick="scene3UpdateState(2)">②vs④</button>
+            <button id="scene3-btn-state3" class="scene3-btn" onclick="scene3UpdateState(3)">总结</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现：动脉血与静脉血的含氧量对比
+
+        let currentState = 0;
+
+        // 状态切换函数
+        window.scene3UpdateState = function(newState) {
+            currentState = newState;
+
+            // 更新按钮高亮
+            document.getElementById('scene3-btn-state1').classList.remove('active');
+            document.getElementById('scene3-btn-state2').classList.remove('active');
+            document.getElementById('scene3-btn-state3').classList.remove('active');
+
+            // 隐藏所有状态组
+            document.getElementById('scene3-state1-group').style.display = 'none';
+            document.getElementById('scene3-state1-group').style.opacity = '0';
+            document.getElementById('scene3-state2-group').style.display = 'none';
+            document.getElementById('scene3-state2-group').style.opacity = '0';
+            document.getElementById('scene3-state3-group').style.display = 'none';
+            document.getElementById('scene3-state3-group').style.opacity = '0';
+
+            // 重置血管高亮
+            document.getElementById('scene3-vein-left').classList.remove('scene3-highlight');
+            document.getElementById('scene3-artery-right').classList.remove('scene3-highlight');
+
+            const title = document.getElementById('scene3-title');
+
+            if (newState === 1) {
+                // 状态 1：①与③含氧量对比
+                document.getElementById('scene3-btn-state1').classList.add('active');
+                document.getElementById('scene3-state1-group').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('scene3-state1-group').style.opacity = '1';
+                }, 10);
+                title.textContent = '①与③含氧量对比';
+                // 高亮血管①和③
+                document.getElementById('scene3-vein-left').classList.add('scene3-highlight');
+            } else if (newState === 2) {
+                // 状态 2：②与④含氧量对比
+                document.getElementById('scene3-btn-state2').classList.add('active');
+                document.getElementById('scene3-state2-group').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('scene3-state2-group').style.opacity = '1';
+                }, 10);
+                title.textContent = '②与④含氧量对比';
+                // 高亮血管②和④
+                document.getElementById('scene3-artery-right').classList.add('scene3-highlight');
+            } else if (newState === 3) {
+                // 状态 3：总结
+                document.getElementById('scene3-btn-state3').classList.add('active');
+                document.getElementById('scene3-state3-group').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('scene3-state3-group').style.opacity = '1';
+                }, 10);
+                title.textContent = '动脉血 vs 静脉血';
+                // 高亮所有血管
+                document.getElementById('scene3-vein-left').classList.add('scene3-highlight');
+                document.getElementById('scene3-artery-right').classList.add('scene3-highlight');
+            }
+        };
+
+        // 初始化：状态 0（初始状态）
+        // 不显示任何含氧指示条，只显示基础图示
+    })();
+    </script>
+</body>
+</html>

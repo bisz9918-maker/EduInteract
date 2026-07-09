@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson-client@3"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #e3f2fd; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .map-path { fill: #f5f5f5; stroke: #000000; stroke-width: 0.5px; }
+        .point { fill: #2e7d32; }
+        .highlight-circle { opacity: 0; transition: opacity 0.5s; }
+        .label-text { font-size: 14px; font-weight: bold; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+        .base-label { font-size: 14px; font-weight: bold; fill: #000; }
+        .arrow-line { stroke: #c62828; stroke-width: 2px; fill: none; opacity: 0; transition: opacity 0.5s; }
+        .dash-line { stroke: #2e7d32; stroke-width: 2px; stroke-dasharray: 5,5; fill: none; opacity: 0; transition: opacity 0.5s; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <defs>
+                <marker id="scene3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+            </defs>
+            <g id="scene3-mapGroup"></g>
+            <g id="scene3-overlayGroup"></g>
+        </svg>
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const svg = d3.select("#scene3-svg");
+        const mapGroup = d3.select("#scene3-mapGroup");
+        const overlayGroup = d3.select("#scene3-overlayGroup");
+        
+        const width = 800;
+        const height = 500;
+        
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        // 投影设置
+        const projection = d3.geoEquirectangular()
+            .rotate([-150, 0])
+            .scale(127.32)
+            .translate([width / 2, height / 2]);
+            
+        const path = d3.geoPath().projection(projection);
+        
+        // 缩放行为
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .on("zoom", zoomed);
+            
+        svg.call(zoom);
+        // 禁用鼠标缩放平移，仅通过按钮控制
+        svg.on(".zoom", null);
+        
+        // 基础坐标表
+        const points = [
+            { id: "p1", name: "①", x: 333, y: 183, labelDx: -45, labelDy: -45 },
+            { id: "p2", name: "②", x: 200, y: 139, labelDx: 45, labelDy: -45 },
+            { id: "p3", name: "③", x: 67, y: 134, labelDx: -45, labelDy: -45 },
+            { id: "p4", name: "④", x: 467, y: 168, labelDx: 45, labelDy: -45 }
+        ];
+        
+        const features = {
+            huninghang: { x: 333, y: 183, labelDx: 25, labelDy: 15, text: "沪宁杭工业基地", color: "#2e7d32" },
+            beihai: { x: 67, y: 134, labelDx: 35, labelDy: 25, text: "北海渔场", color: "#1565c0" },
+            current: { x1: 33, y1: 150, x2: 62, y2: 139, labelX: 23, labelY: 170, text: "北大西洋暖流", color: "#c62828" },
+            northAmerica: { x: 600, y: 168, labelDx: 20, labelDy: 30, text: "美国西海岸高新技术工业基地", color: "#2e7d32" }
+        };
+        
+        // 状态参数
+        const states = [
+            { k: 1, x: 0, y: 0 }, // 0: 全局
+            { k: 3, x: 400 - 333*3, y: 250 - 183*3 }, // 1: ①地
+            { k: 3, x: 400 - 67*3, y: 250 - 134*3 }, // 2: ③地
+            { k: 2.5, x: 400 - 533*2.5, y: 250 - 168*2.5 } // 3: ④地及北美
+        ];
+        
+        // 加载地图数据
+        fetch('https://unpkg.com/world-atlas@2.0.2/countries-110m.json')
+            .then(response => response.json())
+            .then(world => {
+                mapGroup.selectAll("path")
+                    .data(topojson.feature(world, world.objects.countries).features)
+                    .enter().append("path")
+                    .attr("class", "map-path")
+                    .attr("d", path);
+                    
+                initOverlay();
+            })
+            .catch(err => {
+                console.error("Failed to load map data", err);
+                // 如果加载失败，绘制一个简单的背景替代
+                mapGroup.append("rect").attr("width", width).attr("height", height).attr("fill", "#f5f5f5");
+                initOverlay();
+            });
+            
+        function initOverlay() {
+            // 绘制高亮圈
+            overlayGroup.append("circle").attr("id", "scene3-hl-1").attr("class", "highlight-circle").attr("r", 45).attr("fill", "#2e7d32").attr("opacity", 0);
+            overlayGroup.append("circle").attr("id", "scene3-hl-3").attr("class", "highlight-circle").attr("r", 45).attr("fill", "#1565c0").attr("opacity", 0);
+            overlayGroup.append("circle").attr("id", "scene3-hl-na").attr("class", "highlight-circle").attr("r", 45).attr("fill", "#2e7d32").attr("opacity", 0);
+            
+            // 绘制连线和箭头
+            overlayGroup.append("line").attr("id", "scene3-arrow-line").attr("class", "arrow-line").attr("marker-end", "url(#scene3-arrow)");
+            overlayGroup.append("line").attr("id", "scene3-dash-line").attr("class", "dash-line");
+            
+            // 绘制基础点和标签
+            points.forEach(p => {
+                overlayGroup.append("circle")
+                    .attr("class", "point")
+                    .attr("id", `scene3-pt-${p.id}`)
+                    .attr("r", 4);
+                overlayGroup.append("text")
+                    .attr("class", "base-label")
+                    .attr("id", `scene3-lbl-${p.id}`)
+                    .text(p.name);
+            });
+            
+            // 绘制特征标签
+            overlayGroup.append("text").attr("id", "scene3-lbl-huninghang").attr("class", "label-text").attr("fill", features.huninghang.color).text(features.huninghang.text);
+            overlayGroup.append("text").attr("id", "scene3-lbl-beihai").attr("class", "label-text").attr("fill", features.beihai.color).text(features.beihai.text);
+            overlayGroup.append("text").attr("id", "scene3-lbl-current").attr("class", "label-text").attr("fill", features.current.color).text(features.current.text);
+            
+            const naLabel = overlayGroup.append("text").attr("id", "scene3-lbl-na").attr("class", "label-text").attr("fill", features.northAmerica.color);
+            naLabel.append("tspan").attr("x", 0).attr("dy", 0).text("美国西海岸高新");
+            naLabel.append("tspan").attr("x", 0).attr("dy", 20).text("技术工业基地");
+            
+            updateOverlayPositions(d3.zoomIdentity);
+            updateState();
+        }
+        
+        function zoomed(e) {
+            const t = e.transform;
+            mapGroup.attr("transform", t);
+            updateOverlayPositions(t);
+        }
+        
+        function updateOverlayPositions(t) {
+            // 更新基础点
+            points.forEach(p => {
+                const [px, py] = t.apply([p.x, p.y]);
+                d3.select(`#scene3-pt-${p.id}`).attr("cx", px).attr("cy", py);
+                d3.select(`#scene3-lbl-${p.id}`).attr("x", px + p.labelDx).attr("y", py + p.labelDy).style("display", (px < 20 || px > 780 || py < 20 || py > 480) ? "none" : "block");
+            });
+            
+            // 更新高亮圈
+            const [h1x, h1y] = t.apply([features.huninghang.x, features.huninghang.y]);
+            d3.select("#scene3-hl-1").attr("cx", h1x).attr("cy", h1y);
+            
+            const [h3x, h3y] = t.apply([features.beihai.x, features.beihai.y]);
+            d3.select("#scene3-hl-3").attr("cx", h3x).attr("cy", h3y);
+            
+            const [hnax, hnay] = t.apply([features.northAmerica.x, features.northAmerica.y]);
+            d3.select("#scene3-hl-na").attr("cx", hnax).attr("cy", hnay);
+            
+            // 更新连线
+            const [c1x, c1y] = t.apply([features.current.x1, features.current.y1]);
+            const [c2x, c2y] = t.apply([features.current.x2, features.current.y2]);
+            d3.select("#scene3-arrow-line").attr("x1", c1x).attr("y1", c1y).attr("x2", c2x).attr("y2", c2y);
+            
+            const [d1x, d1y] = t.apply([points[3].x, points[3].y]);
+            d3.select("#scene3-dash-line").attr("x1", d1x).attr("y1", d1y).attr("x2", hnax).attr("y2", hnay);
+            
+            // 更新特征标签
+            d3.select("#scene3-lbl-huninghang").attr("x", h1x + features.huninghang.labelDx).attr("y", h1y + features.huninghang.labelDy);
+            d3.select("#scene3-lbl-beihai").attr("x", h3x + features.beihai.labelDx).attr("y", h3y + features.beihai.labelDy);
+            
+            const [clx, cly] = t.apply([features.current.labelX, features.current.labelY]);
+            d3.select("#scene3-lbl-current").attr("x", clx).attr("y", cly);
+            
+            d3.select("#scene3-lbl-na").selectAll("tspan").attr("x", hnax + features.northAmerica.labelDx);
+            d3.select("#scene3-lbl-na").attr("y", hnay + features.northAmerica.labelDy);
+        }
+        
+        function updateState() {
+            const state = states[currentStep];
+            
+            // 平滑过渡地图
+            svg.transition()
+                .duration(1000)
+                .call(zoom.transform, d3.zoomIdentity.translate(state.x, state.y).scale(state.k));
+                
+            // 控制元素显隐
+            d3.select("#scene3-hl-1").style("opacity", currentStep === 1 ? 0.3 : 0);
+            d3.select("#scene3-lbl-huninghang").style("opacity", currentStep === 1 ? 1 : 0);
+            
+            d3.select("#scene3-hl-3").style("opacity", currentStep === 2 ? 0.3 : 0);
+            d3.select("#scene3-lbl-beihai").style("opacity", currentStep === 2 ? 1 : 0);
+            d3.select("#scene3-arrow-line").style("opacity", currentStep === 2 ? 1 : 0);
+            d3.select("#scene3-lbl-current").style("opacity", currentStep === 2 ? 1 : 0);
+            
+            d3.select("#scene3-hl-na").style("opacity", currentStep === 3 ? 0.3 : 0);
+            d3.select("#scene3-dash-line").style("opacity", currentStep === 3 ? 1 : 0);
+            d3.select("#scene3-lbl-na").style("opacity", currentStep === 3 ? 1 : 0);
+            
+            // 更新按钮状态
+            document.getElementById("scene3-btn-prev").disabled = currentStep === 0;
+            document.getElementById("scene3-btn-next").disabled = currentStep === maxStep;
+        }
+        
+        document.getElementById("scene3-btn-prev").addEventListener("click", () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+        
+        document.getElementById("scene3-btn-next").addEventListener("click", () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

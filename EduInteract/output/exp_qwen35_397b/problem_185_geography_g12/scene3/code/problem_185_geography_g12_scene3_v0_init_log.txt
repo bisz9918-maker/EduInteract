@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昼夜弧长与日出时间计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene3-step-indicator { font-size: 14px; color: #666; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500">
+            <!-- 纬线圈 -->
+            <circle id="scene3-circle" cx="400" cy="250" r="140" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 经线十字 -->
+            <line id="scene3-meridian-v" x1="400" y1="110" x2="400" y2="390" stroke="#000000" stroke-width="2"/>
+            <line id="scene3-meridian-h" x1="260" y1="250" x2="540" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 经线标签 -->
+            <text id="scene3-label-45e" x="400" y="95" text-anchor="middle" font-size="14" fill="#000000">45°E</text>
+            <text id="scene3-label-45w" x="555" y="255" text-anchor="start" font-size="14" fill="#000000">45°W</text>
+            
+            <!-- OA 和 OB 连线 -->
+            <line id="scene3-line-oa" x1="400" y1="250" x2="265" y2="214" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene3-line-ob" x1="400" y1="250" x2="535" y2="214" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 15°角标注弧线 -->
+            <path id="scene3-angle-arc-left" d="M 310 250 A 40 40 0 0 0 295 240" fill="none" stroke="#000000" stroke-width="1"/>
+            <path id="scene3-angle-arc-right" d="M 490 250 A 40 40 0 0 1 505 240" fill="none" stroke="#000000" stroke-width="1"/>
+            <text id="scene3-angle-15-left" x="290" y="240" text-anchor="middle" font-size="12" fill="#000000">15°</text>
+            <text id="scene3-angle-15-right" x="510" y="240" text-anchor="middle" font-size="12" fill="#000000">15°</text>
+            
+            <!-- 昼弧 AB（上方劣弧，150°） -->
+            <path id="scene3-arc-day" d="M 265 214 A 140 140 0 0 1 535 214" fill="none" stroke="#2e7d32" stroke-width="4" opacity="0"/>
+            
+            <!-- 夜弧 BA（下方优弧，210°） -->
+            <path id="scene3-arc-night" d="M 535 214 A 140 140 0 0 1 265 214" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 150°标注 -->
+            <text id="scene3-label-150" x="400" y="180" text-anchor="middle" font-size="16" fill="#2e7d32" font-weight="bold" opacity="0">150°</text>
+            
+            <!-- A 点和 B 点 -->
+            <circle id="scene3-point-a" cx="265" cy="214" r="6" fill="#c62828"/>
+            <circle id="scene3-point-b" cx="535" cy="214" r="6" fill="#c62828"/>
+            
+            <!-- A 和 B 标签 -->
+            <text id="scene3-label-a" x="250" y="200" text-anchor="end" font-size="14" fill="#000000">A</text>
+            <text id="scene3-label-b" x="550" y="200" text-anchor="start" font-size="14" fill="#000000">B</text>
+            
+            <!-- 计算区 -->
+            <text id="scene3-calc-text1" x="400" y="330" text-anchor="middle" font-size="14" fill="#333333" opacity="0">昼弧角度 = 180° - 15° - 15° = 150°</text>
+            <text id="scene3-calc-text2" x="400" y="355" text-anchor="middle" font-size="14" fill="#333333" opacity="0">昼长 = 150° ÷ 15°/小时 = 10 小时</text>
+            <text id="scene3-calc-text3" x="400" y="380" text-anchor="middle" font-size="14" fill="#333333" opacity="0">日出时间 = 12 - 10/2 = <tspan fill="#c62828" font-weight="bold">7 时</tspan></text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+            <span id="scene3-step-indicator" class="scene3-step-indicator">步骤 0/4</span>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 昼夜弧长与日出时间计算
+        
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 获取元素
+        const arcDay = document.getElementById('scene3-arc-day');
+        const arcNight = document.getElementById('scene3-arc-night');
+        const label150 = document.getElementById('scene3-label-150');
+        const calcText1 = document.getElementById('scene3-calc-text1');
+        const calcText2 = document.getElementById('scene3-calc-text2');
+        const calcText3 = document.getElementById('scene3-calc-text3');
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepIndicator = document.getElementById('scene3-step-indicator');
+        
+        // 更新步骤显示
+        function updateStepIndicator() {
+            stepIndicator.textContent = `步骤 ${currentState}/${totalSteps}`;
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === totalSteps;
+            if (currentState === totalSteps) {
+                btnNext.textContent = '完成';
+            } else {
+                btnNext.textContent = '下一步 ▶';
+            }
+        }
+        
+        // 渲染步骤
+        function renderStep(step) {
+            // 步骤 0: 初始状态 - 只显示基础元素
+            // 步骤 1: 显示昼弧和夜弧，150°标注
+            // 步骤 2: 显示计算第一行
+            // 步骤 3: 显示计算第二行
+            // 步骤 4: 显示计算第三行
+            
+            if (step >= 1) {
+                arcDay.style.opacity = '1';
+                arcNight.style.opacity = '1';
+                label150.style.opacity = '1';
+            } else {
+                arcDay.style.opacity = '0';
+                arcNight.style.opacity = '0';
+                label150.style.opacity = '0';
+            }
+            
+            if (step >= 2) {
+                calcText1.style.opacity = '1';
+            } else {
+                calcText1.style.opacity = '0';
+            }
+            
+            if (step >= 3) {
+                calcText2.style.opacity = '1';
+            } else {
+                calcText2.style.opacity = '0';
+            }
+            
+            if (step >= 4) {
+                calcText3.style.opacity = '1';
+            } else {
+                calcText3.style.opacity = '0';
+            }
+            
+            updateStepIndicator();
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                renderStep(currentState);
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                renderStep(currentState);
+            }
+        });
+        
+        // 初始化
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

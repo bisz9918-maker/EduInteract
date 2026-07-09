@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳高度角对比</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-btn {
+            position: absolute;
+            bottom: 15px;
+            padding: 8px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #1976d2;
+            color: white;
+            transition: background 0.2s;
+        }
+        .scene2-btn:hover {
+            background: #1565c0;
+        }
+        .scene2-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-btn-prev {
+            left: 300px;
+        }
+        #scene2-btn-next {
+            left: 420px;
+        }
+        #scene2-step-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- 
+        布局坐标表（实现对照依据）：
+        画布尺寸：800×500px，左右分栏布局
+        
+        | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        |------|------|-----------|------|-------------|------|
+        | 标题 | text | (400, 50) | ~160×24 | - | 居中，"太阳高度角对比" |
+        | 左侧地球圆弧 | path | 圆心(200,280), r=25 | 弧长~150 | - | 左半圆弧，小尺寸 |
+        | A 点 | circle | (175, 280) | r=5 | - | 晨昏线位置，红色实心圆 |
+        | A 点地平面切线 | line | (175,260)-(175,300) | 40×2 | - | 竖直虚线 |
+        | A 点太阳光线 | line+arrow | (100,280)-(165,280) | 65×3 | - | 水平红色箭头 |
+        | A 点角度弧线 | arc | 圆心(175,280), r=12 | 弧长~40 | - | 蓝色小弧线 |
+        | 标签"A 点" | text | (175, 240) | ~30×16 | 上方 | A 点正上方 |
+        | 标签"0°" | text | (210, 275) | ~25×16 | 右侧 | 远离圆弧 |
+        | 标签"太阳光线" | text | (132, 260) | ~50×14 | 上方 | 光线上方居中 |
+        | 标签"地平面" | text | (190, 320) | ~40×14 | 下方 | 切线下方，远离圆弧 |
+        | 右侧地球圆弧 | path | 圆心(600,280), r=25 | 弧长~150 | - | 上半圆弧，小尺寸 |
+        | C 点 | circle | (600, 255) | r=5 | - | 直射点位置 |
+        | C 点地平面切线 | line | (580,255)-(620,255) | 40×2 | - | 水平虚线 |
+        | C 点太阳光线 | line+arrow | (600,215)-(600,245) | 30×3 | - | 垂直红色箭头 |
+        | C 点角度弧线 | arc | 圆心(600,255), r=12 | 弧长~40 | - | 蓝色小弧线 |
+        | 标签"C 点" | text | (600, 230) | ~30×16 | 上方 | C 点正上方 |
+        | 标签"90°" | text | (625, 250) | ~30×16 | 右侧 | 角度弧线右侧 |
+        | 标签"太阳光线" | text | (615, 225) | ~50×14 | 右侧 | 光线右侧 |
+        | 标签"地平面" | text | (600, 280) | ~40×14 | 下方 | 切线下方 |
+        | 分隔线 | line | (400,80)-(400,420) | 340×1 | - | 灰色虚线 |
+        | 结论框 | rect+text | (250,400)-(550,470) | 300×70 | - | 步骤 3 显示 |
+        -->
+        
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 定义箭头 marker -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+            </defs>
+            
+            <!-- 标题 -->
+            <text id="scene2-title" x="400" y="50" text-anchor="middle" font-size="18px" font-weight="bold" fill="#000000">太阳高度角对比</text>
+            
+            <!-- 左侧地球圆弧（A 点区域） -->
+            <path id="scene2-arc-left" d="M 200,255 A 25,25 0 0,0 200,305" fill="none" stroke="#000000" stroke-width="2" />
+            
+            <!-- A 点 -->
+            <circle id="scene2-point-a" cx="175" cy="280" r="5" fill="#c62828" />
+            
+            <!-- A 点地平面切线（竖直虚线） -->
+            <line id="scene2-tangent-a" x1="175" y1="260" x2="175" y2="300" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" style="display:none;" />
+            
+            <!-- A 点太阳光线（水平箭头） -->
+            <line id="scene2-ray-a" x1="100" y1="280" x2="165" y2="280" stroke="#c62828" stroke-width="3" marker-end="url(#scene2-arrowhead)" style="display:none;" />
+            
+            <!-- A 点角度弧线（0°弧线） -->
+            <path id="scene2-angle-a" d="M 187,280 A 12,12 0 0,0 187,280" fill="none" stroke="#1565c0" stroke-width="2" style="display:none;" />
+            
+            <!-- A 点标签 -->
+            <text id="scene2-label-a" x="175" y="240" text-anchor="middle" font-size="14px" fill="#000000">A 点</text>
+            <text id="scene2-value-0" x="210" y="275" font-size="14px" fill="#000000" style="display:none;">0°</text>
+            <text id="scene2-ray-label-a" x="132" y="260" text-anchor="middle" font-size="12px" fill="#666666" style="display:none;">太阳光线</text>
+            <text id="scene2-tangent-label-a" x="190" y="320" font-size="12px" fill="#666666" style="display:none;">地平面</text>
+            
+            <!-- 分隔线 -->
+            <line id="scene2-divider" x1="400" y1="80" x2="400" y2="420" stroke="#cccccc" stroke-width="1" stroke-dasharray="5,5" />
+            
+            <!-- 右侧地球圆弧（C 点区域） -->
+            <path id="scene2-arc-right" d="M 575,280 A 25,25 0 0,1 625,280" fill="none" stroke="#000000" stroke-width="2" />
+            
+            <!-- C 点 -->
+            <circle id="scene2-point-c" cx="600" cy="255" r="5" fill="#c62828" />
+            
+            <!-- C 点地平面切线（水平虚线） -->
+            <line id="scene2-tangent-c" x1="580" y1="255" x2="620" y2="255" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" style="display:none;" />
+            
+            <!-- C 点太阳光线（垂直箭头） -->
+            <line id="scene2-ray-c" x1="600" y1="215" x2="600" y2="245" stroke="#c62828" stroke-width="3" marker-end="url(#scene2-arrowhead)" style="display:none;" />
+            
+            <!-- C 点角度弧线（90°弧线） -->
+            <path id="scene2-angle-c" d="M 612,255 A 12,12 0 0,1 600,243" fill="none" stroke="#1565c0" stroke-width="2" style="display:none;" />
+            
+            <!-- C 点标签 -->
+            <text id="scene2-label-c" x="600" y="230" text-anchor="middle" font-size="14px" fill="#000000">C 点</text>
+            <text id="scene2-value-90" x="625" y="250" font-size="14px" fill="#000000" style="display:none;">90°</text>
+            <text id="scene2-ray-label-c" x="615" y="225" font-size="12px" fill="#666666" style="display:none;">太阳光线</text>
+            <text id="scene2-tangent-label-c" x="600" y="280" text-anchor="middle" font-size="12px" fill="#666666" style="display:none;">地平面</text>
+            
+            <!-- 结论框（步骤 3 显示） -->
+            <g id="scene2-conclusion-box" style="display:none;">
+                <rect x="250" y="400" width="300" height="80" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" />
+                <text x="400" y="425" text-anchor="middle" font-size="14px" fill="#1565c0">晨昏线上太阳高度=0°</text>
+                <text x="400" y="455" text-anchor="middle" font-size="14px" fill="#1565c0">直射点太阳高度=90°</text>
+            </g>
+        </svg>
+        
+        <!-- 控件按钮 -->
+        <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+        <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        <div id="scene2-step-indicator">步骤 1/4</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：太阳高度角对比
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // A 点相关元素
+        const tangentA = document.getElementById('scene2-tangent-a');
+        const rayA = document.getElementById('scene2-ray-a');
+        const angleA = document.getElementById('scene2-angle-a');
+        const value0 = document.getElementById('scene2-value-0');
+        const rayLabelA = document.getElementById('scene2-ray-label-a');
+        const tangentLabelA = document.getElementById('scene2-tangent-label-a');
+        
+        // C 点相关元素
+        const tangentC = document.getElementById('scene2-tangent-c');
+        const rayC = document.getElementById('scene2-ray-c');
+        const angleC = document.getElementById('scene2-angle-c');
+        const value90 = document.getElementById('scene2-value-90');
+        const rayLabelC = document.getElementById('scene2-ray-label-c');
+        const tangentLabelC = document.getElementById('scene2-tangent-label-c');
+        
+        // 结论框
+        const conclusionBox = document.getElementById('scene2-conclusion-box');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 步骤 0：只显示标题、地球圆弧、A 点、C 点、分隔线
+            // 步骤 1：显示左侧 A 点的太阳光线、地平面、角度、0°标签
+            // 步骤 2：显示右侧 C 点的太阳光线、地平面、角度、90°标签
+            // 步骤 3：显示所有元素 + 结论框
+            
+            if (currentStep === 0) {
+                // 隐藏所有动态元素
+                hide(tangentA); hide(rayA); hide(angleA); hide(value0); hide(rayLabelA); hide(tangentLabelA);
+                hide(tangentC); hide(rayC); hide(angleC); hide(value90); hide(rayLabelC); hide(tangentLabelC);
+                hide(conclusionBox);
+            } else if (currentStep === 1) {
+                // 显示左侧 A 点相关元素
+                show(tangentA); show(rayA); show(angleA); show(value0); show(rayLabelA); show(tangentLabelA);
+                // 隐藏右侧 C 点相关元素
+                hide(tangentC); hide(rayC); hide(angleC); hide(value90); hide(rayLabelC); hide(tangentLabelC);
+                hide(conclusionBox);
+            } else if (currentStep === 2) {
+                // 显示右侧 C 点相关元素（保留左侧）
+                show(tangentA); show(rayA); show(angleA); show(value0); show(rayLabelA); show(tangentLabelA);
+                show(tangentC); show(rayC); show(angleC); show(value90); show(rayLabelC); show(tangentLabelC);
+                hide(conclusionBox);
+            } else if (currentStep === 3) {
+                // 显示所有元素 + 结论框
+                show(tangentA); show(rayA); show(angleA); show(value0); show(rayLabelA); show(tangentLabelA);
+                show(tangentC); show(rayC); show(angleC); show(value90); show(rayLabelC); show(tangentLabelC);
+                show(conclusionBox);
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+        }
+        
+        // 按钮事件处理
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

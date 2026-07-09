@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualSolver Scene 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        #scene2-controls-top { position: absolute; top: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px; z-index: 10; }
+        #scene2-controls-bottom { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; background: rgba(255,255,255,0.8); padding: 10px; width: 400px; margin: 0 auto; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 4px; }
+        button.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+        input[type="range"] { width: 250px; cursor: pointer; }
+        .scene2-label { color: #000; font-size: 14px; font-weight: bold; padding: 2px 6px; background: rgba(255,255,255,0.8); border: 1px solid #000; border-radius: 4px; pointer-events: none; white-space: nowrap; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene2-container">
+        <div id="scene2-canvas-container"></div>
+        <div id="scene2-controls-top">
+            <button id="scene2-btn-state1" class="active">图③</button>
+            <button id="scene2-btn-state2">图④</button>
+        </div>
+        <div id="scene2-controls-bottom">
+            <span style="font-size: 14px; font-weight: bold;">展开</span>
+            <input type="range" id="scene2-slider" min="0" max="1" step="0.01" value="0">
+            <span style="font-size: 14px; font-weight: bold;">折叠</span>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // Scene setup
+        const container = document.getElementById('scene2-canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const camera = new THREE.PerspectiveCamera(45, 800 / 500, 0.1, 100);
+        camera.position.set(0, -8, 12);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(800, 500);
+        container.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(800, 500);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        container.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(20, 20, 0xcccccc, 0xeeeeee);
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.position.z = -0.1;
+        scene.add(gridHelper);
+
+        // Helpers
+        function createPanel(vertices, color, opacity) {
+            const shape = new THREE.Shape();
+            shape.moveTo(vertices[0].x, vertices[0].y);
+            for (let i = 1; i < vertices.length; i++) {
+                shape.lineTo(vertices[i].x, vertices[i].y);
+            }
+            shape.lineTo(vertices[0].x, vertices[0].y);
+
+            const geometry = new THREE.ShapeGeometry(shape);
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+
+            const edges = new THREE.EdgesGeometry(geometry);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 });
+            const line = new THREE.LineSegments(edges, lineMat);
+            mesh.add(line);
+
+            return mesh;
+        }
+
+        function createHighlightEdge(p1, p2, color) {
+            const distance = p1.distanceTo(p2);
+            const cylinderGeo = new THREE.CylinderGeometry(0.06, 0.06, distance, 8);
+            const cylinderMat = new THREE.MeshBasicMaterial({ color: color });
+            const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
+            
+            const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+            cylinder.position.copy(midpoint);
+            
+            const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
+            const axis = new THREE.Vector3(0, 1, 0);
+            cylinder.quaternion.setFromUnitVectors(axis, direction);
+            return cylinder;
+        }
+
+        function createLabel(text) {
+            const div = document.createElement('div');
+            div.className = 'scene2-label';
+            div.textContent = text;
+            return new CSS2DObject(div);
+        }
+
+        const blueColor = 0x1565c0;
+        const greenColor = 0x2e7d32;
+
+        // ================= Shape 3 =================
+        const shape3Group = new THREE.Group();
+        scene.add(shape3Group);
+
+        // Middle panel
+        const midGeo3 = [
+            new THREE.Vector2(-1, -2), new THREE.Vector2(1, -2),
+            new THREE.Vector2(1, 2), new THREE.Vector2(-1, 2)
+        ];
+        const midMesh3 = createPanel(midGeo3, blueColor, 0.3);
+        shape3Group.add(midMesh3);
+
+        // Left panel
+        const leftHinge3 = new THREE.Group();
+        leftHinge3.position.set(-1, 0, 0);
+        shape3Group.add(leftHinge3);
+
+        const leftGeo3 = [
+            new THREE.Vector2(0, -2), new THREE.Vector2(0, 2),
+            new THREE.Vector2(-1, 2), new THREE.Vector2(-2, -2)
+        ];
+        const leftMesh3 = createPanel(leftGeo3, blueColor, 0.3);
+        leftMesh3.add(createHighlightEdge(new THREE.Vector3(-1, 2, 0), new THREE.Vector3(-2, -2, 0), greenColor));
+        leftHinge3.add(leftMesh3);
+
+        // Right panel (Rect)
+        const rightHinge3 = new THREE.Group();
+        rightHinge3.position.set(1, 0, 0);
+        shape3Group.add(rightHinge3);
+
+        const rightRectGeo3 = [
+            new THREE.Vector2(0, -2), new THREE.Vector2(2, -2),
+            new THREE.Vector2(2, 2), new THREE.Vector2(0, 2)
+        ];
+        const rightRectMesh3 = createPanel(rightRectGeo3, blueColor, 0.3);
+        rightHinge3.add(rightRectMesh3);
+
+        // Right panel (Tri)
+        const rightTriHinge3 = new THREE.Group();
+        rightTriHinge3.position.set(2, 0, 0);
+        rightHinge3.add(rightTriHinge3);
+
+        const rightTriGeo3 = [
+            new THREE.Vector2(0, -2), new THREE.Vector2(1, 2), new THREE.Vector2(0, 2)
+        ];
+        const rightTriMesh3 = createPanel(rightTriGeo3, blueColor, 0.3);
+        rightTriMesh3.add(createHighlightEdge(new THREE.Vector3(0, -2, 0), new THREE.Vector3(1, 2, 0), greenColor));
+        rightTriHinge3.add(rightTriMesh3);
+
+        // Top Base
+        const topBaseHinge3 = new THREE.Group();
+        topBaseHinge3.position.set(0, 2, 0);
+        shape3Group.add(topBaseHinge3);
+
+        const topBaseGeo3 = [
+            new THREE.Vector2(-1, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, Math.sqrt(3))
+        ];
+        const topBaseMesh3 = createPanel(topBaseGeo3, greenColor, 0.3);
+        topBaseHinge3.add(topBaseMesh3);
+        const labelTop3 = createLabel('正三角形');
+        labelTop3.position.set(0, Math.sqrt(3)/3, 0);
+        topBaseMesh3.add(labelTop3);
+
+        // Bottom Base
+        const bottomBaseHinge3 = new THREE.Group();
+        bottomBaseHinge3.position.set(0, -2, 0);
+        shape3Group.add(bottomBaseHinge3);
+
+        const bottomBaseGeo3 = [
+            new THREE.Vector2(-1, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, -Math.sqrt(3))
+        ];
+        const bottomBaseMesh3 = createPanel(bottomBaseGeo3, greenColor, 0.3);
+        bottomBaseHinge3.add(bottomBaseMesh3);
+        const labelBottom3 = createLabel('正三角形');
+        labelBottom3.position.set(0, -Math.sqrt(3)/3, 0);
+        bottomBaseMesh3.add(labelBottom3);
+
+        // ================= Shape 4 =================
+        const shape4Group = new THREE.Group();
+        scene.add(shape4Group);
+        shape4Group.visible = false;
+
+        // Panel 2 (fixed)
+        const p2Geo = [
+            new THREE.Vector2(-1, -2), new THREE.Vector2(1, -2),
+            new THREE.Vector2(1, 2), new THREE.Vector2(-1, 2)
+        ];
+        const p2Mesh = createPanel(p2Geo, blueColor, 0.3);
+        shape4Group.add(p2Mesh);
+        const labelP2 = createLabel('宽 2');
+        labelP2.position.set(0, 2.4, 0);
+        p2Mesh.add(labelP2);
+
+        // Panel 1
+        const p1Hinge = new THREE.Group();
+        p1Hinge.position.set(-1, 0, 0);
+        shape4Group.add(p1Hinge);
+
+        const p1Geo = [
+            new THREE.Vector2(0, -2), new THREE.Vector2(0, 2),
+            new THREE.Vector2(-1, 2), new THREE.Vector2(-1, -2)
+        ];
+        const p1Mesh = createPanel(p1Geo, blueColor, 0.3);
+        p1Mesh.add(createHighlightEdge(new THREE.Vector3(-1, -2, 0), new THREE.Vector3(-1, 2, 0), greenColor));
+        p1Hinge.add(p1Mesh);
+        const labelP1 = createLabel('宽 1');
+        labelP1.position.set(-0.5, 2.4, 0);
+        p1Mesh.add(labelP1);
+
+        // Panel 3
+        const p3Hinge = new THREE.Group();
+        p3Hinge.position.set(1, 0, 0);
+        shape4Group.add(p3Hinge);
+
+        const p3Geo = [
+            new THREE.Vector2(0, -2), new THREE.Vector2(2, -2),
+            new THREE.Vector2(2, 2), new THREE.Vector2(0, 2)
+        ];
+        const p3Mesh = createPanel(p3Geo, blueColor, 0.3);
+        p3Hinge.add(p3Mesh);
+        const labelP3 = createLabel('宽 2');
+        labelP3.position.set(1, 2.4, 0);
+        p3Mesh.add(labelP3);
+
+        // Panel 4
+        const p4Hinge = new THREE.Group();
+        p4Hinge.position.set(2, 0, 0);
+        p3Hinge.add(p4Hinge);
+
+        const p4Geo = [
+            new THREE.Vector2(0, -2), new THREE.Vector2(1, -2),
+            new THREE.Vector2(1, 2), new THREE.Vector2(0, 2)
+        ];
+        const p4Mesh = createPanel(p4Geo, blueColor, 0.3);
+        p4Mesh.add(createHighlightEdge(new THREE.Vector3(1, -2, 0), new THREE.Vector3(1, 2, 0), greenColor));
+        p4Hinge.add(p4Mesh);
+        const labelP4 = createLabel('宽 1');
+        labelP4.position.set(0.5, 2.4, 0);
+        p4Mesh.add(labelP4);
+
+        // Top Base (on Panel 2)
+        const topBaseHinge4 = new THREE.Group();
+        topBaseHinge4.position.set(0, 2, 0);
+        shape4Group.add(topBaseHinge4);
+        const topBaseMesh4 = createPanel(topBaseGeo3, greenColor, 0.3);
+        topBaseHinge4.add(topBaseMesh4);
+        const labelTop4 = createLabel('正三角形');
+        labelTop4.position.set(0, Math.sqrt(3)/3, 0);
+        topBaseMesh4.add(labelTop4);
+
+        // Bottom Base (on Panel 3)
+        const bottomBaseHinge4 = new THREE.Group();
+        bottomBaseHinge4.position.set(1, -2, 0);
+        p3Hinge.add(bottomBaseHinge4);
+        const bottomBaseMesh4 = createPanel(bottomBaseGeo3, greenColor, 0.3);
+        bottomBaseHinge4.add(bottomBaseMesh4);
+        const labelBottom4 = createLabel('正三角形');
+        labelBottom4.position.set(0, -Math.sqrt(3)/3, 0);
+        bottomBaseMesh4.add(labelBottom4);
+
+        // ================= Interaction =================
+        function updateFold(progress) {
+            const angle = progress * Math.PI * 2 / 3;
+            const baseAngle = progress * Math.PI / 2;
+
+            // Shape 3
+            leftHinge3.rotation.y = -angle;
+            rightHinge3.rotation.y = angle;
+            rightTriHinge3.rotation.y = angle;
+            topBaseHinge3.rotation.x = baseAngle;
+            bottomBaseHinge3.rotation.x = -baseAngle;
+
+            // Shape 4
+            p1Hinge.rotation.y = -angle;
+            p3Hinge.rotation.y = angle;
+            p4Hinge.rotation.y = angle;
+            topBaseHinge4.rotation.x = baseAngle;
+            bottomBaseHinge4.rotation.x = -baseAngle;
+        }
+
+        const btnState1 = document.getElementById('scene2-btn-state1');
+        const btnState2 = document.getElementById('scene2-btn-state2');
+        const slider = document.getElementById('scene2-slider');
+
+        btnState1.addEventListener('click', () => {
+            btnState1.classList.add('active');
+            btnState2.classList.remove('active');
+            shape3Group.visible = true;
+            shape4Group.visible = false;
+            slider.value = 0;
+            updateFold(0);
+        });
+
+        btnState2.addEventListener('click', () => {
+            btnState2.classList.add('active');
+            btnState1.classList.remove('active');
+            shape3Group.visible = false;
+            shape4Group.visible = true;
+            slider.value = 0;
+            updateFold(0);
+        });
+
+        slider.addEventListener('input', (e) => {
+            updateFold(parseFloat(e.target.value));
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2: 三阶段临界状态受力分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene2-step-indicator {
+            position: absolute;
+            bottom: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #333;
+        }
+        .scene2-formula-box {
+            position: absolute;
+            bottom: 70px;
+            left: 50px;
+            width: 700px;
+            height: 50px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-family: monospace;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 圆盘轮廓 -->
+            <ellipse id="scene2-disc" cx="400" cy="220" rx="140" ry="40" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 转轴 O -->
+            <circle id="scene2-axis" cx="400" cy="220" r="6" fill="#000000"/>
+            <text id="scene2-label-o" x="400" y="165" font-size="16" fill="#000000" text-anchor="middle">O</text>
+            
+            <!-- 半径线 -->
+            <line id="scene2-radius-ob" x1="400" y1="220" x2="462" y2="220" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-radius-oa" x1="400" y1="220" x2="542" y2="220" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 物体 B (放在半径线上，y=212 中心对齐) -->
+            <rect id="scene2-obj-b" x="450" y="212" width="24" height="16" fill="#1565c0" stroke="#000000" stroke-width="1"/>
+            <text id="scene2-label-b" x="462" y="175" font-size="14" fill="#000000" text-anchor="middle">B</text>
+            
+            <!-- 物体 A -->
+            <rect id="scene2-obj-a" x="530" y="212" width="24" height="16" fill="#1565c0" stroke="#000000" stroke-width="1"/>
+            <text id="scene2-label-a" x="542" y="145" font-size="14" fill="#000000" text-anchor="middle">A</text>
+            
+            <!-- 半径标注 (移到椭圆下方更远) -->
+            <text id="scene2-label-rb" x="431" y="310" font-size="12" fill="#000000" text-anchor="middle">r_B</text>
+            <text id="scene2-label-ra" x="471" y="310" font-size="12" fill="#000000" text-anchor="middle">r_A</text>
+            
+            <!-- 高亮框（动态） -->
+            <rect id="scene2-highlight-box" x="0" y="0" width="0" height="0" fill="#ffd54f" opacity="0.3" style="display:none;"/>
+            
+            <!-- 静摩擦力箭头 f_B -->
+            <g id="scene2-arrow-fb" style="display:none;">
+                <line x1="462" y1="228" x2="427" y2="228" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+                <text x="462" y="275" font-size="12" fill="#000000" text-anchor="middle">f_B</text>
+            </g>
+            
+            <!-- 静摩擦力箭头 f_A -->
+            <g id="scene2-arrow-fa" style="display:none;">
+                <line x1="542" y1="228" x2="507" y2="228" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+                <text x="542" y="275" font-size="12" fill="#000000" text-anchor="middle">f_A</text>
+            </g>
+            
+            <!-- AB 绳张力箭头 T_AB_A (A 受拉力向左) -->
+            <g id="scene2-arrow-tab-a" style="display:none;">
+                <line x1="542" y1="195" x2="512" y2="195" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead-green)"/>
+                <text x="542" y="110" font-size="12" fill="#000000" text-anchor="middle">T_AB</text>
+            </g>
+            
+            <!-- AB 绳张力箭头 T_AB_B (B 受拉力向右) -->
+            <g id="scene2-arrow-tab-b" style="display:none;">
+                <line x1="462" y1="195" x2="492" y2="195" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead-green)"/>
+            </g>
+            
+            <!-- OB 绳张力箭头 T_OB_B (B 受拉力向左) -->
+            <g id="scene2-arrow-tob-b" style="display:none;">
+                <line x1="462" y1="255" x2="432" y2="255" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead-green)"/>
+                <text x="462" y="345" font-size="12" fill="#000000" text-anchor="middle">T_OB</text>
+            </g>
+            
+            <!-- 向心力箭头 F_A (虚线) -->
+            <g id="scene2-arrow-fa-net" style="display:none;">
+                <line x1="542" y1="180" x2="502" y2="180" stroke="#888888" stroke-width="2" stroke-dasharray="4,2" marker-end="url(#scene2-arrowhead-gray)"/>
+            </g>
+            
+            <!-- 向心力箭头 F_B (虚线) -->
+            <g id="scene2-arrow-fb-net" style="display:none;">
+                <line x1="462" y1="180" x2="422" y2="180" stroke="#888888" stroke-width="2" stroke-dasharray="4,2" marker-end="url(#scene2-arrowhead-gray)"/>
+            </g>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene2-arrowhead-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888888"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 公式区 -->
+        <div id="scene2-formula-box" class="scene2-formula-box">
+            $f_A = m\omega^2 r_A$, $f_B = m\omega^2 r_B$
+        </div>
+        
+        <!-- 步骤指示 -->
+        <div id="scene2-step-indicator" class="scene2-step-indicator">
+            步骤 0：静摩擦力提供向心力
+        </div>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：三阶段临界状态受力分析
+        
+        // 布局坐标表（对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 圆盘轮廓 | 圆形 | 圆心(400,220) | 半径140 | - | 俯视图 |
+        // | 转轴 O | 小圆+文字 | (400,220) | 圆半径6 | 上方 | 圆心标记 |
+        // | 物体 B | 矩形 | (450,212) | 24×16 | 上方 | 内侧物体 |
+        // | 物体 A | 矩形 | (530,212) | 24×16 | 上方 | 外侧物体 |
+        // | 半径线 OB | 线段 | (400,220)-(462,220) | 62×2 | - | - |
+        // | 半径线 OA | 线段 | (400,220)-(542,220) | 142×2 | - | - |
+        // | f_B 静摩擦力 | 箭头 | B中心向左 | 长35 | B下方 | - |
+        // | f_A 静摩擦力 | 箭头 | A中心向左 | 长35 | A下方 | - |
+        // | T_AB_A | 箭头 | A中心向左 | 长30 | A上方 | - |
+        // | T_AB_B | 箭头 | B中心向右 | 长30 | B上方 | - |
+        // | T_OB_B | 箭头 | B中心向左 | 长30 | B下方偏下 | - |
+        // | r_B 标注 | text | (431,310) | ~30×14 | 下方 | - |
+        // | r_A 标注 | text | (471,310) | ~30×14 | 下方 | - |
+        // | 公式区 | rect | (50,380)-(750,430) | 700×50 | - | 底部 |
+        // | 步骤指示 | text | (400,455) | ~100×16 | - | 居中 |
+        // | 上一步按钮 | button | (280,470) | 80×28 | - | - |
+        // | 下一步按钮 | button | (440,470) | 80×28 | - | - |
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 每步配置
+        const stepConfig = [
+            {
+                // 步骤 0：初始状态
+                indicator: "步骤 0：静摩擦力提供向心力",
+                formula: "$f_A = m\\omega^2 r_A$, $f_B = m\\omega^2 r_B$",
+                showFa: true,
+                showFb: true,
+                faColor: "#1565c0",
+                fbColor: "#1565c0",
+                showTabA: false,
+                showTabB: false,
+                showTobB: false,
+                highlight: null
+            },
+            {
+                // 步骤 1：ω = ω₀，A 达到最大静摩擦力
+                indicator: "步骤 1：AB 绳开始有张力（ω₀ = 5 rad/s）",
+                formula: "$f_A = f_m = 0.5mg$, $\\omega_0 = \\sqrt{0.5g/r_A} = 5$ rad/s",
+                showFa: true,
+                showFb: true,
+                faColor: "#c62828",
+                fbColor: "#1565c0",
+                showTabA: true,
+                showTabB: false,
+                showTobB: false,
+                highlight: { x: 500, y: 105, width: 80, height: 135 }
+            },
+            {
+                // 步骤 2：ω = ω₁，B 达到最大静摩擦力
+                indicator: "步骤 2：OB 绳开始有张力（ω₁ ≈ 7.07 rad/s）",
+                formula: "$f_B = f_m = 0.5mg$, $T_{AB} = f_m - m\\omega^2 r_B$, $\\omega_1 = \\sqrt{0.5g/r_B} \\approx 7.07$ rad/s",
+                showFa: true,
+                showFb: true,
+                faColor: "#c62828",
+                fbColor: "#c62828",
+                showTabA: true,
+                showTabB: true,
+                showTobB: true,
+                highlight: { x: 420, y: 165, width: 100, height: 185 }
+            },
+            {
+                // 步骤 3：ω = ω₂，A 即将滑动
+                indicator: "步骤 3：A 即将滑动（ω₂ ≈ 7.9 rad/s）",
+                formula: "对 A：$T_{AB} + f_m = m\\omega_2^2 r_A$；对 B：$T_{OB} - T_{AB} + f_m = m\\omega_2^2 r_B$；解得 $\\omega_2 \\approx 7.9$ rad/s",
+                showFa: true,
+                showFb: true,
+                faColor: "#c62828",
+                fbColor: "#c62828",
+                showTabA: true,
+                showTabB: true,
+                showTobB: true,
+                highlight: { x: 420, y: 105, width: 140, height: 245 }
+            }
+        ];
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const formulaBox = document.getElementById('scene2-formula-box');
+        const highlightBox = document.getElementById('scene2-highlight-box');
+        
+        const arrowFa = document.getElementById('scene2-arrow-fa');
+        const arrowFb = document.getElementById('scene2-arrow-fb');
+        const arrowTabA = document.getElementById('scene2-arrow-tab-a');
+        const arrowTabB = document.getElementById('scene2-arrow-tab-b');
+        const arrowTobB = document.getElementById('scene2-arrow-tob-b');
+        
+        const lineFa = arrowFa.querySelector('line');
+        const lineFb = arrowFb.querySelector('line');
+        
+        // 渲染步骤
+        function renderStep(step) {
+            const config = stepConfig[step];
+            
+            // 更新指示器和公式
+            stepIndicator.textContent = config.indicator;
+            formulaBox.innerHTML = config.formula;
+            
+            // 重新渲染 MathJax
+            if (window.MathJax) {
+                MathJax.typesetPromise([formulaBox]);
+            }
+            
+            // 显示/隐藏箭头
+            if (config.showFa) {
+                arrowFa.style.display = 'block';
+                lineFa.setAttribute('stroke', config.faColor);
+            } else {
+                arrowFa.style.display = 'none';
+            }
+            
+            if (config.showFb) {
+                arrowFb.style.display = 'block';
+                lineFb.setAttribute('stroke', config.fbColor);
+            } else {
+                arrowFb.style.display = 'none';
+            }
+            
+            if (config.showTabA) {
+                arrowTabA.style.display = 'block';
+            } else {
+                arrowTabA.style.display = 'none';
+            }
+            
+            if (config.showTabB) {
+                arrowTabB.style.display = 'block';
+            } else {
+                arrowTabB.style.display = 'none';
+            }
+            
+            if (config.showTobB) {
+                arrowTobB.style.display = 'block';
+            } else {
+                arrowTobB.style.display = 'none';
+            }
+            
+            // 更新高亮框
+            if (config.highlight) {
+                highlightBox.setAttribute('x', config.highlight.x);
+                highlightBox.setAttribute('y', config.highlight.y);
+                highlightBox.setAttribute('width', config.highlight.width);
+                highlightBox.setAttribute('height', config.highlight.height);
+                highlightBox.style.display = 'block';
+            } else {
+                highlightBox.style.display = 'none';
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+        
+        // 初始渲染
+        renderStep(currentStep);
+        
+    })();
+    </script>
+</body>
+</html>

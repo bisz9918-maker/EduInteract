@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 运动过程动态演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene3-control-label { font-size: 14px; color: #333; }
+        #scene3-slider { width: 400px; height: 6px; -webkit-appearance: none; appearance: none; background: #9e9e9e; border-radius: 3px; outline: none; }
+        #scene3-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: #1565c0; border-radius: 50%; cursor: pointer; }
+        #scene3-slider::-moz-range-thumb { width: 20px; height: 20px; background: #1565c0; border-radius: 50%; cursor: pointer; border: none; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 地面 -->
+            <line x1="80" y1="220" x2="720" y2="220" stroke="#000" stroke-width="2" id="scene3-ground-line"/>
+            <!-- 地面阴影（斜线填充） -->
+            <defs>
+                <pattern id="scene3-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#9e9e9e" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect x="80" y="220" width="640" height="20" fill="url(#scene3-hatch)"/>
+            
+            <!-- 木板初始位置（黑色实线框） -->
+            <rect x="100" y="160" width="400" height="60" fill="none" stroke="#000" stroke-width="2" id="scene3-木板初始"/>
+            
+            <!-- 物块初始位置（黑色实线框） -->
+            <rect x="460" y="110" width="40" height="50" fill="none" stroke="#000" stroke-width="2" id="scene3-物块初始"/>
+            
+            <!-- 木板当前位置（蓝色半透明） -->
+            <rect x="100" y="160" width="400" height="60" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2" id="scene3-木板当前"/>
+            
+            <!-- 物块当前位置（绿色半透明） -->
+            <rect x="460" y="110" width="40" height="50" fill="#2e7d32" fill-opacity="0.3" stroke="#2e7d32" stroke-width="2" id="scene3-物块当前"/>
+            
+            <!-- 拉力 F 箭头（仅 F 作用阶段显示） -->
+            <line x1="500" y1="190" x2="560" y2="190" stroke="#c62828" stroke-width="4" id="scene3-F-arrow-line"/>
+            <polygon points="560,190 545,183 545,197" fill="#c62828" id="scene3-F-arrow-head"/>
+            <text x="570" y="195" font-size="16" fill="#c62828" id="scene3-F-label">F</text>
+            
+            <!-- 位移参考线（虚线） -->
+            <line x1="100" y1="235" x2="100" y2="235" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" id="scene3-xM-line"/>
+            <line x1="460" y1="235" x2="460" y2="235" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" id="scene3-xm-line"/>
+            <line x1="100" y1="250" x2="100" y2="250" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" id="scene3-delta-line"/>
+            
+            <!-- 位移标签（移到地面下方 y=255） -->
+            <text x="300" y="255" font-size="14" fill="#1565c0" text-anchor="middle" id="scene3-xM-label">x_M</text>
+            <text x="530" y="255" font-size="14" fill="#2e7d32" text-anchor="middle" id="scene3-xm-label">x_m</text>
+            <text x="300" y="290" font-size="14" fill="#c62828" text-anchor="middle" id="scene3-delta-label">Δx</text>
+            
+            <!-- 木板长度标记 -->
+            <text x="300" y="310" font-size="14" fill="#c62828" text-anchor="middle" id="scene3-L-label">L=1.6m</text>
+            
+            <!-- 状态指示框（移到左侧空白区域，y=60，背景框 y=50） -->
+            <rect x="30" y="50" width="170" height="30" fill="#e0e0e0" stroke="#9e9e9e" stroke-width="1" id="scene3-status-bg"/>
+            <text x="115" y="70" font-size="14" fill="#333" text-anchor="middle" id="scene3-status-text">就绪</text>
+            
+            <!-- 数值显示框（移到右侧空白区域，y=60，背景框 y=50） -->
+            <rect x="620" y="50" width="150" height="120" fill="#e0e0e0" stroke="#9e9e9e" stroke-width="1" id="scene3-values-bg"/>
+            <text x="635" y="70" font-size="13" fill="#333" id="scene3-t-value">t=0.00s</text>
+            <text x="635" y="90" font-size="13" fill="#1565c0" id="scene3-xM-value">x_M=0.00m</text>
+            <text x="635" y="110" font-size="13" fill="#2e7d32" id="scene3-xm-value">x_m=0.00m</text>
+            <text x="635" y="130" font-size="13" fill="#c62828" id="scene3-delta-value">Δx=0.00m</text>
+            
+            <!-- 滑块轨道 -->
+            <line x1="200" y1="440" x2="600" y2="440" stroke="#9e9e9e" stroke-width="4" id="scene3-slider-track"/>
+            
+            <!-- t₀标记（红色竖线） -->
+            <line x1="360" y1="430" x2="360" y2="450" stroke="#c62828" stroke-width="2" id="scene3-t0-mark"/>
+            <text x="360" y="420" font-size="12" fill="#c62828" text-anchor="middle" id="scene3-t0-label">t₀=0.8s</text>
+            
+            <!-- 滑块手柄 -->
+            <circle cx="200" cy="440" r="10" fill="#1565c0" id="scene3-slider-handle"/>
+            
+            <!-- 临界状态提示 -->
+            <text x="400" y="350" font-size="16" fill="#c62828" text-anchor="middle" id="scene3-critical-text" style="display: none;">物块刚好滑离</text>
+            
+            <!-- 质量标签（放在矩形上方，不重叠） -->
+            <text x="300" y="155" font-size="18" fill="#000" text-anchor="middle" id="scene3-M-label">M</text>
+            <text x="480" y="100" font-size="16" fill="#000" text-anchor="middle" id="scene3-m-label">m</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <span class="scene3-control-label">时间:</span>
+            <input type="range" id="scene3-slider" min="0" max="300" value="0" step="1"/>
+            <span class="scene3-control-label" id="scene3-slider-value">0.00s</span>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现 - 运动过程动态演示（F=10N 情况）
+        
+        // 物理参数
+        const SCALE = 250; // 1m = 250px
+        const L = 1.6;     // 木板长度 (m)
+        const t0 = 0.8;    // 临界作用时间 (s)
+        const a_m = 1;     // 物块加速度 (m/s²)
+        const a_M = 3;     // 木板 F 作用时加速度 (m/s²)
+        const a_M_prime = -1/3; // 木板 F 撤去后加速度 (m/s²)
+        
+        // 初始位置（px）
+        const 木板初始 X = 100;
+        const 物块初始 X = 460;
+        
+        // DOM 元素
+        const svg = document.getElementById('scene3-svg');
+        const 滑块 = document.getElementById('scene3-slider');
+        const 滑块手柄 = document.getElementById('scene3-slider-handle');
+        const 滑块值显示 = document.getElementById('scene3-slider-value');
+        const 状态文本 = document.getElementById('scene3-status-text');
+        const t 值显示 = document.getElementById('scene3-t-value');
+        const xM 值显示 = document.getElementById('scene3-xM-value');
+        const xm 值显示 = document.getElementById('scene3-xm-value');
+        const delta 值显示 = document.getElementById('scene3-delta-value');
+        const 木板当前 = document.getElementById('scene3-木板当前');
+        const 物块当前 = document.getElementById('scene3-物块当前');
+        const F 箭头线 = document.getElementById('scene3-F-arrow-line');
+        const F 箭头头 = document.getElementById('scene3-F-arrow-head');
+        const F 标签 = document.getElementById('scene3-F-label');
+        const xM 线 = document.getElementById('scene3-xM-line');
+        const xm 线 = document.getElementById('scene3-xm-line');
+        const delta 线 = document.getElementById('scene3-delta-line');
+        const 临界文本 = document.getElementById('scene3-critical-text');
+        
+        // 状态变量
+        let currentTime = 0; // 秒
+        let isDragging = false;
+        
+        // 计算位移（米）
+        function calculateDisplacement(t) {
+            let x_M, x_m;
+            
+            if (t <= t0) {
+                // F 作用阶段
+                x_M = 0.5 * a_M * t * t;
+                x_m = 0.5 * a_m * t * t;
+            } else {
+                // F 撤去后阶段
+                const t1 = t - t0;
+                const x_M_t0 = 0.5 * a_M * t0 * t0;
+                const v_M_t0 = a_M * t0;
+                const x_m_t0 = 0.5 * a_m * t0 * t0;
+                const v_m_t0 = a_m * t0;
+                
+                x_M = x_M_t0 + v_M_t0 * t1 + 0.5 * a_M_prime * t1 * t1;
+                x_m = x_m_t0 + v_m_t0 * t1 + 0.5 * a_m * t1 * t1;
+            }
+            
+            return { x_M, x_m, delta: x_M - x_m };
+        }
+        
+        // 更新画面
+        function updateScene() {
+            const disp = calculateDisplacement(currentTime);
+            const x_M_px = disp.x_M * SCALE;
+            const x_m_px = disp.x_m * SCALE;
+            const delta_px = disp.delta * SCALE;
+            
+            // 更新滑块手柄位置
+            const sliderMin = 0;
+            const sliderMax = 300;
+            const sliderPercent = (currentTime * 100) / 300; // 0-3s 映射到 0-100%
+            const handleX = 200 + (sliderPercent / 100) * 400;
+            滑块手柄.setAttribute('cx', handleX);
+            
+            // 更新滑块值显示
+            滑块值显示.textContent = currentTime.toFixed(2) + 's';
+            
+            // 更新状态指示
+            if (currentTime <= t0) {
+                状态文本.textContent = 'F 作用中 (F=10N)';
+                F 箭头线.style.display = 'block';
+                F 箭头头.style.display = 'block';
+                F 标签.style.display = 'block';
+            } else {
+                状态文本.textContent = 'F 已撤去';
+                F 箭头线.style.display = 'none';
+                F 箭头头.style.display = 'none';
+                F 标签.style.display = 'none';
+            }
+            
+            // 更新木板当前位置
+            木板当前.setAttribute('x', 木板初始 X + x_M_px);
+            
+            // 更新物块当前位置
+            物块当前.setAttribute('x', 物块初始 X + x_m_px);
+            
+            // 更新位移线
+            xM 线.setAttribute('x2', 木板初始 X + x_M_px);
+            xm 线.setAttribute('x2', 物块初始 X + x_m_px);
+            delta 线.setAttribute('x2', 木板初始 X + delta_px);
+            
+            // 更新数值显示
+            t 值显示.textContent = 't=' + currentTime.toFixed(2) + 's';
+            xM 值显示.textContent = 'x_M=' + disp.x_M.toFixed(2) + 'm';
+            xm 值显示.textContent = 'x_m=' + disp.x_m.toFixed(2) + 'm';
+            delta 值显示.textContent = 'Δx=' + disp.delta.toFixed(2) + 'm';
+            
+            // 临界状态提示
+            if (Math.abs(disp.delta - L) < 0.05) {
+                临界文本.style.display = 'block';
+                delta 线.setAttribute('stroke-width', '4');
+            } else {
+                临界文本.style.display = 'none';
+                delta 线.setAttribute('stroke-width', '2');
+            }
+        }
+        
+        // 滑块事件处理
+        function handleSliderInput(e) {
+            const value = parseInt(e.target.value);
+            currentTime = value / 100; // 0-300 映射到 0-3s
+            updateScene();
+        }
+        
+        滑块.addEventListener('input', handleSliderInput);
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

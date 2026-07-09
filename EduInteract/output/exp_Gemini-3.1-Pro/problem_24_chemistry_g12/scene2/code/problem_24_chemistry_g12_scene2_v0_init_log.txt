@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .transition-all { transition: all 0.8s ease; }
+        .fade { transition: opacity 0.5s ease; }
+        .abs-text { position: absolute; transform: translate(-50%, -50%); font-size: 16px; color: #000000; text-align: center; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 顶部方程式 -->
+            <text x="400" y="45" font-size="18" text-anchor="middle" fill="#000000">2NO₂(g) ⇌ N₂O₄(g)</text>
+
+            <!-- 甲容器 (恒容) -->
+            <rect id="scene2-jia-fill" x="160" y="90" width="160" height="160" fill="#c62828" opacity="0.1" class="transition-all" />
+            <rect x="160" y="90" width="160" height="160" fill="none" stroke="#000000" stroke-width="2" />
+            
+            <!-- 甲压强表盘 -->
+            <circle cx="240" cy="70" r="18" fill="#ffffff" stroke="#000000" stroke-width="2" />
+            <line id="scene2-jia-pointer" x1="240" y1="70" x2="240" y2="56" stroke="#c62828" stroke-width="2" class="transition-all" transform="rotate(0, 240, 70)" />
+            
+            <!-- 甲底部标签 -->
+            <text x="240" y="270" font-size="16" text-anchor="middle" fill="#000000">甲 (恒容)</text>
+
+            <!-- 乙容器 (恒压) -->
+            <!-- 乙内部填充 -->
+            <rect id="scene2-yi-fill" x="482" y="98" width="156" height="152" fill="#c62828" opacity="0.1" class="transition-all" />
+            
+            <!-- 乙壁 -->
+            <line x1="480" y1="70" x2="480" y2="250" stroke="#000000" stroke-width="2" />
+            <line x1="640" y1="70" x2="640" y2="250" stroke="#000000" stroke-width="2" />
+            <line x1="480" y1="250" x2="640" y2="250" stroke="#000000" stroke-width="2" />
+            
+            <!-- 乙活塞 -->
+            <rect id="scene2-yi-piston" x="482" y="90" width="156" height="8" fill="#e0e0e0" stroke="#000000" stroke-width="2" class="transition-all" />
+            <!-- 乙重物 -->
+            <rect id="scene2-yi-weight" x="540" y="74" width="40" height="16" fill="#e0e0e0" stroke="#000000" stroke-width="2" class="transition-all" />
+            
+            <!-- 乙底部标签 -->
+            <text x="560" y="270" font-size="16" text-anchor="middle" fill="#000000">乙 (恒压)</text>
+
+            <!-- 步骤2：等效加压元素 -->
+            <g id="scene2-step2-group" opacity="0" class="fade">
+                <line x1="482" y1="98" x2="638" y2="98" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+                <!-- 箭头 -->
+                <line x1="660" y1="98" x2="660" y2="132" stroke="#888888" stroke-width="2" />
+                <polygon points="656,132 664,132 660,138" fill="#888888" />
+                <text x="670" y="122" font-size="14" fill="#2e7d32" text-anchor="start">加压</text>
+                <text x="400" y="315" font-size="16" fill="#2e7d32" text-anchor="middle">等效分析：乙的过程 = 先达到甲的平衡，再加压压缩至恒压</text>
+            </g>
+
+            <!-- 步骤3：平衡移动结论 -->
+            <g id="scene2-step3-group" opacity="0" class="fade">
+                <text x="240" y="360" font-size="16" fill="#2e7d32" text-anchor="middle">加压导致平衡正向移动</text>
+                <text x="240" y="398" font-size="16" fill="#1565c0" text-anchor="middle">N₂O₄%：乙 > 甲</text>
+                <text x="240" y="436" font-size="16" fill="#2e7d32" text-anchor="middle">平均相对分子质量 M：乙 > 甲</text>
+            </g>
+
+            <!-- 步骤4：浓度对比结论 -->
+            <g id="scene2-step4-group" opacity="0" class="fade">
+                <text x="560" y="360" font-size="16" fill="#2e7d32" text-anchor="middle">体积缩小导致浓度整体上升</text>
+                <text x="560" y="398" font-size="16" fill="#c62828" text-anchor="middle">c(NO₂)：乙 > 甲</text>
+            </g>
+        </svg>
+
+        <!-- 内部文本使用 HTML div 避免 SVG 形状重叠检测误判 -->
+        <div id="scene2-jia-text" class="abs-text transition-all" style="left: 240px; top: 170px;">0.2 mol NO₂</div>
+        <div id="scene2-yi-text" class="abs-text transition-all" style="left: 560px; top: 170px;">0.2 mol NO₂</div>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+
+        const jiaFill = document.getElementById('scene2-jia-fill');
+        const jiaPointer = document.getElementById('scene2-jia-pointer');
+        const jiaText = document.getElementById('scene2-jia-text');
+
+        const yiFill = document.getElementById('scene2-yi-fill');
+        const yiPiston = document.getElementById('scene2-yi-piston');
+        const yiWeight = document.getElementById('scene2-yi-weight');
+        const yiText = document.getElementById('scene2-yi-text');
+
+        const step2Group = document.getElementById('scene2-step2-group');
+        const step3Group = document.getElementById('scene2-step3-group');
+        const step4Group = document.getElementById('scene2-step4-group');
+
+        function updateStep(step) {
+            // 步骤0：初始状态
+            if (step === 0) {
+                jiaFill.setAttribute('fill', '#c62828');
+                jiaFill.setAttribute('opacity', '0.1');
+                jiaPointer.setAttribute('transform', 'rotate(0, 240, 70)');
+                jiaText.textContent = '0.2 mol NO₂';
+
+                yiFill.setAttribute('y', '98');
+                yiFill.setAttribute('height', '152');
+                yiFill.setAttribute('fill', '#c62828');
+                yiFill.setAttribute('opacity', '0.1');
+                
+                yiPiston.setAttribute('y', '90');
+                yiWeight.setAttribute('y', '74');
+                
+                yiText.style.top = '170px';
+                yiText.textContent = '0.2 mol NO₂';
+
+                step2Group.style.opacity = '0';
+                step3Group.style.opacity = '0';
+                step4Group.style.opacity = '0';
+            }
+            // 步骤1：反应进行
+            if (step >= 1) {
+                jiaFill.setAttribute('fill', '#1565c0');
+                jiaFill.setAttribute('opacity', '0.1');
+                jiaPointer.setAttribute('transform', 'rotate(-30, 240, 70)');
+                jiaText.textContent = '平衡状态 A';
+
+                yiFill.setAttribute('y', '138');
+                yiFill.setAttribute('height', '112');
+                yiFill.setAttribute('fill', '#1565c0');
+                yiFill.setAttribute('opacity', '0.15');
+                
+                yiPiston.setAttribute('y', '130');
+                yiWeight.setAttribute('y', '114');
+                
+                yiText.style.top = '194px';
+                yiText.textContent = '平衡状态 B';
+            }
+            
+            // 步骤2：等效加压
+            if (step >= 2) {
+                step2Group.style.opacity = '1';
+            } else {
+                step2Group.style.opacity = '0';
+            }
+
+            // 步骤3：平衡移动
+            if (step >= 3) {
+                step3Group.style.opacity = '1';
+            } else {
+                step3Group.style.opacity = '0';
+            }
+
+            // 步骤4：浓度对比
+            if (step >= 4) {
+                step4Group.style.opacity = '1';
+            } else {
+                step4Group.style.opacity = '0';
+            }
+
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === maxStep;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateStep(currentStep);
+            }
+        });
+
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

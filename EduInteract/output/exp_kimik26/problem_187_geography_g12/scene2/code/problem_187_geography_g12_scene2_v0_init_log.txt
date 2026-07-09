@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 经度推算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #9e9e9e; border-radius: 4px; background: #e0e0e0; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-controls button:hover:not(:disabled) { background: #bdbdbd; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; min-width: 80px; text-align: center; color: #333; }
+        .scene2-hidden { display: none; }
+        #scene2-fill-sector-a, #scene2-fill-sector-b { transition: opacity 0.4s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 标题 -->
+            <text x="400" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">以地方时正午推算经度</text>
+            
+            <!-- 地球圆 -->
+            <circle id="scene2-earth-circle" cx="215" cy="190" r="130" fill="#e3f2fd" fill-opacity="0.3" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 经线 -->
+            <line id="scene2-meridian-0" x1="215" y1="190" x2="345" y2="190" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-meridian-60e" x1="215" y1="190" x2="280" y2="303" stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-meridian-120e" x1="215" y1="190" x2="150" y2="303" stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-meridian-180" x1="215" y1="190" x2="85" y2="190" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 扇形填充 -->
+            <path id="scene2-fill-sector-a" d="M 215 190 L 345 190 A 130 130 0 0 1 150 303 Z" fill="#1565c0" fill-opacity="0.1" opacity="0" class="scene2-hidden"/>
+            <path id="scene2-fill-sector-b" d="M 215 190 L 345 190 A 130 130 0 0 1 280 303 Z" fill="#1565c0" fill-opacity="0.1" opacity="0" class="scene2-hidden"/>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+            </defs>
+            
+            <!-- 自转箭头 -->
+            <path id="scene2-rotation-arrow" d="M 280 65 A 141 141 0 0 1 150 65" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+            
+            <!-- 地点圆点 -->
+            <circle id="scene2-point-a" cx="150" cy="303" r="4" fill="#1565c0" class="scene2-hidden"/>
+            <circle id="scene2-point-b" cx="280" cy="303" r="4" fill="#1565c0" class="scene2-hidden"/>
+            <circle id="scene2-point-c" cx="345" cy="190" r="4" fill="#2e7d32" class="scene2-hidden"/>
+            <circle id="scene2-point-d" cx="85" cy="190" r="4" fill="#c62828" class="scene2-hidden"/>
+            
+            <!-- 标签 -->
+            <text id="scene2-label-0" x="440" y="185" font-size="14" fill="#000">0°</text>
+            <text id="scene2-label-utc" x="355" y="150" font-size="14" fill="#000">UTC基准</text>
+            <text id="scene2-label-180" x="45" y="180" font-size="14" fill="#000">180°</text>
+            <text id="scene2-label-prime" x="280" y="360" font-size="14" fill="#000">本初子午线</text>
+            <text id="scene2-label-a" x="120" y="330" font-size="14" fill="#1565c0" class="scene2-hidden">A</text>
+            <text id="scene2-label-b" x="400" y="340" font-size="14" fill="#1565c0" class="scene2-hidden">B</text>
+            <text id="scene2-label-c" x="385" y="225" font-size="14" fill="#2e7d32" class="scene2-hidden">C</text>
+            <text id="scene2-label-d" x="40" y="225" font-size="14" fill="#c62828" class="scene2-hidden">D</text>
+            <text id="scene2-label-rotation" x="250" y="55" font-size="14" fill="#000">自西向东</text>
+            
+            <!-- 公式框 (foreignObject) -->
+            <foreignObject id="scene2-formula-fo" x="410" y="80" width="360" height="80" class="scene2-hidden">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="border:1px solid #cccccc; border-radius:5px; background:#f5f5f5; padding:10px 12px; font-family:Microsoft YaHei,PingFang SC,sans-serif; box-sizing:border-box; height:100%;">
+                    <div style="font-size:16px; font-weight:bold; color:#000; margin-bottom:6px;">经度差 = 时差 × 15°/h</div>
+                    <div style="font-size:14px; color:#000; line-height:1.5;">早于世界时 → 东经(+)</div>
+                    <div style="font-size:14px; color:#000; line-height:1.5;">晚于世界时 → 西经(-)</div>
+                </div>
+            </foreignObject>
+            
+            <!-- 计算框 (foreignObject) -->
+            <foreignObject id="scene2-calc-fo" x="410" y="170" width="360" height="150" class="scene2-hidden">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="border:1px solid #cccccc; border-radius:5px; background:#f5f5f5; padding:10px 12px; font-family:Microsoft YaHei,PingFang SC,sans-serif; box-sizing:border-box; height:100%;">
+                    <div id="scene2-calc-line1" style="font-size:14px; line-height:1.7; min-height:24px; color:#000;"></div>
+                    <div id="scene2-calc-line2" style="font-size:14px; line-height:1.7; min-height:24px; color:#000;"></div>
+                    <div id="scene2-calc-line3" style="font-size:14px; line-height:1.7; min-height:24px; color:#000;"></div>
+                    <div id="scene2-calc-line4" style="font-size:14px; line-height:1.7; min-height:24px; color:#000;"></div>
+                    <div id="scene2-calc-line5" style="font-size:14px; line-height:1.7; min-height:24px; color:#000;"></div>
+                </div>
+            </foreignObject>
+            
+            <!-- 经度轴 -->
+            <line id="scene2-axis-line" x1="80" y1="390" x2="680" y2="390" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 刻度线 -->
+            <line id="scene2-tick-180w" x1="80" y1="390" x2="80" y2="380" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <line id="scene2-tick-120w" x1="180" y1="390" x2="180" y2="380" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <line id="scene2-tick-60w" x1="280" y1="390" x2="280" y2="380" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <line id="scene2-tick-0" x1="380" y1="390" x2="380" y2="380" stroke="#000" stroke-width="1"/>
+            <line id="scene2-tick-60e" x1="480" y1="390" x2="480" y2="380" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <line id="scene2-tick-120e" x1="580" y1="390" x2="580" y2="380" stroke="#000" stroke-width="1" class="scene2-hidden"/>
+            <line id="scene2-tick-180e" x1="680" y1="390" x2="680" y2="380" stroke="#000" stroke-width="1"/>
+            
+            <!-- 刻度标签 -->
+            <text id="scene2-ticklabel-180w" x="80" y="410" text-anchor="middle" font-size="14" fill="#000" class="scene2-hidden">180°W</text>
+            <text id="scene2-ticklabel-120w" x="180" y="410" text-anchor="middle" font-size="14" fill="#000" class="scene2-hidden">120°W</text>
+            <text id="scene2-ticklabel-60w" x="280" y="410" text-anchor="middle" font-size="14" fill="#000" class="scene2-hidden">60°W</text>
+            <text id="scene2-ticklabel-0" x="375" y="410" text-anchor="middle" font-size="14" fill="#000">0°</text>
+            <text id="scene2-ticklabel-60e" x="470" y="410" text-anchor="middle" font-size="14" fill="#000" class="scene2-hidden">60°E</text>
+            <text id="scene2-ticklabel-120e" x="570" y="410" text-anchor="middle" font-size="14" fill="#000" class="scene2-hidden">120°E</text>
+            <text id="scene2-ticklabel-180e" x="670" y="410" text-anchor="middle" font-size="14" fill="#000">180°</text>
+            
+            <!-- 轴上标记线 -->
+            <line id="scene2-axis-mark-a" x1="580" y1="390" x2="580" y2="360" stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-axis-mark-b" x1="480" y1="390" x2="480" y2="360" stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-axis-mark-c" x1="380" y1="390" x2="380" y2="360" stroke="#2e7d32" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-axis-mark-d" x1="680" y1="390" x2="680" y2="360" stroke="#c62828" stroke-width="2" class="scene2-hidden"/>
+            
+            <!-- 轴上标记标签 -->
+            <text id="scene2-axis-label-a" x="575" y="355" text-anchor="middle" font-size="14" fill="#1565c0" class="scene2-hidden">A</text>
+            <text id="scene2-axis-label-b" x="475" y="355" text-anchor="middle" font-size="14" fill="#1565c0" class="scene2-hidden">B</text>
+            <text id="scene2-axis-label-c" x="375" y="355" text-anchor="middle" font-size="14" fill="#2e7d32" class="scene2-hidden">C</text>
+            <text id="scene2-axis-label-d" x="675" y="355" text-anchor="middle" font-size="14" fill="#c62828" class="scene2-hidden">D</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/7</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：以地方时正午推算四地经度
+        // 状态机：currentStep 范围 0~6，对应步骤 0/7 ~ 6/7
+        
+        let currentStep = 0;
+        const totalSteps = 7; // 0~6
+        
+        // 控件引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 计算框文字行引用 (HTML divs inside foreignObject)
+        const calcLines = [
+            document.getElementById('scene2-calc-line1'),
+            document.getElementById('scene2-calc-line2'),
+            document.getElementById('scene2-calc-line3'),
+            document.getElementById('scene2-calc-line4'),
+            document.getElementById('scene2-calc-line5')
+        ];
+        
+        // 元素引用
+        const meridian0 = document.getElementById('scene2-meridian-0');
+        const meridian180 = document.getElementById('scene2-meridian-180');
+        const meridian60e = document.getElementById('scene2-meridian-60e');
+        const meridian120e = document.getElementById('scene2-meridian-120e');
+        const sectorA = document.getElementById('scene2-fill-sector-a');
+        const sectorB = document.getElementById('scene2-fill-sector-b');
+        const pointA = document.getElementById('scene2-point-a');
+        const pointB = document.getElementById('scene2-point-b');
+        const pointC = document.getElementById('scene2-point-c');
+        const pointD = document.getElementById('scene2-point-d');
+        const labelA = document.getElementById('scene2-label-a');
+        const labelB = document.getElementById('scene2-label-b');
+        const labelC = document.getElementById('scene2-label-c');
+        const labelD = document.getElementById('scene2-label-d');
+        const formulaFO = document.getElementById('scene2-formula-fo');
+        const calcFO = document.getElementById('scene2-calc-fo');
+        const axisMarkA = document.getElementById('scene2-axis-mark-a');
+        const axisMarkB = document.getElementById('scene2-axis-mark-b');
+        const axisMarkC = document.getElementById('scene2-axis-mark-c');
+        const axisMarkD = document.getElementById('scene2-axis-mark-d');
+        const axisLabelA = document.getElementById('scene2-axis-label-a');
+        const axisLabelB = document.getElementById('scene2-axis-label-b');
+        const axisLabelC = document.getElementById('scene2-axis-label-c');
+        const axisLabelD = document.getElementById('scene2-axis-label-d');
+        
+        // 刻度元素
+        const ticks = [
+            document.getElementById('scene2-tick-180w'),
+            document.getElementById('scene2-tick-120w'),
+            document.getElementById('scene2-tick-60w'),
+            document.getElementById('scene2-tick-60e'),
+            document.getElementById('scene2-tick-120e')
+        ];
+        const tickLabels = [
+            document.getElementById('scene2-ticklabel-180w'),
+            document.getElementById('scene2-ticklabel-120w'),
+            document.getElementById('scene2-ticklabel-60w'),
+            document.getElementById('scene2-ticklabel-60e'),
+            document.getElementById('scene2-ticklabel-120e')
+        ];
+        
+        /**
+         * 统一控制元素显隐
+         * 同时设置 display 和 opacity，避免残留属性导致不可见
+         */
+        function show(el) {
+            if (!el) return;
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            if (!el) return;
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        /**
+         * 带淡入效果的显示（用于扇形填充）
+         */
+        function showWithFade(el, targetOpacity) {
+            if (!el) return;
+            el.style.display = 'block';
+            el.style.opacity = '0';
+            requestAnimationFrame(function() {
+                el.style.opacity = String(targetOpacity);
+            });
+        }
+        
+        /**
+         * 更新计算框文字内容
+         */
+        function updateCalcContent(step) {
+            // 清空所有行
+            calcLines.forEach(function(line) {
+                line.textContent = '';
+                line.style.color = '#000';
+                line.style.fontWeight = 'normal';
+            });
+            
+            if (step === 2) {
+                calcLines[0].textContent = '① A地：当地12:00 = 世界时4:00';
+                calcLines[1].textContent = '② 时差 = 12 - 4 = +8小时（早于世界时）';
+                calcLines[2].textContent = '③ 经度 = 8 × 15° = 120°E';
+                calcLines[3].textContent = '④ 结果：120°E';
+                calcLines[3].style.color = '#2e7d32';
+                calcLines[3].style.fontWeight = 'bold';
+            } else if (step === 3) {
+                calcLines[0].textContent = '① B地：当地12:00 = 世界时8:00';
+                calcLines[1].textContent = '② 时差 = 12 - 8 = +4小时（早于世界时）';
+                calcLines[2].textContent = '③ 经度 = 4 × 15° = 60°E';
+                calcLines[3].textContent = '④ 结果：60°E';
+                calcLines[3].style.color = '#2e7d32';
+                calcLines[3].style.fontWeight = 'bold';
+            } else if (step === 4) {
+                calcLines[0].textContent = '① C地：当地12:00 = 世界时12:00';
+                calcLines[1].textContent = '② 时差 = 0小时';
+                calcLines[2].textContent = '③ 经度 = 0°';
+                calcLines[3].textContent = '④ 结果：0°（本初子午线）';
+                calcLines[3].style.color = '#2e7d32';
+                calcLines[3].style.fontWeight = 'bold';
+            } else if (step === 5) {
+                calcLines[0].textContent = '① D地：当地12:00 = 世界时24:00（次日0:00）';
+                calcLines[1].textContent = '② 时差 = +12小时（或 -12小时）';
+                calcLines[2].textContent = '③ 经度 = 12 × 15° = 180°';
+                calcLines[3].textContent = '④ 结果：180°（国际日期变更线）';
+                calcLines[3].style.color = '#c62828';
+                calcLines[3].style.fontWeight = 'bold';
+                calcLines[4].textContent = '提示：日界线附近，日期需±1天';
+                calcLines[4].style.color = '#c62828';
+            } else if (step === 6) {
+                calcLines[0].textContent = '四地经度汇总：';
+                calcLines[0].style.fontWeight = 'bold';
+                calcLines[1].textContent = 'A地 → 120°E';
+                calcLines[1].style.color = '#1565c0';
+                calcLines[2].textContent = 'B地 → 60°E';
+                calcLines[2].style.color = '#1565c0';
+                calcLines[3].textContent = 'C地 → 0°';
+                calcLines[3].style.color = '#2e7d32';
+                calcLines[4].textContent = 'D地 → 180°';
+                calcLines[4].style.color = '#c62828';
+            }
+        }
+        
+        /**
+         * 主更新函数：根据 currentStep 更新所有视觉元素
+         */
+        function updateScene() {
+            stepIndicator.textContent = '步骤 ' + currentStep + '/7';
+            btnPrev.disabled = currentStep <= 0;
+            btnNext.disabled = currentStep >= 6;
+            
+            // 公式框：步骤1+ 显示
+            if (currentStep >= 1) {
+                show(formulaFO);
+            } else {
+                hide(formulaFO);
+            }
+            
+            // 计算框：步骤2+ 显示
+            if (currentStep >= 2) {
+                show(calcFO);
+                updateCalcContent(currentStep);
+            } else {
+                hide(calcFO);
+            }
+            
+            // 刻度线及标签：步骤1+ 显示全部7个刻度
+            ticks.forEach(function(t) {
+                if (currentStep >= 1) show(t); else hide(t);
+            });
+            tickLabels.forEach(function(t) {
+                if (currentStep >= 1) show(t); else hide(t);
+            });
+            
+            // 120°E 及 A地：步骤2+ 显示
+            if (currentStep >= 2) {
+                show(meridian120e);
+                show(pointA);
+                show(labelA);
+                show(axisMarkA);
+                show(axisLabelA);
+                showWithFade(sectorA, 0.1);
+            } else {
+                hide(meridian120e);
+                hide(pointA);
+                hide(labelA);
+                hide(axisMarkA);
+                hide(axisLabelA);
+                hide(sectorA);
+            }
+            
+            // 60°E 及 B地：步骤3+ 显示
+            if (currentStep >= 3) {
+                show(meridian60e);
+                show(pointB);
+                show(labelB);
+                show(axisMarkB);
+                show(axisLabelB);
+                showWithFade(sectorB, 0.1);
+            } else {
+                hide(meridian60e);
+                hide(pointB);
+                hide(labelB);
+                hide(axisMarkB);
+                hide(axisLabelB);
+                hide(sectorB);
+            }
+            
+            // C地：步骤4+ 显示
+            if (currentStep >= 4) {
+                show(pointC);
+                show(labelC);
+                show(axisMarkC);
+                show(axisLabelC);
+            } else {
+                hide(pointC);
+                hide(labelC);
+                hide(axisMarkC);
+                hide(axisLabelC);
+            }
+            
+            // 0°经线高亮：步骤4+ 绿色加粗
+            if (currentStep >= 4) {
+                meridian0.setAttribute('stroke', '#2e7d32');
+                meridian0.setAttribute('stroke-width', '3');
+            } else {
+                meridian0.setAttribute('stroke', '#000000');
+                meridian0.setAttribute('stroke-width', '2');
+            }
+            
+            // D地：步骤5+ 显示
+            if (currentStep >= 5) {
+                show(pointD);
+                show(labelD);
+                show(axisMarkD);
+                show(axisLabelD);
+            } else {
+                hide(pointD);
+                hide(labelD);
+                hide(axisMarkD);
+                hide(axisLabelD);
+            }
+            
+            // 180°经线高亮：步骤5+ 红色加粗
+            if (currentStep >= 5) {
+                meridian180.setAttribute('stroke', '#c62828');
+                meridian180.setAttribute('stroke-width', '3');
+            } else {
+                meridian180.setAttribute('stroke', '#c62828');
+                meridian180.setAttribute('stroke-width', '2');
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 6) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始渲染
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

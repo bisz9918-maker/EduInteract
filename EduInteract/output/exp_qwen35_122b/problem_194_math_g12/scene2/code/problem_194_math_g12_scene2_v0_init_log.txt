@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四面体体积最大值 - 截面分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-slider { width: 300px; height: 20px; }
+        .control-label { font-size: 14px; color: #333; }
+        .value-display { position: absolute; top: 20px; right: 20px; font-size: 14px; color: #333; }
+        .max-hint { position: absolute; top: 50px; right: 20px; font-size: 14px; color: #c62828; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 椭圆：B 和 C 的轨迹 -->
+            <ellipse id="scene2-ellipse" cx="400" cy="250" rx="120" ry="89" fill="none" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 坐标轴 x -->
+            <line id="scene2-axis-x" x1="200" y1="250" x2="600" y2="250" stroke="#888888" stroke-width="1"/>
+            
+            <!-- 坐标轴 y -->
+            <line id="scene2-axis-y" x1="400" y1="150" x2="400" y2="350" stroke="#888888" stroke-width="1"/>
+            
+            <!-- 焦点 A -->
+            <circle id="scene2-pointA" cx="320" cy="250" r="3" fill="#000000"/>
+            <text id="scene2-labelA" x="305" y="265" font-size="14" fill="#000000">A</text>
+            
+            <!-- 焦点 D -->
+            <circle id="scene2-pointD" cx="480" cy="250" r="3" fill="#000000"/>
+            <text id="scene2-labelD" x="475" y="265" font-size="14" fill="#000000">D</text>
+            
+            <!-- 点 B（动点） -->
+            <circle id="scene2-pointB" cx="520" cy="250" r="4" fill="#2e7d32"/>
+            <text id="scene2-labelB" x="545" y="245" font-size="14" fill="#2e7d32">B</text>
+            
+            <!-- 点 C（动点） -->
+            <circle id="scene2-pointC" cx="520" cy="250" r="4" fill="#2e7d32"/>
+            <text id="scene2-labelC" x="545" y="270" font-size="14" fill="#2e7d32">C</text>
+            
+            <!-- 线段 BC -->
+            <line id="scene2-segmentBC" x1="520" y1="250" x2="520" y2="250" stroke="#000000" stroke-width="2"/>
+            <text id="scene2-labelBC" x="570" y="255" font-size="12" fill="#000000">BC=2</text>
+            
+            <!-- 距离 d（BC 中点到中心的距离） -->
+            <line id="scene2-distanceD" x1="400" y1="250" x2="400" y2="250" stroke="#c62828" stroke-width="1.5" stroke-dasharray="5,3"/>
+            <text id="scene2-labelD_val" x="350" y="240" font-size="14" fill="#c62828">d</text>
+            
+            <!-- 短半轴 b -->
+            <line id="scene2-axisB" x1="400" y1="250" x2="400" y2="339" stroke="#2e7d32" stroke-width="2"/>
+            <text id="scene2-labelB_val" x="415" y="350" font-size="14" fill="#2e7d32">b</text>
+            
+            <!-- 长半轴 a -->
+            <line id="scene2-axisA" x1="400" y1="250" x2="520" y2="250" stroke="#000000" stroke-width="2"/>
+            <text id="scene2-labelA_val" x="460" y="195" font-size="14" fill="#000000">a</text>
+            
+            <!-- 焦距 c -->
+            <line id="scene2-axisC" x1="400" y1="250" x2="480" y2="250" stroke="#000000" stroke-width="2"/>
+            <text id="scene2-labelC_val" x="440" y="195" font-size="14" fill="#000000">c</text>
+            
+            <!-- 最大值高亮区域（初始隐藏） -->
+            <circle id="scene2-maxHighlight" cx="400" cy="250" r="95" fill="#c62828" opacity="0" style="display:none"/>
+        </svg>
+        
+        <!-- 数值显示 -->
+        <text id="scene2-value" class="value-display" font-size="14" fill="#333">d = 0.00</text>
+        <text id="scene2-max" class="max-hint" font-size="14" fill="#c62828">d_max = b = √(a²-c²)</text>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene2-controls">
+            <span class="control-label">拖动滑块控制 B 点位置：</span>
+            <input type="range" id="scene2-slider" min="0" max="360" value="0">
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：四面体体积最大值的截面分析
+        // 坐标表对照：
+        // 椭圆：中心 (400,250)，rx=120, ry=89
+        // 焦点 A：(320,250)，焦点 D：(480,250)
+        // 长半轴 a=120，焦距 c=80，短半轴 b=√(120²-80²)=√8000≈89.4
+        
+        // 椭圆参数
+        const centerX = 400;
+        const centerY = 250;
+        const rx = 120;  // 长半轴 a
+        const ry = 89;   // 短半轴 b ≈ √(a²-c²) = √(120²-80²)
+        const focusDist = 80;  // 焦距 c
+        
+        // BC 长度
+        const BC_LENGTH = 2;
+        
+        // 获取 DOM 元素
+        const pointB = document.getElementById('scene2-pointB');
+        const pointC = document.getElementById('scene2-pointC');
+        const labelB = document.getElementById('scene2-labelB');
+        const labelC = document.getElementById('scene2-labelC');
+        const segmentBC = document.getElementById('scene2-segmentBC');
+        const labelBC = document.getElementById('scene2-labelBC');
+        const distanceD = document.getElementById('scene2-distanceD');
+        const labelD_val = document.getElementById('scene2-labelD_val');
+        const slider = document.getElementById('scene2-slider');
+        const valueDisplay = document.getElementById('scene2-value');
+        const maxHighlight = document.getElementById('scene2-maxHighlight');
+        
+        // 计算 B 点在椭圆上的位置（参数方程）
+        function getBPoint(angle) {
+            const rad = angle * Math.PI / 180;
+            return {
+                x: centerX + rx * Math.cos(rad),
+                y: centerY + ry * Math.sin(rad)
+            };
+        }
+        
+        // 计算 C 点位置：保持 BC=2 且 BC⊥AD（即 BC 垂直于 x 轴）
+        function getCPoint(B) {
+            const xOffset = B.x - centerX;
+            const ratio = xOffset * xOffset / (rx * rx);
+            
+            if (ratio > 1) {
+                return { x: B.x, y: centerY - (B.y - centerY) };
+            }
+            
+            const yOffset = ry * Math.sqrt(1 - ratio);
+            const C_y_below = centerY + yOffset;
+            const C_y_above = centerY - yOffset;
+            
+            if (Math.abs(C_y_below - B.y) < Math.abs(C_y_above - B.y)) {
+                return { x: B.x, y: C_y_below };
+            } else {
+                return { x: B.x, y: C_y_above };
+            }
+        }
+        
+        // 计算距离 d（BC 中点到中心的距离）
+        function calculateDistanceD(B, C) {
+            const midY = (B.y + C.y) / 2;
+            return Math.abs(midY - centerY);
+        }
+        
+        // 更新所有元素位置
+        function updateScene() {
+            const angle = parseInt(slider.value);
+            const B = getBPoint(angle);
+            const C = getCPoint(B);
+            const d = calculateDistanceD(B, C);
+            
+            // 更新 B 点位置
+            pointB.setAttribute('cx', B.x);
+            pointB.setAttribute('cy', B.y);
+            // 根据 B 点位置动态调整标签位置，确保在椭圆外且远离其他标签
+            if (B.x > centerX + rx - 10) {
+                labelB.setAttribute('x', B.x + 20);
+            } else if (B.x < centerX - rx + 10) {
+                labelB.setAttribute('x', B.x - 35);
+            } else {
+                labelB.setAttribute('x', B.x + 25);
+            }
+            if (B.y > centerY + ry - 10) {
+                labelB.setAttribute('y', B.y + 15);
+            } else if (B.y < centerY - ry + 10) {
+                labelB.setAttribute('y', B.y - 5);
+            } else {
+                labelB.setAttribute('y', B.y - 5);
+            }
+            
+            // 更新 C 点位置
+            pointC.setAttribute('cx', C.x);
+            pointC.setAttribute('cy', C.y);
+            // 根据 C 点位置动态调整标签位置
+            if (C.x > centerX + rx - 10) {
+                labelC.setAttribute('x', C.x + 20);
+            } else if (C.x < centerX - rx + 10) {
+                labelC.setAttribute('x', C.x - 35);
+            } else {
+                labelC.setAttribute('x', C.x + 25);
+            }
+            if (C.y > centerY + ry - 10) {
+                labelC.setAttribute('y', C.y + 15);
+            } else if (C.y < centerY - ry + 10) {
+                labelC.setAttribute('y', C.y - 5);
+            } else {
+                labelC.setAttribute('y', C.y + 15);
+            }
+            
+            // 更新线段 BC
+            segmentBC.setAttribute('x1', B.x);
+            segmentBC.setAttribute('y1', B.y);
+            segmentBC.setAttribute('x2', C.x);
+            segmentBC.setAttribute('y2', C.y);
+            
+            // 更新 BC=2 标签位置（BC 右侧，远离 B、C 标签）
+            const midX = (B.x + C.x) / 2;
+            const midY = (B.y + C.y) / 2;
+            labelBC.setAttribute('x', Math.max(B.x, C.x) + 40);
+            labelBC.setAttribute('y', midY + 5);
+            
+            // 更新距离 d（BC 中点到中心的连线）
+            distanceD.setAttribute('x1', midX);
+            distanceD.setAttribute('y1', midY);
+            distanceD.setAttribute('x2', centerX);
+            distanceD.setAttribute('y2', centerY);
+            
+            // 更新距离 d 标签位置（左侧，远离椭圆）
+            labelD_val.setAttribute('x', centerX - 50);
+            labelD_val.setAttribute('y', midY - 5);
+            
+            // 更新数值显示
+            valueDisplay.textContent = `d = ${d.toFixed(2)}`;
+            
+            // 检查是否接近最大值（B 点在短轴端点附近）
+            const maxB = ry;
+            const isMax = Math.abs(d - maxB) < 5;
+            
+            if (isMax) {
+                maxHighlight.style.display = 'block';
+                maxHighlight.style.opacity = '0.2';
+                labelD_val.textContent = 'd_max';
+            } else {
+                maxHighlight.style.display = 'none';
+                maxHighlight.style.opacity = '0';
+                labelD_val.textContent = 'd';
+            }
+        }
+        
+        // 事件绑定
+        slider.addEventListener('input', updateScene);
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

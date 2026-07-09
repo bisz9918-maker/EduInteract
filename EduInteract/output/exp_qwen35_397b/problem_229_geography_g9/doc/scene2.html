@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网方向判断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { font-size: 14px; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 经纬网背景 -->
+            <rect x="150" y="80" width="500" height="320" fill="#fafafa" stroke="#eee" stroke-width="1"/>
+            
+            <!-- 经线组 -->
+            <g id="scene2-lon-lines">
+                <!-- 经线 140°E -->
+                <path d="M 150 80 Q 140 240 150 400" stroke="#000" stroke-width="1.5" fill="none"/>
+                <!-- 经线 160°E -->
+                <path d="M 275 80 Q 265 240 275 400" stroke="#000" stroke-width="1.5" fill="none"/>
+                <!-- 经线 180° -->
+                <line x1="400" y1="80" x2="400" y2="400" stroke="#000" stroke-width="1.5"/>
+                <!-- 经线 160°W -->
+                <path d="M 525 80 Q 535 240 525 400" stroke="#000" stroke-width="1.5" fill="none"/>
+                <!-- 经线 140°W -->
+                <path d="M 650 80 Q 660 240 650 400" stroke="#000" stroke-width="1.5" fill="none"/>
+            </g>
+            
+            <!-- 纬线组 -->
+            <g id="scene2-lat-lines">
+                <!-- 纬线 60°N -->
+                <path d="M 150 80 Q 400 70 650 80" stroke="#000" stroke-width="1.5" fill="none"/>
+                <!-- 纬线 50°N (中间参考线，不标注) -->
+                <path d="M 150 240 Q 400 230 650 240" stroke="#000" stroke-width="1.5" fill="none" opacity="0.5"/>
+                <!-- 纬线 40°N -->
+                <path d="M 150 400 Q 400 390 650 400" stroke="#000" stroke-width="1.5" fill="none"/>
+            </g>
+            
+            <!-- 经度标签 - 向上移动避免与点标签重叠，y=25 确保距顶部>20px -->
+            <text x="150" y="25" font-size="14" text-anchor="middle" id="scene2-lon-140E">140°E</text>
+            <text x="400" y="25" font-size="14" text-anchor="middle" id="scene2-lon-180">180°</text>
+            <text x="650" y="25" font-size="14" text-anchor="middle" id="scene2-lon-140W">140°W</text>
+            
+            <!-- 纬度标签 -->
+            <text x="670" y="85" font-size="14" id="scene2-lat-60N">60°N</text>
+            <text x="670" y="405" font-size="14" id="scene2-lat-40N">40°N</text>
+            
+            <!-- 点组 -->
+            <g id="scene2-points">
+                <!-- 点 A (蓝色参考点) -->
+                <circle cx="400" cy="80" r="6" fill="#1565c0" id="scene2-point-a"/>
+                <!-- 点 D (红色目标点) -->
+                <circle cx="150" cy="80" r="6" fill="#c62828" id="scene2-point-d"/>
+                <!-- 点 E (红色目标点) -->
+                <circle cx="150" cy="400" r="6" fill="#c62828" id="scene2-point-e"/>
+                <!-- 点 F (蓝色参考点) -->
+                <circle cx="650" cy="400" r="6" fill="#1565c0" id="scene2-point-f"/>
+            </g>
+            
+            <!-- 点标签组 -->
+            <g id="scene2-point-labels">
+                <text x="410" y="75" font-size="14" id="scene2-label-a">A</text>
+                <text x="135" y="75" font-size="14" id="scene2-label-d">D</text>
+                <text x="135" y="420" font-size="14" id="scene2-label-e">E</text>
+                <text x="650" y="425" font-size="14" id="scene2-label-f">F</text>
+            </g>
+            
+            <!-- D→A 方向判断辅助元素组 - 初始隐藏 -->
+            <g id="scene2-ad-group" style="display:none">
+                <!-- 东西向辅助线 -->
+                <line x1="150" y1="80" x2="400" y2="80" stroke="#888" stroke-width="2" stroke-dasharray="5,5" id="scene2-ad-east-line"/>
+                <!-- 南北向辅助线 -->
+                <line x1="150" y1="80" x2="150" y2="400" stroke="#888" stroke-width="2" stroke-dasharray="5,5" id="scene2-ad-north-line"/>
+                <!-- 东西向箭头 (D→A 方向：东) - 调整位置 -->
+                <line x1="160" y1="110" x2="390" y2="110" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead)" id="scene2-arrow-ad-east"/>
+                <text x="275" y="135" font-size="14" fill="#2e7d32" text-anchor="middle" id="scene2-label-ad-east">东</text>
+                <!-- 南北向箭头 (D 向南) -->
+                <line x1="130" y1="90" x2="130" y2="390" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead)" id="scene2-arrow-ad-north"/>
+                <text x="115" y="240" font-size="14" fill="#2e7d32" text-anchor="end" id="scene2-label-ad-north">南</text>
+            </g>
+            
+            <!-- E→F 方向判断辅助元素组 - 初始隐藏 -->
+            <g id="scene2-ef-group" style="display:none">
+                <!-- 东西向辅助线 -->
+                <line x1="150" y1="400" x2="650" y2="400" stroke="#888" stroke-width="2" stroke-dasharray="5,5" id="scene2-ef-east-line"/>
+                <!-- 南北向辅助线 -->
+                <line x1="650" y1="80" x2="650" y2="400" stroke="#888" stroke-width="2" stroke-dasharray="5,5" id="scene2-ef-north-line"/>
+                <!-- 方向箭头和标签 -->
+                <line x1="160" y1="430" x2="640" y2="430" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead)" id="scene2-arrow-ef-west"/>
+                <text x="400" y="450" font-size="14" fill="#2e7d32" text-anchor="middle" id="scene2-label-ef-west">西</text>
+                <line x1="670" y1="390" x2="670" y2="90" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead)" id="scene2-arrow-ef-north"/>
+                <text x="685" y="240" font-size="14" fill="#2e7d32" id="scene2-label-ef-north">北</text>
+            </g>
+            
+            <!-- 方向结论标签组 - 只用文字，无背景框 -->
+            <g id="scene2-direction-labels" style="display:none">
+                <!-- 西北结论 - 调整位置 -->
+                <text x="320" y="170" font-size="18" fill="#2e7d32" text-anchor="middle" font-weight="bold" id="scene2-direction-nw">西北</text>
+                <!-- 西南结论 - 调整位置 -->
+                <text x="320" y="300" font-size="18" fill="#2e7d32" text-anchor="middle" font-weight="bold" id="scene2-direction-sw">西南</text>
+            </g>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#2e7d32"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 经纬网方向判断
+        
+        const totalSteps = 6;
+        let currentStep = 1;
+        
+        // 元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 点元素
+        const pointA = document.getElementById('scene2-point-a');
+        const pointD = document.getElementById('scene2-point-d');
+        const pointE = document.getElementById('scene2-point-e');
+        const pointF = document.getElementById('scene2-point-f');
+        
+        const labelA = document.getElementById('scene2-label-a');
+        const labelD = document.getElementById('scene2-label-d');
+        const labelE = document.getElementById('scene2-label-e');
+        const labelF = document.getElementById('scene2-label-f');
+        
+        // AD 方向判断组
+        const adGroup = document.getElementById('scene2-ad-group');
+        const adEastLine = document.getElementById('scene2-ad-east-line');
+        const adNorthLine = document.getElementById('scene2-ad-north-line');
+        const arrowAdEast = document.getElementById('scene2-arrow-ad-east');
+        const labelAdEast = document.getElementById('scene2-label-ad-east');
+        const arrowAdNorth = document.getElementById('scene2-arrow-ad-north');
+        const labelAdNorth = document.getElementById('scene2-label-ad-north');
+        
+        // EF 方向判断组
+        const efGroup = document.getElementById('scene2-ef-group');
+        const efEastLine = document.getElementById('scene2-ef-east-line');
+        const efNorthLine = document.getElementById('scene2-ef-north-line');
+        const arrowEfWest = document.getElementById('scene2-arrow-ef-west');
+        const labelEfWest = document.getElementById('scene2-label-ef-west');
+        const arrowEfNorth = document.getElementById('scene2-arrow-ef-north');
+        const labelEfNorth = document.getElementById('scene2-label-ef-north');
+        
+        // 方向结论
+        const directionNw = document.getElementById('scene2-direction-nw');
+        const directionSw = document.getElementById('scene2-direction-sw');
+        const directionLabelsGroup = document.getElementById('scene2-direction-labels');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.style.display = '';
+            el.style.visibility = 'visible';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            btnPrev.disabled = currentStep === 1;
+            btnNext.disabled = currentStep === totalSteps;
+            
+            // 根据步骤显示/隐藏元素
+            switch(currentStep) {
+                case 1:
+                    // 初始状态：显示 A、D 点和标签
+                    show(pointA); show(pointD); show(labelA); show(labelD);
+                    hide(pointE); hide(pointF); hide(labelE); hide(labelF);
+                    hide(adGroup);
+                    hide(efGroup);
+                    hide(directionLabelsGroup);
+                    break;
+                case 2:
+                    // 显示东西向辅助线和箭头
+                    show(pointA); show(pointD); show(labelA); show(labelD);
+                    show(adGroup); show(adEastLine); show(arrowAdEast); show(labelAdEast);
+                    hide(adNorthLine); hide(arrowAdNorth); hide(labelAdNorth);
+                    hide(efGroup);
+                    hide(directionLabelsGroup);
+                    break;
+                case 3:
+                    // 显示南北向辅助线和箭头
+                    show(pointA); show(pointD); show(labelA); show(labelD);
+                    show(adGroup); show(adEastLine); show(adNorthLine);
+                    show(arrowAdEast); show(labelAdEast); show(arrowAdNorth); show(labelAdNorth);
+                    hide(directionLabelsGroup);
+                    hide(efGroup);
+                    break;
+                case 4:
+                    // 显示合成方向结论"西北"
+                    show(pointA); show(pointD); show(labelA); show(labelD);
+                    show(adGroup);
+                    show(directionLabelsGroup); show(directionNw);
+                    hide(directionSw);
+                    hide(efGroup);
+                    break;
+                case 5:
+                    // 切换到 E、F 点
+                    hide(pointA); hide(pointD); hide(labelA); hide(labelD);
+                    hide(adGroup);
+                    hide(directionLabelsGroup);
+                    show(pointE); show(pointF); show(labelE); show(labelF);
+                    show(efGroup); show(efEastLine); show(efNorthLine);
+                    show(arrowEfWest); show(labelEfWest); show(arrowEfNorth); show(labelEfNorth);
+                    break;
+                case 6:
+                    // 显示合成方向结论"西南"
+                    show(pointE); show(pointF); show(labelE); show(labelF);
+                    show(efGroup);
+                    show(directionLabelsGroup); show(directionSw);
+                    hide(directionNw);
+                    break;
+            }
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

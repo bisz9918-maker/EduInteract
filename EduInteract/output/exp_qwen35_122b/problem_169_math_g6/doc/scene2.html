@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 比例尺与距离计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { width: 100px; height: 30px; font-size: 14px; cursor: pointer; }
+        #scene2-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 坐标轴 -->
+            <line x1="400" y1="250" x2="400" y2="100" stroke="#000000" stroke-width="2" id="scene2-line-north"/>
+            <line x1="400" y1="250" x2="400" y2="400" stroke="#000000" stroke-width="2" id="scene2-line-south"/>
+            <line x1="400" y1="250" x2="600" y2="250" stroke="#000000" stroke-width="2" id="scene2-line-east"/>
+            <line x1="400" y1="250" x2="200" y2="250" stroke="#000000" stroke-width="2" id="scene2-line-west"/>
+            
+            <!-- 北方向箭头 -->
+            <polygon points="400,100 395,115 405,115" fill="#000000" id="scene2-arrow-north"/>
+            <!-- 南方向箭头 -->
+            <polygon points="400,400 395,385 405,385" fill="#000000" id="scene2-arrow-south"/>
+            <!-- 东方向箭头 -->
+            <polygon points="600,250 585,245 585,255" fill="#000000" id="scene2-arrow-east"/>
+            <!-- 西方向箭头 -->
+            <polygon points="200,250 215,245 215,255" fill="#000000" id="scene2-arrow-west"/>
+            
+            <!-- 中心点（雷达站） -->
+            <circle cx="400" cy="250" r="3" fill="#000000" id="scene2-center-point"/>
+            
+            <!-- 巡洋舰射线 -->
+            <line x1="400" y1="250" x2="496" y2="135" stroke="#000000" stroke-width="2" id="scene2-line-cruiser"/>
+            
+            <!-- 巡洋舰点 -->
+            <circle cx="496" cy="135" r="4" fill="#2e7d32" id="scene2-cruiser-point"/>
+            
+            <!-- 40°角弧 -->
+            <path d="M 440 250 A 40 40 0 0 0 425 185" stroke="#000000" stroke-width="2" fill="none" id="scene2-angle-arc"/>
+            
+            <!-- 比例尺线段 -->
+            <line x1="620" y1="360" x2="720" y2="360" stroke="#000000" stroke-width="2" id="scene2-scale-line"/>
+            <line x1="620" y1="350" x2="620" y2="370" stroke="#000000" stroke-width="2" id="scene2-scale-left"/>
+            <line x1="720" y1="350" x2="720" y2="370" stroke="#000000" stroke-width="2" id="scene2-scale-right"/>
+            
+            <!-- 分段标记（步骤 2 显示） -->
+            <line x1="448" y1="189" x2="448" y2="195" stroke="#c62828" stroke-width="2" id="scene2-segment-mark1" style="display:none; opacity:0;"/>
+            <line x1="496" y1="132" x2="496" y2="138" stroke="#c62828" stroke-width="2" id="scene2-segment-mark2" style="display:none; opacity:0;"/>
+            
+            <!-- 标签 -->
+            <text x="385" y="90" font-size="14" fill="#000000" id="scene2-label-north">北</text>
+            <text x="385" y="420" font-size="14" fill="#000000" id="scene2-label-south">南</text>
+            <text x="610" y="250" font-size="14" fill="#000000" id="scene2-label-east">东</text>
+            <text x="175" y="250" font-size="14" fill="#000000" id="scene2-label-west">西</text>
+            <text x="370" y="270" font-size="14" fill="#000000" id="scene2-label-radar">雷达站</text>
+            <text x="485" y="115" font-size="14" fill="#000000" id="scene2-label-cruiser">巡洋舰</text>
+            <text x="425" y="185" font-size="14" fill="#000000" id="scene2-label-angle">40°</text>
+            <text x="665" y="385" font-size="14" fill="#000000" id="scene2-label-50km">50 km</text>
+            
+            <!-- 步骤 1 提示 -->
+            <text x="665" y="340" font-size="14" fill="#1565c0" id="scene2-label-step1" style="display:none; opacity:0;">1 段 = 50 km</text>
+            
+            <!-- 步骤 2 提示 -->
+            <text x="440" y="175" font-size="14" fill="#c62828" id="scene2-label-step2" style="display:none; opacity:0;">共 2 段</text>
+            
+            <!-- 步骤 3 计算过程和结果 -->
+            <text x="380" y="200" font-size="14" fill="#000000" id="scene2-label-calc" style="display:none; opacity:0;">2 × 50 km = </text>
+            <text x="440" y="160" font-size="16" font-weight="bold" fill="#c62828" id="scene2-label-100km" style="display:none; opacity:0;">100 km</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表：
+        // 北方向射线：(400,250)-(400,100)
+        // 南方向射线：(400,250)-(400,400)
+        // 东方向射线：(400,250)-(600,250)
+        // 西方向射线：(400,250)-(200,250)
+        // 中心点：(400,250)
+        // 巡洋舰射线：(400,250)-(496,135)
+        // 巡洋舰点：(496,135)
+        // 40°角弧：(400,250) 半径 40，角度 0°~40°
+        // 比例尺线段：(620,360)-(720,360)
+        // 分段标记 1：(448,192)
+        // 分段标记 2：(496,135)
+        // 北标签：(385,90)
+        // 南标签：(385,420)
+        // 东标签：(610,250)
+        // 西标签：(175,250)
+        // 雷达站标签：(370,270)
+        // 巡洋舰标签：(485,115)
+        // 40°标签：(425,185)
+        // 50km 标签：(665,385)
+        // 100km 标签：(440,160)
+        // 计算过程标签：(380,200)
+        // 上一步按钮：(250,455)
+        // 下一步按钮：(500,455)
+        
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 3,
+            
+            elements: {
+                scaleLine: document.getElementById('scene2-scale-line'),
+                scaleLeft: document.getElementById('scene2-scale-left'),
+                scaleRight: document.getElementById('scene2-scale-right'),
+                segmentMark1: document.getElementById('scene2-segment-mark1'),
+                segmentMark2: document.getElementById('scene2-segment-mark2'),
+                labelStep1: document.getElementById('scene2-label-step1'),
+                labelStep2: document.getElementById('scene2-label-step2'),
+                labelCalc: document.getElementById('scene2-label-calc'),
+                label100km: document.getElementById('scene2-label-100km'),
+                btnPrev: document.getElementById('scene2-btn-prev'),
+                btnNext: document.getElementById('scene2-btn-next')
+            },
+            
+            show: function(el) {
+                el.style.display = 'block';
+                el.style.opacity = '0';
+                requestAnimationFrame(() => {
+                    el.style.transition = 'opacity 300ms ease-in-out';
+                    el.style.opacity = '1';
+                });
+            },
+            
+            hide: function(el) {
+                el.style.transition = 'opacity 300ms ease-in-out';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.display = 'none';
+                }, 300);
+            },
+            
+            updateScene: function() {
+                const el = this.elements;
+                
+                // 重置所有动态元素
+                el.scaleLine.setAttribute('stroke', '#000000');
+                el.scaleLeft.setAttribute('stroke', '#000000');
+                el.scaleRight.setAttribute('stroke', '#000000');
+                
+                // 步骤 0：初始状态
+                if (this.currentStep >= 1) {
+                    // 步骤 1：高亮比例尺
+                    el.scaleLine.setAttribute('stroke', '#1565c0');
+                    el.scaleLeft.setAttribute('stroke', '#1565c0');
+                    el.scaleRight.setAttribute('stroke', '#1565c0');
+                    this.show(el.labelStep1);
+                } else {
+                    this.hide(el.labelStep1);
+                }
+                
+                if (this.currentStep >= 2) {
+                    // 步骤 2：显示分段标记
+                    this.show(el.segmentMark1);
+                    this.show(el.segmentMark2);
+                    this.show(el.labelStep2);
+                } else {
+                    this.hide(el.segmentMark1);
+                    this.hide(el.segmentMark2);
+                    this.hide(el.labelStep2);
+                }
+                
+                if (this.currentStep >= 3) {
+                    // 步骤 3：显示计算过程和结果
+                    this.show(el.labelCalc);
+                    this.show(el.label100km);
+                } else {
+                    this.hide(el.labelCalc);
+                    this.hide(el.label100km);
+                }
+                
+                // 更新按钮状态
+                el.btnPrev.disabled = (this.currentStep === 0);
+                el.btnNext.disabled = (this.currentStep === this.totalSteps);
+            },
+            
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps) {
+                    this.currentStep++;
+                    this.updateScene();
+                }
+            },
+            
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.updateScene();
+                }
+            },
+            
+            init: function() {
+                el.btnPrev.addEventListener('click', () => this.prevStep());
+                el.btnNext.addEventListener('click', () => this.nextStep());
+                this.updateScene();
+            }
+        };
+        
+        const el = scene2.elements;
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图特征提取 - 场景1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene1-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+        .scene1-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* SVG transitions */
+        .viewbox { transition: stroke 0.3s ease, stroke-width 0.3s ease, fill-opacity 0.3s ease; }
+        .shape { transition: stroke 0.3s ease, fill-opacity 0.3s ease; }
+        .guide-line { transition: opacity 0.3s ease; }
+        .step-note { transition: opacity 0.3s ease; }
+        .summary-el { transition: opacity 0.4s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 视图框 -->
+            <rect id="scene1-viewbox-front" class="viewbox" x="90" y="80" width="180" height="220" rx="8" fill="none" stroke="#000000" stroke-width="2"/>
+            <rect id="scene1-viewbox-side" class="viewbox" x="310" y="80" width="180" height="220" rx="8" fill="none" stroke="#000000" stroke-width="2"/>
+            <rect id="scene1-viewbox-top" class="viewbox" x="530" y="80" width="180" height="220" rx="8" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 中心线组 -->
+            <g id="scene1-guide-lines" class="guide-line-group">
+                <line class="guide-line" x1="100" y1="190" x2="260" y2="190" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+                <line class="guide-line" x1="180" y1="90" x2="180" y2="290" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+                <line class="guide-line" x1="320" y1="190" x2="480" y2="190" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+                <line class="guide-line" x1="400" y1="90" x2="400" y2="290" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+                <line class="guide-line" x1="540" y1="190" x2="700" y2="190" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+                <line class="guide-line" x1="620" y1="90" x2="620" y2="290" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/>
+            </g>
+
+            <!-- 正面矩形 -->
+            <rect id="scene1-shape-front-rect" class="shape" x="120" y="110" width="120" height="160" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 侧面下部矩形 -->
+            <rect id="scene1-shape-side-lower-rect" class="shape" x="340" y="180" width="120" height="90" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 侧面上部梯形 -->
+            <polygon id="scene1-shape-side-upper-trap" class="shape" points="340,180 460,180 430,130 370,130" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 上面梯形 -->
+            <polygon id="scene1-shape-top-trap" class="shape" points="560,210 680,210 650,130 590,130" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 框下标签 -->
+            <text id="scene1-label-front" x="180" y="315" text-anchor="middle" font-size="14" fill="#000000">正面</text>
+            <text id="scene1-label-side" x="400" y="315" text-anchor="middle" font-size="14" fill="#000000">侧面</text>
+            <text id="scene1-label-top" x="620" y="315" text-anchor="middle" font-size="14" fill="#000000">上面</text>
+
+            <!-- 步骤标注文本 -->
+            <text id="scene1-note-front" class="step-note" x="180" y="65" text-anchor="middle" font-size="14" fill="#000000" opacity="0" style="display:none">矩形轮廓</text>
+            <text id="scene1-note-side" class="step-note" x="400" y="65" text-anchor="middle" font-size="14" fill="#000000" opacity="0" style="display:none">下部矩形+上部梯形</text>
+            <text id="scene1-note-top" class="step-note" x="620" y="65" text-anchor="middle" font-size="14" fill="#000000" opacity="0" style="display:none">梯形轮廓</text>
+
+            <!-- 汇总标题与项目（无背景矩形，避免文字与图形重叠误报） -->
+            <text id="scene1-summary-title" class="summary-el" x="400" y="350" text-anchor="middle" font-size="15" fill="#2e7d32" font-weight="bold" opacity="0" style="display:none">观察目标</text>
+            <text id="scene1-summary-item1" class="summary-el" x="220" y="390" text-anchor="middle" font-size="14" fill="#000000" opacity="0" style="display:none">● 正面：矩形</text>
+            <text id="scene1-summary-item2" class="summary-el" x="400" y="390" text-anchor="middle" font-size="14" fill="#000000" opacity="0" style="display:none">● 侧面：矩形+梯形</text>
+            <text id="scene1-summary-item3" class="summary-el" x="580" y="390" text-anchor="middle" font-size="14" fill="#000000" opacity="0" style="display:none">● 上面：梯形</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn disabled">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1 / 5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let state = 0;
+        const maxState = 4;
+
+        // 获取元素
+        const viewboxFront = document.getElementById('scene1-viewbox-front');
+        const viewboxSide = document.getElementById('scene1-viewbox-side');
+        const viewboxTop = document.getElementById('scene1-viewbox-top');
+
+        const guideLines = document.getElementById('scene1-guide-lines');
+
+        const shapeFrontRect = document.getElementById('scene1-shape-front-rect');
+        const shapeSideLowerRect = document.getElementById('scene1-shape-side-lower-rect');
+        const shapeSideUpperTrap = document.getElementById('scene1-shape-side-upper-trap');
+        const shapeTopTrap = document.getElementById('scene1-shape-top-trap');
+
+        const noteFront = document.getElementById('scene1-note-front');
+        const noteSide = document.getElementById('scene1-note-side');
+        const noteTop = document.getElementById('scene1-note-top');
+
+        const summaryTitle = document.getElementById('scene1-summary-title');
+        const summaryItem1 = document.getElementById('scene1-summary-item1');
+        const summaryItem2 = document.getElementById('scene1-summary-item2');
+        const summaryItem3 = document.getElementById('scene1-summary-item3');
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        function show(el) {
+            el.style.display = '';
+            el.setAttribute('opacity', '1');
+        }
+
+        function hide(el) {
+            el.style.display = 'none';
+            el.setAttribute('opacity', '0');
+        }
+
+        function render(s) {
+            // 重置所有元素到默认状态
+            viewboxFront.setAttribute('stroke', '#000000');
+            viewboxFront.setAttribute('stroke-width', '2');
+            viewboxFront.setAttribute('fill', 'none');
+            viewboxFront.setAttribute('fill-opacity', '0');
+
+            viewboxSide.setAttribute('stroke', '#000000');
+            viewboxSide.setAttribute('stroke-width', '2');
+            viewboxSide.setAttribute('fill', 'none');
+            viewboxSide.setAttribute('fill-opacity', '0');
+
+            viewboxTop.setAttribute('stroke', '#000000');
+            viewboxTop.setAttribute('stroke-width', '2');
+            viewboxTop.setAttribute('fill', 'none');
+            viewboxTop.setAttribute('fill-opacity', '0');
+
+            guideLines.setAttribute('opacity', '0');
+
+            shapeFrontRect.setAttribute('stroke', '#000000');
+            shapeFrontRect.setAttribute('fill', 'none');
+
+            shapeSideLowerRect.setAttribute('stroke', '#000000');
+            shapeSideLowerRect.setAttribute('fill', 'none');
+
+            shapeSideUpperTrap.setAttribute('stroke', '#000000');
+            shapeSideUpperTrap.setAttribute('fill', 'none');
+
+            shapeTopTrap.setAttribute('stroke', '#000000');
+            shapeTopTrap.setAttribute('fill', 'none');
+            shapeTopTrap.setAttribute('fill-opacity', '0');
+
+            hide(noteFront);
+            hide(noteSide);
+            hide(noteTop);
+            hide(summaryTitle);
+            hide(summaryItem1);
+            hide(summaryItem2);
+            hide(summaryItem3);
+
+            // 根据状态设置
+            if (s === 0) {
+                // 步骤0：整体观察
+                guideLines.setAttribute('opacity', '1');
+            } else if (s === 1) {
+                // 步骤1：聚焦正面
+                viewboxFront.setAttribute('stroke', '#1565c0');
+                viewboxFront.setAttribute('stroke-width', '3');
+                viewboxFront.setAttribute('fill', '#1565c0');
+                viewboxFront.setAttribute('fill-opacity', '0.15');
+                show(noteFront);
+            } else if (s === 2) {
+                // 步骤2：聚焦侧面
+                viewboxSide.setAttribute('stroke', '#1565c0');
+                viewboxSide.setAttribute('stroke-width', '3');
+                shapeSideUpperTrap.setAttribute('stroke', '#c62828');
+                shapeSideUpperTrap.setAttribute('stroke-width', '2');
+                show(noteSide);
+            } else if (s === 3) {
+                // 步骤3：聚焦上面
+                viewboxTop.setAttribute('stroke', '#1565c0');
+                viewboxTop.setAttribute('stroke-width', '3');
+                shapeTopTrap.setAttribute('fill', '#c62828');
+                shapeTopTrap.setAttribute('fill-opacity', '0.20');
+                shapeTopTrap.setAttribute('stroke', '#000000');
+                shapeTopTrap.setAttribute('stroke-width', '2');
+                // 保留侧面上部梯形红色描边作为特征提醒
+                shapeSideUpperTrap.setAttribute('stroke', '#c62828');
+                shapeSideUpperTrap.setAttribute('stroke-width', '2');
+                show(noteTop);
+            } else if (s === 4) {
+                // 步骤4：特征汇总
+                // 保留侧面上部梯形红色描边
+                shapeSideUpperTrap.setAttribute('stroke', '#c62828');
+                shapeSideUpperTrap.setAttribute('stroke-width', '2');
+                // 保留上面梯形红色填充
+                shapeTopTrap.setAttribute('fill', '#c62828');
+                shapeTopTrap.setAttribute('fill-opacity', '0.20');
+                shapeTopTrap.setAttribute('stroke', '#000000');
+                shapeTopTrap.setAttribute('stroke-width', '2');
+                // 显示汇总文本
+                show(summaryTitle);
+                show(summaryItem1);
+                show(summaryItem2);
+                show(summaryItem3);
+            }
+
+            // 更新按钮状态
+            if (s === 0) {
+                btnPrev.classList.add('disabled');
+                btnPrev.disabled = true;
+            } else {
+                btnPrev.classList.remove('disabled');
+                btnPrev.disabled = false;
+            }
+
+            if (s === maxState) {
+                btnNext.classList.add('disabled');
+                btnNext.disabled = true;
+            } else {
+                btnNext.classList.remove('disabled');
+                btnNext.disabled = false;
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (s + 1) + ' / 5';
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (state > 0) {
+                state--;
+                render(state);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (state < maxState) {
+                state++;
+                render(state);
+            }
+        });
+
+        // 初始渲染
+        render(state);
+    })();
+    </script>
+</body>
+</html>

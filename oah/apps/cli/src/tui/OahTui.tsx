@@ -1,0 +1,183 @@
+import React from "react";
+import { Box, Static, useApp, useWindowSize } from "ink";
+
+import type { OahConnection } from "../api/oah-api.js";
+import { HelpDialog, SessionDialog, WorkspaceDialog } from "./components/dialogs.js";
+import {
+  getChatLinesRowCount,
+  getTranscriptItems,
+  getTranscriptLineItems,
+  Messages,
+  SpinnerLine,
+  TranscriptItemView,
+  type TranscriptItem
+} from "./components/messages.js";
+import { getPromptInputRowCount, getSlashSuggestionRowCount, PromptInput } from "./components/prompt.js";
+import { useTuiInput } from "./input/use-tui-input.js";
+import { useOahReplState } from "./state/use-oah-repl-state.js";
+import type { SessionStartupMode } from "./domain/types.js";
+
+function OahApp(props: { children: React.ReactNode }) {
+  return <Box flexDirection="column">{props.children}</Box>;
+}
+
+function OahRepl({
+  connection,
+  initialWorkspaceId,
+  sessionStartupMode
+}: {
+  connection: OahConnection;
+  initialWorkspaceId?: string | undefined;
+  sessionStartupMode?: SessionStartupMode | undefined;
+}) {
+  const app = useApp();
+  const { columns, rows: height } = useWindowSize();
+  const state = useOahReplState(connection, { initialWorkspaceId, sessionStartupMode });
+
+  useTuiInput({ state, exit: app.exit });
+
+  const latestRun = state.runs[0] ?? null;
+  const runActive = latestRun?.status === "queued" || latestRun?.status === "running" || latestRun?.status === "waiting_tool";
+  const suggestionRows = !state.dialog ? getSlashSuggestionRowCount(state.composer) : 0;
+  const spinnerRows = runActive ? 2 : 0;
+  const promptRows = getPromptInputRowCount(state.composer, columns) + suggestionRows + 4;
+  const chromeRows = promptRows + spinnerRows;
+  const dialogRows = state.dialog ? Math.max(8, Math.min(Math.floor(height * 0.66), height - chromeRows - 3)) : 0;
+  const transcriptHeight = Math.max(3, height - dialogRows - chromeRows);
+  const splitTranscript = splitStaticTranscript({
+    lines: state.messages,
+    workspace: state.currentWorkspace,
+    session: state.currentSession,
+    serviceUrl: connection.baseUrl,
+    systemProfile: state.systemProfile,
+    height: transcriptHeight,
+    columns
+  });
+  const liveMessageRows = getChatLinesRowCount(splitTranscript.liveLines, columns);
+  const liveViewportRows = Math.min(liveMessageRows, transcriptHeight);
+  const promptCursorY = liveViewportRows + spinnerRows + dialogRows + 1;
+  const agentMode =
+    state.catalog?.agents.find((agent) => agent.name === state.currentSession?.activeAgentName)?.mode ??
+    (state.currentSession ? "unknown" : "");
+  const activeDialog =
+    state.dialog?.kind === "workspace-list" || state.dialog?.kind === "workspace-create" ? (
+      <WorkspaceDialog
+        dialog={state.dialog}
+        workspaces={state.workspaces}
+        currentWorkspace={state.currentWorkspace}
+        runtimes={state.runtimes}
+        rows={dialogRows}
+      />
+    ) : state.dialog?.kind === "session-list" || state.dialog?.kind === "session-create" ? (
+      <SessionDialog
+        dialog={state.dialog}
+        sessions={state.sessions}
+        sessionLatestRuns={state.sessionLatestRuns}
+        currentSession={state.currentSession}
+        workspace={state.currentWorkspace}
+        rows={dialogRows}
+      />
+    ) : state.dialog?.kind === "help" ? (
+      <HelpDialog rows={dialogRows} />
+    ) : null;
+
+  return (
+    <Box flexDirection="column">
+      <Static items={splitTranscript.staticItems}>
+        {(item) => <TranscriptItemView key={item.id} item={item} columns={columns} />}
+      </Static>
+      <Box flexDirection="column" height={liveViewportRows} overflow="hidden" justifyContent="flex-end">
+        {splitTranscript.liveLines.length > 0 ? (
+          <Messages
+            lines={splitTranscript.liveLines}
+            workspace={state.currentWorkspace}
+            session={state.currentSession}
+            serviceUrl={connection.baseUrl}
+            systemProfile={state.systemProfile}
+            height={transcriptHeight}
+            columns={columns}
+            showBanner={false}
+          />
+        ) : null}
+      </Box>
+      <SpinnerLine run={latestRun} />
+      {activeDialog}
+      <PromptInput
+        value={state.composer}
+        cursor={state.composerCursor}
+        slashSelection={state.slashSelection}
+        cursorY={promptCursorY}
+        disabled={state.dialog !== null}
+        running={runActive}
+        workspace={state.currentWorkspace}
+        session={state.currentSession}
+        systemProfile={state.systemProfile}
+        run={latestRun}
+        notice={state.notice}
+        streamState={state.streamState}
+        agentMode={agentMode}
+      />
+    </Box>
+  );
+}
+
+function splitStaticTranscript(input: {
+  lines: ReturnType<typeof useOahReplState>["messages"];
+  workspace: ReturnType<typeof useOahReplState>["currentWorkspace"];
+  session: ReturnType<typeof useOahReplState>["currentSession"];
+  serviceUrl: string;
+  systemProfile: ReturnType<typeof useOahReplState>["systemProfile"];
+  height: number;
+  columns: number;
+}): { staticItems: TranscriptItem[]; liveLines: ReturnType<typeof useOahReplState>["messages"] } {
+  if (!input.session || input.lines.length === 0) {
+    return {
+      staticItems: getTranscriptItems({
+        lines: [],
+        workspace: input.workspace,
+        session: input.session,
+        serviceUrl: input.serviceUrl,
+        systemProfile: input.systemProfile,
+        height: input.height,
+        columns: input.columns,
+        includeBanner: true
+      }),
+      liveLines: []
+    };
+  }
+
+  const staticLines = input.lines.slice(0, -1);
+  const liveLines = input.lines.slice(-1);
+  return {
+    staticItems: [
+      ...getTranscriptItems({
+        lines: [],
+        workspace: input.workspace,
+        session: input.session,
+        serviceUrl: input.serviceUrl,
+        systemProfile: input.systemProfile,
+        height: input.height,
+        columns: input.columns,
+        includeBanner: true
+      }),
+      ...getTranscriptLineItems(staticLines)
+    ],
+    liveLines
+  };
+}
+
+export function OahTui({
+  connection,
+  initialWorkspaceId,
+  sessionStartupMode
+}: {
+  connection: OahConnection;
+  initialWorkspaceId?: string | undefined;
+  sessionStartupMode?: SessionStartupMode | undefined;
+}) {
+  return (
+    <OahApp>
+      <OahRepl connection={connection} initialWorkspaceId={initialWorkspaceId} sessionStartupMode={sessionStartupMode} />
+    </OahApp>
+  );
+}

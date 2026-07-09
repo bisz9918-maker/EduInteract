@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e2e6ea; }
+        .scene2-text { font-family: sans-serif; font-size: 14px; fill: #000; }
+        .scene2-text-bold { font-weight: bold; }
+        .scene2-text-red { fill: #c62828; }
+        .scene2-text-blue { fill: #1565c0; }
+        .scene2-line { stroke: #000; stroke-width: 2; }
+        .scene2-line-dashed { stroke: #000; stroke-width: 2; stroke-dasharray: 4,4; }
+        .scene2-line-ext { stroke: #888; stroke-width: 1.5; stroke-dasharray: 4,4; }
+        .scene2-line-hl { stroke: #1565c0; stroke-width: 4; }
+        .scene2-halo { fill: none; stroke: #c62828; stroke-width: 3; opacity: 0.5; }
+        .scene2-outline-red { fill: none; stroke: #c62828; stroke-width: 3; }
+        .scene2-outline-blue { fill: none; stroke: #1565c0; stroke-width: 3; }
+        .scene2-node-a { fill: #000; }
+        .scene2-node-b { fill: #fff; stroke: #000; stroke-width: 2; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- Definitions -->
+            <defs>
+                <marker id="scene2-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />
+                </marker>
+            </defs>
+
+            <!-- Layer 1: Extended Cell Lines (Step 3) -->
+            <g id="scene2-layer-ext-lines"></g>
+
+            <!-- Layer 2: Main Cell Lines -->
+            <g id="scene2-layer-main-lines"></g>
+
+            <!-- Layer 3: Highlight Lines (Step 2, 3) -->
+            <g id="scene2-layer-hl-lines"></g>
+
+            <!-- Layer 4: Halos and Outlines -->
+            <g id="scene2-layer-halos"></g>
+
+            <!-- Layer 5: Nodes (A and B ions) -->
+            <g id="scene2-layer-nodes"></g>
+
+            <!-- Layer 6: Labels -->
+            <g id="scene2-layer-labels"></g>
+
+            <!-- Legend -->
+            <g id="scene2-legend" transform="translate(600, 120)">
+                <rect x="0" y="0" width="120" height="60" fill="none" stroke="#ccc" rx="4" />
+                <circle cx="20" cy="20" r="8" class="scene2-node-a" />
+                <text x="35" y="25" class="scene2-text">A 离子</text>
+                <circle cx="20" cy="40" r="8" class="scene2-node-b" />
+                <text x="35" y="45" class="scene2-text">B 离子</text>
+            </g>
+
+            <!-- Text Panel -->
+            <g id="scene2-text-panel" transform="translate(600, 200)">
+                <rect x="0" y="0" width="180" height="120" fill="#f8f9fa" stroke="#ccc" rx="4" />
+                <text id="scene2-panel-line1" x="10" y="25" class="scene2-text"></text>
+                <text id="scene2-panel-line2" x="10" y="50" class="scene2-text"></text>
+                <text id="scene2-panel-line3" x="10" y="75" class="scene2-text"></text>
+                <text id="scene2-panel-line4" x="10" y="100" class="scene2-text"></text>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const svg = document.getElementById('scene2-svg');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        const layerExtLines = document.getElementById('scene2-layer-ext-lines');
+        const layerMainLines = document.getElementById('scene2-layer-main-lines');
+        const layerHlLines = document.getElementById('scene2-layer-hl-lines');
+        const layerHalos = document.getElementById('scene2-layer-halos');
+        const layerNodes = document.getElementById('scene2-layer-nodes');
+        const layerLabels = document.getElementById('scene2-layer-labels');
+        
+        const panelLines = [
+            document.getElementById('scene2-panel-line1'),
+            document.getElementById('scene2-panel-line2'),
+            document.getElementById('scene2-panel-line3'),
+            document.getElementById('scene2-panel-line4')
+        ];
+
+        // State
+        let state = {
+            step: 0,
+            scale: 1.0,
+            originX: 280,
+            originY: 340,
+            baseSize: 160
+        };
+
+        // 3D Coordinates (x, y, z) in units of baseSize
+        // V0: (0,0,0) - A
+        // V1: (1,0,0) - B
+        // V2: (0,1,0) - B
+        // V3: (1,1,0) - A
+        // V4: (0,0,1) - B
+        // V5: (1,0,1) - A
+        // V6: (0,1,1) - A
+        // V7: (1,1,1) - B
+        const vertices = [
+            { id: 'v0', x: 0, y: 0, z: 0, type: 'A', labelOffset: [15, 15], fracOffset: [-20, 20] },
+            { id: 'v1', x: 1, y: 0, z: 0, type: 'B', labelOffset: [15, 15], fracOffset: [-20, 20] },
+            { id: 'v2', x: 0, y: 1, z: 0, type: 'B', labelOffset: [-15, -15], fracOffset: [-20, -20] },
+            { id: 'v3', x: 1, y: 1, z: 0, type: 'A', labelOffset: [15, -15], fracOffset: [20, 20] },
+            { id: 'v4', x: 0, y: 0, z: 1, type: 'B', labelOffset: [-15, 15], fracOffset: [-20, -20] },
+            { id: 'v5', x: 1, y: 0, z: 1, type: 'A', labelOffset: [15, 15], fracOffset: [20, 20] },
+            { id: 'v6', x: 0, y: 1, z: 1, type: 'A', labelOffset: [-15, -15], fracOffset: [-20, -20] },
+            { id: 'v7', x: 1, y: 1, z: 1, type: 'B', labelOffset: [15, -15], fracOffset: [20, -20] }
+        ];
+
+        // Edges for main cell
+        const edges = [
+            ['v0', 'v1'], ['v1', 'v3'], ['v3', 'v2'], ['v2', 'v0'], // bottom
+            ['v4', 'v5'], ['v5', 'v7'], ['v7', 'v6'], ['v6', 'v4'], // top
+            ['v0', 'v4'], ['v1', 'v5'], ['v2', 'v6'], ['v3', 'v7']  // vertical
+        ];
+
+        // Extended nodes (Step 3)
+        // V_ext_x: (-1,0,0) - B
+        // V_ext_y: (0,-1,0) - B
+        // V_ext_z: (0,0,-1) - B
+        const extVertices = [
+            { id: 'v_ext_x', x: -1, y: 0, z: 0, type: 'B' },
+            { id: 'v_ext_y', x: 0, y: -1, z: 0, type: 'B' },
+            { id: 'v_ext_z', x: 0, y: 0, z: -1, type: 'B' }
+        ];
+
+        // Extended edges (Step 3)
+        const extEdges = [
+            // -x cell
+            ['v0', 'v_ext_x'], ['v_ext_x', {x:-1,y:1,z:0}], [{x:-1,y:1,z:0}, 'v2'],
+            ['v4', {x:-1,y:0,z:1}], [{x:-1,y:0,z:1}, {x:-1,y:1,z:1}], [{x:-1,y:1,z:1}, 'v6'],
+            ['v_ext_x', {x:-1,y:0,z:1}], [{x:-1,y:1,z:0}, {x:-1,y:1,z:1}],
+            // -y cell
+            ['v0', 'v_ext_y'], ['v_ext_y', {x:1,y:-1,z:0}], [{x:1,y:-1,z:0}, 'v1'],
+            ['v4', {x:0,y:-1,z:1}], [{x:0,y:-1,z:1}, {x:1,y:-1,z:1}], [{x:1,y:-1,z:1}, 'v5'],
+            ['v_ext_y', {x:0,y:-1,z:1}], [{x:1,y:-1,z:0}, {x:1,y:-1,z:1}],
+            // -z cell
+            ['v0', 'v_ext_z'], ['v_ext_z', {x:1,y:0,z:-1}], [{x:1,y:0,z:-1}, 'v1'],
+            ['v2', {x:0,y:1,z:-1}], [{x:0,y:1,z:-1}, {x:1,y:1,z:-1}], [{x:1,y:1,z:-1}, 'v3'],
+            ['v_ext_z', {x:0,y:1,z:-1}], [{x:1,y:0,z:-1}, {x:1,y:1,z:-1}]
+        ];
+
+        // Projection function
+        function project(x, y, z) {
+            const s = state.scale * state.baseSize;
+            const px = state.originX + (x + z * 0.5) * s;
+            const py = state.originY - (y + z * 0.5) * s;
+            return { px, py };
+        }
+
+        // Create SVG element helper
+        function createSVG(tag, attrs) {
+            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+            for (let k in attrs) {
+                el.setAttribute(k, attrs[k]);
+            }
+            return el;
+        }
+
+        // Initialize DOM elements
+        const domElements = {};
+
+        function initDOM() {
+            // Main edges
+            edges.forEach((edge, i) => {
+                const isDashed = (edge[0] === 'v0' && edge[1] === 'v2') || 
+                                 (edge[0] === 'v2' && edge[1] === 'v0') ||
+                                 (edge[0] === 'v0' && edge[1] === 'v4') ||
+                                 (edge[0] === 'v4' && edge[1] === 'v0') ||
+                                 (edge[0] === 'v2' && edge[1] === 'v6') ||
+                                 (edge[0] === 'v6' && edge[1] === 'v2'); // v0-v2, v0-v4, v2-v6 are back edges
+                
+                // Actually, v0 is front-bottom-left.
+                // Let's re-evaluate visibility.
+                // Origin (0,0,0) is v0. z goes back-right. x goes right. y goes up.
+                // So v0 is front-bottom-left.
+                // v4 (0,0,1) is back-bottom-left.
+                // v2 (0,1,0) is front-top-left.
+                // v6 (0,1,1) is back-top-left.
+                // Back edges are those connected to v4, v6, v5, v7?
+                // Wait, standard projection: x right, y up, z back-right.
+                // Back faces are z=1, x=0, y=0?
+                // Let's just use simple dashed for v4-v5, v4-v6, v0-v4? No, v4 is back.
+                // Let's just make v4-v5, v4-v6, v0-v4 dashed.
+                const dashed = (edge.includes('v4') && edge.includes('v5')) ||
+                               (edge.includes('v4') && edge.includes('v6')) ||
+                               (edge.includes('v0') && edge.includes('v4'));
+
+                const line = createSVG('line', {
+                    id: `scene2-edge-${i}`,
+                    class: dashed ? 'scene2-line-dashed' : 'scene2-line'
+                });
+                layerMainLines.appendChild(line);
+                domElements[`edge-${i}`] = line;
+            });
+
+            // Extended edges
+            extEdges.forEach((edge, i) => {
+                const line = createSVG('line', {
+                    id: `scene2-ext-edge-${i}`,
+                    class: 'scene2-line-ext',
+                    opacity: 0
+                });
+                layerExtLines.appendChild(line);
+                domElements[`ext-edge-${i}`] = line;
+            });
+
+            // Highlight lines (Step 2, 3)
+            const hlEdges = [
+                ['v0', 'v1'], ['v0', 'v2'], ['v0', 'v4'], // Step 2
+                ['v0', 'v_ext_x'], ['v0', 'v_ext_y'], ['v0', 'v_ext_z'] // Step 3
+            ];
+            hlEdges.forEach((edge, i) => {
+                const line = createSVG('line', {
+                    id: `scene2-hl-edge-${i}`,
+                    class: 'scene2-line-hl',
+                    opacity: 0
+                });
+                layerHlLines.appendChild(line);
+                domElements[`hl-edge-${i}`] = line;
+            });
+
+            // Halos (Step 1)
+            vertices.forEach(v => {
+                const halo = createSVG('circle', {
+                    id: `scene2-halo-${v.id}`,
+                    class: 'scene2-halo',
+                    r: 14,
+                    opacity: 0
+                });
+                layerHalos.appendChild(halo);
+                domElements[`halo-${v.id}`] = halo;
+            });
+
+            // Outlines (Step 2, 3)
+            const outlineV0 = createSVG('circle', { id: 'scene2-outline-v0', class: 'scene2-outline-red', r: 12, opacity: 0 });
+            layerHalos.appendChild(outlineV0);
+            domElements['outline-v0'] = outlineV0;
+
+            ['v1', 'v2', 'v4', 'v_ext_x', 'v_ext_y', 'v_ext_z'].forEach(id => {
+                const outline = createSVG('circle', {
+                    id: `scene2-outline-${id}`,
+                    class: 'scene2-outline-blue',
+                    r: 12,
+                    opacity: 0
+                });
+                layerHalos.appendChild(outline);
+                domElements[`outline-${id}`] = outline;
+            });
+
+            // Nodes
+            vertices.forEach(v => {
+                const circle = createSVG('circle', {
+                    id: `scene2-node-${v.id}`,
+                    class: v.type === 'A' ? 'scene2-node-a' : 'scene2-node-b',
+                    r: 8
+                });
+                layerNodes.appendChild(circle);
+                domElements[`node-${v.id}`] = circle;
+
+                // Labels A/B
+                if (v.id === 'v0' || v.id === 'v1') {
+                    const label = createSVG('text', {
+                        id: `scene2-label-${v.id}`,
+                        class: 'scene2-text scene2-text-bold',
+                        'text-anchor': 'middle',
+                        'dominant-baseline': 'middle'
+                    });
+                    label.textContent = v.type;
+                    layerLabels.appendChild(label);
+                    domElements[`label-${v.id}`] = label;
+                }
+
+                // Fraction labels (Step 1)
+                const frac = createSVG('text', {
+                    id: `scene2-frac-${v.id}`,
+                    class: 'scene2-text scene2-text-red',
+                    'text-anchor': 'middle',
+                    'dominant-baseline': 'middle',
+                    opacity: 0
+                });
+                frac.textContent = '1/8';
+                layerLabels.appendChild(frac);
+                domElements[`frac-${v.id}`] = frac;
+            });
+
+            // Extended nodes
+            extVertices.forEach(v => {
+                const circle = createSVG('circle', {
+                    id: `scene2-node-${v.id}`,
+                    class: 'scene2-node-b',
+                    r: 8,
+                    opacity: 0
+                });
+                layerNodes.appendChild(circle);
+                domElements[`node-${v.id}`] = circle;
+            });
+        }
+
+        function updatePositions() {
+            // Update main edges
+            edges.forEach((edge, i) => {
+                const v1 = vertices.find(v => v.id === edge[0]);
+                const v2 = vertices.find(v => v.id === edge[1]);
+                const p1 = project(v1.x, v1.y, v1.z);
+                const p2 = project(v2.x, v2.y, v2.z);
+                const line = domElements[`edge-${i}`];
+                line.setAttribute('x1', p1.px);
+                line.setAttribute('y1', p1.py);
+                line.setAttribute('x2', p2.px);
+                line.setAttribute('y2', p2.py);
+            });
+
+            // Update extended edges
+            extEdges.forEach((edge, i) => {
+                const getCoords = (v) => {
+                    if (typeof v === 'string') {
+                        let node = vertices.find(n => n.id === v) || extVertices.find(n => n.id === v);
+                        return { x: node.x, y: node.y, z: node.z };
+                    }
+                    return v;
+                };
+                const c1 = getCoords(edge[0]);
+                const c2 = getCoords(edge[1]);
+                const p1 = project(c1.x, c1.y, c1.z);
+                const p2 = project(c2.x, c2.y, c2.z);
+                const line = domElements[`ext-edge-${i}`];
+                line.setAttribute('x1', p1.px);
+                line.setAttribute('y1', p1.py);
+                line.setAttribute('x2', p2.px);
+                line.setAttribute('y2', p2.py);
+            });
+
+            // Update highlight lines
+            const hlEdges = [
+                ['v0', 'v1'], ['v0', 'v2'], ['v0', 'v4'],
+                ['v0', 'v_ext_x'], ['v0', 'v_ext_y'], ['v0', 'v_ext_z']
+            ];
+            hlEdges.forEach((edge, i) => {
+                const v1 = vertices.find(v => v.id === edge[0]) || extVertices.find(v => v.id === edge[0]);
+                const v2 = vertices.find(v => v.id === edge[1]) || extVertices.find(v => v.id === edge[1]);
+                const p1 = project(v1.x, v1.y, v1.z);
+                const p2 = project(v2.x, v2.y, v2.z);
+                const line = domElements[`hl-edge-${i}`];
+                line.setAttribute('x1', p1.px);
+                line.setAttribute('y1', p1.py);
+                line.setAttribute('x2', p2.px);
+                line.setAttribute('y2', p2.py);
+            });
+
+            // Update nodes, halos, outlines, labels
+            vertices.forEach(v => {
+                const p = project(v.x, v.y, v.z);
+                
+                domElements[`node-${v.id}`].setAttribute('cx', p.px);
+                domElements[`node-${v.id}`].setAttribute('cy', p.py);
+                
+                domElements[`halo-${v.id}`].setAttribute('cx', p.px);
+                domElements[`halo-${v.id}`].setAttribute('cy', p.py);
+
+                if (v.id === 'v0') {
+                    domElements['outline-v0'].setAttribute('cx', p.px);
+                    domElements['outline-v0'].setAttribute('cy', p.py);
+                }
+                if (['v1', 'v2', 'v4'].includes(v.id)) {
+                    domElements[`outline-${v.id}`].setAttribute('cx', p.px);
+                    domElements[`outline-${v.id}`].setAttribute('cy', p.py);
+                }
+
+                if (v.id === 'v0' || v.id === 'v1') {
+                    domElements[`label-${v.id}`].setAttribute('x', p.px + v.labelOffset[0]);
+                    domElements[`label-${v.id}`].setAttribute('y', p.py + v.labelOffset[1]);
+                }
+
+                domElements[`frac-${v.id}`].setAttribute('x', p.px + v.fracOffset[0]);
+                domElements[`frac-${v.id}`].setAttribute('y', p.py + v.fracOffset[1]);
+            });
+
+            extVertices.forEach(v => {
+                const p = project(v.x, v.y, v.z);
+                domElements[`node-${v.id}`].setAttribute('cx', p.px);
+                domElements[`node-${v.id}`].setAttribute('cy', p.py);
+                domElements[`outline-${v.id}`].setAttribute('cx', p.px);
+                domElements[`outline-${v.id}`].setAttribute('cy', p.py);
+            });
+        }
+
+        function setOpacity(id, opacity) {
+            if (domElements[id]) {
+                domElements[id].setAttribute('opacity', opacity);
+            }
+        }
+
+        function updateVisibility() {
+            // Step 1: Halos and fractions
+            const step1Op = state.step === 1 ? 1 : 0;
+            vertices.forEach(v => {
+                setOpacity(`halo-${v.id}`, step1Op);
+                setOpacity(`frac-${v.id}`, step1Op);
+            });
+
+            // Step 2 & 3: Outlines and highlight lines
+            const step23Op = state.step >= 2 ? 1 : 0;
+            setOpacity('outline-v0', step23Op);
+            ['v1', 'v2', 'v4'].forEach(id => setOpacity(`outline-${id}`, step23Op));
+            [0, 1, 2].forEach(i => setOpacity(`hl-edge-${i}`, step23Op));
+
+            // Step 3: Extended elements
+            const step3Op = state.step === 3 ? 1 : 0;
+            extEdges.forEach((_, i) => setOpacity(`ext-edge-${i}`, step3Op));
+            ['v_ext_x', 'v_ext_y', 'v_ext_z'].forEach(id => {
+                setOpacity(`node-${id}`, step3Op);
+                setOpacity(`outline-${id}`, step3Op);
+            });
+            [3, 4, 5].forEach(i => setOpacity(`hl-edge-${i}`, step3Op));
+
+            // Update Text Panel
+            panelLines.forEach(l => l.textContent = '');
+            if (state.step === 0) {
+                panelLines[0].textContent = '观察晶胞结构：';
+                panelLines[1].textContent = '顶点交替分布 A、B 离子';
+            } else if (state.step === 1) {
+                panelLines[0].textContent = '均摊法计算：';
+                panelLines[1].textContent = 'A离子: 4 × 1/8 = 1/2';
+                panelLines[2].textContent = 'B离子: 4 × 1/8 = 1/2';
+                panelLines[3].textContent = '化学式: AB';
+                panelLines[3].setAttribute('class', 'scene2-text scene2-text-bold scene2-text-red');
+            } else if (state.step === 2) {
+                panelLines[0].textContent = '配位数分析 (单晶胞)：';
+                panelLines[1].textContent = '当前晶胞内：';
+                panelLines[2].textContent = '与A直接相连的B离子有 3 个';
+                panelLines[2].setAttribute('class', 'scene2-text scene2-text-bold scene2-text-blue');
+            } else if (state.step === 3) {
+                panelLines[0].textContent = '配位数分析 (空间扩展)：';
+                panelLines[1].textContent = '空间扩展后：';
+                panelLines[2].textContent = '新增 3 个B离子';
+                panelLines[3].textContent = '配位数 = 6';
+                panelLines[3].setAttribute('class', 'scene2-text scene2-text-bold scene2-text-blue');
+            }
+        }
+
+        // Animation
+        let animReq;
+        function animateTo(targetScale, targetX, targetY, duration = 800) {
+            if (animReq) cancelAnimationFrame(animReq);
+            
+            const startScale = state.scale;
+            const startX = state.originX;
+            const startY = state.originY;
+            const startTime = performance.now();
+
+            function step(time) {
+                let progress = (time - startTime) / duration;
+                if (progress > 1) progress = 1;
+                
+                // Ease in out
+                const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+
+                state.scale = startScale + (targetScale - startScale) * ease;
+                state.originX = startX + (targetX - startX) * ease;
+                state.originY = startY + (targetY - startY) * ease;
+
+                updatePositions();
+
+                if (progress < 1) {
+                    animReq = requestAnimationFrame(step);
+                }
+            }
+            animReq = requestAnimationFrame(step);
+        }
+
+        function renderStep() {
+            btnPrev.disabled = state.step === 0;
+            btnNext.disabled = state.step === 3;
+
+            updateVisibility();
+
+            if (state.step === 3) {
+                animateTo(0.6, 400, 220);
+            } else {
+                animateTo(1.0, 280, 340);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (state.step > 0) {
+                state.step--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (state.step < 3) {
+                state.step++;
+                renderStep();
+            }
+        });
+
+        // Init
+        initDOM();
+        updatePositions();
+        updateVisibility();
+
+    })();
+    </script>
+</body>
+</html>

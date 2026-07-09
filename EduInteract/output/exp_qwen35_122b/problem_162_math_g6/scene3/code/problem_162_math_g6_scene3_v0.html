@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>凹槽对周长的影响 - Scene 3</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            background: #1565c0;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .scene3-btn:hover { background: #0d47a1; }
+        .scene3-btn.active { background: #0d47a1; box-shadow: 0 0 8px rgba(21, 101, 192, 0.6); }
+        
+        /* 凹槽红色闪烁动画 */
+        @keyframes scene3-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .scene3-pulse {
+            animation: scene3-pulse 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 标题（下移以避免裁切） -->
+            <text id="scene3-title" x="400" y="50" text-anchor="middle" font-size="18" font-weight="bold" fill="#000000">
+                凹槽对周长的影响
+            </text>
+            
+            <!-- 完整长方形（灰色虚线参考） -->
+            <rect id="scene3-rect-full" x="150" y="170" width="200" height="150" 
+                  fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"
+                  opacity="1" class="scene3-shape"/>
+            
+            <!-- 完整长方形尺寸标注 -->
+            <text id="scene3-label-full-bottom" x="250" y="340" text-anchor="middle" font-size="14" fill="#000000">
+                10
+            </text>
+            <text id="scene3-label-full-right" x="360" y="245" text-anchor="start" font-size="14" fill="#000000">
+                6
+            </text>
+            
+            <!-- 完整长方形周长标注（下移以增加间距） -->
+            <text id="scene3-label-full-perimeter" x="250" y="380" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">
+                周长=32
+            </text>
+            
+            <!-- 凹形图形轮廓（黑色实线） -->
+            <polyline id="scene3-poly-concave" 
+                      points="450,170 520,170 520,200 580,200 580,170 650,170 650,320 450,320"
+                      fill="none" stroke="#000000" stroke-width="2"
+                      opacity="1" class="scene3-shape"/>
+            
+            <!-- 凹槽部分红色高亮 -->
+            <line id="scene3-line-concave-left" x1="520" y1="170" x2="520" y2="200"
+                  stroke="#c62828" stroke-width="3" opacity="1" class="scene3-highlight"/>
+            <line id="scene3-line-concave-top" x1="520" y1="200" x2="580" y2="200"
+                  stroke="#c62828" stroke-width="3" opacity="1" class="scene3-highlight"/>
+            <line id="scene3-line-concave-right" x1="580" y1="200" x2="580" y2="170"
+                  stroke="#c62828" stroke-width="3" opacity="1" class="scene3-highlight"/>
+            
+            <!-- 凹形图形尺寸标注 -->
+            <text id="scene3-label-concave-bottom" x="550" y="340" text-anchor="middle" font-size="14" fill="#000000">
+                10
+            </text>
+            <text id="scene3-label-concave-right" x="660" y="245" text-anchor="start" font-size="14" fill="#000000">
+                6
+            </text>
+            
+            <!-- 凹槽深度和宽度标注（移到凹槽内部，避免与轮廓重叠） -->
+            <text id="scene3-label-concave-depth" x="532" y="185" text-anchor="start" font-size="12" fill="#c62828">
+                h=3
+            </text>
+            <text id="scene3-label-concave-width" x="550" y="198" text-anchor="middle" font-size="12" fill="#c62828">
+                w=6
+            </text>
+            
+            <!-- 凹形周长标注（下移以增加间距） -->
+            <text id="scene3-label-concave-perimeter" x="550" y="380" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">
+                周长=36
+            </text>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-full" class="scene3-btn">完整长方形</button>
+            <button id="scene3-btn-concave" class="scene3-btn active">凹形图形</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现
+        // 布局坐标表对照（已调整）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 完整长方形参考 | 矩形 | (150,170)-(350,320) | 200×150 | - | 灰色虚线 |
+        // | 完整长方形底边标注 | text | (250,340) | ~20×16 | 下方 | 显示"10" |
+        // | 完整长方形右边标注 | text | (360,245) | ~16×16 | 右侧 | 显示"6" |
+        // | 完整长方形周长标注 | text | (250,380) | ~60×16 | 下方 | 显示"周长=32" |
+        // | 凹形图形轮廓 | 多段线 | (450,170)-(650,320) | 200×150 | - | 黑色实线 |
+        // | 凹槽左竖边 | 线段 | (520,170)-(520,200) | 4×30 | 左侧 | 红色高亮 |
+        // | 凹槽顶边 | 线段 | (520,200)-(580,200) | 60×4 | 上方 | 红色高亮 |
+        // | 凹槽右竖边 | 线段 | (580,200)-(580,170) | 4×30 | 右侧 | 红色高亮 |
+        // | 凹形图形底边标注 | text | (550,340) | ~20×16 | 下方 | 显示"10" |
+        // | 凹形图形右边标注 | text | (660,245) | ~16×16 | 右侧 | 显示"6" |
+        // | 凹槽深度标注 | text | (532,185) | ~20×16 | 左侧 | 显示"h=3"（凹槽内） |
+        // | 凹槽宽度标注 | text | (550,198) | ~20×16 | 上方 | 显示"w=6"（凹槽内） |
+        // | 凹形周长标注 | text | (550,380) | ~60×16 | 下方 | 显示"周长=36" |
+        // | 标题 | text | (400,50) | ~160×20 | - | "凹槽对周长的影响" |
+        // | 按钮 - 完整长方形 | button | (280,450) | 120×35 | - | 左侧按钮 |
+        // | 按钮 - 凹形图形 | button | (480,450) | 120×35 | - | 右侧按钮 |
+        
+        // 状态机：0=初始（两个都显示），1=完整长方形高亮，2=凹形图形高亮
+        let currentState = 2; // 初始状态为凹形图形高亮
+        
+        // 获取 DOM 元素
+        const rectFull = document.getElementById('scene3-rect-full');
+        const polyConcave = document.getElementById('scene3-poly-concave');
+        const lineConcaveLeft = document.getElementById('scene3-line-concave-left');
+        const lineConcaveTop = document.getElementById('scene3-line-concave-top');
+        const lineConcaveRight = document.getElementById('scene3-line-concave-right');
+        const labelFullPerimeter = document.getElementById('scene3-label-full-perimeter');
+        const labelConcavePerimeter = document.getElementById('scene3-label-concave-perimeter');
+        const btnFull = document.getElementById('scene3-btn-full');
+        const btnConcave = document.getElementById('scene3-btn-concave');
+        
+        // 工具函数：设置元素透明度
+        function setOpacity(el, opacity) {
+            el.style.opacity = String(opacity);
+        }
+        
+        // 工具函数：设置线条宽度
+        function setStrokeWidth(el, width) {
+            el.style.strokeWidth = String(width) + 'px';
+        }
+        
+        // 工具函数：设置颜色
+        function setStrokeColor(el, color) {
+            el.style.stroke = color;
+        }
+        
+        // 工具函数：添加/移除闪烁动画
+        function addPulse(el) {
+            el.classList.add('scene3-pulse');
+        }
+        function removePulse(el) {
+            el.classList.remove('scene3-pulse');
+        }
+        
+        // 工具函数：高亮周长标签
+        function highlightPerimeter(el) {
+            el.style.fontWeight = 'bold';
+            el.style.fill = '#2e7d32';
+            el.style.fontSize = '16px';
+        }
+        function normalPerimeter(el) {
+            el.style.fontWeight = 'normal';
+            el.style.fill = '#2e7d32';
+            el.style.fontSize = '14px';
+        }
+        
+        // 状态 1：完整长方形高亮
+        function showFullRect() {
+            currentState = 1;
+            
+            // 完整长方形：加粗、不透明
+            setOpacity(rectFull, 1);
+            setStrokeWidth(rectFull, 3);
+            setStrokeColor(rectFull, '#1565c0');
+            highlightPerimeter(labelFullPerimeter);
+            
+            // 凹形图形：变淡
+            setOpacity(polyConcave, 0.5);
+            setOpacity(lineConcaveLeft, 0.5);
+            setOpacity(lineConcaveTop, 0.5);
+            setOpacity(lineConcaveRight, 0.5);
+            removePulse(lineConcaveLeft);
+            removePulse(lineConcaveTop);
+            removePulse(lineConcaveRight);
+            normalPerimeter(labelConcavePerimeter);
+            
+            // 按钮状态
+            btnFull.classList.add('active');
+            btnConcave.classList.remove('active');
+        }
+        
+        // 状态 2：凹形图形高亮
+        function showConcave() {
+            currentState = 2;
+            
+            // 完整长方形：变淡
+            setOpacity(rectFull, 0.5);
+            setStrokeWidth(rectFull, 2);
+            setStrokeColor(rectFull, '#888888');
+            normalPerimeter(labelFullPerimeter);
+            
+            // 凹形图形：不透明、红色闪烁
+            setOpacity(polyConcave, 1);
+            setOpacity(lineConcaveLeft, 1);
+            setOpacity(lineConcaveTop, 1);
+            setOpacity(lineConcaveRight, 1);
+            addPulse(lineConcaveLeft);
+            addPulse(lineConcaveTop);
+            addPulse(lineConcaveRight);
+            highlightPerimeter(labelConcavePerimeter);
+            
+            // 按钮状态
+            btnFull.classList.remove('active');
+            btnConcave.classList.add('active');
+        }
+        
+        // 事件绑定
+        btnFull.addEventListener('click', showFullRect);
+        btnConcave.addEventListener('click', showConcave);
+        
+        // 初始化：显示凹形图形高亮状态
+        showConcave();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三个圆的位置关系与重叠区域</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; font-weight: bold; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 定义重叠区域的 clipPath -->
+            <defs>
+                <!-- 圆A与圆B的交集 -->
+                <clipPath id="scene1-clip-ab">
+                    <circle cx="220" cy="250" r="80"/>
+                </clipPath>
+                <!-- 圆B与圆C的交集 -->
+                <clipPath id="scene1-clip-bc">
+                    <circle cx="520" cy="330" r="80"/>
+                </clipPath>
+            </defs>
+
+            <!-- 直线 a -->
+            <line id="scene1-line-a" x1="50" y1="250" x2="750" y2="250" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-a" x="760" y="235" font-size="16" fill="#000000" opacity="0">a</text>
+
+            <!-- 圆 A -->
+            <circle id="scene1-circle-a" cx="220" cy="250" r="80" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 圆 B -->
+            <circle id="scene1-circle-b" cx="420" cy="250" r="80" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 圆 C -->
+            <circle id="scene1-circle-c" cx="520" cy="330" r="80" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 重叠区1：圆A与圆B交集 (灰色半透明) -->
+            <!-- 使用 path 绘制两圆交集的透镜形状 -->
+            <path id="scene1-overlap1" d="M 300 250 
+                A 80 80 0 0 1 280 310 
+                A 80 80 0 0 1 300 250 
+                Z" 
+                fill="#888888" fill-opacity="0.3" stroke="none" opacity="0"/>
+
+            <!-- 重叠区2：圆B与圆C交集 (灰色半透明) -->
+            <path id="scene1-overlap2" d="M 480 290 
+                A 80 80 0 0 1 540 350 
+                A 80 80 0 0 1 480 290 
+                Z" 
+                fill="#888888" fill-opacity="0.3" stroke="none" opacity="0"/>
+
+            <!-- 圆心 A 点 -->
+            <circle id="scene1-center-a" cx="220" cy="250" r="4" fill="#1565c0" opacity="0"/>
+            <!-- 圆心 B 点 -->
+            <circle id="scene1-center-b" cx="420" cy="250" r="4" fill="#1565c0" opacity="0"/>
+
+            <!-- 标签 A -->
+            <text id="scene1-label-A" x="220" y="225" font-size="16" fill="#000000" text-anchor="middle" opacity="0">A</text>
+            <!-- 标签 B -->
+            <text id="scene1-label-B" x="420" y="225" font-size="16" fill="#000000" text-anchor="middle" opacity="0">B</text>
+
+            <!-- 标签 x(左) -->
+            <text id="scene1-label-x1" x="320" y="255" font-size="14" fill="#000000" text-anchor="middle" opacity="0">x</text>
+            <!-- 标签 x(右) -->
+            <text id="scene1-label-x2" x="485" y="305" font-size="14" fill="#000000" text-anchor="middle" opacity="0">x</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 元素引用
+        const elements = {
+            // 步骤1显示的元素
+            step1: [
+                document.getElementById('scene1-center-a'),
+                document.getElementById('scene1-center-b'),
+                document.getElementById('scene1-label-A'),
+                document.getElementById('scene1-label-B'),
+                document.getElementById('scene1-label-a')
+            ],
+            // 步骤2显示的元素
+            step2: [
+                document.getElementById('scene1-overlap1'),
+                document.getElementById('scene1-overlap2')
+            ],
+            // 步骤3显示的元素
+            step3: [
+                document.getElementById('scene1-label-x1'),
+                document.getElementById('scene1-label-x2')
+            ]
+        };
+
+        // 显示/隐藏元素工具函数
+        function showElement(el) {
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = '';
+            }
+        }
+
+        function hideElement(el) {
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+
+        // 更新视图
+        function updateView() {
+            // 隐藏所有步骤元素
+            elements.step1.forEach(el => hideElement(el));
+            elements.step2.forEach(el => hideElement(el));
+            elements.step3.forEach(el => hideElement(el));
+
+            // 根据当前步骤显示相应元素
+            if (currentStep >= 1) {
+                elements.step1.forEach(el => showElement(el));
+            }
+            if (currentStep >= 2) {
+                elements.step2.forEach(el => showElement(el));
+            }
+            if (currentStep >= 3) {
+                elements.step3.forEach(el => showElement(el));
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentStep;
+
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps - 1);
+        }
+
+        // 按钮事件
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateView();
+            }
+        });
+
+        // 初始化视图
+        updateView();
+    })();
+    </script>
+</body>
+</html>

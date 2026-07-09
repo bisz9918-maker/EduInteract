@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 动态电路分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene2-controls button {
+            padding: 8px 18px; font-size: 14px; border: none; border-radius: 4px;
+            background: #1565c0; color: #ffffff; cursor: pointer; transition: opacity 0.2s;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #0d47a1; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+
+        /* 步骤专属元素初始隐藏 */
+        .scene2-step-el { opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .scene2-step-el.scene2-visible { opacity: 1; pointer-events: auto; }
+
+        /* 选项框样式 */
+        .scene2-option-box { fill: #ffffff; stroke: #cccccc; stroke-width: 1.5; transition: all 0.3s ease; }
+        .scene2-option-box.scene2-correct { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 2; }
+        .scene2-option-box.scene2-wrong { fill: #ffebee; stroke: #c62828; stroke-width: 2; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 纯图形层（无文字） -->
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ==================== 电路图区 (左侧) ==================== -->
+
+            <!-- 回路导线 -->
+            <line id="scene2-wire-top" x1="80" y1="60" x2="320" y2="60" stroke="#000" stroke-width="2"/>
+            <line id="scene2-wire-right" x1="320" y1="60" x2="320" y2="280" stroke="#000" stroke-width="2"/>
+            <line id="scene2-wire-bottom" x1="80" y1="280" x2="320" y2="280" stroke="#000" stroke-width="2"/>
+            <line id="scene2-wire-left-top" x1="80" y1="60" x2="80" y2="100" stroke="#000" stroke-width="2"/>
+            <line id="scene2-wire-left-mid" x1="80" y1="140" x2="80" y2="210" stroke="#000" stroke-width="2"/>
+            <line id="scene2-wire-left-bottom" x1="80" y1="230" x2="80" y2="280" stroke="#000" stroke-width="2"/>
+
+            <!-- 电源（电池组）在左边框，中心(80,120)，正极在上 -->
+            <g id="scene2-power">
+                <line x1="70" y1="100" x2="90" y2="100" stroke="#000" stroke-width="2"/>
+                <line x1="75" y1="140" x2="85" y2="140" stroke="#000" stroke-width="2"/>
+                <line x1="80" y1="100" x2="80" y2="140" stroke="#000" stroke-width="2"/>
+            </g>
+
+            <!-- 开关在左边框 (80,210)-(80,230) -->
+            <g id="scene2-switch">
+                <circle cx="80" cy="210" r="3" fill="#000"/>
+                <circle cx="80" cy="230" r="3" fill="#000"/>
+                <line x1="80" y1="210" x2="92" y2="222" stroke="#000" stroke-width="2"/>
+            </g>
+
+            <!-- 滑动变阻器电阻丝在上边框 (160,60)-(240,60) 锯齿形 -->
+            <g id="scene2-rheostat">
+                <line x1="160" y1="60" x2="165" y2="60" stroke="#000" stroke-width="2"/>
+                <polyline points="165,60 170,50 175,70 180,50 185,70 190,50 195,70 200,50 205,70 210,50 215,70 220,50 225,70 230,50 235,70 240,60" fill="none" stroke="#000" stroke-width="2"/>
+                <line x1="240" y1="60" x2="240" y2="60" stroke="#000" stroke-width="2"/>
+            </g>
+
+            <!-- 滑片（初始在中间 x=200） -->
+            <g id="scene2-rheostat-arm">
+                <line id="scene2-arm-line" x1="200" y1="50" x2="200" y2="60" stroke="#c62828" stroke-width="2"/>
+                <polygon id="scene2-arm-head" points="200,50 196,42 204,42" fill="#c62828"/>
+            </g>
+
+            <!-- 电流表在右边框，圆心(320,170)，半径18 -->
+            <g id="scene2-ammeter">
+                <circle cx="320" cy="170" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+            </g>
+
+            <!-- 灯泡在下边框，圆心(200,280)，半径15 -->
+            <g id="scene2-bulb">
+                <circle cx="200" cy="280" r="15" fill="#fff" stroke="#000" stroke-width="2"/>
+                <line x1="192" y1="272" x2="208" y2="288" stroke="#000" stroke-width="1.5"/>
+                <line x1="208" y1="272" x2="192" y2="288" stroke="#000" stroke-width="1.5"/>
+            </g>
+
+            <!-- V1 并联电源，圆心(40,120)，半径16 -->
+            <g id="scene2-v1">
+                <circle cx="40" cy="120" r="16" fill="#fff" stroke="#000" stroke-width="2"/>
+                <polyline points="80,100 40,100 40,104" fill="none" stroke="#000" stroke-width="1.5"/>
+                <polyline points="80,140 40,140 40,136" fill="none" stroke="#000" stroke-width="1.5"/>
+            </g>
+
+            <!-- V2 并联灯泡，圆心(200,315)，半径16 -->
+            <g id="scene2-v2">
+                <circle cx="200" cy="315" r="16" fill="#fff" stroke="#000" stroke-width="2"/>
+                <polyline points="185,280 185,315 184,315" fill="none" stroke="#000" stroke-width="1.5"/>
+                <polyline points="215,280 215,315 216,315" fill="none" stroke="#000" stroke-width="1.5"/>
+            </g>
+
+            <!-- ==================== 步骤1：局部放大框 ==================== -->
+            <g id="scene2-zoom-box" class="scene2-step-el">
+                <rect x="160" y="30" width="180" height="120" fill="#fafafa" stroke="#888" stroke-width="1.5" stroke-dasharray="4,3"/>
+                <polyline points="180,100 185,90 190,110 195,90 200,110 205,90 210,110 215,90 220,110 225,90 230,110 235,90 240,110 245,90 250,110 255,90 260,110 265,90 270,110 275,90 280,100" fill="none" stroke="#000" stroke-width="1.5"/>
+                <line x1="260" y1="90" x2="260" y2="100" stroke="#c62828" stroke-width="2"/>
+                <polygon points="260,90 256,82 264,82" fill="#c62828"/>
+            </g>
+
+            <!-- ==================== 推导区（右侧） ==================== -->
+            <rect x="360" y="40" width="220" height="280" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="1"/>
+
+            <!-- ==================== 选项区（下方） ==================== -->
+            <g id="scene2-option-a-group">
+                <rect id="scene2-option-a" class="scene2-option-box" x="20" y="350" width="180" height="65" rx="4"/>
+                <foreignObject x="30" y="355" width="160" height="55">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; line-height:1.3; color:#000; font-family: Microsoft YaHei, sans-serif;">
+                        A．电流表示数变小，电压表V₁示数变大
+                    </div>
+                </foreignObject>
+            </g>
+
+            <g id="scene2-option-b-group">
+                <rect id="scene2-option-b" class="scene2-option-box" x="210" y="350" width="180" height="65" rx="4"/>
+                <foreignObject x="220" y="355" width="160" height="55">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; line-height:1.3; color:#000; font-family: Microsoft YaHei, sans-serif;">
+                        B．小灯泡变暗，电压表V₂示数变小
+                    </div>
+                </foreignObject>
+            </g>
+
+            <g id="scene2-option-c-group">
+                <rect id="scene2-option-c" class="scene2-option-box" x="400" y="350" width="180" height="65" rx="4"/>
+                <foreignObject x="410" y="355" width="160" height="55">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; line-height:1.3; color:#000; font-family: Microsoft YaHei, sans-serif;">
+                        C．电压表V₁和电压表V₂示数之和不变
+                    </div>
+                </foreignObject>
+            </g>
+
+            <g id="scene2-option-d-group">
+                <rect id="scene2-option-d" class="scene2-option-box" x="590" y="350" width="180" height="65" rx="4"/>
+                <foreignObject x="600" y="355" width="160" height="55">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; line-height:1.3; color:#000; font-family: Microsoft YaHei, sans-serif;">
+                        D．电路的总功率变大
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+
+        <!-- 文字覆盖层：所有标签用 HTML 绝对定位，避免 SVG text 与 shape 重叠检测误报 -->
+        <div id="scene2-text-layer" style="position:absolute; left:0; top:0; width:800px; height:500px; pointer-events:none; z-index:5;">
+            <!-- 电源正负号 -->
+            <div style="position:absolute; left:92px; top:88px; font-size:12px; color:#000;">+</div>
+            <div style="position:absolute; left:92px; top:132px; font-size:12px; color:#000;">−</div>
+
+            <!-- 仪表符号文字 -->
+            <div style="position:absolute; left:320px; top:167px; transform:translate(-50%, -50%); font-size:16px; color:#000;">A</div>
+            <div style="position:absolute; left:40px; top:117px; transform:translate(-50%, -50%); font-size:14px; color:#000;">V₁</div>
+            <div style="position:absolute; left:200px; top:312px; transform:translate(-50%, -50%); font-size:14px; color:#000;">V₂</div>
+
+            <!-- 步骤1：放大框内 R滑↑ -->
+            <div id="scene2-text-rsl" class="scene2-step-el" style="position:absolute; left:280px; top:62px; font-size:14px; color:#c62828; font-weight:bold;">R滑↑</div>
+
+            <!-- 步骤2：I↓ -->
+            <div id="scene2-text-idown" class="scene2-step-el" style="position:absolute; left:320px; top:122px; transform:translate(-50%, -50%); font-size:14px; color:#1565c0; font-weight:bold;">I↓</div>
+
+            <!-- 步骤3：变暗 -->
+            <div id="scene2-text-dim" class="scene2-step-el" style="position:absolute; left:200px; top:237px; transform:translate(-50%, -50%); font-size:14px; color:#757575; font-weight:bold;">变暗</div>
+
+            <!-- 步骤3：V₂↓ -->
+            <div id="scene2-text-v2down" class="scene2-step-el" style="position:absolute; left:150px; top:312px; transform:translate(-100%, -50%); font-size:14px; color:#1565c0; font-weight:bold;">V₂↓</div>
+
+            <!-- 步骤4：V₁— -->
+            <div id="scene2-text-v1same" class="scene2-step-el" style="position:absolute; left:40px; top:77px; transform:translate(-50%, -50%); font-size:14px; color:#2e7d32; font-weight:bold;">V₁—</div>
+
+            <!-- 步骤5：P总↓ (移到右侧避免与V₁—和+拥挤) -->
+            <div id="scene2-text-pdown" class="scene2-step-el" style="position:absolute; left:120px; top:55px; transform:translate(-50%, -50%); font-size:14px; color:#1565c0; font-weight:bold;">P总↓</div>
+
+            <!-- 推导公式区 (x:360~580, y:40~320) -->
+            <!-- 行1：R总 = R灯 + R滑  (步骤2) -->
+            <div id="scene2-formula-rtotal" class="scene2-step-el" style="position:absolute; left:370px; top:78px; font-size:14px; color:#000;">
+                R<sub style="font-size:10px;">总</sub> = R<sub style="font-size:10px;">灯</sub> + R<sub style="font-size:10px;">滑</sub>
+                <span style="margin-left:12px; color:#c62828; font-weight:bold;">R总 ↑</span>
+            </div>
+
+            <!-- 行2：I = U / R总 (步骤2) -->
+            <div id="scene2-formula-I" class="scene2-step-el" style="position:absolute; left:370px; top:128px; font-size:14px; color:#000;">
+                I = U / R<sub style="font-size:10px;">总</sub>
+                <span style="margin-left:12px; color:#1565c0; font-weight:bold;">I ↓</span>
+            </div>
+
+            <!-- 行3：V₂ = I × R灯 (步骤3) -->
+            <div id="scene2-formula-V2" class="scene2-step-el" style="position:absolute; left:370px; top:178px; font-size:14px; color:#000;">
+                V₂ = I × R<sub style="font-size:10px;">灯</sub>
+                <span style="margin-left:12px; color:#1565c0; font-weight:bold;">V₂ ↓</span>
+            </div>
+
+            <!-- 行4：V₁ = U电源 (步骤4) -->
+            <div id="scene2-formula-V1" class="scene2-step-el" style="position:absolute; left:370px; top:228px; font-size:14px; color:#000;">
+                V₁ = U<sub style="font-size:10px;">电源</sub>
+                <span style="margin-left:12px; color:#2e7d32; font-weight:bold;">— 不变</span>
+            </div>
+
+            <!-- 行5：P总 = U × I (步骤5) -->
+            <div id="scene2-formula-P" class="scene2-step-el" style="position:absolute; left:370px; top:278px; font-size:14px; color:#000;">
+                P<sub style="font-size:10px;">总</sub> = U × I
+                <span style="margin-left:12px; color:#1565c0; font-weight:bold;">P总 ↓</span>
+            </div>
+
+            <!-- 选项标记 (步骤6) -->
+            <div id="scene2-mark-a" class="scene2-step-el" style="position:absolute; left:180px; top:357px; font-size:16px; color:#c62828; font-weight:bold;">✗</div>
+            <div id="scene2-mark-b" class="scene2-step-el" style="position:absolute; left:370px; top:357px; font-size:16px; color:#2e7d32; font-weight:bold;">✓</div>
+            <div id="scene2-mark-c" class="scene2-step-el" style="position:absolute; left:560px; top:357px; font-size:16px; color:#c62828; font-weight:bold;">✗</div>
+            <div id="scene2-mark-d" class="scene2-step-el" style="position:absolute; left:750px; top:357px; font-size:16px; color:#c62828; font-weight:bold;">✗</div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤: 0/6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const armLine = document.getElementById('scene2-arm-line');
+        const armHead = document.getElementById('scene2-arm-head');
+
+        // 各步骤应显示的元素ID列表（包括SVG元素和HTML文字层元素）
+        const stepElements = {
+            1: ['scene2-zoom-box', 'scene2-text-rsl'],
+            2: ['scene2-formula-rtotal', 'scene2-formula-I', 'scene2-text-idown'],
+            3: ['scene2-formula-V2', 'scene2-text-v2down', 'scene2-text-dim'],
+            4: ['scene2-formula-V1', 'scene2-text-v1same'],
+            5: ['scene2-formula-P', 'scene2-text-pdown'],
+            6: ['scene2-mark-a', 'scene2-mark-b', 'scene2-mark-c', 'scene2-mark-d']
+        };
+
+        function animateArm(toRight, duration) {
+            const startX = toRight ? 200 : 230;
+            const endX = toRight ? 230 : 200;
+            const startTime = performance.now();
+
+            function frame(now) {
+                const t = Math.min((now - startTime) / duration, 1);
+                const x = startX + (endX - startX) * t;
+                armLine.setAttribute('x1', x);
+                armLine.setAttribute('x2', x);
+                armHead.setAttribute('points', x + ',50 ' + (x-4) + ',42 ' + (x+4) + ',42');
+                if (t < 1) requestAnimationFrame(frame);
+            }
+            requestAnimationFrame(frame);
+        }
+
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('scene2-visible');
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('scene2-visible');
+        }
+
+        function updateOptions(step) {
+            const a = document.getElementById('scene2-option-a');
+            const b = document.getElementById('scene2-option-b');
+            const c = document.getElementById('scene2-option-c');
+            const d = document.getElementById('scene2-option-d');
+
+            if (step === 6) {
+                a.classList.add('scene2-wrong');
+                b.classList.add('scene2-correct');
+                c.classList.add('scene2-wrong');
+                d.classList.add('scene2-wrong');
+            } else {
+                a.classList.remove('scene2-wrong', 'scene2-correct');
+                b.classList.remove('scene2-wrong', 'scene2-correct');
+                c.classList.remove('scene2-wrong', 'scene2-correct');
+                d.classList.remove('scene2-wrong', 'scene2-correct');
+            }
+        }
+
+        function setStep(step) {
+            for (let s = 1; s <= 6; s++) {
+                const ids = stepElements[s] || [];
+                ids.forEach(hideElement);
+            }
+
+            for (let s = 1; s <= step; s++) {
+                const ids = stepElements[s] || [];
+                ids.forEach(showElement);
+            }
+
+            if (step >= 1) {
+                animateArm(true, 300);
+            } else {
+                animateArm(false, 300);
+            }
+
+            updateOptions(step);
+
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === totalSteps;
+            stepIndicator.textContent = '步骤: ' + step + '/' + totalSteps;
+
+            currentStep = step;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) setStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) setStep(currentStep + 1);
+        });
+
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

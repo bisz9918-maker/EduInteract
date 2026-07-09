@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>甲烷燃烧反应微观示意图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 分子原子样式 */
+        .atom-h { fill: #ffffff; stroke: #000000; stroke-width: 2px; }
+        .atom-o { fill: #000000; stroke: #000000; stroke-width: 2px; }
+        .atom-c { fill: #e0e0e0; stroke: #000000; stroke-width: 2px; }
+        .molecule-label { font-size: 14px; font-weight: bold; fill: #000000; }
+        .region-label { font-size: 16px; font-weight: bold; fill: #333333; }
+        .reaction-arrow { stroke: #1565c0; stroke-width: 3px; fill: none; }
+        .reaction-condition { font-size: 14px; fill: #1565c0; }
+        .legend-text { font-size: 12px; fill: #333333; }
+        .equation-text { font-size: 16px; fill: #000000; }
+        .type-text { font-size: 14px; fill: #d32f2f; }
+        .highlight { fill: #d32f2f !important; }
+        
+        /* 淡入动画 */
+        .fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+        }
+        
+        /* 控件栏 */
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            width: 100px;
+            height: 35px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #scene1-btn-prev {
+            background: #e0e0e0;
+            color: #666666;
+        }
+        #scene1-btn-prev:not(:disabled) {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        #scene1-btn-prev:disabled {
+            cursor: not-allowed;
+        }
+        #scene1-btn-next {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        #scene1-btn-next:disabled {
+            background: #e0e0e0;
+            color: #666666;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义斜线填充图案（用于碳原子） -->
+            <defs>
+                <pattern id="scene1-pattern-hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="6" stroke="#888888" stroke-width="2"/>
+                </pattern>
+            </defs>
+            
+            <!-- 图例框 -->
+            <rect id="scene1-legend-box" x="620" y="30" width="160" height="100" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+            <circle id="scene1-legend-h" cx="650" cy="55" r="10" class="atom-h"/>
+            <text id="scene1-legend-h-text" x="670" y="60" class="legend-text">氢原子</text>
+            <circle id="scene1-legend-o" cx="650" cy="85" r="10" class="atom-o"/>
+            <text id="scene1-legend-o-text" x="670" y="90" class="legend-text">氧原子</text>
+            <circle id="scene1-legend-c" cx="650" cy="115" r="10" class="atom-c"/>
+            <text id="scene1-legend-c-text" x="670" y="120" class="legend-text">碳原子</text>
+            
+            <!-- 反应前区域 -->
+            <g id="scene1-before-group">
+                <!-- 甲烷分子 A (CH₄) -->
+                <g id="scene1-molecule-a">
+                    <!-- 碳原子（中心） -->
+                    <circle cx="150" cy="200" r="20" class="atom-c"/>
+                    <!-- 氢原子（上下左右） -->
+                    <circle cx="150" cy="160" r="15" class="atom-h"/>
+                    <circle cx="190" cy="200" r="15" class="atom-h"/>
+                    <circle cx="150" cy="240" r="15" class="atom-h"/>
+                    <circle cx="110" cy="200" r="15" class="atom-h"/>
+                </g>
+                
+                <!-- 氧气分子 B (O₂) -->
+                <g id="scene1-molecule-b">
+                    <circle cx="280" cy="185" r="18" class="atom-o"/>
+                    <circle cx="280" cy="225" r="18" class="atom-o"/>
+                </g>
+                
+                <!-- 标签 A 和化学式 -->
+                <text id="scene1-label-a" x="150" y="265" text-anchor="middle" class="molecule-label">A</text>
+                <text id="scene1-formula-a" x="150" y="285" text-anchor="middle" class="molecule-label fade-in">CH₄</text>
+                
+                <!-- 标签 B 和化学式 -->
+                <text id="scene1-label-b" x="280" y="265" text-anchor="middle" class="molecule-label">B</text>
+                <text id="scene1-formula-b" x="280" y="285" text-anchor="middle" class="molecule-label fade-in">O₂</text>
+                
+                <!-- "反应前"文字 -->
+                <text id="scene1-before-text" x="180" y="300" text-anchor="middle" class="region-label">反应前</text>
+            </g>
+            
+            <!-- 反应箭头和条件 -->
+            <g id="scene1-reaction-arrow">
+                <line x1="380" y1="200" x2="440" y2="200" class="reaction-arrow"/>
+                <polygon points="450,200 435,193 435,207" fill="#1565c0"/>
+                <text id="scene1-ignite-text" x="415" y="175" text-anchor="middle" class="reaction-condition">点燃</text>
+            </g>
+            
+            <!-- 反应后区域 -->
+            <g id="scene1-after-group">
+                <!-- 二氧化碳分子 C (CO₂) -->
+                <g id="scene1-molecule-c" class="fade-in">
+                    <!-- 碳原子（中心） -->
+                    <circle cx="520" cy="200" r="20" class="atom-c"/>
+                    <!-- 氧原子（左右） -->
+                    <circle cx="485" cy="200" r="18" class="atom-o"/>
+                    <circle cx="555" cy="200" r="18" class="atom-o"/>
+                </g>
+                
+                <!-- 水分子 D (H₂O) -->
+                <g id="scene1-molecule-d" class="fade-in">
+                    <!-- 氧原子（中心） -->
+                    <circle cx="650" cy="200" r="18" class="atom-o"/>
+                    <!-- 氢原子（左下和右下） -->
+                    <circle cx="635" cy="225" r="15" class="atom-h"/>
+                    <circle cx="665" cy="225" r="15" class="atom-h"/>
+                </g>
+                
+                <!-- 标签 C 和化学式 -->
+                <text id="scene1-label-c" x="520" y="265" text-anchor="middle" class="molecule-label fade-in">C</text>
+                <text id="scene1-formula-c" x="520" y="285" text-anchor="middle" class="molecule-label fade-in">CO₂</text>
+                
+                <!-- 标签 D 和化学式 -->
+                <text id="scene1-label-d" x="650" y="265" text-anchor="middle" class="molecule-label fade-in">D</text>
+                <text id="scene1-formula-d" x="650" y="285" text-anchor="middle" class="molecule-label fade-in">H₂O</text>
+                
+                <!-- "反应后"文字 -->
+                <text id="scene1-after-text" x="580" y="300" text-anchor="middle" class="region-label fade-in">反应后</text>
+            </g>
+            
+            <!-- 化学方程式区 -->
+            <g id="scene1-equation-group" class="fade-in">
+                <foreignObject x="200" y="340" width="400" height="40">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="text-align:center;font-size:16px;">
+                        $$\mathrm{CH_4 + 2O_2 \xrightarrow{点燃} CO_2 + 2H_2O}$$
+                    </div>
+                </foreignObject>
+            </g>
+            
+            <!-- 反应类型说明 -->
+            <g id="scene1-type-group" class="fade-in">
+                <text id="scene1-type-text" x="400" y="395" text-anchor="middle" class="type-text">该反应不属于置换反应（生成物有两种化合物）</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：甲烷燃烧反应微观过程展示
+        
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 需要淡入的元素
+        const fadeElements = {
+            // 步骤 1 显示
+            step1: [
+                document.getElementById('scene1-formula-a'),
+                document.getElementById('scene1-formula-b')
+            ],
+            // 步骤 2 显示
+            step2: [
+                document.getElementById('scene1-molecule-c'),
+                document.getElementById('scene1-molecule-d'),
+                document.getElementById('scene1-label-c'),
+                document.getElementById('scene1-formula-c'),
+                document.getElementById('scene1-label-d'),
+                document.getElementById('scene1-formula-d'),
+                document.getElementById('scene1-after-text')
+            ],
+            // 步骤 3 显示
+            step3: [
+                document.getElementById('scene1-equation-group')
+            ],
+            // 步骤 4 显示
+            step4: [
+                document.getElementById('scene1-type-group')
+            ]
+        };
+        
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+        
+        // 显示元素
+        function showElements(elements) {
+            elements.forEach(el => {
+                if (el) el.classList.add('visible');
+            });
+        }
+        
+        // 隐藏元素
+        function hideElements(elements) {
+            elements.forEach(el => {
+                if (el) el.classList.remove('visible');
+            });
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 重置所有淡入元素
+            Object.values(fadeElements).forEach(group => {
+                hideElements(group);
+            });
+            
+            // 根据当前步骤显示相应元素
+            if (currentStep >= 1) {
+                showElements(fadeElements.step1);
+            }
+            if (currentStep >= 2) {
+                showElements(fadeElements.step2);
+            }
+            if (currentStep >= 3) {
+                showElements(fadeElements.step3);
+            }
+            if (currentStep >= 4) {
+                showElements(fadeElements.step4);
+            }
+            
+            updateButtons();
+            
+            // 触发 MathJax 重新渲染
+            if (currentStep >= 3 && window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        }
+        
+        // 上一步
+        function stepBack() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+        
+        // 下一步
+        function stepForward() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', stepBack);
+        btnNext.addEventListener('click', stepForward);
+        
+        // 键盘导航
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                stepBack();
+            } else if (e.key === 'ArrowRight') {
+                stepForward();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+        
+    })();
+    </script>
+</body>
+</html>

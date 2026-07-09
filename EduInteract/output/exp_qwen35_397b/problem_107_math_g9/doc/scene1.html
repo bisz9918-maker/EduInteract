@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>屋架结构中的直角三角形与中位线关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-step-indicator { font-size: 14px; padding: 8px 16px; }
+        .scene1-hidden { opacity: 0; }
+        .scene1-visible { opacity: 1; transition: opacity 300ms ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 屋架填充多边形 -->
+            <polygon id="scene1-roof-fill" points="150,350 400,120 650,350" fill="#f5d76e" fill-opacity="0.2" stroke="none"/>
+            
+            <!-- 横梁 AC -->
+            <line id="scene1-ac" x1="150" y1="350" x2="650" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 斜梁 AB -->
+            <line id="scene1-ab" x1="150" y1="350" x2="400" y2="120" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 斜梁(右) -->
+            <line id="scene1-ab-right" x1="400" y1="120" x2="650" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 立柱 BC -->
+            <line id="scene1-bc" x1="400" y1="120" x2="400" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 立柱 DE -->
+            <line id="scene1-de" x1="275" y1="235" x2="275" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 辅助支撑1: D到C -->
+            <line id="scene1-support1" x1="275" y1="235" x2="400" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 辅助支撑2: 右侧对称点(525,235)到C -->
+            <line id="scene1-support2" x1="525" y1="235" x2="400" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 辅助支撑3: 右侧对称点(525,235)到右端点 -->
+            <line id="scene1-support3" x1="525" y1="235" x2="650" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 右侧立柱(对称) -->
+            <line id="scene1-right-post" x1="525" y1="235" x2="525" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 直角符号 C -->
+            <path id="scene1-rt-c" d="M388,338 L400,338 L400,350" fill="none" stroke="#888888" stroke-width="1"/>
+            
+            <!-- 直角符号 E -->
+            <path id="scene1-rt-e" d="M263,338 L275,338 L275,350" fill="none" stroke="#888888" stroke-width="1"/>
+            
+            <!-- 中点标记 D (两条短线) -->
+            <line id="scene1-mid-mark1" x1="270" y1="230" x2="280" y2="240" stroke="#000000" stroke-width="1"/>
+            <line id="scene1-mid-mark2" x1="268" y1="232" x2="278" y2="242" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 角度弧线 -->
+            <path id="scene1-angle-arc" d="M185,350 A35,35 0 0 1 177,337" fill="none" stroke="#1565c0" stroke-width="2" class="scene1-hidden"/>
+            
+            <!-- 点标签 -->
+            <text id="scene1-label-a" x="130" y="370" font-size="14" fill="#000000">A</text>
+            <text id="scene1-label-b" x="400" y="100" font-size="14" fill="#000000" text-anchor="middle">B</text>
+            <text id="scene1-label-c" x="400" y="375" font-size="14" fill="#000000" text-anchor="middle">C</text>
+            <text id="scene1-label-d" x="260" y="220" font-size="14" fill="#000000">D</text>
+            <text id="scene1-label-e" x="275" y="375" font-size="14" fill="#000000" text-anchor="middle">E</text>
+            
+            <!-- 角度值 30° -->
+            <text id="scene1-angle-text" x="180" y="335" font-size="13" fill="#1565c0" class="scene1-hidden">30°</text>
+            
+            <!-- 数值标注 -->
+            <text id="scene1-ab-len" x="300" y="205" font-size="13" fill="#000000" class="scene1-hidden">AB=8m</text>
+            <text id="scene1-bc-len" x="420" y="235" font-size="13" fill="#c62828" class="scene1-hidden">BC=4m</text>
+            <text id="scene1-de-len" x="250" y="292" font-size="13" fill="#1565c0" class="scene1-hidden">DE=2m</text>
+            
+            <!-- DE∥BC 提示虚线箭头 -->
+            <g id="scene1-parallel-hint" class="scene1-hidden">
+                <line x1="290" y1="292" x2="380" y2="292" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+                <polygon points="380,292 372,288 372,296" fill="#888888"/>
+                <text x="335" y="285" font-size="11" fill="#888888">DE∥BC</text>
+            </g>
+            
+            <!-- 计算过程区 -->
+            <g id="scene1-calc-area" class="scene1-hidden">
+                <rect x="500" y="150" width="280" height="150" fill="#f9f9f9" stroke="#ddd" stroke-width="1"/>
+                <text id="scene1-calc-line1" x="510" y="175" font-size="12" fill="#333333">已知：AB=8m, ∠A=30°</text>
+                <text id="scene1-calc-line2" x="510" y="205" font-size="12" fill="#333333" class="scene1-hidden">在Rt△ABC中，BC = AB × sin30°</text>
+                <text id="scene1-calc-line2b" x="510" y="225" font-size="12" fill="#333333" class="scene1-hidden">= 8 × 0.5 = 4m</text>
+                <text id="scene1-calc-line3" x="510" y="255" font-size="12" fill="#333333" class="scene1-hidden">∵ D是AB中点，DE⊥AC，BC⊥AC</text>
+                <text id="scene1-calc-line3b" x="510" y="275" font-size="12" fill="#333333" class="scene1-hidden">∴ DE∥BC</text>
+                <text id="scene1-calc-line4" x="510" y="305" font-size="12" fill="#333333" class="scene1-hidden">∴ DE是△ABC的中位线</text>
+                <text id="scene1-calc-line4b" x="510" y="325" font-size="12" fill="#333333" class="scene1-hidden">DE = BC/2 = 4/2 = 2m</text>
+            </g>
+            
+            <!-- 答案框 -->
+            <g id="scene1-answer-box" class="scene1-hidden">
+                <rect x="520" y="380" width="160" height="40" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+                <text x="600" y="405" font-size="14" fill="#1565c0" text-anchor="middle" font-weight="bold">答案：B. 2m</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：屋架结构中的直角三角形与中位线关系
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 横梁 AC | 线段 | (150,350)-(650,350) | 500×4 | - | 水平基线 |
+        // | 斜梁 AB | 线段 | (150,350)-(400,120) | - | - | 左斜边 |
+        // | 斜梁(右) | 线段 | (400,120)-(650,350) | - | - | 右斜边，对称 |
+        // | 立柱 BC | 线段 | (400,120)-(400,350) | 230×4 | - | 中央立柱 |
+        // | 立柱 DE | 线段 | (275,235)-(275,350) | 115×4 | - | 左侧中位立柱 |
+        // | 点标签 A | text | (130,370) | ~16×18 | 左下 | A 点左下方 |
+        // | 点标签 B | text | (400,100) | ~16×18 | 正上 | B 点正上方 |
+        // | 点标签 C | text | (400,375) | ~16×18 | 正下 | C 点正下方 |
+        // | 点标签 D | text | (260,220) | ~16×18 | 左上 | D 点左上方 |
+        // | 点标签 E | text | (275,375) | ~16×18 | 正下 | E 点正下方 |
+        // | 角度值 30° | text | (180,335) | ~24×16 | 弧线内 | A 点右侧 |
+        // | AB=8m 标注 | text | (300,205) | ~32×16 | 右上 | AB 中点右上方 |
+        // | BC=4m 标注 | text | (420,235) | ~32×16 | 右侧 | BC 中点右侧 |
+        // | DE=2m 标注 | text | (250,292) | ~32×16 | 左侧 | DE 中点左侧 |
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 可显示/隐藏的元素
+        const angleArc = document.getElementById('scene1-angle-arc');
+        const angleText = document.getElementById('scene1-angle-text');
+        const abLen = document.getElementById('scene1-ab-len');
+        const bcLen = document.getElementById('scene1-bc-len');
+        const deLen = document.getElementById('scene1-de-len');
+        const parallelHint = document.getElementById('scene1-parallel-hint');
+        const calcArea = document.getElementById('scene1-calc-area');
+        const calcLine1 = document.getElementById('scene1-calc-line1');
+        const calcLine2 = document.getElementById('scene1-calc-line2');
+        const calcLine2b = document.getElementById('scene1-calc-line2b');
+        const calcLine3 = document.getElementById('scene1-calc-line3');
+        const calcLine3b = document.getElementById('scene1-calc-line3b');
+        const calcLine4 = document.getElementById('scene1-calc-line4');
+        const calcLine4b = document.getElementById('scene1-calc-line4b');
+        const answerBox = document.getElementById('scene1-answer-box');
+        const bcLine = document.getElementById('scene1-bc');
+        const deLine = document.getElementById('scene1-de');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            
+            // 根据步骤显示/隐藏元素
+            // 步骤 0：初始状态 - 只显示屋架轮廓、点标签、直角符号、中点标记
+            // 步骤 1：显示角度弧线、30°、AB=8m
+            // 步骤 2：BC 高亮红色，显示 BC=4m
+            // 步骤 3：DE 高亮蓝色，显示 DE∥BC 提示
+            // 步骤 4：显示 DE=2m，计算过程完成，显示答案
+            
+            // 重置 BC 和 DE 样式
+            bcLine.setAttribute('stroke', '#000000');
+            bcLine.setAttribute('stroke-width', '2');
+            deLine.setAttribute('stroke', '#000000');
+            deLine.setAttribute('stroke-width', '2');
+            
+            // 步骤 0
+            if (currentStep === 0) {
+                hide(angleArc);
+                hide(angleText);
+                hide(abLen);
+                hide(bcLen);
+                hide(deLen);
+                hide(parallelHint);
+                hide(calcArea);
+                hide(answerBox);
+            }
+            // 步骤 1
+            else if (currentStep === 1) {
+                show(angleArc);
+                show(angleText);
+                show(abLen);
+                hide(bcLen);
+                hide(deLen);
+                hide(parallelHint);
+                show(calcArea);
+                show(calcLine1);
+                hide(calcLine2);
+                hide(calcLine2b);
+                hide(calcLine3);
+                hide(calcLine3b);
+                hide(calcLine4);
+                hide(calcLine4b);
+                hide(answerBox);
+            }
+            // 步骤 2
+            else if (currentStep === 2) {
+                show(angleArc);
+                show(angleText);
+                show(abLen);
+                show(bcLen);
+                hide(deLen);
+                hide(parallelHint);
+                show(calcArea);
+                show(calcLine1);
+                show(calcLine2);
+                show(calcLine2b);
+                hide(calcLine3);
+                hide(calcLine3b);
+                hide(calcLine4);
+                hide(calcLine4b);
+                hide(answerBox);
+                // BC 高亮红色
+                bcLine.setAttribute('stroke', '#c62828');
+                bcLine.setAttribute('stroke-width', '3');
+            }
+            // 步骤 3
+            else if (currentStep === 3) {
+                show(angleArc);
+                show(angleText);
+                show(abLen);
+                show(bcLen);
+                hide(deLen);
+                show(parallelHint);
+                show(calcArea);
+                show(calcLine1);
+                show(calcLine2);
+                show(calcLine2b);
+                show(calcLine3);
+                show(calcLine3b);
+                hide(calcLine4);
+                hide(calcLine4b);
+                hide(answerBox);
+                // BC 保持红色，DE 高亮蓝色
+                bcLine.setAttribute('stroke', '#c62828');
+                bcLine.setAttribute('stroke-width', '3');
+                deLine.setAttribute('stroke', '#1565c0');
+                deLine.setAttribute('stroke-width', '3');
+            }
+            // 步骤 4
+            else if (currentStep === 4) {
+                show(angleArc);
+                show(angleText);
+                show(abLen);
+                show(bcLen);
+                show(deLen);
+                show(parallelHint);
+                show(calcArea);
+                show(calcLine1);
+                show(calcLine2);
+                show(calcLine2b);
+                show(calcLine3);
+                show(calcLine3b);
+                show(calcLine4);
+                show(calcLine4b);
+                show(answerBox);
+                // BC 保持红色，DE 保持蓝色
+                bcLine.setAttribute('stroke', '#c62828');
+                bcLine.setAttribute('stroke-width', '3');
+                deLine.setAttribute('stroke', '#1565c0');
+                deLine.setAttribute('stroke-width', '3');
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

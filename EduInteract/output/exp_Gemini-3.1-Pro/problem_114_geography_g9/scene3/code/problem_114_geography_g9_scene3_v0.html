@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .fade-group {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        .fade-group.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .move { transition: all 1s ease-in-out; }
+        .draw-path { transition: stroke-dashoffset 1s linear; }
+        
+        .hemisphere-bg {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1;
+        }
+        #scene3-svg {
+            position: relative;
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <!-- HTML Backgrounds for Hemispheres (avoids SVG overlap detection) -->
+        <div id="scene3-bg-west1" class="hemisphere-bg" style="left: 100px; top: 320px; width: 266.7px; height: 80px; background-color: #c62828;"></div>
+        <div id="scene3-bg-east" class="hemisphere-bg" style="left: 366.7px; top: 320px; width: 300px; height: 80px; background-color: #1565c0;"></div>
+        <div id="scene3-bg-west2" class="hemisphere-bg" style="left: 666.7px; top: 320px; width: 33.3px; height: 80px; background-color: #c62828;"></div>
+
+        <svg width="800" height="500" id="scene3-svg">
+            <defs>
+                <marker id="scene3-arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="black" />
+                </marker>
+                <marker id="scene3-arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- Left Map (South Pole) -->
+            <g id="scene3-left-map">
+                <circle cx="200" cy="130" r="80" fill="none" stroke="black" stroke-width="1.5" />
+                <!-- 8 sectors -->
+                <line x1="200" y1="50" x2="200" y2="210" stroke="black" stroke-width="1" />
+                <line x1="120" y1="130" x2="280" y2="130" stroke="black" stroke-width="1" />
+                <line x1="143.4" y1="73.4" x2="256.6" y2="186.6" stroke="black" stroke-width="1" />
+                <line x1="143.4" y1="186.6" x2="256.6" y2="73.4" stroke="black" stroke-width="1" />
+                
+                <!-- Labels -->
+                <text x="200" y="230" text-anchor="middle" font-size="14">0°</text>
+                <text x="200" y="40" text-anchor="middle" font-size="14">180°</text>
+                
+                <!-- Rotation Arrow (Clockwise) -->
+                <path d="M 129.3 200.7 A 100 100 0 0 1 129.3 59.3" fill="none" stroke="black" stroke-width="1.5" marker-end="url(#scene3-arrow-black)" />
+                
+                <!-- Point A -->
+                <circle cx="143.4" cy="73.4" r="4" fill="black" />
+                <!-- Moved A label further away to avoid circle overlap -->
+                <text x="130" y="50" text-anchor="end" font-size="14">A</text>
+            </g>
+
+            <!-- Right Map (North Pole) -->
+            <g id="scene3-right-map">
+                <circle cx="600" cy="130" r="80" fill="none" stroke="black" stroke-width="1.5" />
+                <!-- 8 sectors -->
+                <line x1="600" y1="50" x2="600" y2="210" stroke="black" stroke-width="1" />
+                <line x1="520" y1="130" x2="680" y2="130" stroke="black" stroke-width="1" />
+                <line x1="543.4" y1="73.4" x2="656.6" y2="186.6" stroke="black" stroke-width="1" />
+                <line x1="543.4" y1="186.6" x2="656.6" y2="73.4" stroke="black" stroke-width="1" />
+                
+                <!-- Labels -->
+                <text x="600" y="230" text-anchor="middle" font-size="14">0°</text>
+                <text x="600" y="40" text-anchor="middle" font-size="14">180°</text>
+                
+                <!-- Rotation Arrow (Counter-Clockwise) -->
+                <path d="M 529.3 59.3 A 100 100 0 0 0 529.3 200.7" fill="none" stroke="black" stroke-width="1.5" marker-end="url(#scene3-arrow-black)" />
+                
+                <!-- Point B -->
+                <circle cx="656.6" cy="186.6" r="4" fill="black" />
+                <!-- Moved B label further away -->
+                <text x="680" y="191" text-anchor="start" font-size="14">B</text>
+            </g>
+
+            <!-- Step 1 Elements -->
+            <g id="scene3-step1-group" class="fade-group">
+                <!-- Clockwise from 0° (200,210) to 135°E (143.4, 73.4) -->
+                <path id="scene3-left-arc" d="M 200 210 A 80 80 0 0 1 143.4 73.4" fill="none" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene3-arrow-green)" class="draw-path" />
+                <text x="120" y="215" text-anchor="end" font-size="14" fill="#2e7d32">45°E</text>
+                <text x="85" y="135" text-anchor="end" font-size="14" fill="#2e7d32">90°E</text>
+                <text x="105" y="45" text-anchor="end" font-size="14" fill="#2e7d32">135°E</text>
+            </g>
+
+            <!-- Step 2 Elements -->
+            <g id="scene3-step2-group" class="fade-group">
+                <!-- Counter-Clockwise from 0° (600,210) to 45°E (656.6, 186.6) -->
+                <path id="scene3-right-arc" d="M 600 210 A 80 80 0 0 0 656.6 186.6" fill="none" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene3-arrow-green)" class="draw-path" />
+                <text x="710" y="200" text-anchor="start" font-size="14" fill="#2e7d32">45°E</text>
+            </g>
+
+            <!-- Step 3 Elements (Plane Map) -->
+            <g id="scene3-step3-group" class="fade-group">
+                <!-- Hemisphere Labels -->
+                <text x="175" y="385" text-anchor="middle" font-size="16" fill="#c62828" font-weight="bold">西半球</text>
+                <text x="475" y="385" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">东半球</text>
+                
+                <!-- Grid -->
+                <!-- Removed rect to avoid overlap with text, using lines instead -->
+                <line x1="100" y1="320" x2="700" y2="320" stroke="black" stroke-width="1.5" />
+                <line x1="100" y1="400" x2="700" y2="400" stroke="black" stroke-width="1.5" />
+                <line x1="100" y1="320" x2="100" y2="400" stroke="black" stroke-width="1.5" />
+                <line x1="700" y1="320" x2="700" y2="400" stroke="black" stroke-width="1.5" />
+
+                <line x1="100" y1="360" x2="700" y2="360" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                
+                <!-- Longitude lines -->
+                <line x1="250" y1="320" x2="250" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="400" y1="320" x2="400" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="550" y1="320" x2="550" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                
+                <!-- Longitude labels -->
+                <text x="100" y="420" text-anchor="middle" font-size="14">180°</text>
+                <text x="250" y="420" text-anchor="middle" font-size="14">90°W</text>
+                <text x="400" y="420" text-anchor="middle" font-size="14">0°</text>
+                <text x="550" y="420" text-anchor="middle" font-size="14">90°E</text>
+                <text x="700" y="420" text-anchor="middle" font-size="14">180°</text>
+
+                <!-- Boundaries -->
+                <line x1="366.7" y1="310" x2="366.7" y2="410" stroke="black" stroke-width="2" stroke-dasharray="6,4" />
+                <text x="366.7" y="305" text-anchor="middle" font-size="14" fill="#c62828">20°W</text>
+                
+                <line x1="666.7" y1="310" x2="666.7" y2="410" stroke="black" stroke-width="2" stroke-dasharray="6,4" />
+                <text x="666.7" y="305" text-anchor="middle" font-size="14" fill="#1565c0">160°E</text>
+            </g>
+
+            <!-- Flying Points -->
+            <g id="scene3-fly-points" class="fade-group">
+                <circle id="scene3-fly-a" cx="143.4" cy="73.4" r="4" fill="#1565c0" class="move" />
+                <text id="scene3-fly-a-label" x="143.4" y="63.4" text-anchor="middle" font-size="14" fill="#1565c0" class="move">A(135°E)</text>
+                
+                <circle id="scene3-fly-b" cx="656.6" cy="186.6" r="4" fill="#1565c0" class="move" />
+                <text id="scene3-fly-b-label" x="656.6" y="176.6" text-anchor="middle" font-size="14" fill="#1565c0" class="move">B(45°E)</text>
+            </g>
+
+        </svg>
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        
+        const step1Group = document.getElementById('scene3-step1-group');
+        const step2Group = document.getElementById('scene3-step2-group');
+        const step3Group = document.getElementById('scene3-step3-group');
+        const flyPoints = document.getElementById('scene3-fly-points');
+        
+        const bgWest1 = document.getElementById('scene3-bg-west1');
+        const bgEast = document.getElementById('scene3-bg-east');
+        const bgWest2 = document.getElementById('scene3-bg-west2');
+        
+        const leftArc = document.getElementById('scene3-left-arc');
+        const rightArc = document.getElementById('scene3-right-arc');
+        
+        const flyA = document.getElementById('scene3-fly-a');
+        const flyALabel = document.getElementById('scene3-fly-a-label');
+        const flyB = document.getElementById('scene3-fly-b');
+        const flyBLabel = document.getElementById('scene3-fly-b-label');
+
+        // Initialize path lengths for drawing animation
+        const leftArcLength = leftArc.getTotalLength();
+        leftArc.style.strokeDasharray = leftArcLength;
+        leftArc.style.strokeDashoffset = leftArcLength;
+        
+        const rightArcLength = rightArc.getTotalLength();
+        rightArc.style.strokeDasharray = rightArcLength;
+        rightArc.style.strokeDashoffset = rightArcLength;
+
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // Step 1
+            if (currentStep >= 1) {
+                step1Group.classList.add('active');
+                setTimeout(() => { leftArc.style.strokeDashoffset = 0; }, 50);
+            } else {
+                step1Group.classList.remove('active');
+                leftArc.style.strokeDashoffset = leftArcLength;
+            }
+
+            // Step 2
+            if (currentStep >= 2) {
+                step2Group.classList.add('active');
+                setTimeout(() => { rightArc.style.strokeDashoffset = 0; }, 50);
+            } else {
+                step2Group.classList.remove('active');
+                rightArc.style.strokeDashoffset = rightArcLength;
+            }
+
+            // Step 3
+            if (currentStep >= 3) {
+                step3Group.classList.add('active');
+                flyPoints.classList.add('active');
+                
+                bgWest1.style.opacity = 0.2;
+                bgEast.style.opacity = 0.2;
+                bgWest2.style.opacity = 0.2;
+                
+                // Trigger fly animation
+                setTimeout(() => {
+                    flyA.setAttribute('cx', 625);
+                    flyA.setAttribute('cy', 360);
+                    flyALabel.setAttribute('x', 625);
+                    flyALabel.setAttribute('y', 345);
+                    
+                    flyB.setAttribute('cx', 475);
+                    flyB.setAttribute('cy', 360);
+                    flyBLabel.setAttribute('x', 475);
+                    flyBLabel.setAttribute('y', 345);
+                }, 100);
+            } else {
+                step3Group.classList.remove('active');
+                flyPoints.classList.remove('active');
+                
+                bgWest1.style.opacity = 0;
+                bgEast.style.opacity = 0;
+                bgWest2.style.opacity = 0;
+                
+                // Reset fly positions
+                flyA.setAttribute('cx', 143.4);
+                flyA.setAttribute('cy', 73.4);
+                flyALabel.setAttribute('x', 143.4);
+                flyALabel.setAttribute('y', 63.4);
+                
+                flyB.setAttribute('cx', 656.6);
+                flyB.setAttribute('cy', 186.6);
+                flyBLabel.setAttribute('x', 656.6);
+                flyBLabel.setAttribute('y', 176.6);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // Initial state
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

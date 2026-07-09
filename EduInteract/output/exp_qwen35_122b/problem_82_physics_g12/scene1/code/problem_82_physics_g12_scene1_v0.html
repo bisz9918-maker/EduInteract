@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三球连接体系统 - 场景 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; gap: 12px; z-index: 10; background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 8px; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene1-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-stage-label { font-size: 16px; font-weight: bold; color: #333; line-height: 34px; min-width: 120px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 斜面填充 -->
+            <polygon id="scene1-incline-fill" points="200,300 650,150 650,300" fill="#e3f2fd" fill-opacity="0.3"/>
+            
+            <!-- 斜面轮廓 -->
+            <polygon id="scene1-incline" points="200,300 650,150 650,300" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 弧形挡板 -->
+            <path id="scene1-baffle" d="M 680,125 A 25,25 0 0,1 680,175" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- A 下落轨迹（初始隐藏） -->
+            <line id="scene1-trajectory-A" x1="650" y1="150" x2="650" y2="300" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" style="display: none;"/>
+            
+            <!-- 绳 AB -->
+            <line id="scene1-rod-AB" x1="650" y1="150" x2="425" y2="225" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 绳 BC -->
+            <line id="scene1-rod-BC" x1="425" y1="225" x2="200" y2="300" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- C 球 -->
+            <circle id="scene1-ball-C" cx="200" cy="300" r="18" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- B 球 -->
+            <circle id="scene1-ball-B" cx="425" cy="225" r="18" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- A 球 -->
+            <circle id="scene1-ball-A" cx="650" cy="150" r="18" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 角度标注 30° -->
+            <text id="scene1-label-angle" x="230" y="290" font-size="14" fill="#000000">30°</text>
+            
+            <!-- 高度标注 L -->
+            <text id="scene1-label-height" x="665" y="225" font-size="14" fill="#000000">L</text>
+            
+            <!-- 绳长标注 L(AB) -->
+            <text id="scene1-label-L-AB" x="530" y="180" font-size="14" fill="#000000">L</text>
+            
+            <!-- 绳长标注 L(BC) -->
+            <text id="scene1-label-L-BC" x="315" y="255" font-size="14" fill="#000000">L</text>
+            
+            <!-- 质量标签 3m -->
+            <text id="scene1-label-mass-A" x="670" y="135" font-size="14" fill="#000000">3m</text>
+            
+            <!-- 质量标签 2m -->
+            <text id="scene1-label-mass-B" x="425" y="205" font-size="14" fill="#000000">2m</text>
+            
+            <!-- 质量标签 m -->
+            <text id="scene1-label-mass-C" x="185" y="290" font-size="14" fill="#000000">m</text>
+            
+            <!-- 球名标签 A -->
+            <text id="scene1-label-name-A" x="665" y="155" font-size="14" fill="#000000">A</text>
+            
+            <!-- 球名标签 B -->
+            <text id="scene1-label-name-B" x="440" y="230" font-size="14" fill="#000000">B</text>
+            
+            <!-- 球名标签 C -->
+            <text id="scene1-label-name-C" x="170" y="305" font-size="14" fill="#000000">C</text>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-stage-label" class="scene1-stage-label">初始状态</span>
+            <button id="scene1-next-btn" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（参考）：
+        // | 元素 | 位置 | 备注 |
+        // | 斜面 | (200,300)-(650,150)-(650,300) | 直角三角形，倾角 30° |
+        // | A 球初始 | (650,150) | 斜面顶端 |
+        // | B 球初始 | (425,225) | 斜面中点 |
+        // | C 球初始 | (200,300) | 斜面底部 |
+        // | 绳 AB | (650,150)-(425,225) | 绳长 L |
+        // | 绳 BC | (425,225)-(200,300) | 绳长 L |
+        
+        // 状态配置
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 5, // 0:初始，1:A 下落，2:B 上升，3:B 下落，4:结论
+            
+            // 各步骤状态配置
+            steps: [
+                {
+                    name: "初始状态",
+                    ballA: { x: 650, y: 150, highlight: null },
+                    ballB: { x: 425, y: 225, highlight: null },
+                    ballC: { x: 200, y: 300, highlight: null },
+                    showTrajectory: false,
+                    rodAB: { x1: 650, y1: 150, x2: 425, y2: 225 },
+                    rodBC: { x1: 425, y1: 225, x2: 200, y2: 300 }
+                },
+                {
+                    name: "阶段 1：A 下落",
+                    ballA: { x: 650, y: 300, highlight: '#c62828' }, // 落地静止
+                    ballB: { x: 650, y: 150, highlight: '#1565c0' }, // 到达顶端
+                    ballC: { x: 425, y: 225, highlight: '#2e7d32' }, // 到达中点
+                    showTrajectory: true,
+                    rodAB: { x1: 650, y1: 300, x2: 650, y2: 150 },
+                    rodBC: { x1: 650, y1: 150, x2: 425, y2: 225 }
+                },
+                {
+                    name: "阶段 2：B 上升",
+                    ballA: { x: 650, y: 300, highlight: '#c62828' },
+                    ballB: { x: 650, y: 300, highlight: '#1565c0' }, // B 落地
+                    ballC: { x: 650, y: 150, highlight: '#2e7d32' }, // C 到达顶端
+                    showTrajectory: true,
+                    rodAB: { x1: 650, y1: 300, x2: 650, y2: 300 },
+                    rodBC: { x1: 650, y1: 300, x2: 650, y2: 150 }
+                },
+                {
+                    name: "阶段 3：B 下落",
+                    ballA: { x: 650, y: 300, highlight: '#c62828' },
+                    ballB: { x: 650, y: 300, highlight: '#c62828' }, // B 落地静止
+                    ballC: { x: 525, y: 225, highlight: '#1565c0' }, // C 沿斜面向下
+                    showTrajectory: true,
+                    rodAB: { x1: 650, y1: 300, x2: 650, y2: 300 },
+                    rodBC: { x1: 650, y1: 300, x2: 525, y2: 225 }
+                },
+                {
+                    name: "结论：速度总结",
+                    ballA: { x: 650, y: 300, highlight: '#c62828' },
+                    ballB: { x: 650, y: 300, highlight: '#c62828' },
+                    ballC: { x: 400, y: 250, highlight: '#2e7d32' },
+                    showTrajectory: true,
+                    rodAB: { x1: 650, y1: 300, x2: 650, y2: 300 },
+                    rodBC: { x1: 650, y1: 300, x2: 400, y2: 250 }
+                }
+            ],
+            
+            // DOM 元素缓存
+            elements: {},
+            
+            // 初始化
+            init: function() {
+                this.cacheElements();
+                this.bindEvents();
+                this.render();
+            },
+            
+            // 缓存 DOM 元素
+            cacheElements: function() {
+                this.elements = {
+                    ballA: document.getElementById('scene1-ball-A'),
+                    ballB: document.getElementById('scene1-ball-B'),
+                    ballC: document.getElementById('scene1-ball-C'),
+                    rodAB: document.getElementById('scene1-rod-AB'),
+                    rodBC: document.getElementById('scene1-rod-BC'),
+                    trajectoryA: document.getElementById('scene1-trajectory-A'),
+                    stageLabel: document.getElementById('scene1-stage-label'),
+                    prevBtn: document.getElementById('scene1-prev-btn'),
+                    nextBtn: document.getElementById('scene1-next-btn')
+                };
+            },
+            
+            // 绑定事件
+            bindEvents: function() {
+                const self = this;
+                this.elements.prevBtn.addEventListener('click', function() {
+                    if (self.currentStep > 0) {
+                        self.currentStep--;
+                        self.render();
+                    }
+                });
+                
+                this.elements.nextBtn.addEventListener('click', function() {
+                    if (self.currentStep < self.totalSteps) {
+                        self.currentStep++;
+                        self.render();
+                    }
+                });
+            },
+            
+            // 渲染当前状态
+            render: function() {
+                const step = this.steps[this.currentStep];
+                
+                // 更新球位置和高亮
+                this.updateBall(this.elements.ballA, step.ballA);
+                this.updateBall(this.elements.ballB, step.ballB);
+                this.updateBall(this.elements.ballC, step.ballC);
+                
+                // 更新绳位置
+                this.elements.rodAB.setAttribute('x1', step.rodAB.x1);
+                this.elements.rodAB.setAttribute('y1', step.rodAB.y1);
+                this.elements.rodAB.setAttribute('x2', step.rodAB.x2);
+                this.elements.rodAB.setAttribute('y2', step.rodAB.y2);
+                
+                this.elements.rodBC.setAttribute('x1', step.rodBC.x1);
+                this.elements.rodBC.setAttribute('y1', step.rodBC.y1);
+                this.elements.rodBC.setAttribute('x2', step.rodBC.x2);
+                this.elements.rodBC.setAttribute('y2', step.rodBC.y2);
+                
+                // 更新轨迹显示
+                this.elements.trajectoryA.style.display = step.showTrajectory ? 'block' : 'none';
+                
+                // 更新阶段标签
+                this.elements.stageLabel.textContent = step.name;
+                
+                // 更新按钮状态
+                this.elements.prevBtn.disabled = (this.currentStep === 0);
+                this.elements.nextBtn.disabled = (this.currentStep === this.totalSteps);
+            },
+            
+            // 更新球位置和颜色
+            updateBall: function(element, config) {
+                element.setAttribute('cx', config.x);
+                element.setAttribute('cy', config.y);
+                if (config.highlight) {
+                    element.setAttribute('fill', config.highlight);
+                } else {
+                    element.setAttribute('fill', '#ffffff');
+                }
+            }
+        };
+        
+        // 启动场景
+        scene1.init();
+    })();
+    </script>
+</body>
+</html>

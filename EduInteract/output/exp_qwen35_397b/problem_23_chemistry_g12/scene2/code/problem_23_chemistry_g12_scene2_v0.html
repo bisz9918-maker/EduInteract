@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>晶体 X 晶胞结构与配位数分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-ion-a { fill: #000000; }
+        .scene2-ion-b { fill: #ffffff; stroke: #000000; stroke-width: 2; }
+        .scene2-ion-a-highlight { fill: #1565c0; }
+        .scene2-ion-b-highlight { fill: #2e7d32; stroke: #2e7d32; }
+        .scene2-cell-front { stroke: #000000; stroke-width: 2; fill: none; }
+        .scene2-cell-back { stroke: #888888; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+        .scene2-connection { stroke: #c62828; stroke-width: 2; stroke-dasharray: 5,5; fill: none; }
+        .scene2-panel-tally { fill: #e3f2fd; }
+        .scene2-panel-coordination { fill: #e8f5e9; }
+        .scene2-text-title { font-size: 16px; font-weight: bold; }
+        .scene2-text-normal { font-size: 14px; }
+        .scene2-text-result { font-size: 18px; font-weight: bold; }
+        .scene2-fraction { font-size: 12px; fill: #1565c0; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 均摊法面板 -->
+            <rect id="scene2-panel-tally-bg" x="50" y="80" width="230" height="120" class="scene2-panel-tally" opacity="0"/>
+            <text id="scene2-tally-title" x="60" y="100" class="scene2-text-title" opacity="0">均摊法计算</text>
+            <text id="scene2-tally-a" x="60" y="130" class="scene2-text-normal" opacity="0">A 离子：8×1/8=1</text>
+            <text id="scene2-tally-b" x="60" y="160" class="scene2-text-normal" opacity="0">B 离子：8×1/8=1</text>
+            <text id="scene2-tally-result" x="60" y="190" class="scene2-text-result" opacity="0">化学式：AB</text>
+            
+            <!-- 配位数面板 -->
+            <rect id="scene2-panel-coord-bg" x="520" y="80" width="230" height="170" class="scene2-panel-coordination" opacity="0"/>
+            <text id="scene2-coord-title" x="530" y="100" class="scene2-text-title" opacity="0">配位数分析</text>
+            <text id="scene2-coord-desc" x="530" y="130" class="scene2-text-normal" opacity="0">选取中心 A 离子</text>
+            <text id="scene2-coord-count" x="530" y="160" class="scene2-text-normal" opacity="0">最近邻 B 离子：6 个</text>
+            <text id="scene2-coord-result" x="530" y="190" class="scene2-text-result" opacity="0">配位数=6</text>
+            
+            <!-- 图例 -->
+            <circle id="scene2-legend-a" cx="536" cy="220" r="6" class="scene2-ion-a"/>
+            <text id="scene2-legend-a-text" x="545" y="225" class="scene2-text-normal">A 离子</text>
+            <circle id="scene2-legend-b" cx="626" cy="220" r="6" class="scene2-ion-b"/>
+            <text id="scene2-legend-b-text" x="635" y="225" class="scene2-text-normal">B 离子</text>
+            
+            <!-- 晶胞框架 - 后棱（先画，被遮挡） -->
+            <line id="scene2-cell-back-top" x1="400" y1="100" x2="600" y2="100" class="scene2-cell-back"/>
+            <line id="scene2-cell-back-bottom" x1="400" y1="300" x2="600" y2="300" class="scene2-cell-back"/>
+            <line id="scene2-cell-back-left" x1="400" y1="100" x2="400" y2="300" class="scene2-cell-back"/>
+            <line id="scene2-cell-back-right" x1="600" y1="100" x2="600" y2="300" class="scene2-cell-back"/>
+            
+            <!-- 晶胞框架 - 连接棱 -->
+            <line id="scene2-cell-connect-tl" x1="350" y1="150" x2="400" y2="100" class="scene2-cell-front"/>
+            <line id="scene2-cell-connect-tr" x1="550" y1="150" x2="600" y2="100" class="scene2-cell-front"/>
+            <line id="scene2-cell-connect-bl" x1="350" y1="350" x2="400" y2="300" class="scene2-cell-front"/>
+            <line id="scene2-cell-connect-br" x1="550" y1="350" x2="600" y2="300" class="scene2-cell-front"/>
+            
+            <!-- 晶胞框架 - 前棱 -->
+            <line id="scene2-cell-front-top" x1="350" y1="150" x2="550" y2="150" class="scene2-cell-front"/>
+            <line id="scene2-cell-front-bottom" x1="350" y1="350" x2="550" y2="350" class="scene2-cell-front"/>
+            <line id="scene2-cell-front-left" x1="350" y1="150" x2="350" y2="350" class="scene2-cell-front"/>
+            <line id="scene2-cell-front-right" x1="550" y1="150" x2="550" y2="350" class="scene2-cell-front"/>
+            
+            <!-- 配位连线（步骤 3-4 显示） -->
+            <line id="scene2-coord-line-0" x1="350" y1="350" x2="350" y2="150" class="scene2-connection" opacity="0"/>
+            <line id="scene2-coord-line-1" x1="350" y1="350" x2="550" y2="350" class="scene2-connection" opacity="0"/>
+            <line id="scene2-coord-line-2" x1="350" y1="350" x2="400" y2="300" class="scene2-connection" opacity="0"/>
+            <line id="scene2-coord-line-3" x1="350" y1="350" x2="350" y2="250" class="scene2-connection" opacity="0"/>
+            <line id="scene2-coord-line-4" x1="350" y1="350" x2="450" y2="350" class="scene2-connection" opacity="0"/>
+            <line id="scene2-coord-line-5" x1="350" y1="350" x2="250" y2="350" class="scene2-connection" opacity="0"/>
+            
+            <!-- A 离子（黑球）- 4 个 -->
+            <circle id="scene2-ion-a-0" cx="350" cy="350" r="10" class="scene2-ion-a"/>
+            <circle id="scene2-ion-a-1" cx="550" cy="150" r="10" class="scene2-ion-a"/>
+            <circle id="scene2-ion-a-2" cx="400" cy="100" r="10" class="scene2-ion-a"/>
+            <circle id="scene2-ion-a-3" cx="600" cy="300" r="10" class="scene2-ion-a"/>
+            
+            <!-- B 离子（白球）- 4 个 -->
+            <circle id="scene2-ion-b-0" cx="350" cy="150" r="10" class="scene2-ion-b"/>
+            <circle id="scene2-ion-b-1" cx="550" cy="350" r="10" class="scene2-ion-b"/>
+            <circle id="scene2-ion-b-2" cx="400" cy="300" r="10" class="scene2-ion-b"/>
+            <circle id="scene2-ion-b-3" cx="600" cy="100" r="10" class="scene2-ion-b"/>
+            
+            <!-- 1/8 标记（步骤 1 显示） -->
+            <text id="scene2-fraction-mark" x="320" y="250" class="scene2-fraction" opacity="0">1/8</text>
+            
+            <!-- 控件栏 -->
+            <rect x="0" y="450" width="800" height="40" fill="#f0f0f0" opacity="0.5"/>
+            <text id="scene2-step-indicator" x="400" y="475" text-anchor="middle" class="scene2-text-normal">步骤 0/4</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 面板元素
+        const tallyBg = document.getElementById('scene2-panel-tally-bg');
+        const tallyTitle = document.getElementById('scene2-tally-title');
+        const tallyA = document.getElementById('scene2-tally-a');
+        const tallyB = document.getElementById('scene2-tally-b');
+        const tallyResult = document.getElementById('scene2-tally-result');
+        
+        const coordBg = document.getElementById('scene2-panel-coord-bg');
+        const coordTitle = document.getElementById('scene2-coord-title');
+        const coordDesc = document.getElementById('scene2-coord-desc');
+        const coordCount = document.getElementById('scene2-coord-count');
+        const coordResult = document.getElementById('scene2-coord-result');
+        
+        // 离子元素
+        const ionsA = [
+            document.getElementById('scene2-ion-a-0'),
+            document.getElementById('scene2-ion-a-1'),
+            document.getElementById('scene2-ion-a-2'),
+            document.getElementById('scene2-ion-a-3')
+        ];
+        const ionsB = [
+            document.getElementById('scene2-ion-b-0'),
+            document.getElementById('scene2-ion-b-1'),
+            document.getElementById('scene2-ion-b-2'),
+            document.getElementById('scene2-ion-b-3')
+        ];
+        
+        // 配位连线
+        const coordLines = [
+            document.getElementById('scene2-coord-line-0'),
+            document.getElementById('scene2-coord-line-1'),
+            document.getElementById('scene2-coord-line-2'),
+            document.getElementById('scene2-coord-line-3'),
+            document.getElementById('scene2-coord-line-4'),
+            document.getElementById('scene2-coord-line-5')
+        ];
+        
+        // 1/8 标记
+        const fractionMark = document.getElementById('scene2-fraction-mark');
+        
+        // 更新显示状态
+        function updateScene() {
+            // 更新步骤指示
+            stepIndicator.textContent = `步骤 ${currentState}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === totalSteps;
+            
+            // 重置所有元素状态
+            resetAll();
+            
+            // 根据当前状态设置显示
+            switch(currentState) {
+                case 0:
+                    // 初始状态：只显示晶胞和图例
+                    break;
+                    
+                case 1:
+                    // 高亮所有离子，显示均摊法面板
+                    highlightAllIons();
+                    showTallyPanel(false);
+                    fractionMark.style.opacity = '1';
+                    break;
+                    
+                case 2:
+                    // 显示化学式结果
+                    highlightAllIons();
+                    showTallyPanel(true);
+                    fractionMark.style.opacity = '1';
+                    break;
+                    
+                case 3:
+                    // 配位数分析：高亮中心 A 离子，显示配位连线
+                    highlightCenterIon();
+                    showCoordPanel(false);
+                    break;
+                    
+                case 4:
+                    // 配位数结论：高亮 6 个最近邻 B 离子
+                    highlightCenterIon();
+                    highlightNeighborB();
+                    showCoordPanel(true);
+                    break;
+            }
+        }
+        
+        // 重置所有元素
+        function resetAll() {
+            // 重置离子颜色
+            ionsA.forEach(ion => {
+                ion.classList.remove('scene2-ion-a-highlight');
+                ion.classList.add('scene2-ion-a');
+            });
+            ionsB.forEach(ion => {
+                ion.classList.remove('scene2-ion-b-highlight');
+                ion.classList.add('scene2-ion-b');
+            });
+            
+            // 隐藏配位连线
+            coordLines.forEach(line => line.style.opacity = '0');
+            
+            // 隐藏面板
+            hideElement(tallyBg);
+            hideElement(tallyTitle);
+            hideElement(tallyA);
+            hideElement(tallyB);
+            hideElement(tallyResult);
+            hideElement(coordBg);
+            hideElement(coordTitle);
+            hideElement(coordDesc);
+            hideElement(coordCount);
+            hideElement(coordResult);
+            
+            // 隐藏 1/8 标记
+            fractionMark.style.opacity = '0';
+        }
+        
+        // 高亮所有离子（步骤 1-2）
+        function highlightAllIons() {
+            ionsA.forEach(ion => {
+                ion.classList.remove('scene2-ion-a');
+                ion.classList.add('scene2-ion-a-highlight');
+            });
+            ionsB.forEach(ion => {
+                ion.classList.remove('scene2-ion-b');
+                ion.classList.add('scene2-ion-b-highlight');
+            });
+        }
+        
+        // 显示均摊法面板
+        function showTallyPanel(showResult) {
+            showElement(tallyBg);
+            showElement(tallyTitle);
+            showElement(tallyA);
+            showElement(tallyB);
+            if (showResult) {
+                showElement(tallyResult);
+            }
+        }
+        
+        // 高亮中心 A 离子（步骤 3-4）
+        function highlightCenterIon() {
+            // 中心 A 离子是 scene2-ion-a-0 (350,350)
+            ionsA[0].classList.remove('scene2-ion-a');
+            ionsA[0].classList.add('scene2-ion-a-highlight');
+            
+            // 显示配位连线
+            coordLines.forEach(line => line.style.opacity = '1');
+        }
+        
+        // 高亮最近邻 B 离子（步骤 4）
+        function highlightNeighborB() {
+            // 高亮所有 B 离子作为最近邻
+            ionsB.forEach(ion => {
+                ion.classList.remove('scene2-ion-b');
+                ion.classList.add('scene2-ion-b-highlight');
+            });
+        }
+        
+        // 显示配位数面板
+        function showCoordPanel(showResult) {
+            showElement(coordBg);
+            showElement(coordTitle);
+            showElement(coordDesc);
+            showElement(coordCount);
+            if (showResult) {
+                showElement(coordResult);
+            }
+        }
+        
+        // 显示元素
+        function showElement(el) {
+            el.style.opacity = '1';
+            el.style.display = 'block';
+        }
+        
+        // 隐藏元素
+        function hideElement(el) {
+            el.style.opacity = '0';
+            el.style.display = 'none';
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', () => {
+            if (currentState > 0) {
+                currentState--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 平移法详解（图形 B 阶梯形周长计算）</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        .control-group { position: absolute; left: 20px; top: 240px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .control-group label { font-size: 14px; font-weight: bold; color: #333; }
+        .control-group input[type="range"] { width: 140px; height: 20px; }
+        .control-group .progress-value { font-size: 16px; font-weight: bold; color: #1976d2; }
+        .perimeter-display { position: absolute; right: 20px; top: 40px; font-size: 20px; font-weight: bold; color: #1976d2; }
+        .explanation-text { position: absolute; left: 20px; bottom: 20px; font-size: 14px; color: #666; max-width: 600px; }
+        svg { display: block; }
+        .stair-line { stroke: #000; stroke-width: 2; fill: none; }
+        .rectangle-line { stroke: #1976d2; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+        .translated-line { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .trajectory-arrow { stroke: #999; stroke-width: 1.5; fill: none; stroke-dasharray: 3,3; }
+        .trajectory-arrow-head { fill: #999; }
+        .ref-rect { stroke: #000; stroke-width: 2; fill: #e3f2fd; }
+        .label-text { font-size: 14px; fill: #333; }
+        .title-text { font-size: 16px; font-weight: bold; fill: #333; }
+        .perimeter-text { font-size: 14px; fill: #1976d2; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 图形 A 参考图（左上角，下移以避免重叠） -->
+            <g id="scene2-ref-a">
+                <rect class="ref-rect" x="50" y="60" width="100" height="100"/>
+                <text class="title-text" x="70" y="45">A</text>
+                <text class="perimeter-text" x="55" y="175">周长=32</text>
+            </g>
+
+            <!-- 目标长方形轮廓（蓝色虚线） -->
+            <rect id="scene2-target-rect" class="rectangle-line" x="350" y="180" width="200" height="170"/>
+
+            <!-- 原始阶梯图形底边 -->
+            <line id="scene2-base-line" class="stair-line" x1="350" y1="350" x2="550" y2="350"/>
+
+            <!-- 原始阶梯图形左侧边 -->
+            <line id="scene2-left-line" class="stair-line" x1="350" y1="180" x2="350" y2="350"/>
+
+            <!-- 阶梯水平边组（5 级台阶） -->
+            <g id="scene2-horizontal-stairs">
+                <!-- 从下往上，每级水平边长 40px，垂直边长 34px -->
+                <line class="stair-line" id="scene2-h1" x1="350" y1="316" x2="390" y2="316"/>
+                <line class="stair-line" id="scene2-h2" x1="390" y1="282" x2="430" y2="282"/>
+                <line class="stair-line" id="scene2-h3" x1="430" y1="248" x2="470" y2="248"/>
+                <line class="stair-line" id="scene2-h4" x1="470" y1="214" x2="510" y2="214"/>
+                <line class="stair-line" id="scene2-h5" x1="510" y1="180" x2="550" y2="180"/>
+            </g>
+
+            <!-- 阶梯垂直边组（5 级台阶） -->
+            <g id="scene2-vertical-stairs">
+                <line class="stair-line" id="scene2-v1" x1="390" y1="316" x2="390" y2="282"/>
+                <line class="stair-line" id="scene2-v2" x1="430" y1="282" x2="430" y2="248"/>
+                <line class="stair-line" id="scene2-v3" x1="470" y1="248" x2="470" y2="214"/>
+                <line class="stair-line" id="scene2-v4" x1="510" y1="214" x2="510" y2="180"/>
+                <line class="stair-line" id="scene2-v5" x1="550" y1="180" x2="550" y2="180"/>
+            </g>
+
+            <!-- 水平边平移轨迹箭头（从各水平边向上到 y=180） -->
+            <g id="scene2-h-trajectories">
+                <line class="trajectory-arrow" id="scene2-ht1" x1="370" y1="316" x2="370" y2="200"/>
+                <line class="trajectory-arrow" id="scene2-ht2" x1="410" y1="282" x2="410" y2="200"/>
+                <line class="trajectory-arrow" id="scene2-ht3" x1="450" y1="248" x2="450" y2="200"/>
+                <line class="trajectory-arrow" id="scene2-ht4" x1="490" y1="214" x2="490" y2="200"/>
+                <line class="trajectory-arrow" id="scene2-ht5" x1="530" y1="180" x2="530" y2="200"/>
+                <!-- 箭头头部 -->
+                <polygon class="trajectory-arrow-head" id="scene2-ha1" points="370,200 365,210 375,210"/>
+                <polygon class="trajectory-arrow-head" id="scene2-ha2" points="410,200 405,210 415,210"/>
+                <polygon class="trajectory-arrow-head" id="scene2-ha3" points="450,200 445,210 455,210"/>
+                <polygon class="trajectory-arrow-head" id="scene2-ha4" points="490,200 485,210 495,210"/>
+                <polygon class="trajectory-arrow-head" id="scene2-ha5" points="530,200 525,210 535,210"/>
+            </g>
+
+            <!-- 垂直边平移轨迹箭头（从各垂直边向右到 x=550） -->
+            <g id="scene2-v-trajectories">
+                <line class="trajectory-arrow" id="scene2-vt1" x1="390" y1="299" x2="530" y2="299"/>
+                <line class="trajectory-arrow" id="scene2-vt2" x1="430" y1="265" x2="530" y2="265"/>
+                <line class="trajectory-arrow" id="scene2-vt3" x1="470" y1="231" x2="530" y2="231"/>
+                <line class="trajectory-arrow" id="scene2-vt4" x1="510" y1="197" x2="530" y2="197"/>
+                <line class="trajectory-arrow" id="scene2-vt5" x1="550" y1="180" x2="530" y2="180"/>
+                <!-- 箭头头部 -->
+                <polygon class="trajectory-arrow-head" id="scene2-va1" points="530,299 540,294 540,304"/>
+                <polygon class="trajectory-arrow-head" id="scene2-va2" points="530,265 540,260 540,270"/>
+                <polygon class="trajectory-arrow-head" id="scene2-va3" points="530,231 540,226 540,236"/>
+                <polygon class="trajectory-arrow-head" id="scene2-va4" points="530,197 540,192 540,202"/>
+                <polygon class="trajectory-arrow-head" id="scene2-va5" points="530,180 540,175 540,185"/>
+            </g>
+
+            <!-- 已平移水平边（绿色，最终位置 y=180） -->
+            <g id="scene2-translated-h">
+                <line class="translated-line" id="scene2-th1" x1="350" y1="180" x2="390" y2="180" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-th2" x1="390" y1="180" x2="430" y2="180" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-th3" x1="430" y1="180" x2="470" y2="180" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-th4" x1="470" y1="180" x2="510" y2="180" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-th5" x1="510" y1="180" x2="550" y2="180" style="opacity: 0;"/>
+            </g>
+
+            <!-- 已平移垂直边（绿色，最终位置 x=550） -->
+            <g id="scene2-translated-v">
+                <line class="translated-line" id="scene2-tv1" x1="550" y1="316" x2="550" y2="282" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-tv2" x1="550" y1="282" x2="550" y2="248" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-tv3" x1="550" y1="248" x2="550" y2="214" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-tv4" x1="550" y1="214" x2="550" y2="180" style="opacity: 0;"/>
+                <line class="translated-line" id="scene2-tv5" x1="550" y1="180" x2="550" y2="180" style="opacity: 0;"/>
+            </g>
+
+            <!-- 标签 -->
+            <text class="label-text" id="scene2-base-label" x="450" y="370" text-anchor="middle">10</text>
+            <text class="label-text" id="scene2-left-label" x="330" y="265" text-anchor="middle">6</text>
+        </svg>
+
+        <!-- 滑块控件（左侧垂直区域，下移以避免重叠） -->
+        <div class="control-group">
+            <label id="scene2-slider-label">平移进度</label>
+            <input type="range" id="scene2-slider" min="0" max="100" value="0"/>
+            <span class="progress-value" id="scene2-progress-text">0%</span>
+        </div>
+
+        <!-- 周长数值显示（右上角） -->
+        <div class="perimeter-display" id="scene2-perimeter-display">周长：32</div>
+
+        <!-- 说明文字（底部） -->
+        <div class="explanation-text" id="scene2-explanation">拖动滑块，观察阶梯边如何平移成长方形</div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 平移法详解（图形 B 阶梯形周长计算）
+        // 坐标表对照：
+        // 原始阶梯图形底边：(350,350)-(550,350) 长度 10
+        // 原始阶梯图形左侧边：(350,180)-(350,350) 长度 6
+        // 目标长方形：(350,180)-(550,350) 200×170
+        // 阶梯边：5 级台阶，每级水平=40px，垂直=34px
+        // 滑块：左侧 (60,220)-(200,240)
+        // 标签："10" 在 (450,370)，"6" 在 (330,265)
+
+        const svg = document.getElementById('scene2-svg');
+        const slider = document.getElementById('scene2-slider');
+        const progressText = document.getElementById('scene2-progress-text');
+        const perimeterDisplay = document.getElementById('scene2-perimeter-display');
+        const explanation = document.getElementById('scene2-explanation');
+
+        // 阶梯边元素 ID 列表
+        const hStairs = ['scene2-h1', 'scene2-h2', 'scene2-h3', 'scene2-h4', 'scene2-h5'];
+        const vStairs = ['scene2-v1', 'scene2-v2', 'scene2-v3', 'scene2-v4', 'scene2-v5'];
+        const hTrajectories = ['scene2-ht1', 'scene2-ht2', 'scene2-ht3', 'scene2-ht4', 'scene2-ht5'];
+        const vTrajectories = ['scene2-vt1', 'scene2-vt2', 'scene2-vt3', 'scene2-vt4', 'scene2-vt5'];
+        const hArrowHeads = ['scene2-ha1', 'scene2-ha2', 'scene2-ha3', 'scene2-ha4', 'scene2-ha5'];
+        const vArrowHeads = ['scene2-va1', 'scene2-va2', 'scene2-va3', 'scene2-va4', 'scene2-va5'];
+        const translatedH = ['scene2-th1', 'scene2-th2', 'scene2-th3', 'scene2-th4', 'scene2-th5'];
+        const translatedV = ['scene2-tv1', 'scene2-tv2', 'scene2-tv3', 'scene2-tv4', 'scene2-tv5'];
+
+        // 更新函数：根据滑块值更新所有元素
+        function updateScene(progress) {
+            const progressRatio = progress / 100;
+            const numStairs = 5;
+            const completedStairs = Math.floor(progressRatio * numStairs);
+            const partialProgress = (progressRatio * numStairs) - completedStairs;
+
+            // 更新进度文本
+            progressText.textContent = progress + '%';
+
+            // 更新说明文字
+            if (progress === 0) {
+                explanation.textContent = '拖动滑块，观察阶梯边如何平移成长方形';
+            } else if (progress < 25) {
+                explanation.textContent = '水平边向上平移，垂直边向右平移';
+            } else if (progress < 50) {
+                explanation.textContent = '平移过程中，总长度保持不变';
+            } else if (progress < 75) {
+                explanation.textContent = '所有边平移后形成完整长方形';
+            } else if (progress < 100) {
+                explanation.textContent = '接近完成，观察阶梯形如何变成规则长方形';
+            } else {
+                explanation.textContent = '阶梯形周长 = 长方形周长 = 2×(10+6) = 32';
+            }
+
+            // 更新水平阶梯边和轨迹
+            for (let i = 0; i < numStairs; i++) {
+                const hStair = document.getElementById(hStairs[i]);
+                const hTraj = document.getElementById(hTrajectories[i]);
+                const hArrow = document.getElementById(hArrowHeads[i]);
+                const transH = document.getElementById(translatedH[i]);
+
+                if (i < completedStairs) {
+                    // 已完成平移：隐藏原边，显示轨迹，显示平移后的边
+                    hStair.style.opacity = '0';
+                    hTraj.style.opacity = '0.3';
+                    hArrow.style.opacity = '0.3';
+                    transH.style.opacity = '1';
+                } else if (i === completedStairs && partialProgress > 0) {
+                    // 正在平移：原边逐渐淡出，轨迹显示，平移后的边逐渐显示
+                    hStair.style.opacity = (1 - partialProgress).toString();
+                    hTraj.style.opacity = '0.6';
+                    hArrow.style.opacity = '0.6';
+                    transH.style.opacity = partialProgress.toString();
+                } else {
+                    // 未开始平移：显示原边，隐藏轨迹和平移后的边
+                    hStair.style.opacity = '1';
+                    hTraj.style.opacity = '0';
+                    hArrow.style.opacity = '0';
+                    transH.style.opacity = '0';
+                }
+            }
+
+            // 更新垂直阶梯边和轨迹
+            for (let i = 0; i < numStairs; i++) {
+                const vStair = document.getElementById(vStairs[i]);
+                const vTraj = document.getElementById(vTrajectories[i]);
+                const vArrow = document.getElementById(vArrowHeads[i]);
+                const transV = document.getElementById(translatedV[i]);
+
+                if (i < completedStairs) {
+                    // 已完成平移
+                    vStair.style.opacity = '0';
+                    vTraj.style.opacity = '0.3';
+                    vArrow.style.opacity = '0.3';
+                    transV.style.opacity = '1';
+                } else if (i === completedStairs && partialProgress > 0) {
+                    // 正在平移
+                    vStair.style.opacity = (1 - partialProgress).toString();
+                    vTraj.style.opacity = '0.6';
+                    vArrow.style.opacity = '0.6';
+                    transV.style.opacity = partialProgress.toString();
+                } else {
+                    // 未开始平移
+                    vStair.style.opacity = '1';
+                    vTraj.style.opacity = '0';
+                    vArrow.style.opacity = '0';
+                    transV.style.opacity = '0';
+                }
+            }
+
+            // 更新周长显示
+            perimeterDisplay.textContent = '周长：32';
+        }
+
+        // 滑块事件监听
+        slider.addEventListener('input', function() {
+            updateScene(parseInt(this.value));
+        });
+
+        // 初始化
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

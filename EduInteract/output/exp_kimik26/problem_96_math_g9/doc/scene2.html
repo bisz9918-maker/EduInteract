@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正方体展开图折叠与旋转验证 - 场景2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+
+        /* 3D 正方体容器 */
+        #scene2-cube-container {
+            position: absolute; left: 80px; top: 80px; width: 280px; height: 280px;
+            perspective: 800px; display: none;
+        }
+        #scene2-cube {
+            position: absolute; left: 80px; top: 80px; width: 120px; height: 120px;
+            transform-style: preserve-3d; transition: transform 1s ease-in-out;
+        }
+        .scene2-face {
+            position: absolute; width: 120px; height: 120px; background: #ffffff;
+            border: 1.5px solid #000000; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center; font-size: 11px; color: #000;
+        }
+        /* 面号标签在左上角 */
+        .scene2-face::before {
+            content: attr(data-label); position: absolute; left: 4px; top: 4px;
+            font-size: 11px; font-family: sans-serif; color: #000000;
+        }
+        /* 六个面的 3D 定位 */
+        #scene2-face-2 { transform: translateZ(60px); } /* 前 */
+        #scene2-face-5 { transform: rotateX(90deg) translateZ(60px); } /* 上 */
+        #scene2-face-4 { transform: rotateX(-90deg) translateZ(60px); } /* 下 */
+        #scene2-face-1 { transform: rotateY(-90deg) translateZ(60px); } /* 左 */
+        #scene2-face-3 { transform: rotateY(90deg) translateZ(60px); } /* 右 */
+        #scene2-face-6 { transform: rotateY(180deg) translateZ(60px); } /* 后 */
+
+        /* 圆圈面 */
+        .scene2-circle::after {
+            content: ''; position: absolute; width: 36px; height: 36px;
+            border: 2px solid #1565c0; border-radius: 50%; box-sizing: border-box;
+        }
+        /* 阴影三角面 */
+        .scene2-triangle svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+
+        /* 展开图 */
+        #scene2-net-container {
+            position: absolute; left: 80px; top: 80px; width: 280px; height: 280px;
+            display: none;
+        }
+        .scene2-net-face {
+            position: absolute; width: 80px; height: 80px; background: #ffffff;
+            border: 1px solid #000000; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #scene2-net-2 { left: 100px; top: 100px; }
+        #scene2-net-5 { left: 100px; top: 20px; }
+        #scene2-net-4 { left: 100px; top: 180px; }
+        #scene2-net-1 { left: 20px; top: 100px; }
+        #scene2-net-3 { left: 180px; top: 100px; }
+
+        /* 选项区 */
+        #scene2-options { position: absolute; left: 440px; top: 0; width: 360px; height: 440px; }
+        .scene2-option-wrap {
+            position: absolute; width: 70px; height: 70px;
+        }
+        .scene2-option-wrap svg { width: 100%; height: 100%; }
+        #scene2-option-a { left: 95px; top: 90px; }
+        #scene2-option-b { left: 195px; top: 90px; }
+        #scene2-option-c { left: 95px; top: 220px; }
+        #scene2-option-d { left: 195px; top: 220px; }
+
+        .scene2-option-label {
+            position: absolute; font-size: 14px; font-weight: bold; color: #000000;
+            text-align: center; width: 70px;
+        }
+        #scene2-label-a { left: 95px; top: 165px; }
+        #scene2-label-b { left: 195px; top: 165px; }
+        #scene2-label-c { left: 95px; top: 295px; }
+        #scene2-label-d { left: 195px; top: 295px; }
+
+        .scene2-status-label {
+            position: absolute; font-size: 14px; color: #000000; text-align: center;
+            width: 140px; display: none;
+        }
+        #scene2-status-a { left: 70px; top: 70px; width: 120px; color: #2e7d32; }
+        #scene2-status-b { left: 210px; top: 70px; width: 50px; color: #c62828; }
+        #scene2-status-c { left: 70px; top: 200px; width: 120px; color: #c62828; }
+        #scene2-status-d { left: 210px; top: 200px; width: 50px; color: #c62828; }
+
+        /* 高亮与蒙版 */
+        .scene2-hl-green { border: 3px solid #2e7d32 !important; }
+        .scene2-mask-red { fill: #c62828; fill-opacity: 0.3; }
+
+        /* 控件 */
+        #scene2-controls {
+            position: absolute; bottom: 10px; left: 0; right: 0;
+            display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10;
+        }
+        #scene2-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; background: #f5f5f5; border-radius: 4px;
+        }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- 3D 正方体 -->
+        <div id="scene2-cube-container">
+            <div id="scene2-cube">
+                <div id="scene2-face-1" class="scene2-face scene2-triangle" data-label="①">
+                    <svg viewBox="0 0 120 120" preserveAspectRatio="none">
+                        <defs>
+                            <pattern id="scene2-hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                                <line x1="0" y1="0" x2="0" y2="4" stroke="#000" stroke-width="1"/>
+                            </pattern>
+                        </defs>
+                        <polygon points="0,0 0,120 120,120" fill="url(#scene2-hatch)"/>
+                    </svg>
+                </div>
+                <div id="scene2-face-2" class="scene2-face" data-label="②"></div>
+                <div id="scene2-face-3" class="scene2-face scene2-triangle" data-label="③">
+                    <svg viewBox="0 0 120 120" preserveAspectRatio="none">
+                        <polygon points="0,0 0,120 120,120" fill="url(#scene2-hatch)"/>
+                    </svg>
+                </div>
+                <div id="scene2-face-4" class="scene2-face" data-label="④"></div>
+                <div id="scene2-face-5" class="scene2-face scene2-circle" data-label="⑤"></div>
+                <div id="scene2-face-6" class="scene2-face" data-label="⑥"></div>
+            </div>
+        </div>
+
+        <!-- 展开图 -->
+        <div id="scene2-net-container">
+            <div id="scene2-net-2" class="scene2-net-face"></div>
+            <div id="scene2-net-5" class="scene2-net-face scene2-circle"></div>
+            <div id="scene2-net-4" class="scene2-net-face"></div>
+            <div id="scene2-net-1" class="scene2-net-face scene2-triangle">
+                <svg viewBox="0 0 80 80" preserveAspectRatio="none">
+                    <polygon points="0,0 0,80 80,80" fill="url(#scene2-hatch)"/>
+                </svg>
+            </div>
+            <div id="scene2-net-3" class="scene2-net-face scene2-triangle">
+                <svg viewBox="0 0 80 80" preserveAspectRatio="none">
+                    <polygon points="0,0 0,80 80,80" fill="url(#scene2-hatch)"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- 选项区 -->
+        <div id="scene2-options">
+            <!-- 选项 A -->
+            <div id="scene2-option-a" class="scene2-option-wrap">
+                <svg viewBox="0 0 70 70">
+                    <defs>
+                        <pattern id="hatch-a" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                            <line x1="0" y1="0" x2="0" y2="4" stroke="#000" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <!-- 顶面 -->
+                    <polygon points="15,30 45,30 55,15 25,15" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <circle cx="35" cy="22" r="10" stroke="#1565c0" stroke-width="2" fill="none"/>
+                    <!-- 正面 -->
+                    <polygon points="15,30 45,30 45,60 15,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <polygon points="15,30 15,60 45,60" fill="url(#hatch-a)"/>
+                    <!-- 右侧面 -->
+                    <polygon points="45,30 55,15 55,45 45,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <!-- 叉号组 -->
+                    <g id="scene2-cross-a" style="display:none">
+                        <line x1="20" y1="35" x2="40" y2="55" stroke="#c62828" stroke-width="2"/>
+                        <line x1="40" y1="35" x2="20" y2="55" stroke="#c62828" stroke-width="2"/>
+                    </g>
+                    <!-- 蒙版 -->
+                    <rect id="scene2-mask-a" x="0" y="0" width="70" height="70" fill="#c62828" fill-opacity="0" style="display:none"/>
+                </svg>
+            </div>
+            <div id="scene2-label-a" class="scene2-option-label">A</div>
+            <div id="scene2-status-a" class="scene2-status-label">与选项 A 完全一致</div>
+
+            <!-- 选项 B -->
+            <div id="scene2-option-b" class="scene2-option-wrap">
+                <svg viewBox="0 0 70 70">
+                    <defs>
+                        <pattern id="hatch-b" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                            <line x1="0" y1="0" x2="0" y2="4" stroke="#000" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <!-- 顶面 -->
+                    <polygon id="scene2-b-top" points="15,30 45,30 55,15 25,15" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <!-- 正面 -->
+                    <polygon points="15,30 45,30 45,60 15,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <polygon points="15,30 15,60 45,60" fill="url(#hatch-b)"/>
+                    <!-- 右侧面 -->
+                    <polygon points="45,30 55,15 55,45 45,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <polygon points="45,30 45,60 55,45" fill="url(#hatch-b)"/>
+                    <!-- 叉号 -->
+                    <g id="scene2-cross-b" style="display:none">
+                        <line x1="20" y1="18" x2="50" y2="28" stroke="#c62828" stroke-width="2"/>
+                        <line x1="50" y1="18" x2="20" y2="28" stroke="#c62828" stroke-width="2"/>
+                    </g>
+                    <rect id="scene2-mask-b" x="0" y="0" width="70" height="70" fill="#c62828" fill-opacity="0" style="display:none"/>
+                </svg>
+            </div>
+            <div id="scene2-label-b" class="scene2-option-label">B</div>
+            <div id="scene2-status-b" class="scene2-status-label">矛盾</div>
+
+            <!-- 选项 C -->
+            <div id="scene2-option-c" class="scene2-option-wrap">
+                <svg viewBox="0 0 70 70">
+                    <defs>
+                        <pattern id="hatch-c" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                            <line x1="0" y1="0" x2="0" y2="4" stroke="#000" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <!-- 顶面 -->
+                    <polygon points="15,30 45,30 55,15 25,15" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <!-- 正面 -->
+                    <polygon points="15,30 45,30 45,60 15,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <circle cx="30" cy="45" r="10" stroke="#1565c0" stroke-width="2" fill="none"/>
+                    <!-- 右侧面 -->
+                    <polygon id="scene2-c-right" points="45,30 55,15 55,45 45,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <polygon points="45,30 45,60 55,45" fill="url(#hatch-c)"/>
+                    <!-- 叉号 -->
+                    <g id="scene2-cross-c" style="display:none">
+                        <line x1="47" y1="32" x2="53" y2="58" stroke="#c62828" stroke-width="2"/>
+                        <line x1="53" y1="32" x2="47" y2="58" stroke="#c62828" stroke-width="2"/>
+                    </g>
+                    <rect id="scene2-mask-c" x="0" y="0" width="70" height="70" fill="#c62828" fill-opacity="0" style="display:none"/>
+                </svg>
+            </div>
+            <div id="scene2-label-c" class="scene2-option-label">C</div>
+            <div id="scene2-status-c" class="scene2-status-label">矛盾</div>
+
+            <!-- 选项 D -->
+            <div id="scene2-option-d" class="scene2-option-wrap">
+                <svg viewBox="0 0 70 70">
+                    <defs>
+                        <pattern id="hatch-d" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                            <line x1="0" y1="0" x2="0" y2="4" stroke="#000" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <!-- 顶面 -->
+                    <polygon id="scene2-d-top" points="15,30 45,30 55,15 25,15" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <polygon points="15,30 25,15 55,15 45,30" fill="url(#hatch-d)"/>
+                    <!-- 正面 -->
+                    <polygon points="15,30 45,30 45,60 15,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <polygon points="15,30 15,60 45,60" fill="url(#hatch-d)"/>
+                    <!-- 右侧面 -->
+                    <polygon points="45,30 55,15 55,45 45,60" fill="#fff" stroke="#000" stroke-width="1"/>
+                    <circle cx="50" cy="37" r="8" stroke="#1565c0" stroke-width="2" fill="none"/>
+                    <!-- 叉号 -->
+                    <g id="scene2-cross-d" style="display:none">
+                        <line x1="20" y1="18" x2="50" y2="28" stroke="#c62828" stroke-width="2"/>
+                        <line x1="50" y1="18" x2="20" y2="28" stroke="#c62828" stroke-width="2"/>
+                    </g>
+                    <rect id="scene2-mask-d" x="0" y="0" width="70" height="70" fill="#c62828" fill-opacity="0" style="display:none"/>
+                </svg>
+            </div>
+            <div id="scene2-label-d" class="scene2-option-label">D</div>
+            <div id="scene2-status-d" class="scene2-status-label">矛盾</div>
+        </div>
+
+        <!-- 控件 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0 / 6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var currentStep = 0;
+        var cube = document.getElementById('scene2-cube');
+        var cubeContainer = document.getElementById('scene2-cube-container');
+        var netContainer = document.getElementById('scene2-net-container');
+        var btnPrev = document.getElementById('scene2-btn-prev');
+        var btnNext = document.getElementById('scene2-btn-next');
+        var indicator = document.getElementById('scene2-step-indicator');
+
+        // 选项元素
+        var optA = document.getElementById('scene2-option-a');
+        var optB = document.getElementById('scene2-option-b');
+        var optC = document.getElementById('scene2-option-c');
+        var optD = document.getElementById('scene2-option-d');
+        var statusA = document.getElementById('scene2-status-a');
+        var statusB = document.getElementById('scene2-status-b');
+        var statusC = document.getElementById('scene2-status-c');
+        var statusD = document.getElementById('scene2-status-d');
+        var crossA = document.getElementById('scene2-cross-a');
+        var crossB = document.getElementById('scene2-cross-b');
+        var crossC = document.getElementById('scene2-cross-c');
+        var crossD = document.getElementById('scene2-cross-d');
+        var maskA = document.getElementById('scene2-mask-a');
+        var maskB = document.getElementById('scene2-mask-b');
+        var maskC = document.getElementById('scene2-mask-c');
+        var maskD = document.getElementById('scene2-mask-d');
+
+        function updateScene(step) {
+            indicator.textContent = '步骤 ' + step + ' / 6';
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === 6);
+            if (step === 6) { btnNext.textContent = '已完成'; }
+            else { btnNext.textContent = '下一步 ▶'; }
+
+            // 重置所有选项状态
+            optA.style.border = '';
+            optB.style.border = '';
+            optC.style.border = '';
+            optD.style.border = '';
+            statusA.style.display = 'none';
+            statusB.style.display = 'none';
+            statusC.style.display = 'none';
+            statusD.style.display = 'none';
+            crossA.style.display = 'none';
+            crossB.style.display = 'none';
+            crossC.style.display = 'none';
+            crossD.style.display = 'none';
+            maskA.style.display = 'none';
+            maskB.style.display = 'none';
+            maskC.style.display = 'none';
+            maskD.style.display = 'none';
+
+            // 正方体旋转
+            var rotX = -15, rotY = 0;
+            if (step >= 2) { rotY = 90; }
+            cube.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg)';
+
+            // 显示控制
+            if (step === 1) {
+                cubeContainer.style.display = 'none';
+                netContainer.style.display = 'block';
+            } else {
+                cubeContainer.style.display = 'block';
+                netContainer.style.display = 'none';
+            }
+
+            // 各步骤状态
+            if (step >= 2) {
+                optA.style.border = '3px solid #2e7d32';
+                statusA.style.display = 'block';
+            }
+            if (step >= 3) {
+                statusB.style.display = 'block';
+                crossB.style.display = 'block';
+            }
+            if (step >= 4) {
+                statusC.style.display = 'block';
+                crossC.style.display = 'block';
+            }
+            if (step >= 5) {
+                statusD.style.display = 'block';
+                crossD.style.display = 'block';
+            }
+            if (step >= 6) {
+                maskB.style.display = 'block';
+                maskC.style.display = 'block';
+                maskD.style.display = 'block';
+                maskB.setAttribute('fill-opacity', '0.3');
+                maskC.setAttribute('fill-opacity', '0.3');
+                maskD.setAttribute('fill-opacity', '0.3');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; updateScene(currentStep); }
+        });
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 6) { currentStep++; updateScene(currentStep); }
+        });
+
+        // 初始状态
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

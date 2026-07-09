@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 时区计算、昼长计算与太阳高度</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; z-index: 100; }
+        #scene3-btn-prev, #scene3-btn-next {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1565c0;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        #scene3-btn-prev:hover, #scene3-btn-next:hover {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        #scene3-btn-prev:disabled, #scene3-btn-next:disabled {
+            border-color: #cccccc;
+            color: #cccccc;
+            cursor: not-allowed;
+            background: #f5f5f5;
+        }
+        #scene3-step-indicator {
+            font-size: 14px;
+            color: #666666;
+            align-self: center;
+            font-weight: bold;
+        }
+        .scene3-highlight {
+            animation: scene3-blink 0.6s ease-in-out 2;
+        }
+        @keyframes scene3-blink {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.5); }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 左半球轮廓（东半球，南半球在上） -->
+            <path d="M 50 250 A 150 150 0 0 1 350 250" fill="none" stroke="#000000" stroke-width="2"/>
+            <line x1="50" y1="250" x2="350" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 右半球轮廓（西半球，北半球在上） -->
+            <path d="M 450 250 A 150 150 0 0 0 750 250" fill="none" stroke="#000000" stroke-width="2"/>
+            <line x1="450" y1="250" x2="750" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 赤道线 -->
+            <line x1="50" y1="250" x2="750" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 左半球经线（5 条，间隔 30°）- 调整路径避开标签区域 -->
+            <path d="M 200 100 Q 100 175 50 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 200 100 Q 150 175 125 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 200 100 Q 200 175 200 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 200 100 Q 250 175 275 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 200 100 Q 300 175 350 250" fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 右半球经线（5 条，间隔 30°） -->
+            <path d="M 600 100 Q 500 175 450 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 600 100 Q 550 175 525 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 600 100 Q 600 175 600 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 600 100 Q 650 175 675 250" fill="none" stroke="#000000" stroke-width="1"/>
+            <path d="M 600 100 Q 700 175 750 250" fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 晨昏线（左半球，虚线）- 调整路径避开标签区域 -->
+            <path id="scene3-terminator" d="M 50 250 Q 80 310 110 360" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 左半球阴影（黑夜） -->
+            <path id="scene3-shadow-left" d="M 50 250 Q 80 310 110 360 Q 150 390 200 390 L 200 250 Z" fill="#333333" opacity="0"/>
+            
+            <!-- 昼弧（C 点所在纬度白昼部分） -->
+            <path id="scene3-day-arc" d="M 525 180 Q 600 180 675 180" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            
+            <!-- 经度差标注线（甲乙之间） -->
+            <line id="scene3-longitude-diff" x1="125" y1="250" x2="650" y2="140" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 地球公转轨道（右下角小图）- 上移避免裁切 -->
+            <ellipse id="scene3-orbit" cx="700" cy="380" rx="50" ry="30" fill="none" stroke="#888888" stroke-width="2" opacity="0"/>
+            
+            <!-- 太阳（轨道中心） -->
+            <circle id="scene3-sun" cx="700" cy="380" r="7" fill="#ff9800" opacity="0"/>
+            
+            <!-- 近日点 -->
+            <circle id="scene3-perihelion" cx="650" cy="380" r="4" fill="#c62828" opacity="0"/>
+            <text id="scene3-label-perihelion" x="638" y="425" font-size="10" fill="#c62828" opacity="0">近日点</text>
+            
+            <!-- 远日点 -->
+            <circle id="scene3-aphelion" cx="750" cy="380" r="4" fill="#1565c0" opacity="0"/>
+            <text id="scene3-label-aphelion" x="738" y="425" font-size="10" fill="#1565c0" opacity="0">远日点</text>
+            
+            <!-- 地球公转轨道标签 -->
+            <text id="scene3-label-orbit" x="650" y="445" font-size="10" fill="#666666" opacity="0">地球公转轨道</text>
+            
+            <!-- 甲点 -->
+            <circle id="scene3-circle-jia" cx="125" cy="250" r="6" fill="#1565c0"/>
+            <text id="scene3-label-jia" x="115" y="220" font-size="14" fill="#1565c0" font-weight="bold">甲</text>
+            
+            <!-- 乙点 -->
+            <circle id="scene3-circle-yi" cx="650" cy="140" r="6" fill="#1565c0"/>
+            <text id="scene3-label-yi" x="665" y="110" font-size="14" fill="#1565c0" font-weight="bold">乙</text>
+            
+            <!-- C 点 -->
+            <circle id="scene3-circle-c" cx="600" cy="250" r="6" fill="#1565c0"/>
+            <text id="scene3-label-c" x="592" y="285" font-size="14" fill="#1565c0" font-weight="bold">C</text>
+            
+            <!-- 太阳直射点 -->
+            <circle id="scene3-solar-zenith" cx="600" cy="343" r="8" fill="#c62828" opacity="0"/>
+            <text id="scene3-label-solar-zenith" x="555" y="358" font-size="12" fill="#c62828" font-weight="bold" opacity="0">23.5°S</text>
+            
+            <!-- 北京点 -->
+            <circle id="scene3-circle-beijing" cx="680" cy="180" r="6" fill="#2e7d32" opacity="0"/>
+            <text id="scene3-label-beijing" x="690" y="165" font-size="12" fill="#2e7d32" font-weight="bold" opacity="0">北京</text>
+            
+            <!-- 标注文字 -->
+            <text id="scene3-label-20w" x="385" y="225" font-size="14" fill="#000000" font-weight="bold">20°W</text>
+            <text id="scene3-label-n" x="590" y="85" font-size="16" fill="#000000" font-weight="bold">N</text>
+            <text id="scene3-label-s" x="190" y="420" font-size="16" fill="#000000" font-weight="bold">S</text>
+            <text id="scene3-label-a" x="760" y="250" font-size="14" fill="#000000" font-weight="bold">A</text>
+            
+            <!-- 计算结果框 - 移到右侧空白区域，避开 S 标签 -->
+            <rect id="scene3-result-box" x="420" y="320" width="340" height="140" fill="#f5f5f5" stroke="#cccccc" stroke-width="1" rx="5" opacity="0"/>
+            <text id="scene3-result-title" x="435" y="345" font-size="14" fill="#000000" font-weight="bold" opacity="0">计算结果</text>
+            <text id="scene3-result-content" x="435" y="370" font-size="11" fill="#c62828" font-weight="bold" opacity="0"></text>
+        </svg>
+        
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1/7</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现 - 时区计算、昼长计算与太阳高度
+        // 布局坐标表对照：
+        // 左半球：圆心 (200,250)，半径 150
+        // 右半球：圆心 (600,250)，半径 150
+        // 甲点：(125,250) - 晨昏线与赤道交点
+        // 乙点：(650,140) - 北极圈附近
+        // C 点：(600,250) - 右半球赤道中央
+        // 太阳直射点：(600,343) - 23.5°S 位置
+        // 北京点：(680,180) - 39°N, 116°E
+        
+        const TOTAL_STEPS = 7;
+        let currentStep = 0;
+        
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepIndicator = document.getElementById('scene3-step-indicator');
+        const resultContent = document.getElementById('scene3-result-content');
+        const resultBox = document.getElementById('scene3-result-box');
+        const resultTitle = document.getElementById('scene3-result-title');
+        
+        // 元素显示/隐藏辅助函数
+        function show(el) {
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+        
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+        
+        function showSVG(el) {
+            if (el) {
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hideSVG(el) {
+            if (el) {
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 高亮效果
+        function highlight(el) {
+            if (el) {
+                el.classList.remove('scene3-highlight');
+                void el.offsetWidth; // 触发重绘
+                el.classList.add('scene3-highlight');
+            }
+        }
+        
+        // 更新步骤显示
+        function renderStep() {
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 重置所有动态元素
+            hideSVG(document.getElementById('scene3-terminator'));
+            hideSVG(document.getElementById('scene3-shadow-left'));
+            hideSVG(document.getElementById('scene3-day-arc'));
+            hideSVG(document.getElementById('scene3-longitude-diff'));
+            hideSVG(document.getElementById('scene3-orbit'));
+            hideSVG(document.getElementById('scene3-sun'));
+            hideSVG(document.getElementById('scene3-perihelion'));
+            hideSVG(document.getElementById('scene3-aphelion'));
+            hideSVG(document.getElementById('scene3-label-perihelion'));
+            hideSVG(document.getElementById('scene3-label-aphelion'));
+            hideSVG(document.getElementById('scene3-label-orbit'));
+            hideSVG(document.getElementById('scene3-solar-zenith'));
+            hideSVG(document.getElementById('scene3-label-solar-zenith'));
+            hideSVG(document.getElementById('scene3-circle-beijing'));
+            hideSVG(document.getElementById('scene3-label-beijing'));
+            hide(resultBox);
+            hide(resultTitle);
+            hide(resultContent);
+            
+            // 移除所有高亮
+            document.getElementById('scene3-circle-jia').classList.remove('scene3-highlight');
+            document.getElementById('scene3-circle-yi').classList.remove('scene3-highlight');
+            document.getElementById('scene3-circle-c').classList.remove('scene3-highlight');
+            
+            // 根据步骤显示对应元素
+            switch(currentStep) {
+                case 0: // 初始状态
+                    showSVG(document.getElementById('scene3-label-20w'));
+                    showSVG(document.getElementById('scene3-label-n'));
+                    showSVG(document.getElementById('scene3-label-s'));
+                    showSVG(document.getElementById('scene3-label-a'));
+                    break;
+                    
+                case 1: // 时区计算
+                    showSVG(document.getElementById('scene3-terminator'));
+                    showSVG(document.getElementById('scene3-shadow-left'));
+                    showSVG(document.getElementById('scene3-longitude-diff'));
+                    highlight(document.getElementById('scene3-circle-jia'));
+                    highlight(document.getElementById('scene3-circle-yi'));
+                    show(resultBox);
+                    show(resultTitle);
+                    resultTitle.textContent = '计算结果';
+                    resultContent.textContent = '甲地 22 日 16 时 → 乙地时间计算\n甲乙经度差 = 90° → 时间差 = 6 小时\n乙地在甲地东侧 → 乙地 = 22 日 22 时';
+                    showSVG(resultContent);
+                    break;
+                    
+                case 2: // C 点昼长计算
+                    showSVG(document.getElementById('scene3-terminator'));
+                    showSVG(document.getElementById('scene3-shadow-left'));
+                    showSVG(document.getElementById('scene3-day-arc'));
+                    highlight(document.getElementById('scene3-circle-c'));
+                    show(resultBox);
+                    show(resultTitle);
+                    resultTitle.textContent = '计算结果';
+                    resultContent.textContent = 'C 点昼长计算\n昼弧所跨经度 = 120°\n昼长 = 120° ÷ 15°/小时 = 8 小时';
+                    showSVG(resultContent);
+                    break;
+                    
+                case 3: // 太阳直射纬度
+                    showSVG(document.getElementById('scene3-terminator'));
+                    showSVG(document.getElementById('scene3-shadow-left'));
+                    showSVG(document.getElementById('scene3-solar-zenith'));
+                    showSVG(document.getElementById('scene3-label-solar-zenith'));
+                    show(resultBox);
+                    show(resultTitle);
+                    resultTitle.textContent = '计算结果';
+                    resultContent.textContent = '太阳直射纬度判断\n晨昏线与南极圈相切 → 太阳直射南回归线\n太阳直射纬度 = 23.5°S';
+                    showSVG(resultContent);
+                    break;
+                    
+                case 4: // 北京正午太阳高度
+                    showSVG(document.getElementById('scene3-terminator'));
+                    showSVG(document.getElementById('scene3-shadow-left'));
+                    showSVG(document.getElementById('scene3-solar-zenith'));
+                    showSVG(document.getElementById('scene3-label-solar-zenith'));
+                    showSVG(document.getElementById('scene3-circle-beijing'));
+                    showSVG(document.getElementById('scene3-label-beijing'));
+                    show(resultBox);
+                    show(resultTitle);
+                    resultTitle.textContent = '计算结果';
+                    resultContent.textContent = '北京正午太阳高度计算\nH = 90° - |φ - δ|\nH = 90° - |39° - (-23.5°)| = 90° - 62.5° = 27.5°';
+                    showSVG(resultContent);
+                    break;
+                    
+                case 5: // 地球公转位置
+                    showSVG(document.getElementById('scene3-terminator'));
+                    showSVG(document.getElementById('scene3-shadow-left'));
+                    showSVG(document.getElementById('scene3-orbit'));
+                    showSVG(document.getElementById('scene3-sun'));
+                    showSVG(document.getElementById('scene3-perihelion'));
+                    showSVG(document.getElementById('scene3-aphelion'));
+                    showSVG(document.getElementById('scene3-label-perihelion'));
+                    showSVG(document.getElementById('scene3-label-aphelion'));
+                    showSVG(document.getElementById('scene3-label-orbit'));
+                    highlight(document.getElementById('scene3-perihelion'));
+                    show(resultBox);
+                    show(resultTitle);
+                    resultTitle.textContent = '计算结果';
+                    resultContent.textContent = '地球公转位置\n日期为 12 月 22 日（冬至）\n接近 1 月初 → 地球位于近日点附近\n地球距太阳较近';
+                    showSVG(resultContent);
+                    break;
+                    
+                case 6: // 结论汇总
+                    showSVG(document.getElementById('scene3-terminator'));
+                    showSVG(document.getElementById('scene3-shadow-left'));
+                    showSVG(document.getElementById('scene3-day-arc'));
+                    showSVG(document.getElementById('scene3-solar-zenith'));
+                    showSVG(document.getElementById('scene3-label-solar-zenith'));
+                    showSVG(document.getElementById('scene3-circle-beijing'));
+                    showSVG(document.getElementById('scene3-label-beijing'));
+                    showSVG(document.getElementById('scene3-orbit'));
+                    showSVG(document.getElementById('scene3-sun'));
+                    showSVG(document.getElementById('scene3-perihelion'));
+                    showSVG(document.getElementById('scene3-aphelion'));
+                    showSVG(document.getElementById('scene3-label-perihelion'));
+                    showSVG(document.getElementById('scene3-label-aphelion'));
+                    showSVG(document.getElementById('scene3-label-orbit'));
+                    highlight(document.getElementById('scene3-circle-jia'));
+                    highlight(document.getElementById('scene3-circle-yi'));
+                    highlight(document.getElementById('scene3-circle-c'));
+                    highlight(document.getElementById('scene3-solar-zenith'));
+                    highlight(document.getElementById('scene3-circle-beijing'));
+                    show(resultBox);
+                    show(resultTitle);
+                    resultTitle.textContent = '计算结果汇总';
+                    resultContent.textContent = '(4) 乙地是 12 月 22 日 22 时，C 点昼长 8 小时\n(5) 太阳直射纬度 23.5°S，北京正午太阳高度 27.5°\n(6) 地球距太阳较近（近日点附近）';
+                    showSVG(resultContent);
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

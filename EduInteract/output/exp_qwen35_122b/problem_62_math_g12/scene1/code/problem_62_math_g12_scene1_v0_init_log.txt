@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四面体平面旋转演示 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 10; }
+        #scene1-slider-label { font-size: 14px; color: #333; }
+        #scene1-slider { width: 400px; height: 20px; cursor: pointer; }
+        #scene1-value { font-size: 14px; color: #666; min-width: 50px; text-align: left; }
+        svg { display: block; }
+        .vertex-label { font-size: 16px; font-weight: bold; fill: #000000; }
+        .point-label { font-size: 14px; font-weight: bold; fill: #000000; }
+        .alpha-label { font-size: 18px; font-style: italic; font-weight: bold; fill: #c62828; }
+        .edge { stroke: #000000; stroke-width: 2; fill: none; }
+        .edge-dashed { stroke: #000000; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+        .ef-line { stroke: #1565c0; stroke-width: 3; fill: none; }
+        .alpha-edge { stroke: #c62828; stroke-width: 2; fill: none; }
+        .vertex-point { fill: #1565c0; }
+        .dynamic-point { fill: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 四面体棱线 -->
+            <line id="scene1-edge-AB" class="edge" x1="400" y1="80" x2="150" y2="350"/>
+            <line id="scene1-edge-AC" class="edge" x1="400" y1="80" x2="400" y2="420"/>
+            <line id="scene1-edge-AD" class="edge" x1="400" y1="80" x2="650" y2="350"/>
+            <line id="scene1-edge-BC" class="edge" x1="150" y1="350" x2="400" y2="420"/>
+            <line id="scene1-edge-BD" class="edge-dashed" x1="150" y1="350" x2="650" y2="350"/>
+            <line id="scene1-edge-CD" class="edge" x1="400" y1="420" x2="650" y2="350"/>
+            
+            <!-- 平面α四边形（红色半透明） -->
+            <polygon id="scene1-polygon-alpha" fill="rgba(198,40,40,0.2)" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 平面α边界线 -->
+            <line id="scene1-line-EG" class="alpha-edge"/>
+            <line id="scene1-line-GF" class="alpha-edge"/>
+            <line id="scene1-line-FH" class="alpha-edge"/>
+            <line id="scene1-line-HE" class="alpha-edge"/>
+            
+            <!-- EF 连线（蓝色加粗，旋转轴） -->
+            <line id="scene1-line-EF" class="ef-line" x1="275" y1="215" x2="525" y2="385"/>
+            
+            <!-- 顶点标注 -->
+            <text id="scene1-label-A" class="vertex-label" x="400" y="60" text-anchor="middle">A</text>
+            <text id="scene1-label-B" class="vertex-label" x="120" y="355" text-anchor="middle">B</text>
+            <text id="scene1-label-C" class="vertex-label" x="400" y="450" text-anchor="middle">C</text>
+            <text id="scene1-label-D" class="vertex-label" x="680" y="355" text-anchor="middle">D</text>
+            
+            <!-- 中点 E、F -->
+            <circle id="scene1-point-E" class="vertex-point" cx="275" cy="215" r="5"/>
+            <circle id="scene1-point-F" class="vertex-point" cx="525" cy="385" r="5"/>
+            <text id="scene1-label-E" class="point-label" x="245" y="210" text-anchor="middle">E</text>
+            <text id="scene1-label-F" class="point-label" x="555" y="395" text-anchor="middle">F</text>
+            
+            <!-- 动点 G、H -->
+            <circle id="scene1-point-G" class="dynamic-point" r="5"/>
+            <circle id="scene1-point-H" class="dynamic-point" r="5"/>
+            <text id="scene1-label-G" class="point-label" text-anchor="middle">G</text>
+            <text id="scene1-label-H" class="point-label" text-anchor="middle">H</text>
+            
+            <!-- 平面α标签 -->
+            <text id="scene1-label-alpha" class="alpha-label" x="580" y="250">α</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <text id="scene1-slider-label" x="200" y="0">平面 α 旋转角度</text>
+            <input id="scene1-slider" type="range" min="0" max="100" value="0"/>
+            <text id="scene1-value" x="0" y="0">0</text>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现 - 四面体平面旋转演示
+        // 布局坐标表：
+        // A(400,80), B(150,350), C(400,420), D(650,350)
+        // E(275,215) = AB 中点, F(525,385) = CD 中点
+        // G = B + t*(C-B) = (150+250t, 350+70t)
+        // H = A + t*(D-A) = (400+250t, 80+270t)
+        
+        const svg = document.getElementById('scene1-svg');
+        const slider = document.getElementById('scene1-slider');
+        const valueDisplay = document.getElementById('scene1-value');
+        
+        // 固定点坐标
+        const A = { x: 400, y: 80 };
+        const B = { x: 150, y: 350 };
+        const C = { x: 400, y: 420 };
+        const D = { x: 650, y: 350 };
+        const E = { x: 275, y: 215 };
+        const F = { x: 525, y: 385 };
+        
+        // 获取动态元素引用
+        const polygonAlpha = document.getElementById('scene1-polygon-alpha');
+        const lineEG = document.getElementById('scene1-line-EG');
+        const lineGF = document.getElementById('scene1-line-GF');
+        const lineFH = document.getElementById('scene1-line-FH');
+        const lineHE = document.getElementById('scene1-line-HE');
+        const pointG = document.getElementById('scene1-point-G');
+        const pointH = document.getElementById('scene1-point-H');
+        const labelG = document.getElementById('scene1-label-G');
+        const labelH = document.getElementById('scene1-label-H');
+        
+        // 计算 G、H 坐标（参数化）
+        function calculatePoints(t) {
+            // G = B + t*(C-B)
+            const G = {
+                x: B.x + t * (C.x - B.x),
+                y: B.y + t * (C.y - B.y)
+            };
+            // H = A + t*(D-A)
+            const H = {
+                x: A.x + t * (D.x - A.x),
+                y: A.y + t * (D.y - A.y)
+            };
+            return { G, H };
+        }
+        
+        // 更新画面
+        function updateScene(t) {
+            const { G, H } = calculatePoints(t);
+            
+            // 更新 G、H 点位置
+            pointG.setAttribute('cx', G.x);
+            pointG.setAttribute('cy', G.y);
+            pointH.setAttribute('cx', H.x);
+            pointH.setAttribute('cy', H.y);
+            
+            // 更新平面α四边形顶点
+            polygonAlpha.setAttribute('points', `${E.x},${E.y} ${G.x},${G.y} ${F.x},${F.y} ${H.x},${H.y}`);
+            
+            // 更新平面边界线
+            lineEG.setAttribute('x1', E.x);
+            lineEG.setAttribute('y1', E.y);
+            lineEG.setAttribute('x2', G.x);
+            lineEG.setAttribute('y2', G.y);
+            
+            lineGF.setAttribute('x1', G.x);
+            lineGF.setAttribute('y1', G.y);
+            lineGF.setAttribute('x2', F.x);
+            lineGF.setAttribute('y2', F.y);
+            
+            lineFH.setAttribute('x1', F.x);
+            lineFH.setAttribute('y1', F.y);
+            lineFH.setAttribute('x2', H.x);
+            lineFH.setAttribute('y2', H.y);
+            
+            lineHE.setAttribute('x1', H.x);
+            lineHE.setAttribute('y1', H.y);
+            lineHE.setAttribute('x2', E.x);
+            lineHE.setAttribute('y2', E.y);
+            
+            // 更新 G、H 标签位置（远离线条，避免重叠）
+            // G 点标签：放在 G 点下方偏左，远离 BC 线和平面边界
+            labelG.setAttribute('x', G.x - 15);
+            labelG.setAttribute('y', G.y + 25);
+            // H 点标签：放在 H 点右上方，远离 AD 线和平面边界
+            labelH.setAttribute('x', H.x + 20);
+            labelH.setAttribute('y', H.y - 10);
+            
+            // 更新数值显示
+            valueDisplay.textContent = Math.round(t * 100);
+        }
+        
+        // 滑块事件处理
+        slider.addEventListener('input', function() {
+            const t = this.value / 100;
+            updateScene(t);
+        });
+        
+        // 初始化（t=0）
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

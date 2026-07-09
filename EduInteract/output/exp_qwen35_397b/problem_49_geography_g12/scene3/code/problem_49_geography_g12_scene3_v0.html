@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日期分界线分析与经度确定</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-svg { width: 800px; height: 500px; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene3-btn { padding: 8px 20px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #333; min-width: 100px; text-align: center; }
+        .fade-in { animation: scene3-fade-in 0.3s ease forwards; }
+        @keyframes scene3-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 外圆边界：南极俯视图外框，圆心(380,260), r=170 -->
+            <path id="scene3-outer-circle" d="M 210 260 A 170 170 0 0 0 550 260 L 550 260 A 0 0 0 0 0 210 260 Z" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 70°纬线圆：虚线小圆，圆心(380,260), r=55 -->
+            <circle id="scene3-lat-70" cx="380" cy="260" r="55" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="4,4"/>
+            
+            <!-- 阴影区域：左侧扇形，透明度20% -->
+            <path id="scene3-shadow" d="M 380 260 L 240 120 A 170 170 0 0 0 210 260 Z" fill="#888888" fill-opacity="0.2" style="display:none;"/>
+            
+            <!-- 180°经线：红色，从O到左侧边界 -->
+            <line id="scene3-经线-180" x1="380" y1="260" x2="210" y2="260" stroke="#c62828" stroke-width="2" style="display:none;"/>
+            
+            <!-- 0时经线：蓝色，从O到阴影右边界（经线B方向） -->
+            <line id="scene3-经线-0时" x1="380" y1="260" x2="240" y2="120" stroke="#1565c0" stroke-width="2" style="display:none;"/>
+            
+            <!-- 12时经线：绿色，与0时经线相对 -->
+            <line id="scene3-经线-12时" x1="380" y1="260" x2="520" y2="400" stroke="#2e7d32" stroke-width="2" style="display:none;"/>
+            
+            <!-- 经线B：蓝色射线 O→B -->
+            <line id="scene3-经线-b" x1="380" y1="260" x2="240" y2="120" stroke="#1565c0" stroke-width="1.5" style="display:none;"/>
+            
+            <!-- 晨昏线MA：线段 M→A -->
+            <line id="scene3-晨昏线-ma" x1="350" y1="220" x2="540" y2="200" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 其他经线（装饰） -->
+            <line x1="380" y1="260" x2="380" y2="90" stroke="#000000" stroke-width="1"/>
+            <line x1="380" y1="260" x2="450" y2="130" stroke="#000000" stroke-width="1"/>
+            <line x1="380" y1="260" x2="510" y2="170" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 点：实心圆点 -->
+            <circle id="scene3-point-o" cx="380" cy="260" r="3" fill="#000000"/>
+            <circle id="scene3-point-a" cx="540" cy="200" r="3" fill="#000000"/>
+            <circle id="scene3-point-m" cx="350" cy="220" r="3" fill="#000000"/>
+            <circle id="scene3-point-b" cx="240" cy="120" r="3" fill="#000000"/>
+            
+            <!-- 标签：调整位置避免重叠 -->
+            <!-- O标签：向右下偏移更多 -->
+            <text id="scene3-label-o" x="405" y="285" font-size="14" fill="#000000">O</text>
+            <!-- A标签：右上 -->
+            <text id="scene3-label-a" x="555" y="185" font-size="14" fill="#000000">A</text>
+            <!-- M标签：向左上偏移，远离70°纬线圆 -->
+            <text id="scene3-label-m" x="325" y="200" font-size="14" fill="#000000">M</text>
+            <!-- B标签：左上 -->
+            <text id="scene3-label-b" x="225" y="105" font-size="14" fill="#000000">B</text>
+            <!-- 70°标签：向右下偏移，远离纬线圆 -->
+            <text id="scene3-label-70度" x="445" y="290" font-size="14" fill="#000000">70°</text>
+            
+            <!-- 时间标签（初始隐藏）：调整位置避免与线段重叠 -->
+            <!-- 180°标签：左侧，向上偏移 -->
+            <text id="scene3-label-180度" x="185" y="245" font-size="16" fill="#c62828" font-weight="bold" style="display:none;">180°</text>
+            <!-- 0时标签：向左上偏移，远离经线 -->
+            <text id="scene3-label-0时" x="280" y="165" font-size="16" fill="#1565c0" font-weight="bold" style="display:none;">0时</text>
+            <!-- 12时标签：向右下偏移 -->
+            <text id="scene3-label-12时" x="535" y="310" font-size="16" fill="#2e7d32" font-weight="bold" style="display:none;">12时</text>
+            <!-- 经线B标签：向左偏移 -->
+            <text id="scene3-label-经线b" x="210" y="115" font-size="14" fill="#1565c0" style="display:none;">经线B</text>
+            
+            <!-- 图例框：调整位置和内部元素间距 -->
+            <g id="scene3-legend" style="display:none;">
+                <rect x="600" y="60" width="180" height="140" fill="#ffffff" stroke="#cccccc" stroke-width="1"/>
+                <text x="610" y="85" font-size="14" fill="#000000" font-weight="bold">图例说明</text>
+                
+                <!-- 图例项1：180°经线 -->
+                <g id="scene3-legend-item1" style="display:none;">
+                    <line x1="610" y1="105" x2="640" y2="105" stroke="#c62828" stroke-width="2"/>
+                    <text x="650" y="110" font-size="12" fill="#000000">180°经线</text>
+                </g>
+                
+                <!-- 图例项2：0时经线 -->
+                <g id="scene3-legend-item2" style="display:none;">
+                    <line x1="610" y1="128" x2="640" y2="128" stroke="#1565c0" stroke-width="2"/>
+                    <text x="650" y="133" font-size="12" fill="#000000">0时经线</text>
+                </g>
+                
+                <!-- 图例项3：12时经线 -->
+                <g id="scene3-legend-item3" style="display:none;">
+                    <line x1="610" y1="151" x2="640" y2="151" stroke="#2e7d32" stroke-width="2"/>
+                    <text x="650" y="156" font-size="12" fill="#000000">12时经线</text>
+                </g>
+                
+                <!-- 直射点坐标：向下移动 -->
+                <text id="scene3-label-直射点" x="610" y="185" font-size="13" fill="#000000" style="display:none;">直射点：(20°S, 120°E)</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 0 / 5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 日期分界线分析与经度确定
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 外圆边界 | 圆心(380,260), r=170 | 南极俯视图外框 |
+        // | 70°纬线圆 | 圆心(380,260), r=55 | 晨昏线切点所在纬线 |
+        // | 极点O | (380,260) | 南极点 |
+        // | 点A | (540,200) | 晨昏线端点 |
+        // | 点M | (350,220) | 晨昏线与纬线切点 |
+        // | 点B | (240,120) | 经线B端点 |
+        // | 晨昏线MA | M(350,220)→A(540,200) | 晨昏线 |
+        // | 经线B | O(380,260)→B(240,120) | 高亮显示 |
+        // | 阴影区域 | 左侧扇形 | 透明度20% |
+        // | 180°经线 | O→左侧(210,260) | 红色#c62828 |
+        // | 0时经线 | O→经线B方向 | 蓝色#1565c0 |
+        // | 12时经线 | O→右侧 | 绿色#2e7d32 |
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 每步显示的元素ID列表
+        const steps = {
+            0: {
+                show: ['scene3-outer-circle', 'scene3-lat-70', 'scene3-point-o', 'scene3-point-a', 
+                       'scene3-point-m', 'scene3-point-b', 'scene3-晨昏线-ma', 'scene3-label-o',
+                       'scene3-label-a', 'scene3-label-m', 'scene3-label-b', 'scene3-label-70度', 'scene3-shadow'],
+                hide: ['scene3-经线-180', 'scene3-经线-0时', 'scene3-经线-12时', 'scene3-经线-b',
+                       'scene3-label-180度', 'scene3-label-0时', 'scene3-label-12时', 'scene3-label-经线b',
+                       'scene3-legend', 'scene3-legend-item1', 'scene3-legend-item2', 'scene3-legend-item3',
+                       'scene3-label-直射点']
+            },
+            1: {
+                show: ['scene3-outer-circle', 'scene3-lat-70', 'scene3-point-o', 'scene3-point-a',
+                       'scene3-point-m', 'scene3-point-b', 'scene3-晨昏线-ma', 'scene3-label-o',
+                       'scene3-label-a', 'scene3-label-m', 'scene3-label-b', 'scene3-label-70度', 'scene3-shadow',
+                       'scene3-经线-180', 'scene3-经线-0时', 'scene3-legend', 'scene3-legend-item1', 'scene3-legend-item2'],
+                hide: ['scene3-经线-12时', 'scene3-经线-b', 'scene3-label-180度', 'scene3-label-0时',
+                       'scene3-label-12时', 'scene3-label-经线b', 'scene3-legend-item3', 'scene3-label-直射点']
+            },
+            2: {
+                show: ['scene3-outer-circle', 'scene3-lat-70', 'scene3-point-o', 'scene3-point-a',
+                       'scene3-point-m', 'scene3-point-b', 'scene3-晨昏线-ma', 'scene3-label-o',
+                       'scene3-label-a', 'scene3-label-m', 'scene3-label-b', 'scene3-label-70度', 'scene3-shadow',
+                       'scene3-经线-180', 'scene3-经线-0时', 'scene3-经线-b', 'scene3-label-经线b',
+                       'scene3-legend', 'scene3-legend-item1', 'scene3-legend-item2', 'scene3-legend-item3'],
+                hide: ['scene3-经线-12时', 'scene3-label-180度', 'scene3-label-0时',
+                       'scene3-label-12时', 'scene3-label-直射点']
+            },
+            3: {
+                show: ['scene3-outer-circle', 'scene3-lat-70', 'scene3-point-o', 'scene3-point-a',
+                       'scene3-point-m', 'scene3-point-b', 'scene3-晨昏线-ma', 'scene3-label-o',
+                       'scene3-label-a', 'scene3-label-m', 'scene3-label-b', 'scene3-label-70度', 'scene3-shadow',
+                       'scene3-经线-180', 'scene3-经线-0时', 'scene3-经线-b', 'scene3-label-经线b',
+                       'scene3-label-0时', 'scene3-legend', 'scene3-legend-item1', 'scene3-legend-item2', 'scene3-legend-item3'],
+                hide: ['scene3-经线-12时', 'scene3-label-180度', 'scene3-label-12时', 'scene3-label-直射点']
+            },
+            4: {
+                show: ['scene3-outer-circle', 'scene3-lat-70', 'scene3-point-o', 'scene3-point-a',
+                       'scene3-point-m', 'scene3-point-b', 'scene3-晨昏线-ma', 'scene3-label-o',
+                       'scene3-label-a', 'scene3-label-m', 'scene3-label-b', 'scene3-label-70度', 'scene3-shadow',
+                       'scene3-经线-180', 'scene3-经线-0时', 'scene3-经线-b', 'scene3-label-经线b',
+                       'scene3-label-0时', 'scene3-经线-12时', 'scene3-label-12时',
+                       'scene3-legend', 'scene3-legend-item1', 'scene3-legend-item2', 'scene3-legend-item3'],
+                hide: ['scene3-label-180度', 'scene3-label-直射点']
+            },
+            5: {
+                show: ['scene3-outer-circle', 'scene3-lat-70', 'scene3-point-o', 'scene3-point-a',
+                       'scene3-point-m', 'scene3-point-b', 'scene3-晨昏线-ma', 'scene3-label-o',
+                       'scene3-label-a', 'scene3-label-m', 'scene3-label-b', 'scene3-label-70度', 'scene3-shadow',
+                       'scene3-经线-180', 'scene3-经线-0时', 'scene3-经线-b', 'scene3-label-经线b',
+                       'scene3-label-0时', 'scene3-经线-12时', 'scene3-label-12时', 'scene3-label-180度',
+                       'scene3-legend', 'scene3-legend-item1', 'scene3-legend-item2', 'scene3-legend-item3', 'scene3-label-直射点'],
+                hide: []
+            }
+        };
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        function updateStep() {
+            const stepData = steps[currentStep];
+            
+            // 显示该步骤需要的元素
+            stepData.show.forEach(id => showElement(id));
+            
+            // 隐藏该步骤不需要的元素
+            stepData.hide.forEach(id => hideElement(id));
+            
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = `步骤 ${currentStep} / ${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = currentStep === 0;
+            document.getElementById('scene3-btn-next').disabled = currentStep === totalSteps;
+        }
+        
+        // 初始化
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始状态
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

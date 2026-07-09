@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物体 A 的浮力与排水体积关系</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-step-indicator { position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- 物体 A 轮廓：矩形 (80,120)-(240,220) 160×100 -->
+            <rect id="scene2-objectA" x="80" y="120" width="160" height="100" fill="#e3f2fd" fill-opacity="0.8" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 水面线：线段 (60,160)-(260,160) -->
+            <line id="scene2-waterLine" x1="60" y1="160" x2="260" y2="160" stroke="#4fc3f7" stroke-width="2"/>
+            
+            <!-- 水下区域填充：矩形 (60,160)-(260,240) 200×80 -->
+            <rect id="scene2-waterArea" x="60" y="160" width="200" height="80" fill="#e1f5fe" fill-opacity="0.3"/>
+            
+            <!-- 排水体积虚线框：虚线矩形 (85,165)-(235,215) 150×50 -->
+            <rect id="scene2-displacedVolumeBox" x="85" y="165" width="150" height="50" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 浮力箭头：从 (160,220) 到 (160,140) 绿色向上箭头 -->
+            <g id="scene2-buoyancyArrow" opacity="0">
+                <!-- 箭杆 -->
+                <line x1="160" y1="220" x2="160" y2="150" stroke="#2e7d32" stroke-width="4"/>
+                <!-- 箭头 -->
+                <polygon points="160,140 152,155 168,155" fill="#2e7d32"/>
+            </g>
+            
+            <!-- 浮力标签 F_浮=9.8N -->
+            <text id="scene2-buoyancyLabel" x="145" y="135" font-size="14" fill="#2e7d32" font-weight="bold" opacity="0">F_浮=9.8N</text>
+            
+            <!-- 公式区标题 -->
+            <text id="scene2-formulaTitle" x="320" y="80" font-size="16" fill="#000000" font-weight="bold">阿基米德原理</text>
+            
+            <!-- 公式区：ρ_水=1000kg/m³ -->
+            <text id="scene2-formulaRho" x="320" y="100" font-size="14" fill="#000000" opacity="0">ρ_水 = 1000kg/m³</text>
+            
+            <!-- 公式区：F_浮=ρ_水×g×V_排 -->
+            <text id="scene2-formula" x="320" y="130" font-size="14" fill="#000000" opacity="0">F_浮 = ρ_水 × g × V_排</text>
+            
+            <!-- 计算过程第 1 行：V_排=F_浮/(ρ_水×g) -->
+            <text id="scene2-calcStep1" x="320" y="160" font-size="14" fill="#000000" opacity="0">V_排 = F_浮 / (ρ_水 × g)</text>
+            
+            <!-- 计算过程第 2 行：=9.8/(1000×9.8) -->
+            <text id="scene2-calcStep2" x="320" y="185" font-size="14" fill="#000000" opacity="0">= 9.8 / (1000 × 9.8)</text>
+            
+            <!-- 计算过程第 3 行：=0.001m³ -->
+            <text id="scene2-calcStep3" x="320" y="210" font-size="14" fill="#000000" opacity="0">= 0.001m³</text>
+            
+            <!-- 结果：V_排=1000cm³ 绿色高亮 -->
+            <text id="scene2-result" x="320" y="240" font-size="16" fill="#2e7d32" font-weight="bold" opacity="0">V_排 = 1000cm³</text>
+            
+            <!-- 选项 B:500cm³ 红色 -->
+            <text id="scene2-optionB" x="320" y="280" font-size="14" fill="#c62828" opacity="0">选项 B: 500cm³</text>
+            
+            <!-- 错误标记× 红色 -->
+            <g id="scene2-wrongMark" opacity="0">
+                <line x1="425" y1="272" x2="435" y2="288" stroke="#c62828" stroke-width="2.5"/>
+                <line x1="435" y1="272" x2="425" y2="288" stroke="#c62828" stroke-width="2.5"/>
+            </g>
+            
+            <!-- 控件栏：按钮放在 SVG 内部底部 -->
+            <g id="scene2-controls">
+                <rect id="scene2-prevBtn-bg" x="280" y="450" width="80" height="30" fill="#f0f0f0" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene2-prevBtn-text" x="320" y="470" font-size="14" fill="#000000" text-anchor="middle">◀ 上一步</text>
+                
+                <rect id="scene2-nextBtn-bg" x="440" y="450" width="80" height="30" fill="#f0f0f0" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene2-nextBtn-text" x="480" y="470" font-size="14" fill="#000000" text-anchor="middle">下一步 ▶</text>
+                
+                <text id="scene2-stepIndicator" x="400" y="490" font-size="14" fill="#666" text-anchor="middle">步骤 0/4</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 物体 A 的浮力与排水体积关系
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // |------|------|-----------|------|------|
+        // | 物体 A 轮廓 | 矩形 | (80,120)-(240,220) | 160×100 | 左侧主图，浅蓝填充 |
+        // | 水面线 | 线段 | (60,160)-(260,160) | 200×2 | 穿过物体 A |
+        // | 水下区域填充 | 矩形 | (60,160)-(260,240) | 200×80 | 透明度 30% |
+        // | 浮力箭头 F_浮 | 箭头 | (160,220)-(160,140) | 8×80 | 绿色向上箭头 |
+        // | 排水体积虚线框 | 虚线矩形 | (85,165)-(235,215) | 150×50 | 标注浸没部分 |
+        // | F_浮=9.8N 标签 | text | (145,135) | ~60×16 | 浮力箭头上方 |
+        // | ρ_水=1000kg/m³ 标签 | text | (320,100) | ~90×16 | 公式区顶部 |
+        // | 公式 F_浮=ρ_水×g×V_排 | text | (320,130) | ~180×16 | 公式区中部 |
+        // | 计算式 V_排=F_浮/(ρ_水×g) | text | (320,160) | ~200×16 | 计算过程第 1 行 |
+        // | 计算式 =9.8/(1000×9.8) | text | (320,185) | ~180×16 | 计算过程第 2 行 |
+        // | 计算式 =0.001m³ | text | (320,210) | ~100×16 | 计算过程第 3 行 |
+        // | 结果 V_排=1000cm³ | text | (320,240) | ~120×20 | 绿色高亮结果 |
+        // | 选项 B:500cm³ | text | (320,280) | ~100×16 | 红色错误选项 |
+        // | 错误标记× | 符号 | (430,280) | 20×20 | 红色×标记 |
+        // | 上一步按钮 | 按钮 | (280,450) | 80×30 | 控件栏左侧 |
+        // | 下一步按钮 | 按钮 | (440,450) | 80×30 | 控件栏右侧 |
+
+        let currentState = 0;
+        const totalSteps = 4;
+
+        // 获取所有元素
+        const elements = {
+            objectA: document.getElementById('scene2-objectA'),
+            waterLine: document.getElementById('scene2-waterLine'),
+            waterArea: document.getElementById('scene2-waterArea'),
+            displacedVolumeBox: document.getElementById('scene2-displacedVolumeBox'),
+            buoyancyArrow: document.getElementById('scene2-buoyancyArrow'),
+            buoyancyLabel: document.getElementById('scene2-buoyancyLabel'),
+            formulaTitle: document.getElementById('scene2-formulaTitle'),
+            formulaRho: document.getElementById('scene2-formulaRho'),
+            formula: document.getElementById('scene2-formula'),
+            calcStep1: document.getElementById('scene2-calcStep1'),
+            calcStep2: document.getElementById('scene2-calcStep2'),
+            calcStep3: document.getElementById('scene2-calcStep3'),
+            result: document.getElementById('scene2-result'),
+            optionB: document.getElementById('scene2-optionB'),
+            wrongMark: document.getElementById('scene2-wrongMark'),
+            prevBtnBg: document.getElementById('scene2-prevBtn-bg'),
+            prevBtnText: document.getElementById('scene2-prevBtn-text'),
+            nextBtnBg: document.getElementById('scene2-nextBtn-bg'),
+            nextBtnText: document.getElementById('scene2-nextBtn-text'),
+            stepIndicator: document.getElementById('scene2-stepIndicator')
+        };
+
+        // 辅助函数：显示/隐藏元素
+        function show(el) {
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+
+        // 更新状态
+        function updateState() {
+            // 重置所有动态元素
+            hide(elements.displacedVolumeBox);
+            hide(elements.buoyancyArrow);
+            hide(elements.buoyancyLabel);
+            hide(elements.formulaRho);
+            hide(elements.formula);
+            hide(elements.calcStep1);
+            hide(elements.calcStep2);
+            hide(elements.calcStep3);
+            hide(elements.result);
+            hide(elements.optionB);
+            hide(elements.wrongMark);
+
+            // 根据当前状态显示相应元素
+            if (currentState >= 0) {
+                // 初始状态：物体 A、水面线、水下区域、公式标题始终显示
+                show(elements.objectA);
+                show(elements.waterLine);
+                show(elements.waterArea);
+                show(elements.formulaTitle);
+            }
+
+            if (currentState >= 1) {
+                // 步骤 1：显示排水体积虚线框、浮力箭头和标签
+                show(elements.displacedVolumeBox);
+                show(elements.buoyancyArrow);
+                show(elements.buoyancyLabel);
+            }
+
+            if (currentState >= 2) {
+                // 步骤 2：显示公式和密度
+                show(elements.formulaRho);
+                show(elements.formula);
+            }
+
+            if (currentState >= 3) {
+                // 步骤 3：显示计算过程
+                show(elements.calcStep1);
+                show(elements.calcStep2);
+                show(elements.calcStep3);
+            }
+
+            if (currentState >= 4) {
+                // 步骤 4：显示结果和错误选项
+                show(elements.result);
+                show(elements.optionB);
+                show(elements.wrongMark);
+            }
+
+            // 更新按钮状态
+            elements.prevBtnBg.style.opacity = currentState > 0 ? '1' : '0.5';
+            elements.prevBtnText.style.opacity = currentState > 0 ? '1' : '0.5';
+            elements.nextBtnBg.style.opacity = currentState < totalSteps ? '1' : '0.5';
+            elements.nextBtnText.style.opacity = currentState < totalSteps ? '1' : '0.5';
+
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentState}/${totalSteps}`;
+        }
+
+        // 按钮点击区域检测
+        function isClickOnPrevBtn(x, y) {
+            return x >= 280 && x <= 360 && y >= 450 && y <= 480;
+        }
+
+        function isClickOnNextBtn(x, y) {
+            return x >= 440 && x <= 520 && y >= 450 && y <= 480;
+        }
+
+        // SVG 点击事件处理
+        document.getElementById('scene2-container').addEventListener('click', function(e) {
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (isClickOnPrevBtn(x, y) && currentState > 0) {
+                currentState--;
+                updateState();
+            } else if (isClickOnNextBtn(x, y) && currentState < totalSteps) {
+                currentState++;
+                updateState();
+            }
+        });
+
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

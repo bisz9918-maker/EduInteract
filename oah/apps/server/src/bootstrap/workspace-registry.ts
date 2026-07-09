@@ -1,0 +1,292 @@
+import path from "node:path";
+import { watch, type FSWatcher } from "node:fs";
+import { readdir, rm } from "node:fs/promises";
+
+import type { ServerConfig } from "@oah/config";
+import { parseCursor } from "../../../../packages/engine-core/src/utils.js";
+import type { WorkspaceRecord, WorkspaceRepository } from "../../../../packages/engine-core/src/types.js";
+
+export type PlatformAgentRegistry = Record<string, import("@oah/config").DiscoveredAgent>;
+type DiscoveredWorkspace = import("@oah/config").DiscoveredWorkspace;
+
+let workspaceConfigModulePromise: Promise<typeof import("@oah/config/workspace")> | undefined;
+
+function loadWorkspaceConfigModule(): Promise<typeof import("@oah/config/workspace")> {
+  workspaceConfigModulePromise ??= import("@oah/config/workspace").catch(() =>
+    import("../../../../packages/config/src/workspace.js")
+  );
+  return workspaceConfigModulePromise;
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
+
+function workspaceDiscoveryKey(workspace: Pick<WorkspaceRecord, "kind" | "rootPath">): string {
+  return `${workspace.kind}:${path.resolve(workspace.rootPath)}`;
+}
+
+export function isManagedWorkspace(
+  workspace: Pick<WorkspaceRecord, "kind" | "rootPath">,
+  paths: Pick<ServerConfig["paths"], "workspace_dir">
+): boolean {
+  return isManagedWorkspaceRoot(workspace.rootPath, paths.workspace_dir);
+}
+
+export function hasPersistedWorkspaceListing(
+  value: unknown
+): value is {
+  listPersistedWorkspaces(): Promise<WorkspaceRecord[]>;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { listPersistedWorkspaces?: unknown }).listPersistedWorkspaces === "function"
+  );
+}
+
+export function hasWorkspaceSnapshotListing(
+  value: unknown
+): value is {
+  listWorkspaceSnapshots(candidates: WorkspaceRecord[]): Promise<WorkspaceRecord[]>;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { listWorkspaceSnapshots?: unknown }).listWorkspaceSnapshots === "function"
+  );
+}
+
+export async function listAllWorkspaces(repository: WorkspaceRepository): Promise<WorkspaceRecord[]> {
+  const workspaces: WorkspaceRecord[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await repository.list(100, cursor);
+    workspaces.push(...page);
+    cursor = page.length === 100 ? String((cursor ? Number.parseInt(cursor, 10) : 0) + 100) : undefined;
+  } while (cursor);
+
+  return workspaces;
+}
+
+export function reconcileDiscoveredWorkspaces(
+  discoveredWorkspaces: WorkspaceRecord[],
+  persistedWorkspaces: WorkspaceRecord[]
+): WorkspaceRecord[] {
+  const persistedByKey = new Map<string, WorkspaceRecord[]>();
+  for (const workspace of persistedWorkspaces) {
+    const key = workspaceDiscoveryKey(workspace);
+    const existing = persistedByKey.get(key) ?? [];
+    existing.push(workspace);
+    persistedByKey.set(key, existing);
+  }
+
+  const matchedPersistedIds = new Set<string>();
+
+  const reconciled = discoveredWorkspaces.map((workspace) => {
+    const persistedGroup = persistedByKey.get(workspaceDiscoveryKey(workspace)) ?? [];
+    const persisted = persistedGroup.find((candidate) => candidate.id === workspace.id) ?? persistedGroup[0];
+    if (!persisted) {
+      return workspace;
+    }
+
+    matchedPersistedIds.add(persisted.id);
+    return {
+      ...workspace,
+      id: persisted.id,
+      name: persisted.name,
+      executionPolicy: persisted.executionPolicy,
+      status: persisted.status,
+      createdAt: persisted.createdAt,
+      updatedAt: persisted.updatedAt,
+      ...(persisted.ownerId ? { ownerId: persisted.ownerId } : {}),
+      ...(persisted.serviceName ? { serviceName: persisted.serviceName } : {}),
+      ...(persisted.runtime ? { runtime: persisted.runtime } : {}),
+      ...(persisted.externalRef ? { externalRef: persisted.externalRef } : {})
+    };
+  });
+
+  // Include active persisted workspaces that were not matched by discovery.
+  // These are workspaces created via API whose files may not yet be fully
+  // synced, so discoverProjectWorkspaces skips them. Without this, their
+  // records would be lost from the registry, breaking in-progress runs.
+  for (const workspace of persistedWorkspaces) {
+    if (workspace.status === "active" && !matchedPersistedIds.has(workspace.id)) {
+      reconciled.push(workspace);
+    }
+  }
+
+  return reconciled;
+}
+
+export function findManagedWorkspaceIdsToDelete(
+  discoveredWorkspaces: WorkspaceRecord[],
+  persistedWorkspaces: WorkspaceRecord[],
+  paths: Pick<ServerConfig["paths"], "workspace_dir">
+): string[] {
+  const discoveredKeys = new Set(discoveredWorkspaces.map((workspace) => workspaceDiscoveryKey(workspace)));
+  const canonicalWorkspaceIds = new Set(
+    reconcileDiscoveredWorkspaces(discoveredWorkspaces, persistedWorkspaces).map((workspace) => workspace.id)
+  );
+
+  return persistedWorkspaces
+    .filter((workspace) => isManagedWorkspace(workspace, paths))
+    .filter((workspace) => workspace.status !== "active")
+    .filter((workspace) => {
+      const key = workspaceDiscoveryKey(workspace);
+      return !discoveredKeys.has(key) || !canonicalWorkspaceIds.has(workspace.id);
+    })
+    .map((workspace) => workspace.id);
+}
+
+export function isManagedWorkspaceRoot(workspaceRoot: string, managedWorkspaceDir: string): boolean {
+  const relativePath = path.relative(path.resolve(managedWorkspaceDir), path.resolve(workspaceRoot));
+  return relativePath.length > 0 && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+}
+
+const PRUNABLE_MANAGED_WORKSPACE_ROOT_TOP_LEVEL_NAMES = new Set([".openharness", "AGENTS.md"]);
+
+export async function isPrunableManagedWorkspaceRootShell(workspaceRoot: string): Promise<boolean> {
+  const entries = await readdir(workspaceRoot, { withFileTypes: true }).catch(() => []);
+  return entries.every((entry) => PRUNABLE_MANAGED_WORKSPACE_ROOT_TOP_LEVEL_NAMES.has(entry.name));
+}
+
+export async function pruneOrphanedManagedWorkspaceRootShells(input: {
+  workspaceDir: string;
+  persistedWorkspaces: Pick<WorkspaceRecord, "id" | "rootPath">[];
+}): Promise<string[]> {
+  const workspaceDir = path.resolve(input.workspaceDir);
+  const persistedRootPaths = new Set(
+    input.persistedWorkspaces
+      .filter((workspace) => isManagedWorkspaceRoot(workspace.rootPath, workspaceDir))
+      .map((workspace) => path.resolve(workspace.rootPath))
+  );
+  const persistedWorkspaceIds = new Set(input.persistedWorkspaces.map((workspace) => workspace.id));
+  const entries = await readdir(workspaceDir, { withFileTypes: true }).catch(() => []);
+  const removedPaths: string[] = [];
+
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith("ws_"))
+      .map(async (entry) => {
+        const rootPath = path.join(workspaceDir, entry.name);
+        if (persistedRootPaths.has(path.resolve(rootPath)) || persistedWorkspaceIds.has(entry.name)) {
+          return;
+        }
+
+        if (!(await isPrunableManagedWorkspaceRootShell(rootPath))) {
+          return;
+        }
+
+        await rm(rootPath, { recursive: true, force: true }).catch(() => {});
+        removedPaths.push(rootPath);
+      })
+  );
+
+  return removedPaths.sort((left, right) => left.localeCompare(right));
+}
+
+export async function pruneOrphanedShadowDirectories(input: {
+  shadowRoot: string;
+  persistedWorkspaces: Pick<WorkspaceRecord, "id">[];
+}): Promise<string[]> {
+  const persistedIds = new Set(input.persistedWorkspaces.map((w) => w.id));
+  const entries = await readdir(input.shadowRoot, { withFileTypes: true }).catch(() => []);
+  const removedPaths: string[] = [];
+
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && !persistedIds.has(entry.name))
+      .map(async (entry) => {
+        const dirPath = path.join(input.shadowRoot, entry.name);
+        await rm(dirPath, { recursive: true, force: true }).catch(() => {});
+        removedPaths.push(dirPath);
+      })
+  );
+
+  return removedPaths.sort((left, right) => left.localeCompare(right));
+}
+
+export async function discoverProjectWorkspaces(input: {
+  workspaceDir: string;
+  models: Awaited<ReturnType<typeof import("@oah/config").loadPlatformModels>>;
+  platformAgents: PlatformAgentRegistry;
+  platformSkillDir: string;
+  platformToolDir: string;
+  onError?: ((input: { rootPath: string; kind: "project"; error: unknown }) => void) | undefined;
+}): Promise<DiscoveredWorkspace[]> {
+  const { discoverWorkspace } = await loadWorkspaceConfigModule();
+  const entries = await readdir(input.workspaceDir, {
+    withFileTypes: true
+  }).catch(() => []);
+
+  const discovered = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map(async (entry) => {
+        const rootPath = path.join(input.workspaceDir, entry.name);
+        try {
+          return await discoverWorkspace(rootPath, "project", {
+            platformModels: input.models,
+            platformAgents: input.platformAgents,
+            platformSkillDir: input.platformSkillDir,
+            platformToolDir: input.platformToolDir
+          } as Parameters<typeof discoverWorkspace>[2]);
+        } catch (error) {
+          if (!input.onError) {
+            throw error;
+          }
+
+          input.onError({
+            rootPath,
+            kind: "project",
+            error
+          });
+          return undefined;
+        }
+      })
+  );
+
+  return discovered
+    .filter(isDefined)
+    .sort((left, right) => left.rootPath.localeCompare(right.rootPath));
+}
+
+export function openFsWatcher(targetPath: string, onChange: () => void, recursive = false): FSWatcher | undefined {
+  function withErrorHandler(watcher: FSWatcher): FSWatcher {
+    // Suppress ENOENT/ENOSPC errors when the watched directory is deleted
+    // or the system file-watcher limit is reached, instead of crashing.
+    watcher.on("error", () => {
+      try { watcher.close(); } catch { /* ignore */ }
+    });
+    return watcher;
+  }
+
+  try {
+    return withErrorHandler(watch(
+      targetPath,
+      {
+        persistent: false,
+        ...(recursive ? { recursive: true } : {})
+      },
+      () => onChange()
+    ));
+  } catch {
+    if (!recursive) {
+      return undefined;
+    }
+
+    try {
+      return withErrorHandler(watch(
+        targetPath,
+        {
+          persistent: false
+        },
+        () => onChange()
+      ));
+    } catch {
+      return undefined;
+    }
+  }
+}

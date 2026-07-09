@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四棱锥斜高与侧面积计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 6px; background: #fff; color: #1565c0; transition: all 0.2s; }
+        #scene2-btn-prev:hover:not(:disabled), #scene2-btn-next:hover:not(:disabled) { background: #1565c0; color: #fff; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-title { position: absolute; top: 15px; left: 20px; font-size: 18px; font-weight: bold; color: #1565c0; }
+        .scene2-calc-title { position: absolute; top: 15px; right: 20px; font-size: 16px; font-weight: bold; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <div class="scene2-title">四棱锥斜高与侧面积计算</div>
+        <div class="scene2-calc-title">勾股定理计算区</div>
+        
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 四棱锥立体图 -->
+            <!-- 底面矩形 ABCD (透视效果) -->
+            <line id="scene2-edge-ab" x1="100" y1="320" x2="360" y2="320" stroke="#000" stroke-width="2"/>
+            <line id="scene2-edge-bc" x1="360" y1="320" x2="340" y2="360" stroke="#000" stroke-width="2"/>
+            <line id="scene2-edge-cd" x1="340" y1="360" x2="120" y2="360" stroke="#000" stroke-width="2"/>
+            <line id="scene2-edge-da" x1="120" y1="360" x2="100" y2="320" stroke="#000" stroke-width="2"/>
+            
+            <!-- 侧棱 PA/PB/PC/PD -->
+            <line id="scene2-edge-pa" x1="230" y1="100" x2="100" y2="320" stroke="#000" stroke-width="2"/>
+            <line id="scene2-edge-pb" x1="230" y1="100" x2="360" y2="320" stroke="#000" stroke-width="2"/>
+            <line id="scene2-edge-pc" x1="230" y1="100" x2="340" y2="360" stroke="#000" stroke-width="2"/>
+            <line id="scene2-edge-pd" x1="230" y1="100" x2="120" y2="360" stroke="#000" stroke-width="2"/>
+            
+            <!-- 高 PO (灰色虚线) -->
+            <line id="scene2-height-po" x1="230" y1="100" x2="230" y2="340" stroke="#888" stroke-width="1" stroke-dasharray="3,3" style="display: none; opacity: 0;"/>
+            
+            <!-- 斜高 l1 (前后侧面，红色虚线) -->
+            <line id="scene2-slope-l1" x1="230" y1="100" x2="230" y2="320" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" style="display: none; opacity: 0;"/>
+            
+            <!-- 斜高 l2 (左右侧面，红色虚线) -->
+            <line id="scene2-slope-l2" x1="230" y1="100" x2="230" y2="340" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" style="display: none; opacity: 0;"/>
+            
+            <!-- 前后侧面填充 (△PAB 和 △PCD) -->
+            <polygon id="scene2-face-front" points="230,100 100,320 360,320" fill="#1565c0" fill-opacity="0" style="display: none;"/>
+            <polygon id="scene2-face-back" points="230,100 340,360 120,360" fill="#1565c0" fill-opacity="0" style="display: none;"/>
+            
+            <!-- 左右侧面填充 (△PBC 和 △PDA) -->
+            <polygon id="scene2-face-right" points="230,100 360,320 340,360" fill="#1565c0" fill-opacity="0" style="display: none;"/>
+            <polygon id="scene2-face-left" points="230,100 120,360 100,320" fill="#1565c0" fill-opacity="0" style="display: none;"/>
+            
+            <!-- 顶点标记 -->
+            <circle id="scene2-vertex-p" cx="230" cy="100" r="4" fill="#000"/>
+            <circle id="scene2-vertex-a" cx="100" cy="320" r="4" fill="#000"/>
+            <circle id="scene2-vertex-b" cx="360" cy="320" r="4" fill="#000"/>
+            <circle id="scene2-vertex-c" cx="340" cy="360" r="4" fill="#000"/>
+            <circle id="scene2-vertex-d" cx="120" cy="360" r="4" fill="#000"/>
+            <circle id="scene2-center-o" cx="230" cy="340" r="4" fill="#000" style="display: none; opacity: 0;"/>
+            
+            <!-- 顶点标签 -->
+            <text id="scene2-label-p" x="215" y="90" font-size="14" fill="#000">P</text>
+            <text id="scene2-label-a" x="85" y="335" font-size="14" fill="#000">A</text>
+            <text id="scene2-label-b" x="375" y="335" font-size="14" fill="#000">B</text>
+            <text id="scene2-label-c" x="355" y="375" font-size="14" fill="#000">C</text>
+            <text id="scene2-label-d" x="105" y="375" font-size="14" fill="#000">D</text>
+            <text id="scene2-label-o" x="242" y="355" font-size="14" fill="#000" style="display: none; opacity: 0;">O</text>
+            
+            <!-- 右侧计算区 -->
+            <!-- 勾股定理三角形 1 (前后斜高) -->
+            <polygon id="scene2-pythag1" points="470,100 550,100 550,180" fill="#2e7d32" fill-opacity="0" style="display: none;"/>
+            <!-- 勾股定理三角形 2 (左右斜高) -->
+            <polygon id="scene2-pythag2" points="470,220 550,220 550,300" fill="#2e7d32" fill-opacity="0" style="display: none;"/>
+            
+            <!-- 直角符号 1 -->
+            <rect id="scene2-right-angle1" x="542" y="92" width="8" height="8" fill="none" stroke="#2e7d32" stroke-width="1" style="display: none; opacity: 0;"/>
+            <!-- 直角符号 2 -->
+            <rect id="scene2-right-angle2" x="542" y="212" width="8" height="8" fill="none" stroke="#2e7d32" stroke-width="1" style="display: none; opacity: 0;"/>
+            
+            <!-- 计算文本 (缩短并调整位置) -->
+            <text id="scene2-text-l1" x="580" y="100" font-size="12" fill="#000" style="display: none; opacity: 0;">前后斜高 l₁ = √(4²+1²) = √17</text>
+            <text id="scene2-text-area1" x="580" y="130" font-size="12" fill="#000" style="display: none; opacity: 0;">前后侧面积 = 6√17</text>
+            
+            <text id="scene2-text-l2" x="580" y="220" font-size="12" fill="#000" style="display: none; opacity: 0;">左右斜高 l₂ = √(4²+3²) = 5</text>
+            <text id="scene2-text-area2" x="580" y="250" font-size="12" fill="#000" style="display: none; opacity: 0;">左右侧面积 = 10</text>
+            
+            <text id="scene2-text-lateral" x="580" y="280" font-size="12" fill="#000" style="display: none; opacity: 0;">侧面积总和 = 6√17 + 10</text>
+            <text id="scene2-text-base" x="580" y="305" font-size="12" fill="#000" style="display: none; opacity: 0;">底面积 = 12</text>
+            <text id="scene2-text-total" x="580" y="335" font-size="13" font-weight="bold" fill="#000" style="display: none; opacity: 0;">表面积 = 6√17 + 22</text>
+            
+            <!-- 答案框 -->
+            <rect id="scene2-answer-box" x="580" y="350" width="170" height="28" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="5" style="display: none; opacity: 0;"/>
+            <text id="scene2-answer-text" x="590" y="368" font-size="13" font-weight="bold" fill="#2e7d32" style="display: none; opacity: 0;">答案：6√17 + 22</text>
+            
+            <!-- 勾股定理三角形边长标注 -->
+            <text id="scene2-pythag1-h" x="555" y="140" font-size="11" fill="#2e7d32" style="display: none; opacity: 0;">4</text>
+            <text id="scene2-pythag1-b" x="510" y="95" font-size="11" fill="#2e7d32" style="display: none; opacity: 0;">1</text>
+            <text id="scene2-pythag1-l" x="485" y="145" font-size="11" fill="#2e7d32" style="display: none; opacity: 0;">l₁=√17</text>
+            
+            <text id="scene2-pythag2-h" x="555" y="260" font-size="11" fill="#2e7d32" style="display: none; opacity: 0;">4</text>
+            <text id="scene2-pythag2-a" x="510" y="215" font-size="11" fill="#2e7d32" style="display: none; opacity: 0;">3</text>
+            <text id="scene2-pythag2-l" x="485" y="265" font-size="11" fill="#2e7d32" style="display: none; opacity: 0;">l₂=5</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 四棱锥斜高与侧面积计算
+        // 坐标表对照：
+        // 顶点 P: (230,100)
+        // 底面顶点 A: (100,320), B: (360,320), C: (340,360), D: (120,360)
+        // 底面中心 O: (230,340)
+        // 斜高 l1: P(230,100) 到 AB 中点 (230,320)
+        // 斜高 l2: P(230,100) 到 BC 中点 (230,340)
+        // 高 PO: P(230,100) 到 O(230,340), h=4
+        
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 6,
+            
+            // 工具函数：显示元素
+            show: function(el) {
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            },
+            
+            // 工具函数：隐藏元素
+            hide: function(el) {
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            },
+            
+            // 工具函数：淡入元素
+            fadeIn: function(el, duration = 300) {
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '0';
+                    setTimeout(() => {
+                        el.style.transition = `opacity ${duration}ms`;
+                        el.style.opacity = '1';
+                    }, 10);
+                }
+            },
+            
+            // 更新场景状态
+            updateScene: function() {
+                const s = scene2;
+                
+                // 重置所有动态元素
+                const dynamicElements = [
+                    'scene2-height-po', 'scene2-slope-l1', 'scene2-slope-l2',
+                    'scene2-face-front', 'scene2-face-back', 'scene2-face-right', 'scene2-face-left',
+                    'scene2-center-o', 'scene2-label-o',
+                    'scene2-pythag1', 'scene2-pythag2', 'scene2-right-angle1', 'scene2-right-angle2',
+                    'scene2-text-l1', 'scene2-text-area1',
+                    'scene2-text-l2', 'scene2-text-area2',
+                    'scene2-text-lateral', 'scene2-text-base', 'scene2-text-total',
+                    'scene2-answer-box', 'scene2-answer-text',
+                    'scene2-pythag1-h', 'scene2-pythag1-b', 'scene2-pythag1-l',
+                    'scene2-pythag2-h', 'scene2-pythag2-a', 'scene2-pythag2-l'
+                ];
+                
+                dynamicElements.forEach(id => s.hide(document.getElementById(id)));
+                
+                // 根据步骤显示对应元素
+                switch(s.currentStep) {
+                    case 0: // 初始状态
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        break;
+                        
+                    case 1: // 前后侧面斜高
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        s.fadeIn(document.getElementById('scene2-face-front'));
+                        s.fadeIn(document.getElementById('scene2-face-back'));
+                        s.fadeIn(document.getElementById('scene2-slope-l1'));
+                        s.fadeIn(document.getElementById('scene2-pythag1'));
+                        s.fadeIn(document.getElementById('scene2-right-angle1'));
+                        s.fadeIn(document.getElementById('scene2-text-l1'));
+                        break;
+                        
+                    case 2: // 前后侧面积
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        s.show(document.getElementById('scene2-face-front'));
+                        s.show(document.getElementById('scene2-face-back'));
+                        s.show(document.getElementById('scene2-slope-l1'));
+                        s.show(document.getElementById('scene2-pythag1'));
+                        s.show(document.getElementById('scene2-right-angle1'));
+                        s.show(document.getElementById('scene2-text-l1'));
+                        s.fadeIn(document.getElementById('scene2-text-area1'));
+                        s.fadeIn(document.getElementById('scene2-pythag1-h'));
+                        s.fadeIn(document.getElementById('scene2-pythag1-b'));
+                        s.fadeIn(document.getElementById('scene2-pythag1-l'));
+                        break;
+                        
+                    case 3: // 左右侧面斜高
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        // 前后侧面变淡
+                        document.getElementById('scene2-face-front').style.fillOpacity = '0.1';
+                        document.getElementById('scene2-face-back').style.fillOpacity = '0.1';
+                        s.fadeIn(document.getElementById('scene2-face-right'));
+                        s.fadeIn(document.getElementById('scene2-face-left'));
+                        s.fadeIn(document.getElementById('scene2-slope-l2'));
+                        s.fadeIn(document.getElementById('scene2-pythag2'));
+                        s.fadeIn(document.getElementById('scene2-right-angle2'));
+                        s.fadeIn(document.getElementById('scene2-text-l2'));
+                        break;
+                        
+                    case 4: // 左右侧面积
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        document.getElementById('scene2-face-front').style.fillOpacity = '0.1';
+                        document.getElementById('scene2-face-back').style.fillOpacity = '0.1';
+                        s.show(document.getElementById('scene2-face-right'));
+                        s.show(document.getElementById('scene2-face-left'));
+                        s.show(document.getElementById('scene2-slope-l2'));
+                        s.show(document.getElementById('scene2-pythag2'));
+                        s.show(document.getElementById('scene2-right-angle2'));
+                        s.show(document.getElementById('scene2-text-l2'));
+                        s.fadeIn(document.getElementById('scene2-text-area2'));
+                        s.fadeIn(document.getElementById('scene2-pythag2-h'));
+                        s.fadeIn(document.getElementById('scene2-pythag2-a'));
+                        s.fadeIn(document.getElementById('scene2-pythag2-l'));
+                        break;
+                        
+                    case 5: // 侧面积汇总
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        // 所有侧面恢复透明度 20%
+                        document.getElementById('scene2-face-front').style.fillOpacity = '0.2';
+                        document.getElementById('scene2-face-back').style.fillOpacity = '0.2';
+                        document.getElementById('scene2-face-right').style.fillOpacity = '0.2';
+                        document.getElementById('scene2-face-left').style.fillOpacity = '0.2';
+                        s.show(document.getElementById('scene2-slope-l1'));
+                        s.show(document.getElementById('scene2-slope-l2'));
+                        s.show(document.getElementById('scene2-pythag1'));
+                        s.show(document.getElementById('scene2-right-angle1'));
+                        s.show(document.getElementById('scene2-pythag2'));
+                        s.show(document.getElementById('scene2-right-angle2'));
+                        s.show(document.getElementById('scene2-text-l1'));
+                        s.show(document.getElementById('scene2-text-area1'));
+                        s.show(document.getElementById('scene2-pythag1-h'));
+                        s.show(document.getElementById('scene2-pythag1-b'));
+                        s.show(document.getElementById('scene2-pythag1-l'));
+                        s.show(document.getElementById('scene2-text-l2'));
+                        s.show(document.getElementById('scene2-text-area2'));
+                        s.show(document.getElementById('scene2-pythag2-h'));
+                        s.show(document.getElementById('scene2-pythag2-a'));
+                        s.show(document.getElementById('scene2-pythag2-l'));
+                        s.fadeIn(document.getElementById('scene2-text-lateral'));
+                        s.fadeIn(document.getElementById('scene2-text-base'));
+                        break;
+                        
+                    case 6: // 最终答案
+                        s.show(document.getElementById('scene2-height-po'));
+                        s.show(document.getElementById('scene2-center-o'));
+                        s.show(document.getElementById('scene2-label-o'));
+                        document.getElementById('scene2-face-front').style.fillOpacity = '0.2';
+                        document.getElementById('scene2-face-back').style.fillOpacity = '0.2';
+                        document.getElementById('scene2-face-right').style.fillOpacity = '0.2';
+                        document.getElementById('scene2-face-left').style.fillOpacity = '0.2';
+                        s.show(document.getElementById('scene2-slope-l1'));
+                        s.show(document.getElementById('scene2-slope-l2'));
+                        s.show(document.getElementById('scene2-pythag1'));
+                        s.show(document.getElementById('scene2-right-angle1'));
+                        s.show(document.getElementById('scene2-pythag2'));
+                        s.show(document.getElementById('scene2-right-angle2'));
+                        s.show(document.getElementById('scene2-text-l1'));
+                        s.show(document.getElementById('scene2-text-area1'));
+                        s.show(document.getElementById('scene2-pythag1-h'));
+                        s.show(document.getElementById('scene2-pythag1-b'));
+                        s.show(document.getElementById('scene2-pythag1-l'));
+                        s.show(document.getElementById('scene2-text-l2'));
+                        s.show(document.getElementById('scene2-text-area2'));
+                        s.show(document.getElementById('scene2-pythag2-h'));
+                        s.show(document.getElementById('scene2-pythag2-a'));
+                        s.show(document.getElementById('scene2-pythag2-l'));
+                        s.show(document.getElementById('scene2-text-lateral'));
+                        s.show(document.getElementById('scene2-text-base'));
+                        s.fadeIn(document.getElementById('scene2-text-total'));
+                        s.fadeIn(document.getElementById('scene2-answer-box'));
+                        s.fadeIn(document.getElementById('scene2-answer-text'));
+                        break;
+                }
+                
+                // 更新按钮状态
+                document.getElementById('scene2-btn-prev').disabled = (s.currentStep === 0);
+                const nextBtn = document.getElementById('scene2-btn-next');
+                if (s.currentStep === s.totalSteps) {
+                    nextBtn.textContent = '完成';
+                    nextBtn.disabled = true;
+                } else {
+                    nextBtn.textContent = '下一步 ▶';
+                    nextBtn.disabled = false;
+                }
+            },
+            
+            // 下一步
+            nextStep: function() {
+                if (scene2.currentStep < scene2.totalSteps) {
+                    scene2.currentStep++;
+                    scene2.updateScene();
+                }
+            },
+            
+            // 上一步
+            prevStep: function() {
+                if (scene2.currentStep > 0) {
+                    scene2.currentStep--;
+                    scene2.updateScene();
+                }
+            },
+            
+            // 初始化
+            init: function() {
+                const s = scene2;
+                document.getElementById('scene2-btn-next').addEventListener('click', function() { s.nextStep(); });
+                document.getElementById('scene2-btn-prev').addEventListener('click', function() { s.prevStep(); });
+                s.updateScene();
+            }
+        };
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                scene2.init();
+            });
+        } else {
+            scene2.init();
+        }
+    })();
+    </script>
+</body>
+</html>

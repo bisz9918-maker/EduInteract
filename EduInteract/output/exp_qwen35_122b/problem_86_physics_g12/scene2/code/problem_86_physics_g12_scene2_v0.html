@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 电容器带电微粒运动</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        .scene2-slider-container { position: absolute; right: 20px; top: 80px; display: flex; flex-direction: column; align-items: center; }
+        .scene2-slider-track { width: 20px; height: 200px; background: #e0e0e0; border-radius: 10px; position: relative; cursor: pointer; }
+        .scene2-slider-handle { width: 24px; height: 24px; background: #1565c0; border-radius: 50%; position: absolute; left: -2px; top: 50%; transform: translateY(-50%); cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .scene2-slider-handle:active { cursor: grabbing; }
+        .scene2-result-box { position: absolute; bottom: 60px; left: 20px; background: #f5f5f5; border: 1px solid #cccccc; border-radius: 8px; padding: 12px 16px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 接地符号 -->
+            <g id="scene2-ground">
+                <line x1="60" y1="110" x2="100" y2="110" stroke="#000000" stroke-width="2"/>
+                <line x1="65" y1="120" x2="95" y2="120" stroke="#000000" stroke-width="2"/>
+                <line x1="70" y1="130" x2="90" y2="130" stroke="#000000" stroke-width="2"/>
+            </g>
+            
+            <!-- 上极板 B -->
+            <line id="scene2-plate-top" x1="150" y1="120" x2="650" y2="120" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 下极板 A -->
+            <line id="scene2-plate-bottom" x1="150" y1="380" x2="650" y2="380" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 临界轨迹（虚线）- 移到轨迹线下方 -->
+            <path id="scene2-critical-top" d="M 80 250 Q 365 185 650 120" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" fill="none"/>
+            <path id="scene2-critical-bottom" d="M 80 250 Q 365 315 650 380" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" fill="none"/>
+            
+            <!-- 主轨迹线 - 只在极板区域内 -->
+            <path id="scene2-trajectory" d="M 80 250 Q 365 315 650 380" stroke="#000000" stroke-width="2" fill="none"/>
+            
+            <!-- 微粒 -->
+            <circle id="scene2-particle" cx="80" cy="250" r="18" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <text id="scene2-particle-plus" x="80" y="256" text-anchor="middle" font-size="20" fill="#000000" font-weight="bold">+</text>
+            
+            <!-- v0 矢量 -->
+            <g id="scene2-v0-group">
+                <line id="scene2-v0-arrow" x1="100" y1="250" x2="150" y2="250" stroke="#1565c0" stroke-width="3" marker-end="url(#scene2-arrowhead-blue)"/>
+            </g>
+            
+            <!-- mg 矢量 -->
+            <g id="scene2-mg-group">
+                <line id="scene2-mg-arrow" x1="80" y1="270" x2="80" y2="320" stroke="#c62828" stroke-width="3" marker-end="url(#scene2-arrowhead-red)"/>
+            </g>
+            
+            <!-- qE 矢量（动态） -->
+            <g id="scene2-qe-group" style="display: none;">
+                <line id="scene2-qe-arrow" x1="80" y1="250" x2="80" y2="200" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene2-arrowhead-green)"/>
+            </g>
+            
+            <!-- F 合矢量（动态） -->
+            <g id="scene2-fnet-group" style="display: none;">
+                <line id="scene2-fnet-arrow" x1="80" y1="250" x2="120" y2="290" stroke="#7b1fa2" stroke-width="3" marker-end="url(#scene2-arrowhead-purple)"/>
+            </g>
+            
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M 0 0 L 9 3 L 0 6 L 1 3 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M 0 0 L 9 3 L 0 6 L 1 3 Z" fill="#c62828"/>
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M 0 0 L 9 3 L 0 6 L 1 3 Z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene2-arrowhead-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M 0 0 L 9 3 L 0 6 L 1 3 Z" fill="#f57c00"/>
+                </marker>
+                <marker id="scene2-arrowhead-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M 0 0 L 9 3 L 0 6 L 1 3 Z" fill="#7b1fa2"/>
+                </marker>
+            </defs>
+            
+            <!-- 标注文字（调整位置避免重叠 - 标签移到轨迹线上方或远离轨迹） -->
+            <text id="scene2-label-plate-top" x="150" y="105" text-anchor="start" font-size="16" fill="#000000">B（接地）</text>
+            <text id="scene2-label-plate-bottom" x="150" y="410" text-anchor="start" font-size="16" fill="#000000">A</text>
+            <text id="scene2-label-mq" x="50" y="240" text-anchor="end" font-size="14" fill="#000000">m, q</text>
+            <text id="scene2-label-v0" x="125" y="230" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">v₀</text>
+            <text id="scene2-label-mg" x="85" y="340" text-anchor="start" font-size="14" fill="#c62828" font-weight="bold">mg</text>
+            <text id="scene2-label-qe" x="55" y="205" text-anchor="end" font-size="14" fill="#2e7d32" font-weight="bold">qE</text>
+            <text id="scene2-label-fnet" x="130" y="310" text-anchor="start" font-size="14" fill="#7b1fa2" font-weight="bold">F_合</text>
+            
+            <!-- 板长标注（调整位置到更上方） -->
+            <line id="scene2-label-l-line" x1="150" y1="70" x2="650" y2="70" stroke="#000000" stroke-width="1.5"/>
+            <line x1="150" y1="65" x2="150" y2="75" stroke="#000000" stroke-width="1.5"/>
+            <line x1="650" y1="65" x2="650" y2="75" stroke="#000000" stroke-width="1.5"/>
+            <text id="scene2-label-l" x="400" y="55" text-anchor="middle" font-size="14" fill="#000000">L = 0.1 m</text>
+            
+            <!-- 板间距标注 -->
+            <line id="scene2-label-d-line" x1="670" y1="120" x2="670" y2="380" stroke="#000000" stroke-width="1.5"/>
+            <line x1="665" y1="120" x2="675" y2="120" stroke="#000000" stroke-width="1.5"/>
+            <line x1="665" y1="380" x2="675" y2="380" stroke="#000000" stroke-width="1.5"/>
+            <text id="scene2-label-d" x="685" y="250" text-anchor="start" font-size="14" fill="#000000">d = 0.4 cm</text>
+            
+            <!-- 边缘标签 -->
+            <text id="scene2-label-top-edge" x="655" y="115" text-anchor="start" font-size="12" fill="#888888">上边缘</text>
+            <text id="scene2-label-bottom-edge" x="655" y="405" text-anchor="start" font-size="12" fill="#888888">下边缘</text>
+        </svg>
+        
+        <!-- 滑块控件 -->
+        <div class="scene2-slider-container">
+            <text x="0" y="-10" text-anchor="middle" font-size="14" fill="#000000">φ_A</text>
+            <div class="scene2-slider-track" id="scene2-slider-track">
+                <div class="scene2-slider-handle" id="scene2-slider-handle"></div>
+            </div>
+            <text id="scene2-phia-value" x="0" y="30" text-anchor="middle" font-size="14" fill="#000000">0 V</text>
+        </div>
+        
+        <!-- 结果提示框 -->
+        <div class="scene2-result-box" id="scene2-result-box">
+            φ_A = 0 V，微粒落到 A 板中点 O
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 电容器带电微粒运动
+        
+        // 物理常量
+        const m = 2.0e-6;      // 质量 kg
+        const q = 1.0e-8;      // 电量 C
+        const L = 0.1;         // 板长 m
+        const d = 0.004;       // 板间距 m (0.4 cm)
+        const g = 10;          // 重力加速度 m/s²
+        
+        // 计算初速度 v0
+        const v0 = 2.5;  // m/s
+        
+        // 状态变量
+        let phia = 0;  // A 板电势，范围 -500V ~ +500V
+        
+        // DOM 元素
+        const svg = document.getElementById('scene2-svg');
+        const trajectory = document.getElementById('scene2-trajectory');
+        const qeGroup = document.getElementById('scene2-qe-group');
+        const fnetGroup = document.getElementById('scene2-fnet-group');
+        const qeArrow = document.getElementById('scene2-qe-arrow');
+        const fnetArrow = document.getElementById('scene2-fnet-arrow');
+        const fnetLabel = document.getElementById('scene2-label-fnet');
+        const qeLabel = document.getElementById('scene2-label-qe');
+        const sliderTrack = document.getElementById('scene2-slider-track');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+        const phiaValue = document.getElementById('scene2-phia-value');
+        const resultBox = document.getElementById('scene2-result-box');
+        
+        // 滑块参数
+        const sliderMin = -500;  // V
+        const sliderMax = 500;   // V
+        const sliderHeight = 200; // px
+        let isDragging = false;
+        
+        // 计算轨迹终点
+        function calculateTrajectoryEnd(phia) {
+            const E = phia / d;  // V/m
+            const qE = q * E;    // N
+            const a = (m * g - qE) / m;  // m/s² (向下为正)
+            const t = L / v0;  // s
+            const dy = 0.5 * a * t * t;  // m
+            
+            const scale = 570 / L;  // px/m
+            const endX = 80 + L * scale;  // 650
+            const endY = 250 + dy * scale;
+            
+            return { endX, endY, a, dy };
+        }
+        
+        // 更新轨迹和矢量
+        function updateScene() {
+            const { endX, endY, a, dy } = calculateTrajectoryEnd(phia);
+            
+            // 更新轨迹线（抛物线）- 只在极板区域内绘制
+            const controlY = 250 + (endY - 250) * 0.5;
+            const trajectoryPath = `M 80 250 Q ${80 + (endX - 80) * 0.5} ${controlY} ${endX} ${endY}`;
+            trajectory.setAttribute('d', trajectoryPath);
+            
+            // 更新 qE 矢量
+            const qE = q * Math.abs(phia) / d;
+            const maxQE = q * 500 / d;
+            const qEScale = Math.min(qE / maxQE, 1.0);
+            const qeLength = 50 * qEScale;
+            
+            if (Math.abs(phia) > 10) {
+                qeGroup.style.display = 'block';
+                fnetGroup.style.display = 'block';
+                
+                if (phia > 0) {
+                    qeArrow.setAttribute('x1', 80);
+                    qeArrow.setAttribute('y1', 250);
+                    qeArrow.setAttribute('x2', 80);
+                    qeArrow.setAttribute('y2', 250 - qeLength);
+                    qeArrow.setAttribute('stroke', '#2e7d32');
+                    qeLabel.setAttribute('fill', '#2e7d32');
+                    qeLabel.textContent = 'qE';
+                    
+                    const fnetScale = Math.max(1 - qEScale, 0.2);
+                    const fnetLength = 50 * fnetScale;
+                    const fnetAngle = Math.atan2(fnetLength * 0.5, fnetLength);
+                    const fnetEndX = 80 + fnetLength * Math.sin(fnetAngle);
+                    const fnetEndY = 250 + fnetLength * Math.cos(fnetAngle);
+                    fnetArrow.setAttribute('x1', 80);
+                    fnetArrow.setAttribute('y1', 250);
+                    fnetArrow.setAttribute('x2', fnetEndX);
+                    fnetArrow.setAttribute('y2', fnetEndY);
+                    fnetLabel.textContent = 'F_合';
+                } else {
+                    qeArrow.setAttribute('x1', 80);
+                    qeArrow.setAttribute('y1', 250);
+                    qeArrow.setAttribute('x2', 80);
+                    qeArrow.setAttribute('y2', 250 + qeLength);
+                    qeArrow.setAttribute('stroke', '#f57c00');
+                    qeLabel.setAttribute('fill', '#f57c00');
+                    qeLabel.textContent = 'qE';
+                    
+                    const fnetScale = Math.min(1 + qEScale, 2.0);
+                    const fnetLength = 50 * fnetScale;
+                    const fnetAngle = Math.atan2(fnetLength * 0.5, fnetLength);
+                    const fnetEndX = 80 + fnetLength * Math.sin(fnetAngle);
+                    const fnetEndY = 250 + fnetLength * Math.cos(fnetAngle);
+                    fnetArrow.setAttribute('x1', 80);
+                    fnetArrow.setAttribute('y1', 250);
+                    fnetArrow.setAttribute('x2', fnetEndX);
+                    fnetArrow.setAttribute('y2', fnetEndY);
+                    fnetLabel.textContent = 'F_合';
+                }
+            } else {
+                qeGroup.style.display = 'none';
+                fnetGroup.style.display = 'none';
+            }
+            
+            phiaValue.textContent = phia.toFixed(0) + ' V';
+            
+            let statusText = '';
+            if (endY < 120) {
+                statusText = 'φ_A = ' + phia.toFixed(0) + ' V，微粒从上边缘射出';
+            } else if (endY > 380) {
+                statusText = 'φ_A = ' + phia.toFixed(0) + ' V，微粒从下边缘射出';
+            } else {
+                statusText = 'φ_A = ' + phia.toFixed(0) + ' V，微粒从右侧射出';
+            }
+            resultBox.textContent = statusText;
+        }
+        
+        // 滑块拖拽处理
+        function handleSliderMove(clientY) {
+            const rect = sliderTrack.getBoundingClientRect();
+            let y = clientY - rect.top;
+            y = Math.max(0, Math.min(sliderHeight, y));
+            
+            const ratio = 1 - y / sliderHeight;
+            phia = sliderMin + ratio * (sliderMax - sliderMin);
+            
+            sliderHandle.style.top = y + 'px';
+            
+            updateScene();
+        }
+        
+        // 滑块事件绑定
+        sliderHandle.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        sliderTrack.addEventListener('mousedown', function(e) {
+            handleSliderMove(e.clientY);
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.clientY);
+            }
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+        
+        // 触摸支持
+        sliderHandle.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        sliderTrack.addEventListener('touchstart', function(e) {
+            handleSliderMove(e.touches[0].clientY);
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.touches[0].clientY);
+            }
+        });
+        
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

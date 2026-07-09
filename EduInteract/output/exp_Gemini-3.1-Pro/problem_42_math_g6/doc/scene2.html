@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 几何体构建与三视图投影验证</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-canvas-container { width: 100%; height: 100%; }
+        #scene2-controls { 
+            position: absolute; 
+            bottom: 10px; 
+            left: 0; 
+            right: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            gap: 15px; 
+            z-index: 10; 
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px;
+            border-radius: 20px;
+            width: fit-content;
+            margin: 0 auto;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        button {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #1565c0;
+            background: #1565c0;
+            color: white;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0d47a1; }
+        button:disabled { background: #cccccc; border-color: #aaaaaa; cursor: not-allowed; }
+        #scene2-step-text { font-size: 14px; font-weight: bold; color: #333; min-width: 150px; text-align: center; }
+    </style>
+    <!-- Import maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "@tweenjs/tween.js": "https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@23.1.1/dist/tween.esm.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene2-container">
+        <div id="scene2-canvas-container"></div>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <div id="scene2-step-text">步骤 0/4：初始状态</div>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import * as TWEEN from '@tweenjs/tween.js';
+
+        // 1. Setup Scene, Camera, Renderer
+        const container = document.getElementById('scene2-canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const aspect = 800 / 500;
+        const frustumSize = 8;
+        const camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2, 
+            frustumSize * aspect / 2, 
+            frustumSize / 2, 
+            frustumSize / -2, 
+            0.1, 
+            100
+        );
+        
+        // Initial isometric view
+        camera.position.set(5, 5, 5);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(800, 500);
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        // Grid
+        const gridHelper = new THREE.GridHelper(10, 10, 0xcccccc, 0xcccccc);
+        gridHelper.position.y = 0;
+        scene.add(gridHelper);
+
+        // 2. Objects
+        // Cubes
+        const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+        const cubeMat = new THREE.MeshLambertMaterial({ 
+            color: 0x1565c0, 
+            transparent: true, 
+            opacity: 0.8,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        });
+        const edgeGeo = new THREE.EdgesGeometry(cubeGeo);
+        const edgeMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+
+        const cubePositions = [
+            { x: -1, y: 0.5, z: -0.5 }, // 1
+            { x: -1, y: 1.5, z: -0.5 }, // 2
+            { x: 0, y: 0.5, z: -0.5 },  // 3
+            { x: 1, y: 0.5, z: -0.5 },  // 4
+            { x: -1, y: 0.5, z: 0.5 }   // 5
+        ];
+
+        const cubes = [];
+        cubePositions.forEach(pos => {
+            const mesh = new THREE.Mesh(cubeGeo, cubeMat);
+            const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+            mesh.add(edges);
+            // Initial high position
+            mesh.position.set(pos.x, pos.y + 5, pos.z);
+            mesh.visible = false;
+            scene.add(mesh);
+            cubes.push({ mesh, targetY: pos.y });
+        });
+
+        // Projection Planes
+        const planeGeo = new THREE.PlaneGeometry(4, 4);
+        const planeMat = new THREE.MeshBasicMaterial({ 
+            color: 0xf5f5f5, 
+            transparent: true, 
+            opacity: 0.5, 
+            side: THREE.DoubleSide 
+        });
+        const planeEdgeGeo = new THREE.EdgesGeometry(planeGeo);
+        const planeEdgeMat = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 0.2, gapSize: 0.1 });
+
+        function createPlane(x, y, z, rotX, rotY) {
+            const mesh = new THREE.Mesh(planeGeo, planeMat);
+            const edges = new THREE.LineSegments(planeEdgeGeo, planeEdgeMat);
+            edges.computeLineDistances();
+            mesh.add(edges);
+            mesh.position.set(x, y, z);
+            mesh.rotation.set(rotX, rotY, 0);
+            scene.add(mesh);
+            return mesh;
+        }
+
+        const frontPlane = createPlane(0, 0.5, -2.5, 0, 0);
+        const leftPlane = createPlane(2.5, 0.5, 0, 0, Math.PI / 2);
+        const topPlane = createPlane(0, -1.5, 0, Math.PI / 2, 0);
+
+        // Labels
+        function createLabel(text, x, y, z) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillRect(0, 0, 256, 64);
+            ctx.font = 'bold 32px sans-serif';
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 32);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.position.set(x, y, z);
+            sprite.scale.set(2, 0.5, 1);
+            scene.add(sprite);
+            return sprite;
+        }
+
+        createLabel('主视图', 0, 2.8, -2.5);
+        createLabel('左视图', 2.5, 2.8, 0);
+        createLabel('俯视图', 0, -1.5, -2.5);
+
+        // Shadows (2D Projections)
+        const shadowMat = new THREE.MeshBasicMaterial({ 
+            color: 0xc62828, 
+            transparent: true, 
+            opacity: 0.2, 
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+        });
+        const shadowEdgeMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+
+        function createShadow(squares, planeNormal, offset) {
+            const group = new THREE.Group();
+            squares.forEach(sq => {
+                const geo = new THREE.PlaneGeometry(1, 1);
+                const mesh = new THREE.Mesh(geo, shadowMat);
+                const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), shadowEdgeMat);
+                mesh.add(edges);
+                
+                if (planeNormal === 'z') {
+                    mesh.position.set(sq.x, sq.y, offset);
+                } else if (planeNormal === 'x') {
+                    mesh.position.set(offset, sq.y, sq.z);
+                    mesh.rotation.y = Math.PI / 2;
+                } else if (planeNormal === 'y') {
+                    mesh.position.set(sq.x, offset, sq.z);
+                    mesh.rotation.x = Math.PI / 2;
+                }
+                group.add(mesh);
+            });
+            group.visible = false;
+            scene.add(group);
+            return group;
+        }
+
+        const frontShadow = createShadow([
+            {x: -1, y: 0.5}, {x: -1, y: 1.5}, {x: 0, y: 0.5}, {x: 1, y: 0.5}
+        ], 'z', -2.49);
+
+        const leftShadow = createShadow([
+            {z: -0.5, y: 0.5}, {z: -0.5, y: 1.5}, {z: 0.5, y: 0.5}
+        ], 'x', 2.49);
+
+        const topShadow = createShadow([
+            {x: -1, z: -0.5}, {x: 0, z: -0.5}, {x: 1, z: -0.5}, {x: -1, z: 0.5}
+        ], 'y', -1.49);
+
+        // Rays
+        const rays = [];
+        const rayMat = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 0.2, gapSize: 0.2 });
+        
+        function createRay(start, end) {
+            const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+            const line = new THREE.Line(geo, rayMat);
+            line.computeLineDistances();
+            line.visible = false;
+            scene.add(line);
+            rays.push(line);
+            return line;
+        }
+
+        const frontRays = [];
+        cubePositions.forEach(pos => {
+            frontRays.push(createRay(new THREE.Vector3(pos.x, pos.y, pos.z), new THREE.Vector3(pos.x, pos.y, -2.5)));
+        });
+
+        const leftRays = [];
+        cubePositions.forEach(pos => {
+            leftRays.push(createRay(new THREE.Vector3(pos.x, pos.y, pos.z), new THREE.Vector3(2.5, pos.y, pos.z)));
+        });
+
+        const topRays = [];
+        cubePositions.forEach(pos => {
+            topRays.push(createRay(new THREE.Vector3(pos.x, pos.y, pos.z), new THREE.Vector3(pos.x, -1.5, pos.z)));
+        });
+
+        // 3. Interaction & Animation
+        let currentStep = 0;
+        const maxStep = 4;
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepText = document.getElementById('scene2-step-text');
+
+        const stepNames = [
+            "初始状态",
+            "构建模型",
+            "主视图验证",
+            "左视图验证",
+            "俯视图验证"
+        ];
+
+        function updateUI() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            stepText.textContent = `步骤 ${currentStep}/4：${stepNames[currentStep]}`;
+        }
+
+        function moveCamera(targetPos, targetUp) {
+            new TWEEN.Tween(camera.position)
+                .to(targetPos, 1000)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .onUpdate(() => {
+                    camera.lookAt(0, 0, 0);
+                })
+                .start();
+            
+            new TWEEN.Tween(camera.up)
+                .to(targetUp, 1000)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .start();
+        }
+
+        function hideAllRaysAndShadows() {
+            frontShadow.visible = false;
+            leftShadow.visible = false;
+            topShadow.visible = false;
+            frontRays.forEach(r => r.visible = false);
+            leftRays.forEach(r => r.visible = false);
+            topRays.forEach(r => r.visible = false);
+        }
+
+        function goToStep(step) {
+            currentStep = step;
+            updateUI();
+            hideAllRaysAndShadows();
+
+            if (step === 0) {
+                cubes.forEach(c => {
+                    new TWEEN.Tween(c.mesh.position)
+                        .to({ y: c.targetY + 5 }, 500)
+                        .onComplete(() => c.mesh.visible = false)
+                        .start();
+                });
+                moveCamera({ x: 5, y: 5, z: 5 }, { x: 0, y: 1, z: 0 });
+            } 
+            else if (step === 1) {
+                cubes.forEach((c, i) => {
+                    c.mesh.visible = true;
+                    new TWEEN.Tween(c.mesh.position)
+                        .to({ y: c.targetY }, 800)
+                        .delay(i * 100)
+                        .easing(TWEEN.Easing.Bounce.Out)
+                        .start();
+                });
+                moveCamera({ x: 5, y: 5, z: 5 }, { x: 0, y: 1, z: 0 });
+            }
+            else if (step === 2) {
+                cubes.forEach(c => { c.mesh.visible = true; c.mesh.position.y = c.targetY; });
+                moveCamera({ x: 0, y: 0, z: 10 }, { x: 0, y: 1, z: 0 });
+                frontRays.forEach(r => r.visible = true);
+                setTimeout(() => { if(currentStep === 2) frontShadow.visible = true; }, 1000);
+            }
+            else if (step === 3) {
+                cubes.forEach(c => { c.mesh.visible = true; c.mesh.position.y = c.targetY; });
+                frontShadow.visible = true; // Keep previous shadow
+                moveCamera({ x: -10, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+                leftRays.forEach(r => r.visible = true);
+                setTimeout(() => { if(currentStep === 3) leftShadow.visible = true; }, 1000);
+            }
+            else if (step === 4) {
+                cubes.forEach(c => { c.mesh.visible = true; c.mesh.position.y = c.targetY; });
+                frontShadow.visible = true;
+                leftShadow.visible = true;
+                moveCamera({ x: 0, y: 10, z: 0 }, { x: 0, y: 0, z: -1 });
+                topRays.forEach(r => r.visible = true);
+                setTimeout(() => { if(currentStep === 4) topShadow.visible = true; }, 1000);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) goToStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) goToStep(currentStep + 1);
+        });
+
+        // Animation Loop
+        function animate(time) {
+            requestAnimationFrame(animate);
+            TWEEN.update(time);
+            controls.update();
+            
+            // Animate dashed lines
+            const dashOffset = time * 0.002;
+            rayMat.dashOffset = -dashOffset;
+
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+        updateUI();
+    </script>
+</body>
+</html>

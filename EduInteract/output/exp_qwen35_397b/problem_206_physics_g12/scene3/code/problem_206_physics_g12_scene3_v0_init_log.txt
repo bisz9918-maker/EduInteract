@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多次碰撞时空图 - Scene 3</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: "SimSun", "宋体", sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 元素显隐控制 */
+        .scene3-hidden {
+            display: none !important;
+            opacity: 0 !important;
+        }
+        /* 按钮样式 */
+        .scene3-btn {
+            background: #f0f0f0;
+            border: 1px solid #cccccc;
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .scene3-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene3-btn:disabled {
+            background: #d0d0d0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        /* 公式框样式 */
+        .scene3-formula-box {
+            fill: rgba(255, 255, 255, 0.9);
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 4, 2;
+        }
+        .scene3-formula-box-highlight {
+            fill: rgba(255, 255, 200, 0.95);
+            stroke: #333333;
+            stroke-width: 1.5;
+            stroke-dasharray: none;
+        }
+        /* 碰撞点阴影 */
+        .scene3-collision-shadow {
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.3));
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 坐标轴 -->
+            <line id="scene3-axis-x" x1="80" y1="420" x2="720" y2="420" stroke="#000000" stroke-width="2" fill="none"/>
+            <line id="scene3-axis-y" x1="80" y1="420" x2="80" y2="80" stroke="#000000" stroke-width="2" fill="none"/>
+            <!-- 箭头 - t 轴 -->
+            <polygon id="scene3-arrow-t" points="745,420 735,416 735,424" fill="#000000"/>
+            <!-- 箭头 - x 轴 -->
+            <polygon id="scene3-arrow-x" points="80,65 76,75 84,75" fill="#000000"/>
+            
+            <!-- 轴标签 -->
+            <text id="scene3-label-origin" x="70" y="435" font-size="14" fill="#000000" text-anchor="end">0</text>
+            <text id="scene3-label-t" x="750" y="435" font-size="14" fill="#000000" text-anchor="start">t</text>
+            <text id="scene3-label-x" x="65" y="70" font-size="14" fill="#000000" text-anchor="end">x</text>
+            
+            <!-- y 轴刻度线 -->
+            <line id="scene3-tick-l" x1="65" y1="280" x2="80" y2="280" stroke="#000000" stroke-width="2"/>
+            <line id="scene3-tick-4l" x1="65" y1="160" x2="80" y2="160" stroke="#000000" stroke-width="2" class="scene3-hidden"/>
+            <line id="scene3-tick-9l" x1="65" y1="60" x2="80" y2="60" stroke="#000000" stroke-width="2" class="scene3-hidden"/>
+            
+            <!-- y 轴标签 -->
+            <text id="scene3-label-l" x="50" y="275" font-size="14" fill="#000000" text-anchor="end">L</text>
+            <text id="scene3-label-4l" x="40" y="155" font-size="14" fill="#000000" text-anchor="end" class="scene3-hidden">4L</text>
+            <text id="scene3-label-9l" x="40" y="55" font-size="14" fill="#000000" text-anchor="end" class="scene3-hidden">9L</text>
+            
+            <!-- t 轴刻度线 -->
+            <line id="scene3-tick-t1" x1="200" y1="420" x2="200" y2="435" stroke="#000000" stroke-width="2"/>
+            <line id="scene3-tick-t2" x1="360" y1="420" x2="360" y2="435" stroke="#000000" stroke-width="2" class="scene3-hidden"/>
+            <line id="scene3-tick-t3" x1="560" y1="420" x2="560" y2="435" stroke="#000000" stroke-width="2" class="scene3-hidden"/>
+            
+            <!-- t 轴标签 -->
+            <text id="scene3-label-t1" x="195" y="445" font-size="14" fill="#000000" text-anchor="middle">t₁</text>
+            <text id="scene3-label-t2" x="355" y="445" font-size="14" fill="#000000" text-anchor="middle" class="scene3-hidden">t₂</text>
+            <text id="scene3-label-t3" x="555" y="445" font-size="14" fill="#000000" text-anchor="middle" class="scene3-hidden">t₃</text>
+            
+            <!-- A 球轨迹（蓝色抛物线） -->
+            <!-- 段 1: (80,420) 到 (200,280) -->
+            <path id="scene3-curve-a1" d="M 80 420 Q 140 420 200 280" stroke="#1565c0" stroke-width="2.5" fill="none" opacity="0.4"/>
+            <path id="scene3-curve-a1-full" d="M 80 420 Q 140 420 200 280" stroke="#1565c0" stroke-width="2.5" fill="none" class="scene3-hidden"/>
+            
+            <!-- 段 2: (200,280) 到 (360,160) -->
+            <path id="scene3-curve-a2" d="M 200 280 Q 280 280 360 160" stroke="#1565c0" stroke-width="2.5" fill="none" class="scene3-hidden"/>
+            
+            <!-- 段 3: (360,160) 到 (560,60) -->
+            <path id="scene3-curve-a3" d="M 360 160 Q 460 160 560 60" stroke="#1565c0" stroke-width="2.5" fill="none" class="scene3-hidden"/>
+            
+            <!-- B 球轨迹（绿色直线） -->
+            <!-- 段 1: (200,280) 到 (360,160) -->
+            <line id="scene3-line-b1" x1="200" y1="280" x2="360" y2="160" stroke="#2e7d32" stroke-width="2.5" class="scene3-hidden"/>
+            
+            <!-- 段 2: (360,160) 到 (560,60) -->
+            <line id="scene3-line-b2" x1="360" y1="160" x2="560" y2="60" stroke="#2e7d32" stroke-width="2.5" class="scene3-hidden"/>
+            
+            <!-- 碰撞点 -->
+            <circle id="scene3-point-1" cx="200" cy="280" r="6" fill="#c62828" class="scene3-collision-shadow scene3-hidden"/>
+            <circle id="scene3-point-2" cx="360" cy="160" r="6" fill="#c62828" class="scene3-collision-shadow scene3-hidden"/>
+            <circle id="scene3-point-3" cx="560" cy="60" r="6" fill="#c62828" class="scene3-collision-shadow scene3-hidden"/>
+            
+            <!-- 坐标点标签 -->
+            <text id="scene3-coord-1" x="210" y="270" font-size="12" fill="#000000" font-style="italic" class="scene3-hidden">(t₁,L)</text>
+            <text id="scene3-coord-2" x="370" y="150" font-size="12" fill="#000000" font-style="italic" class="scene3-hidden">(t₂,4L)</text>
+            <text id="scene3-coord-3" x="570" y="50" font-size="12" fill="#000000" font-style="italic" class="scene3-hidden">(t₃,9L)</text>
+            
+            <!-- 图例 -->
+            <line id="scene3-legend-a" x1="550" y1="380" x2="580" y2="380" stroke="#1565c0" stroke-width="2.5"/>
+            <text id="scene3-legend-a-text" x="585" y="384" font-size="14" fill="#000000">A 球</text>
+            
+            <line id="scene3-legend-b" x1="550" y1="400" x2="580" y2="400" stroke="#2e7d32" stroke-width="2.5"/>
+            <text id="scene3-legend-b-text" x="585" y="404" font-size="14" fill="#000000">B 球</text>
+            
+            <!-- 公式框 -->
+            <rect id="scene3-formula-box-1" x="550" y="90" width="210" height="40" class="scene3-formula-box"/>
+            <text id="scene3-formula-1" x="600" y="115" font-size="14" fill="#000000">
+                <tspan x="600" dy="0">x</tspan><tspan baseline-shift="sub" font-size="10">n</tspan><tspan baseline-shift="0" font-size="14"> = n²L</tspan>
+            </text>
+            
+            <rect id="scene3-formula-box-2" x="550" y="140" width="210" height="40" class="scene3-formula-box"/>
+            <text id="scene3-formula-2" x="600" y="165" font-size="14" fill="#000000">
+                <tspan x="600" dy="0">t</tspan><tspan baseline-shift="sub" font-size="10">n</tspan><tspan baseline-shift="0" font-size="14"> = (2n-1)t</tspan><tspan baseline-shift="sub" font-size="10">1</tspan>
+            </text>
+            
+            <!-- 控件栏（放在 SVG 内部底部） -->
+            <rect id="scene3-controls-bg" x="0" y="450" width="800" height="50" fill="#ffffff" opacity="0.8"/>
+            <button id="scene3-btn-prev" class="scene3-btn" style="position: absolute; left: 280px; top: 455px;" disabled>◀ 上一步</button>
+            <text id="scene3-step-indicator" x="380" y="478" font-size="14" fill="#000000" text-anchor="middle" style="position: absolute; left: 400px; top: 462px;">步骤 0/5</text>
+            <button id="scene3-btn-next" class="scene3-btn" style="position: absolute; left: 440px; top: 455px;">下一步 ▶</button>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 多次碰撞时空图（x-t 图像）
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | x 轴 | 线段 | (80,420)-(720,420) | 640×3 | - | 时间轴 t |
+        // | y 轴 | 线段 | (80,420)-(80,80) | 3×340 | - | 位移轴 x |
+        // | 箭头-t | 箭头 | (720,420)-(745,420) | 25×8 | - | x 轴末端 |
+        // | 箭头-x | 箭头 | (80,80)-(80,65) | 8×15 | - | y 轴顶端 |
+        // | 原点 0 | text | (70,435) | ~12×16 | 左下 | 坐标原点 |
+        // | t 轴标签 | text | (750,435) | ~12×16 | 右侧 | 轴名"t" |
+        // | x 轴标签 | text | (65,70) | ~12×16 | 左上 | 轴名"x" |
+        // | A 球轨迹段 1 | 抛物线 | (80,420) 到 (200,280) | 曲线 | - | 0 到 t₁，蓝色 |
+        // | A 球轨迹段 2 | 抛物线 | (200,280) 到 (360,160) | 曲线 | - | t₁ 到 t₂，蓝色 |
+        // | A 球轨迹段 3 | 抛物线 | (360,160) 到 (560,60) | 曲线 | - | t₂ 到 t₃，蓝色 |
+        // | B 球轨迹段 1 | 直线 | (200,280) 到 (360,160) | 线段 | - | t₁ 到 t₂，绿色 |
+        // | B 球轨迹段 2 | 直线 | (360,160) 到 (560,60) | 线段 | - | t₂ 到 t₃，绿色 |
+        // | 碰撞点 1 | 圆 | (200,280) | r=6 | 右下 | (t₁, L) |
+        // | 碰撞点 2 | 圆 | (360,160) | r=6 | 右下 | (t₂, 4L) |
+        // | 碰撞点 3 | 圆 | (560,60) | r=6 | 右下 | (t₃, 9L) |
+        // | t₁ 刻度 | 线段 | (200,420)-(200,435) | 2×15 | - | x 轴刻度 |
+        // | t₂ 刻度 | 线段 | (360,420)-(360,435) | 2×15 | - | x 轴刻度 |
+        // | t₃ 刻度 | 线段 | (560,420)-(560,435) | 2×15 | - | x 轴刻度 |
+        // | t₁ 标签 | text | (195,445) | ~20×16 | 下方 | t₁ 标注 |
+        // | t₂ 标签 | text | (355,445) | ~20×16 | 下方 | t₂ 标注 |
+        // | t₃ 标签 | text | (555,445) | ~20×16 | 下方 | t₃ 标注 |
+        // | L 刻度 | 线段 | (65,280)-(80,280) | 15×2 | - | y 轴刻度 |
+        // | 4L 刻度 | 线段 | (65,160)-(80,160) | 15×2 | - | y 轴刻度 |
+        // | 9L 刻度 | 线段 | (65,60)-(80,60) | 15×2 | - | y 轴刻度 |
+        // | L 标签 | text | (50,275) | ~15×16 | 左侧 | L 标注 |
+        // | 4L 标签 | text | (40,155) | ~20×16 | 左侧 | 4L 标注 |
+        // | 9L 标签 | text | (40,55) | ~20×16 | 左侧 | 9L 标注 |
+        // | 点 1 坐标标签 | text | (210,270) | ~35×16 | 右上 | (t₁,L) |
+        // | 点 2 坐标标签 | text | (370,150) | ~45×16 | 右上 | (t₂,4L) |
+        // | 点 3 坐标标签 | text | (570,50) | ~45×16 | 右上 | (t₃,9L) |
+        // | A 球图例 | 线段 +text | (550,380)-(580,380) | 30×3+ 文本 | - | 蓝色线段+"A 球" |
+        // | B 球图例 | 线段 +text | (550,400)-(580,400) | 30×3+ 文本 | - | 绿色线段+"B 球" |
+        // | 公式框 1 | 矩形 | (550,90)-(760,130) | 210×40 | - | x_n = n²L |
+        // | 公式框 2 | 矩形 | (550,140)-(760,180) | 210×40 | - | t_n = (2n-1)t₁ |
+        // | 上一步按钮 | 按钮 | (280,455) | 80×30 | - | 控件栏 |
+        // | 下一步按钮 | 按钮 | (440,455) | 80×30 | - | 控件栏 |
+        // | 步骤指示 | text | (380,465) | ~60×16 | - | "步骤 X/6" |
+        
+        // 状态定义
+        const totalSteps = 5;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene3-hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.add('scene3-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 获取所有元素
+        const elements = {
+            // 刻度线和标签 - y 轴
+            tickL: document.getElementById('scene3-tick-l'),
+            tick4l: document.getElementById('scene3-tick-4l'),
+            tick9l: document.getElementById('scene3-tick-9l'),
+            labelL: document.getElementById('scene3-label-l'),
+            label4l: document.getElementById('scene3-label-4l'),
+            label9l: document.getElementById('scene3-label-9l'),
+            
+            // 刻度线和标签 - t 轴
+            tickT1: document.getElementById('scene3-tick-t1'),
+            tickT2: document.getElementById('scene3-tick-t2'),
+            tickT3: document.getElementById('scene3-tick-t3'),
+            labelT1: document.getElementById('scene3-label-t1'),
+            labelT2: document.getElementById('scene3-label-t2'),
+            labelT3: document.getElementById('scene3-label-t3'),
+            
+            // A 球轨迹
+            curveA1: document.getElementById('scene3-curve-a1'),
+            curveA1Full: document.getElementById('scene3-curve-a1-full'),
+            curveA2: document.getElementById('scene3-curve-a2'),
+            curveA3: document.getElementById('scene3-curve-a3'),
+            
+            // B 球轨迹
+            lineB1: document.getElementById('scene3-line-b1'),
+            lineB2: document.getElementById('scene3-line-b2'),
+            
+            // 碰撞点
+            point1: document.getElementById('scene3-point-1'),
+            point2: document.getElementById('scene3-point-2'),
+            point3: document.getElementById('scene3-point-3'),
+            
+            // 坐标标签
+            coord1: document.getElementById('scene3-coord-1'),
+            coord2: document.getElementById('scene3-coord-2'),
+            coord3: document.getElementById('scene3-coord-3'),
+            
+            // 公式框
+            formulaBox1: document.getElementById('scene3-formula-box-1'),
+            formulaBox2: document.getElementById('scene3-formula-box-2'),
+            
+            // 步骤指示
+            stepIndicator: document.getElementById('scene3-step-indicator'),
+            
+            // 按钮
+            btnPrev: document.getElementById('scene3-btn-prev'),
+            btnNext: document.getElementById('scene3-btn-next')
+        };
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 更新步骤指示
+            elements.stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            
+            // 更新按钮状态
+            elements.btnPrev.disabled = (currentStep === 0);
+            elements.btnNext.disabled = (currentStep === totalSteps);
+            
+            // 根据当前步骤显示/隐藏元素
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：只显示坐标系、图例、公式框（半透明）
+                    hide(elements.curveA1Full);
+                    hide(elements.curveA2);
+                    hide(elements.curveA3);
+                    hide(elements.lineB1);
+                    hide(elements.lineB2);
+                    hide(elements.point1);
+                    hide(elements.point2);
+                    hide(elements.point3);
+                    hide(elements.coord1);
+                    hide(elements.coord2);
+                    hide(elements.coord3);
+                    hide(elements.tickT2);
+                    hide(elements.tickT3);
+                    hide(elements.labelT2);
+                    hide(elements.labelT3);
+                    hide(elements.tick4l);
+                    hide(elements.tick9l);
+                    hide(elements.label4l);
+                    hide(elements.label9l);
+                    // 公式框半透明
+                    elements.formulaBox1.classList.add('scene3-formula-box');
+                    elements.formulaBox1.classList.remove('scene3-formula-box-highlight');
+                    elements.formulaBox2.classList.add('scene3-formula-box');
+                    elements.formulaBox2.classList.remove('scene3-formula-box-highlight');
+                    // 显示第一段抛物线部分
+                    show(elements.curveA1);
+                    break;
+                    
+                case 1:
+                    // 第一次碰撞完成
+                    hide(elements.curveA1);
+                    show(elements.curveA1Full);
+                    hide(elements.curveA2);
+                    hide(elements.curveA3);
+                    hide(elements.lineB1);
+                    hide(elements.lineB2);
+                    show(elements.point1);
+                    hide(elements.point2);
+                    hide(elements.point3);
+                    show(elements.coord1);
+                    hide(elements.coord2);
+                    hide(elements.coord3);
+                    hide(elements.tickT2);
+                    hide(elements.tickT3);
+                    hide(elements.labelT2);
+                    hide(elements.labelT3);
+                    hide(elements.tick4l);
+                    hide(elements.tick9l);
+                    hide(elements.label4l);
+                    hide(elements.label9l);
+                    elements.formulaBox1.classList.add('scene3-formula-box');
+                    elements.formulaBox1.classList.remove('scene3-formula-box-highlight');
+                    elements.formulaBox2.classList.add('scene3-formula-box');
+                    elements.formulaBox2.classList.remove('scene3-formula-box-highlight');
+                    break;
+                    
+                case 2:
+                    // 第二次碰撞过程中（轨迹绘制中）
+                    hide(elements.curveA1);
+                    show(elements.curveA1Full);
+                    show(elements.curveA2);
+                    hide(elements.curveA3);
+                    show(elements.lineB1);
+                    hide(elements.lineB2);
+                    show(elements.point1);
+                    hide(elements.point2);
+                    hide(elements.point3);
+                    hide(elements.coord1);
+                    hide(elements.coord2);
+                    hide(elements.coord3);
+                    show(elements.tickT2);
+                    hide(elements.tickT3);
+                    hide(elements.labelT2);
+                    hide(elements.labelT3);
+                    show(elements.tick4l);
+                    hide(elements.tick9l);
+                    hide(elements.label4l);
+                    hide(elements.label9l);
+                    elements.formulaBox1.classList.add('scene3-formula-box');
+                    elements.formulaBox1.classList.remove('scene3-formula-box-highlight');
+                    elements.formulaBox2.classList.add('scene3-formula-box');
+                    elements.formulaBox2.classList.remove('scene3-formula-box-highlight');
+                    break;
+                    
+                case 3:
+                    // 第二次碰撞完成
+                    hide(elements.curveA1);
+                    show(elements.curveA1Full);
+                    show(elements.curveA2);
+                    hide(elements.curveA3);
+                    show(elements.lineB1);
+                    hide(elements.lineB2);
+                    show(elements.point1);
+                    show(elements.point2);
+                    hide(elements.point3);
+                    hide(elements.coord1);
+                    show(elements.coord2);
+                    hide(elements.coord3);
+                    show(elements.tickT2);
+                    hide(elements.tickT3);
+                    show(elements.labelT2);
+                    hide(elements.labelT3);
+                    show(elements.tick4l);
+                    hide(elements.tick9l);
+                    hide(elements.label4l);
+                    hide(elements.label9l);
+                    elements.formulaBox1.classList.add('scene3-formula-box');
+                    elements.formulaBox1.classList.remove('scene3-formula-box-highlight');
+                    elements.formulaBox2.classList.add('scene3-formula-box');
+                    elements.formulaBox2.classList.remove('scene3-formula-box-highlight');
+                    break;
+                    
+                case 4:
+                    // 第三次碰撞完成
+                    hide(elements.curveA1);
+                    show(elements.curveA1Full);
+                    show(elements.curveA2);
+                    show(elements.curveA3);
+                    show(elements.lineB1);
+                    show(elements.lineB2);
+                    show(elements.point1);
+                    show(elements.point2);
+                    show(elements.point3);
+                    hide(elements.coord1);
+                    show(elements.coord2);
+                    show(elements.coord3);
+                    show(elements.tickT2);
+                    show(elements.tickT3);
+                    show(elements.labelT2);
+                    show(elements.labelT3);
+                    show(elements.tick4l);
+                    show(elements.tick9l);
+                    hide(elements.label4l);
+                    show(elements.label9l);
+                    elements.formulaBox1.classList.add('scene3-formula-box');
+                    elements.formulaBox1.classList.remove('scene3-formula-box-highlight');
+                    elements.formulaBox2.classList.add('scene3-formula-box');
+                    elements.formulaBox2.classList.remove('scene3-formula-box-highlight');
+                    break;
+                    
+                case 5:
+                    // 公式高亮显示
+                    hide(elements.curveA1);
+                    show(elements.curveA1Full);
+                    show(elements.curveA2);
+                    show(elements.curveA3);
+                    show(elements.lineB1);
+                    show(elements.lineB2);
+                    show(elements.point1);
+                    show(elements.point2);
+                    show(elements.point3);
+                    show(elements.coord1);
+                    show(elements.coord2);
+                    show(elements.coord3);
+                    show(elements.tickT2);
+                    show(elements.tickT3);
+                    show(elements.labelT2);
+                    show(elements.labelT3);
+                    show(elements.tick4l);
+                    show(elements.tick9l);
+                    show(elements.label4l);
+                    show(elements.label9l);
+                    // 公式框高亮
+                    elements.formulaBox1.classList.remove('scene3-formula-box');
+                    elements.formulaBox1.classList.add('scene3-formula-box-highlight');
+                    elements.formulaBox2.classList.remove('scene3-formula-box');
+                    elements.formulaBox2.classList.add('scene3-formula-box-highlight');
+                    break;
+            }
+        }
+        
+        // 按钮事件处理
+        elements.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        elements.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+        
+    })();
+    </script>
+</body>
+</html>

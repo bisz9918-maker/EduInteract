@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地方时判断原理——晨昏线与经线位置关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        .fade-element { transition: opacity 0.3s ease, display 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500">
+            <!-- 定义夜半球斜线填充图案 -->
+            <defs>
+                <pattern id="scene3-night-pattern" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#888888" stroke-width="1" opacity="0.5"/>
+                </pattern>
+            </defs>
+
+            <!-- 地球轮廓 -->
+            <circle id="scene3-earth" cx="400" cy="250" r="180" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 昼半球（左半圆，透明） -->
+            <path id="scene3-day-hemisphere" d="M 400,70 A 180,180 0 0,0 400,430 L 400,250 Z" fill="#ffffff" opacity="0"/>
+
+            <!-- 夜半球（右半圆，斜线阴影） -->
+            <path id="scene3-night-hemisphere" d="M 400,70 A 180,180 0 0,1 400,430 L 400,250 Z" fill="url(#scene3-night-pattern)" opacity="1"/>
+
+            <!-- 晨昏线（垂直分界线） -->
+            <line id="scene3-terminator" x1="400" y1="70" x2="400" y2="430" stroke="#000000" stroke-width="2"/>
+
+            <!-- 晨线（上半段，绿色） -->
+            <line id="scene3-morning-line" x1="400" y1="70" x2="400" y2="250" stroke="#2e7d32" stroke-width="2" opacity="0" class="fade-element"/>
+
+            <!-- 昏线（下半段，红色） -->
+            <line id="scene3-evening-line" x1="400" y1="250" x2="400" y2="430" stroke="#c62828" stroke-width="2" opacity="0" class="fade-element"/>
+
+            <!-- 昼半球中央经线（蓝色虚线弧线） -->
+            <path id="scene3-noon-meridian" d="M 400,70 A 100,180 0 0,0 280,250 A 100,180 0 0,0 400,430" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" opacity="0" class="fade-element"/>
+
+            <!-- 夜半球中央经线（灰色虚线弧线） -->
+            <path id="scene3-midnight-meridian" d="M 400,70 A 100,180 0 0,1 520,250 A 100,180 0 0,1 400,430" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0" class="fade-element"/>
+
+            <!-- 太阳光线（3 条箭头从左侧指向地球） -->
+            <g id="scene3-sun-rays">
+                <line x1="50" y1="150" x2="200" y2="150" stroke="#ffa000" stroke-width="2" marker-end="url(#scene3-arrow)"/>
+                <line x1="50" y1="250" x2="200" y2="250" stroke="#ffa000" stroke-width="2" marker-end="url(#scene3-arrow)"/>
+                <line x1="50" y1="350" x2="200" y2="350" stroke="#ffa000" stroke-width="2" marker-end="url(#scene3-arrow)"/>
+                <!-- 箭头定义 -->
+                <defs>
+                    <marker id="scene3-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#ffa000"/>
+                    </marker>
+                </defs>
+                <!-- 太阳光线文字标注 -->
+                <text x="30" y="140" font-size="14" fill="#ffa000">太</text>
+                <text x="30" y="230" font-size="14" fill="#ffa000">阳</text>
+                <text x="30" y="320" font-size="14" fill="#ffa000">光</text>
+                <text x="30" y="410" font-size="14" fill="#ffa000">线</text>
+            </g>
+
+            <!-- N 极点 -->
+            <text id="scene3-label-n" x="400" y="55" font-size="16" text-anchor="middle" fill="#000000">N</text>
+
+            <!-- S 极点 -->
+            <text id="scene3-label-s" x="400" y="455" font-size="16" text-anchor="middle" fill="#000000">S</text>
+
+            <!-- B 点（昼半球） -->
+            <circle id="scene3-point-b" cx="280" cy="150" r="6" fill="#1565c0" opacity="0" class="fade-element"/>
+
+            <!-- C 点（夜半球） -->
+            <circle id="scene3-point-c" cx="520" cy="250" r="6" fill="#888888" opacity="0" class="fade-element"/>
+
+            <!-- 时间标注（放在地球上方，N 极点上方，水平排列） -->
+            <!-- 12 时：昼半球中央，放在左侧 -->
+            <text id="scene3-label-time-12" x="220" y="40" font-size="14" text-anchor="middle" fill="#1565c0" opacity="0" class="fade-element">12 时</text>
+            <!-- 6 时：晨线与赤道交点，放在中左侧 -->
+            <text id="scene3-label-time-6" x="340" y="40" font-size="14" text-anchor="middle" fill="#000000" opacity="0" class="fade-element">6 时</text>
+            <!-- 18 时：昏线与赤道交点，放在中右侧 -->
+            <text id="scene3-label-time-18" x="460" y="40" font-size="14" text-anchor="middle" fill="#000000" opacity="0" class="fade-element">18 时</text>
+            <!-- 0 时：夜半球中央，放在右侧 -->
+            <text id="scene3-label-time-0" x="580" y="40" font-size="14" text-anchor="middle" fill="#888888" opacity="0" class="fade-element">0 时</text>
+
+            <!-- 晨线标签（放在地球外部右侧，远离图形） -->
+            <text id="scene3-label-morning" x="620" y="160" font-size="14" fill="#2e7d32" opacity="0" class="fade-element">晨线</text>
+
+            <!-- 昏线标签（放在地球外部右侧，远离图形） -->
+            <text id="scene3-label-evening" x="620" y="350" font-size="14" fill="#c62828" opacity="0" class="fade-element">昏线</text>
+
+            <!-- B 点时间标签（放在 B 点左上方，远离图形） -->
+            <text id="scene3-label-b" x="200" y="110" font-size="14" text-anchor="middle" fill="#1565c0" opacity="0" class="fade-element">B(12 时/午餐)</text>
+
+            <!-- C 点时间标签（放在 C 点右上方，远离图形） -->
+            <text id="scene3-label-c" x="620" y="220" font-size="14" text-anchor="middle" fill="#888888" opacity="0" class="fade-element">C(0 时/深夜)</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1/5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现：地方时判断原理——晨昏线与经线位置关系
+
+        // 状态定义
+        const steps = [
+            // 步骤 0：初始状态 - 地球轮廓、昼/夜半球、晨昏线、太阳光线、N/S 极点
+            {
+                visible: ['scene3-earth', 'scene3-day-hemisphere', 'scene3-night-hemisphere', 'scene3-terminator', 'scene3-sun-rays', 'scene3-label-n', 'scene3-label-s']
+            },
+            // 步骤 1：晨昏线分段高亮（晨线绿色、昏线红色），显示标签
+            {
+                visible: ['scene3-earth', 'scene3-day-hemisphere', 'scene3-night-hemisphere', 'scene3-terminator', 'scene3-sun-rays', 'scene3-label-n', 'scene3-label-s',
+                          'scene3-morning-line', 'scene3-evening-line', 'scene3-label-morning', 'scene3-label-evening']
+            },
+            // 步骤 2：显示中央经线和时间刻度
+            {
+                visible: ['scene3-earth', 'scene3-day-hemisphere', 'scene3-night-hemisphere', 'scene3-terminator', 'scene3-sun-rays', 'scene3-label-n', 'scene3-label-s',
+                          'scene3-morning-line', 'scene3-evening-line', 'scene3-label-morning', 'scene3-label-evening',
+                          'scene3-noon-meridian', 'scene3-midnight-meridian',
+                          'scene3-label-time-6', 'scene3-label-time-12', 'scene3-label-time-18', 'scene3-label-time-0']
+            },
+            // 步骤 3：B 点高亮，显示 B 点时间标签
+            {
+                visible: ['scene3-earth', 'scene3-day-hemisphere', 'scene3-night-hemisphere', 'scene3-terminator', 'scene3-sun-rays', 'scene3-label-n', 'scene3-label-s',
+                          'scene3-morning-line', 'scene3-evening-line', 'scene3-label-morning', 'scene3-label-evening',
+                          'scene3-noon-meridian', 'scene3-midnight-meridian',
+                          'scene3-label-time-6', 'scene3-label-time-12', 'scene3-label-time-18', 'scene3-label-time-0',
+                          'scene3-point-b', 'scene3-label-b']
+            },
+            // 步骤 4：C 点高亮，显示 C 点时间标签（完整状态）
+            {
+                visible: ['scene3-earth', 'scene3-day-hemisphere', 'scene3-night-hemisphere', 'scene3-terminator', 'scene3-sun-rays', 'scene3-label-n', 'scene3-label-s',
+                          'scene3-morning-line', 'scene3-evening-line', 'scene3-label-morning', 'scene3-label-evening',
+                          'scene3-noon-meridian', 'scene3-midnight-meridian',
+                          'scene3-label-time-6', 'scene3-label-time-12', 'scene3-label-time-18', 'scene3-label-time-0',
+                          'scene3-point-b', 'scene3-label-b', 'scene3-point-c', 'scene3-label-c']
+            }
+        ];
+
+        let currentStep = 0;
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = '';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            const currentStepData = steps[currentStep];
+            const allElementIds = new Set();
+
+            // 收集所有可能的元素 ID
+            steps.forEach(step => {
+                step.visible.forEach(id => allElementIds.add(id));
+            });
+
+            // 更新每个元素的可见性
+            allElementIds.forEach(id => {
+                if (currentStepData.visible.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = `步骤 ${currentStep + 1}/${steps.length}`;
+
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene3-btn-next').disabled = (currentStep === steps.length - 1);
+        }
+
+        // 事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

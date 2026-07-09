@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正六边形中直线平移与△OMN 面积</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-axis {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        .scene1-hexagon {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        .scene1-line-l {
+            stroke: #1565c0;
+            stroke-width: 2;
+            fill: none;
+        }
+        .scene1-triangle {
+            fill: #1565c0;
+            fill-opacity: 0.2;
+            stroke: #1565c0;
+            stroke-width: 1;
+        }
+        .scene1-point {
+            fill: #c62828;
+            stroke: none;
+        }
+        .scene1-label {
+            font-size: 14px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        .scene1-label-red {
+            fill: #c62828;
+        }
+        .scene1-label-blue {
+            fill: #1565c0;
+        }
+        .scene1-area-box {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 1;
+        }
+        .scene1-area-text {
+            font-size: 14px;
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 坐标轴 -->
+            <line id="scene1-x-axis" class="scene1-axis" x1="150" y1="250" x2="650" y2="250"/>
+            <polygon id="scene1-x-arrow" points="645,245 650,250 645,255" fill="#000000"/>
+            <line id="scene1-y-axis" class="scene1-axis" x1="400" y1="100" x2="400" y2="400"/>
+            <polygon id="scene1-y-arrow" points="395,105 400,100 405,105" fill="#000000"/>
+
+            <!-- 正六边形 ABCDEF (中心 400,250, 边长 100) -->
+            <polygon id="scene1-hexagon" class="scene1-hexagon" 
+                points="350,337 450,337 500,250 450,163 350,163 300,250"/>
+
+            <!-- △OMN (动态) -->
+            <polygon id="scene1-tri-omn" class="scene1-triangle" points="400,250 400,250 400,250"/>
+
+            <!-- 直线 L (动态) -->
+            <line id="scene1-line-l" class="scene1-line-l" x1="200" y1="250" x2="600" y2="250"/>
+
+            <!-- 交点 M, N (动态) -->
+            <circle id="scene1-point-m" class="scene1-point" cx="400" cy="250" r="6"/>
+            <circle id="scene1-point-n" class="scene1-point" cx="400" cy="250" r="6"/>
+
+            <!-- 顶点标签 -->
+            <text id="scene1-label-o" class="scene1-label" x="435" y="300">O</text>
+            <text id="scene1-label-a" class="scene1-label" x="350" y="390">A</text>
+            <text id="scene1-label-b" class="scene1-label" x="450" y="390">B</text>
+            <text id="scene1-label-c" class="scene1-label" x="535" y="260">C</text>
+            <text id="scene1-label-d" class="scene1-label" x="475" y="125">D</text>
+            <text id="scene1-label-e" class="scene1-label" x="325" y="125">E</text>
+            <text id="scene1-label-f" class="scene1-label" x="245" y="260">F</text>
+
+            <!-- 交点标签 (动态) -->
+            <text id="scene1-label-m" class="scene1-label scene1-label-red" x="365" y="300">M</text>
+            <text id="scene1-label-n" class="scene1-label scene1-label-red" x="435" y="220">N</text>
+
+            <!-- 轴标签 -->
+            <text id="scene1-label-x" class="scene1-label" x="665" y="270">x</text>
+            <text id="scene1-label-y" class="scene1-label" x="418" y="88">y</text>
+
+            <!-- 直线标签 L (固定位置) -->
+            <text id="scene1-label-l" class="scene1-label scene1-label-blue" x="600" y="380">L</text>
+
+            <!-- 面积显示框 -->
+            <rect id="scene1-area-rect" class="scene1-area-box" x="620" y="120" width="160" height="40" rx="4"/>
+            <text id="scene1-area-text" class="scene1-area-text" x="700" y="145" text-anchor="middle">S = 0</text>
+
+            <!-- t 值标签 -->
+            <text id="scene1-label-t" class="scene1-label" x="200" y="440">t = 0</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <input type="range" id="scene1-slider-t" min="-100" max="100" value="0" step="1" style="width: 400px;"/>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 正六边形中直线平移与△OMN 面积
+
+        // 常量定义
+        const CENTER_X = 400;
+        const CENTER_Y = 250;
+        const K = -0.5; // 直线斜率 (负斜率，从左上到右下，与题目图片一致)
+
+        // 六边形顶点
+        const hexagonVertices = [
+            { x: 350, y: 337, name: 'A' },
+            { x: 450, y: 337, name: 'B' },
+            { x: 500, y: 250, name: 'C' },
+            { x: 450, y: 163, name: 'D' },
+            { x: 350, y: 163, name: 'E' },
+            { x: 300, y: 250, name: 'F' }
+        ];
+
+        // 六边形边
+        const hexagonEdges = [
+            [hexagonVertices[0], hexagonVertices[1]],
+            [hexagonVertices[1], hexagonVertices[2]],
+            [hexagonVertices[2], hexagonVertices[3]],
+            [hexagonVertices[3], hexagonVertices[4]],
+            [hexagonVertices[4], hexagonVertices[5]],
+            [hexagonVertices[5], hexagonVertices[0]]
+        ];
+
+        // DOM 元素
+        const sliderT = document.getElementById('scene1-slider-t');
+        const labelT = document.getElementById('scene1-label-t');
+        const lineL = document.getElementById('scene1-line-l');
+        const pointM = document.getElementById('scene1-point-m');
+        const pointN = document.getElementById('scene1-point-n');
+        const labelM = document.getElementById('scene1-label-m');
+        const labelN = document.getElementById('scene1-label-n');
+        const triOMN = document.getElementById('scene1-tri-omn');
+        const areaText = document.getElementById('scene1-area-text');
+
+        // 计算直线与线段交点
+        function lineSegmentIntersection(p1, p2, k, t) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+
+            if (Math.abs(dx) < 1e-10) {
+                const x = p1.x;
+                const y = k * x + t;
+                const minY = Math.min(p1.y, p2.y);
+                const maxY = Math.max(p1.y, p2.y);
+                if (y >= minY - 1e-10 && y <= maxY + 1e-10) {
+                    return { x: x, y: y };
+                }
+                return null;
+            }
+
+            const segK = dy / dx;
+            const segB = p1.y - segK * p1.x;
+
+            if (Math.abs(segK - k) < 1e-10) {
+                return null;
+            }
+
+            const x = (segB - t) / (k - segK);
+            const y = k * x + t;
+
+            const minX = Math.min(p1.x, p2.x);
+            const maxX = Math.max(p1.x, p2.x);
+            const minY = Math.min(p1.y, p2.y);
+            const maxY = Math.max(p1.y, p2.y);
+
+            if (x >= minX - 1e-10 && x <= maxX + 1e-10 &&
+                y >= minY - 1e-10 && y <= maxY + 1e-10) {
+                return { x: x, y: y };
+            }
+
+            return null;
+        }
+
+        // 计算直线与六边形的交点
+        function getIntersections(t) {
+            const intersections = [];
+
+            for (const edge of hexagonEdges) {
+                const pt = lineSegmentIntersection(edge[0], edge[1], K, t);
+                if (pt) {
+                    let exists = false;
+                    for (const existing of intersections) {
+                        if (Math.abs(existing.x - pt.x) < 1 && Math.abs(existing.y - pt.y) < 1) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        intersections.push(pt);
+                    }
+                }
+            }
+
+            return intersections;
+        }
+
+        // 计算三角形面积
+        function calculateTriangleArea(ox, oy, mx, my, nx, ny) {
+            const relMx = mx - ox;
+            const relMy = my - oy;
+            const relNx = nx - ox;
+            const relNy = ny - oy;
+            return 0.5 * Math.abs(relMx * relNy - relNx * relMy);
+        }
+
+        // 更新场景
+        function updateScene(t) {
+            labelT.textContent = `t = ${t}`;
+
+            // 直线端点
+            const x1 = 150;
+            const y1 = K * x1 + t;
+            const x2 = 650;
+            const y2 = K * x2 + t;
+
+            lineL.setAttribute('x1', x1);
+            lineL.setAttribute('y1', y1);
+            lineL.setAttribute('x2', x2);
+            lineL.setAttribute('y2', y2);
+
+            const intersections = getIntersections(t);
+
+            if (intersections.length >= 2) {
+                intersections.sort((a, b) => a.x - b.x);
+
+                const m = intersections[0];
+                const n = intersections[1];
+
+                // 更新交点 M - 标签放在左下方
+                pointM.setAttribute('cx', m.x);
+                pointM.setAttribute('cy', m.y);
+                labelM.setAttribute('x', m.x - 40);
+                labelM.setAttribute('y', m.y + 45);
+
+                // 更新交点 N - 标签放在右上方
+                pointN.setAttribute('cx', n.x);
+                pointN.setAttribute('cy', n.y);
+                labelN.setAttribute('x', n.x + 30);
+                labelN.setAttribute('y', n.y - 35);
+
+                // 更新三角形
+                triOMN.setAttribute('points', `${CENTER_X},${CENTER_Y} ${m.x},${m.y} ${n.x},${n.y}`);
+
+                // 更新面积
+                const area = calculateTriangleArea(CENTER_X, CENTER_Y, m.x, m.y, n.x, n.y);
+                areaText.textContent = `S = ${area.toFixed(1)}`;
+            } else {
+                triOMN.setAttribute('points', `${CENTER_X},${CENTER_Y} ${CENTER_X},${CENTER_Y} ${CENTER_X},${CENTER_Y}`);
+                areaText.textContent = 'S = 0';
+            }
+        }
+
+        // 事件监听
+        sliderT.addEventListener('input', function() {
+            const t = parseInt(this.value);
+            updateScene(t);
+        });
+
+        // 初始化
+        updateScene(0);
+
+    })();
+    </script>
+</body>
+</html>

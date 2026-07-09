@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 根据三视图还原立体图形</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        #scene2-btn-prev:hover:not(:disabled), #scene2-btn-next:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .cube-face { stroke: #000; stroke-width: 2; }
+        .cube-face-highlight { stroke: #1565c0; stroke-width: 3; }
+        .label-text { font-size: 14px; font-weight: bold; }
+        .label-text-blue { fill: #1565c0; }
+        .label-text-black { fill: #000000; }
+        .total-box { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 2; }
+        .total-text { fill: #2e7d32; font-size: 18px; font-weight: bold; }
+        .title-text { fill: #000000; font-size: 18px; font-weight: bold; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene2-title" class="title-text" x="30" y="45">立体图</text>
+            
+            <!-- 立方体组 -->
+            <g id="scene2-cubes">
+                <!-- 左下柱 (位置 2,1) - 1 层 -->
+                <g id="scene2-cube-bl" transform="translate(220, 280)">
+                    <polygon class="cube-face" points="0,0 60,0 60,60 0,60" fill="none"/>
+                    <polygon class="cube-face" points="60,0 90,15 90,75 60,60" fill="none"/>
+                    <polygon class="cube-face" points="0,60 60,60 90,75 30,75" fill="none"/>
+                </g>
+                
+                <!-- 左上柱 (位置 1,1) - 2 层，下层 -->
+                <g id="scene2-cube-tl-bottom" transform="translate(280, 280)">
+                    <polygon class="cube-face" points="0,0 60,0 60,60 0,60" fill="none"/>
+                    <polygon class="cube-face" points="60,0 90,15 90,75 60,60" fill="none"/>
+                    <polygon class="cube-face" points="0,60 60,60 90,75 30,75" fill="none"/>
+                </g>
+                
+                <!-- 左上柱 (位置 1,1) - 2 层，上层 -->
+                <g id="scene2-cube-tl-top" transform="translate(280, 220)">
+                    <polygon class="cube-face" points="0,0 60,0 60,60 0,60" fill="none"/>
+                    <polygon class="cube-face" points="60,0 90,15 90,75 60,60" fill="none"/>
+                    <polygon class="cube-face" points="0,60 60,60 90,75 30,75" fill="none"/>
+                </g>
+                
+                <!-- 中上柱 (位置 1,2) - 1 层 -->
+                <g id="scene2-cube-tm" transform="translate(340, 220)">
+                    <polygon class="cube-face" points="0,0 60,0 60,60 0,60" fill="none"/>
+                    <polygon class="cube-face" points="60,0 90,15 90,75 60,60" fill="none"/>
+                    <polygon class="cube-face" points="0,60 60,60 90,75 30,75" fill="none"/>
+                </g>
+                
+                <!-- 右上柱 (位置 1,3) - 1 层 -->
+                <g id="scene2-cube-tr" transform="translate(400, 220)">
+                    <polygon class="cube-face" points="0,0 60,0 60,60 0,60" fill="none"/>
+                    <polygon class="cube-face" points="60,0 90,15 90,75 60,60" fill="none"/>
+                    <polygon class="cube-face" points="0,60 60,60 90,75 30,75" fill="none"/>
+                </g>
+            </g>
+            
+            <!-- 标签组 -->
+            <g id="scene2-labels">
+                <!-- 左上柱标签 "2 层" -->
+                <text id="scene2-label-tl" class="label-text label-text-blue" x="295" y="205" style="opacity: 0;">2 层</text>
+                
+                <!-- 左下柱标签 "1 层" -->
+                <text id="scene2-label-bl" class="label-text label-text-black" x="235" y="265" style="opacity: 0;">1 层</text>
+                
+                <!-- 中上柱标签 "1 层" -->
+                <text id="scene2-label-tm" class="label-text label-text-black" x="355" y="205" style="opacity: 0;">1 层</text>
+                
+                <!-- 右上柱标签 "1 层" -->
+                <text id="scene2-label-tr" class="label-text label-text-black" x="415" y="205" style="opacity: 0;">1 层</text>
+            </g>
+            
+            <!-- 总数框 -->
+            <g id="scene2-total-box" style="opacity: 0;">
+                <rect id="scene2-total-rect" class="total-box" x="280" y="410" width="240" height="40" rx="5"/>
+                <text id="scene2-total-text" class="total-text" x="360" y="425">共 5 个正方体</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表：
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 标题"立体图" | (30,45) | 无标签 |
+        // | 左下柱 (2,1) | (220,280) | 1 层 |
+        // | 左上柱 (1,1) | (280,220) | 2 层，蓝色高亮 |
+        // | 中上柱 (1,2) | (340,220) | 1 层 |
+        // | 右上柱 (1,3) | (400,220) | 1 层 |
+        // | 左上柱标签 | (295,205) | "2 层" 蓝色 |
+        // | 左下柱标签 | (235,265) | "1 层" 黑色 |
+        // | 中上柱标签 | (355,205) | "1 层" 黑色 |
+        // | 右上柱标签 | (415,205) | "1 层" 黑色 |
+        // | 总数框 | (280,410) | 绿色文字 |
+        // | 控件栏 | (280,460) | 上一步/下一步 |
+        
+        const currentScene = 2;
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        // 立方体元素
+        const cubeBl = document.getElementById('scene2-cube-bl');
+        const cubeTlBottom = document.getElementById('scene2-cube-tl-bottom');
+        const cubeTlTop = document.getElementById('scene2-cube-tl-top');
+        const cubeTm = document.getElementById('scene2-cube-tm');
+        const cubeTr = document.getElementById('scene2-cube-tr');
+        
+        // 标签元素
+        const labelTl = document.getElementById('scene2-label-tl');
+        const labelBl = document.getElementById('scene2-label-bl');
+        const labelTm = document.getElementById('scene2-label-tm');
+        const labelTr = document.getElementById('scene2-label-tr');
+        
+        // 总数框
+        const totalBox = document.getElementById('scene2-total-box');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 300);
+        }
+        
+        // 工具函数：添加填充颜色到立方体
+        function addFillToCube(cubeGroup, fillColor) {
+            const polygons = cubeGroup.querySelectorAll('polygon');
+            polygons.forEach(polygon => {
+                polygon.setAttribute('fill', fillColor);
+                polygon.setAttribute('fill-opacity', '0.2');
+            });
+        }
+        
+        // 工具函数：移除立方体填充
+        function removeFillFromCube(cubeGroup) {
+            const polygons = cubeGroup.querySelectorAll('polygon');
+            polygons.forEach(polygon => {
+                polygon.setAttribute('fill', 'none');
+            });
+        }
+        
+        // 工具函数：设置立方体轮廓颜色
+        function setCubeStroke(cubeGroup, strokeColor) {
+            const polygons = cubeGroup.querySelectorAll('polygon');
+            polygons.forEach(polygon => {
+                polygon.setAttribute('stroke', strokeColor);
+                polygon.setAttribute('stroke-width', strokeColor === '#1565c0' ? '3' : '2');
+            });
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 重置所有状态
+            const allCubes = [cubeBl, cubeTlBottom, cubeTlTop, cubeTm, cubeTr];
+            allCubes.forEach(cube => {
+                removeFillFromCube(cube);
+                setCubeStroke(cube, '#000000');
+            });
+            
+            // 隐藏所有标签和总数
+            hide(labelTl);
+            hide(labelBl);
+            hide(labelTm);
+            hide(labelTr);
+            hide(totalBox);
+            
+            // 根据步骤更新状态
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示框架
+                    btnPrev.disabled = true;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 1:
+                    // 高亮左上角 2 层位置
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    
+                    // 高亮左上柱（2 层）
+                    addFillToCube(cubeTlBottom, '#c62828');
+                    addFillToCube(cubeTlTop, '#c62828');
+                    setCubeStroke(cubeTlBottom, '#1565c0');
+                    setCubeStroke(cubeTlTop, '#1565c0');
+                    
+                    // 显示"2 层"标签
+                    show(labelTl);
+                    break;
+                    
+                case 2:
+                    // 显示所有层数标签
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    
+                    // 高亮左上柱（2 层）
+                    addFillToCube(cubeTlBottom, '#c62828');
+                    addFillToCube(cubeTlTop, '#c62828');
+                    setCubeStroke(cubeTlBottom, '#1565c0');
+                    setCubeStroke(cubeTlTop, '#1565c0');
+                    
+                    // 其他柱体填充浅灰色
+                    addFillToCube(cubeBl, '#e0e0e0');
+                    addFillToCube(cubeTm, '#e0e0e0');
+                    addFillToCube(cubeTr, '#e0e0e0');
+                    
+                    // 显示所有标签
+                    show(labelTl);
+                    show(labelBl);
+                    show(labelTm);
+                    show(labelTr);
+                    break;
+                    
+                case 3:
+                    // 显示总数
+                    btnPrev.disabled = false;
+                    btnNext.disabled = true;
+                    
+                    // 保持步骤 2 的状态
+                    addFillToCube(cubeTlBottom, '#c62828');
+                    addFillToCube(cubeTlTop, '#c62828');
+                    setCubeStroke(cubeTlBottom, '#1565c0');
+                    setCubeStroke(cubeTlTop, '#1565c0');
+                    
+                    addFillToCube(cubeBl, '#e0e0e0');
+                    addFillToCube(cubeTm, '#e0e0e0');
+                    addFillToCube(cubeTr, '#e0e0e0');
+                    
+                    show(labelTl);
+                    show(labelBl);
+                    show(labelTm);
+                    show(labelTr);
+                    
+                    // 显示总数框
+                    show(totalBox);
+                    break;
+            }
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

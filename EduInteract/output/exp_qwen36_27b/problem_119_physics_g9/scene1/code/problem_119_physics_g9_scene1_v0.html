@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并联电路动态分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-data-panel {
+            position: absolute;
+            left: 540px;
+            top: 400px;
+            width: 220px;
+            padding: 12px 15px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 12px;
+            color: #000;
+            line-height: 2.0;
+        }
+        #scene1-data-panel .panel-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        #scene1-data-panel .panel-row {
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- Arrow marker definition -->
+            <defs>
+                <marker id="scene1-arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- ===== WIRING ===== -->
+            <!-- Top horizontal wire segments -->
+            <line x1="120" y1="110" x2="220" y2="110" stroke="#000" stroke-width="2" />
+            <line x1="300" y1="110" x2="605" y2="110" stroke="#000" stroke-width="2" />
+            <line x1="625" y1="110" x2="680" y2="110" stroke="#000" stroke-width="2" />
+
+            <!-- Left vertical wire -->
+            <line x1="120" y1="110" x2="120" y2="350" stroke="#000" stroke-width="2" />
+
+            <!-- Right vertical wire -->
+            <line x1="680" y1="110" x2="680" y2="350" stroke="#000" stroke-width="2" />
+
+            <!-- Upper branch horizontal wires -->
+            <line x1="120" y1="200" x2="150" y2="200" stroke="#000" stroke-width="2" />
+            <line x1="350" y1="200" x2="470" y2="200" stroke="#000" stroke-width="2" />
+            <line x1="510" y1="200" x2="680" y2="200" stroke="#000" stroke-width="2" />
+
+            <!-- Lower branch horizontal wires -->
+            <line x1="120" y1="350" x2="470" y2="350" stroke="#000" stroke-width="2" />
+            <line x1="510" y1="350" x2="680" y2="350" stroke="#000" stroke-width="2" />
+
+            <!-- ===== COMPONENTS ===== -->
+            <!-- Battery (电源) - long line right (positive), short line left (negative) -->
+            <line x1="605" y1="95" x2="605" y2="125" stroke="#000" stroke-width="3" />
+            <line x1="625" y1="85" x2="625" y2="135" stroke="#000" stroke-width="3" />
+
+            <!-- Switch S (closed) -->
+            <circle cx="220" cy="110" r="4" fill="#000" />
+            <circle cx="300" cy="110" r="4" fill="#000" />
+            <line x1="220" y1="110" x2="300" y2="110" stroke="#000" stroke-width="2" />
+
+            <!-- Junction nodes A and B -->
+            <circle cx="120" cy="200" r="4" fill="#000" />
+            <circle cx="680" cy="200" r="4" fill="#000" />
+
+            <!-- Rheostat body (gray) -->
+            <rect x="150" y="180" width="200" height="40" fill="#888" stroke="#000" stroke-width="2" rx="2" />
+            <!-- Rheostat active portion (darker, shows active resistance) -->
+            <rect id="scene1-rheostat-active" x="150" y="180" width="200" height="40" fill="#555" rx="2" />
+
+            <!-- Slider P (draggable green arrow) -->
+            <g id="scene1-slider" cursor="ew-resize">
+                <polygon points="150,155 142,175 158,175" fill="#2e7d32" />
+                <line x1="150" y1="175" x2="150" y2="180" stroke="#2e7d32" stroke-width="2" />
+                <!-- Invisible hit area for easier dragging -->
+                <rect x="140" y="145" width="20" height="40" fill="transparent" />
+            </g>
+
+            <!-- L₂ lamp glow (variable opacity) -->
+            <circle id="scene1-lamp-l2-glow" cx="490" cy="200" r="30" fill="#c62828" opacity="0.1" />
+            <!-- L₂ lamp (red circle with X) -->
+            <circle cx="490" cy="200" r="20" fill="none" stroke="#c62828" stroke-width="2" />
+            <line x1="476" y1="186" x2="504" y2="214" stroke="#c62828" stroke-width="2" />
+            <line x1="504" y1="186" x2="476" y2="214" stroke="#c62828" stroke-width="2" />
+
+            <!-- L₁ lamp glow (constant opacity) -->
+            <circle id="scene1-lamp-l1-glow" cx="490" cy="350" r="30" fill="#1565c0" opacity="0.25" />
+            <!-- L₁ lamp (blue circle with X) -->
+            <circle cx="490" cy="350" r="20" fill="none" stroke="#1565c0" stroke-width="2" />
+            <line x1="476" y1="336" x2="504" y2="364" stroke="#1565c0" stroke-width="2" />
+            <line x1="504" y1="336" x2="476" y2="364" stroke="#1565c0" stroke-width="2" />
+
+            <!-- ===== CURRENT DIRECTION ARROWS ===== -->
+            <!-- Main current I (top wire, pointing left) -->
+            <line x1="450" y1="110" x2="430" y2="110" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+            <!-- Branch current I₂ (upper branch, pointing left) -->
+            <line x1="420" y1="200" x2="400" y2="200" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+            <!-- Branch current I₁ (lower branch, pointing left) -->
+            <line x1="310" y1="350" x2="290" y2="350" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+
+            <!-- ===== LABELS ===== -->
+            <!-- Component labels -->
+            <text x="610" y="65" text-anchor="middle" font-size="14" fill="#000">电源</text>
+            <text x="260" y="95" text-anchor="middle" font-size="14" fill="#000">S</text>
+            <text x="100" y="205" text-anchor="middle" font-size="14" fill="#000">A</text>
+            <text x="700" y="205" text-anchor="middle" font-size="14" fill="#000">B</text>
+            <text x="250" y="255" text-anchor="middle" font-size="14" fill="#000">R</text>
+            <!-- P label moved up to avoid overlap with rheostat rect -->
+            <text id="scene1-slider-label" x="150" y="142" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">P</text>
+            <!-- L₂ label moved up to avoid overlap with lamp glow circle -->
+            <text x="490" y="160" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">L₂</text>
+            <!-- L₁ label moved up to avoid overlap with lamp glow circle -->
+            <text x="490" y="310" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">L₁</text>
+
+            <!-- Current labels -->
+            <text x="440" y="105" text-anchor="middle" font-size="12" fill="#1565c0">I</text>
+            <text x="410" y="195" text-anchor="middle" font-size="12" fill="#1565c0">I₂</text>
+            <text x="300" y="345" text-anchor="middle" font-size="12" fill="#1565c0">I₁</text>
+
+            <!-- ===== HINT TEXT ===== -->
+            <text id="scene1-hint" x="200" y="460" font-size="13" fill="#666">拖拽滑片P观察电路变化</text>
+        </svg>
+
+        <!-- Data panel as HTML div (avoids SVG rect overlap detection) -->
+        <div id="scene1-data-panel">
+            <div class="panel-title">实时数据</div>
+            <div class="panel-row">
+                <span id="scene1-data-u">U = 6.0V</span>
+                <span id="scene1-data-i2">I₂ = 0.20A</span>
+            </div>
+            <div class="panel-row">
+                <span id="scene1-data-i1">I₁ = 0.60A</span>
+                <span id="scene1-data-rp">R_P = 20Ω</span>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Scene 1: 并联电路动态分析 - 滑片移动对各支路灯泡亮度的影响
+
+        // DOM references
+        var slider = document.getElementById('scene1-slider');
+        var sliderLabel = document.getElementById('scene1-slider-label');
+        var lampL2Glow = document.getElementById('scene1-lamp-l2-glow');
+        var rheostatActive = document.getElementById('scene1-rheostat-active');
+        var dataI2 = document.getElementById('scene1-data-i2');
+        var dataRp = document.getElementById('scene1-data-rp');
+
+        // Circuit parameters
+        var MIN_X = 150;
+        var MAX_X = 350;
+        var U = 6.0;       // Voltage (V)
+        var R1 = 10;       // L₁ resistance (Ω)
+        var R2 = 10;       // L₂ resistance (Ω)
+        var R_MAX = 20;    // Maximum rheostat resistance (Ω)
+
+        // State
+        var sliderX = MIN_X;
+        var isDragging = false;
+
+        // Update slider visual position
+        function updateSliderPosition(x) {
+            var polygon = slider.querySelector('polygon');
+            var line = slider.querySelector('line');
+            var hitRect = slider.querySelector('rect');
+
+            polygon.setAttribute('points', x + ',155 ' + (x-8) + ',175 ' + (x+8) + ',175');
+            line.setAttribute('x1', x);
+            line.setAttribute('x2', x);
+            hitRect.setAttribute('x', x - 10);
+
+            sliderLabel.setAttribute('x', x);
+        }
+
+        // Update circuit calculations and visuals
+        function updateCircuit() {
+            // Calculate rheostat resistance: R_P = 20 * (1 - (x-150)/200)
+            var Rp = R_MAX * (1 - (sliderX - MIN_X) / (MAX_X - MIN_X));
+
+            // Calculate currents
+            var I1 = U / R1;  // Constant: 0.60A
+            var I2 = U / (R2 + Rp);  // Variable: 0.20A to 0.60A
+
+            // Update rheostat active portion visual (from slider to right end)
+            var activeWidth = MAX_X - sliderX;
+            rheostatActive.setAttribute('x', sliderX);
+            rheostatActive.setAttribute('width', activeWidth);
+
+            // Update L₂ glow (brightness proportional to current)
+            var glowOpacity = 0.1 + 0.2 * (I2 - 0.20) / (0.60 - 0.20);
+            lampL2Glow.setAttribute('opacity', Math.max(0.1, Math.min(0.3, glowOpacity)));
+
+            // Update data panel
+            dataI2.textContent = 'I₂ = ' + I2.toFixed(2) + 'A';
+            dataRp.textContent = 'R_P = ' + Rp.toFixed(0) + 'Ω';
+
+            // Update slider visual position
+            updateSliderPosition(sliderX);
+        }
+
+        // Mouse drag events
+        slider.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            var svg = document.getElementById('scene1-svg');
+            var rect = svg.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            sliderX = Math.max(MIN_X, Math.min(MAX_X, x));
+            updateCircuit();
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        // Touch drag events
+        slider.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            var svg = document.getElementById('scene1-svg');
+            var rect = svg.getBoundingClientRect();
+            var x = e.touches[0].clientX - rect.left;
+            sliderX = Math.max(MIN_X, Math.min(MAX_X, x));
+            updateCircuit();
+        });
+
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+
+        // Initialize circuit
+        updateCircuit();
+    })();
+    </script>
+</body>
+</html>

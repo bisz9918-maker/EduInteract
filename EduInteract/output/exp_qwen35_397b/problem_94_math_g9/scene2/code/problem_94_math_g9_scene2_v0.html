@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三棱柱展开图折叠验证</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-tab {
+            cursor: pointer;
+            padding: 8px 16px;
+            border: 2px solid #ccc;
+            background: #ffffff;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .scene2-tab:hover {
+            background: #e3f2fd;
+        }
+        .scene2-tab.active {
+            background: #1976d2;
+            color: #ffffff;
+            border-color: #1976d2;
+        }
+        .scene2-tab.correct {
+            border-color: #2e7d32;
+        }
+        .scene2-fade {
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .scene2-visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene2-title" x="20" y="30" font-size="20" font-weight="bold" fill="#333">折叠验证</text>
+            
+            <!-- 平面图形区背景 -->
+            <rect id="scene2-plane-bg" x="100" y="60" width="400" height="180" fill="#f5f5f5" stroke="#ddd" stroke-width="1" rx="4"/>
+            <text x="110" y="80" font-size="12" fill="#666">平面展开图</text>
+            
+            <!-- 折叠结果区背景 -->
+            <rect id="scene2-3d-bg" x="520" y="60" width="260" height="320" fill="#f5f5f5" stroke="#ddd" stroke-width="1" rx="4"/>
+            <text x="530" y="80" font-size="12" fill="#666">折叠结果</text>
+            
+            <!-- 平面图形组 -->
+            <g id="scene2-plane-group" transform="translate(120,100)">
+                <!-- 动态内容，由 JS 控制 -->
+            </g>
+            
+            <!-- 折叠箭头 -->
+            <path id="scene2-arrow" d="M 420 180 L 500 180" stroke="#888" stroke-width="3" fill="none" marker-end="url(#scene2-arrowhead)"/>
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#888"/>
+                </marker>
+            </defs>
+            
+            <!-- 3D 结果组 -->
+            <g id="scene2-3d-group" transform="translate(550,150)">
+                <!-- 动态内容，由 JS 控制 -->
+            </g>
+            
+            <!-- 正确标识 -->
+            <g id="scene2-checkmark-group" class="scene2-fade">
+                <text x="650" y="370" font-size="40" fill="#2e7d32" font-weight="bold">✓</text>
+                <text x="650" y="400" font-size="14" fill="#2e7d32" text-anchor="middle">正确</text>
+            </g>
+            
+            <!-- 错误标识 -->
+            <g id="scene2-cross-group" class="scene2-fade">
+                <text x="650" y="370" font-size="40" fill="#c62828" font-weight="bold">✗</text>
+                <text x="650" y="400" font-size="14" fill="#c62828" text-anchor="middle">错误</text>
+            </g>
+            
+            <!-- 错误说明 -->
+            <text id="scene2-error-text" x="650" y="430" font-size="12" fill="#c62828" text-anchor="middle" class="scene2-fade"></text>
+            
+            <!-- 选项卡按钮（HTML 覆盖在 SVG 上） -->
+        </svg>
+        
+        <div id="scene2-controls" style="position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px;">
+            <button id="scene2-tab-a" class="scene2-tab active correct">选项 A</button>
+            <button id="scene2-tab-b" class="scene2-tab">选项 B</button>
+            <button id="scene2-tab-c" class="scene2-tab">选项 C</button>
+            <button id="scene2-tab-d" class="scene2-tab">选项 D</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 状态数据：四个选项的图形配置
+        const options = {
+            a: {
+                name: 'A',
+                correct: true,
+                errorText: '',
+                // 平面图形：三个矩形 + 左上三角形 + 右下三角形
+                plane: {
+                    rects: [
+                        { x: 0, y: 0, w: 60, h: 120 },
+                        { x: 60, y: 0, w: 60, h: 120 },
+                        { x: 120, y: 0, w: 60, h: 120 }
+                    ],
+                    triangles: [
+                        { type: 'top', x: 0, y: 0, base: 60, height: 40 },  // 左上
+                        { type: 'bottom', x: 120, y: 120, base: 60, height: 40 }  // 右下
+                    ]
+                },
+                // 3D 三棱柱
+                prism3d: {
+                    type: 'success',
+                    faces: [
+                        { points: '0,100 80,60 160,100 80,140', fill: '#e3f2fd', stroke: '#1976d2' },  // 前面
+                        { points: '0,100 40,80 40,20 0,100', fill: '#bbdefb', stroke: '#1976d2' },  // 左侧
+                        { points: '160,100 120,80 120,20 160,100', fill: '#90caf9', stroke: '#1976d2' },  // 右侧
+                        { points: '0,100 80,60 40,20 0,100', fill: '#fff3e0', stroke: '#f57c00' },  // 上底
+                        { points: '80,140 160,100 120,80 80,140', fill: '#ffe0b2', stroke: '#f57c00' }  // 下底
+                    ]
+                }
+            },
+            b: {
+                name: 'B',
+                correct: false,
+                errorText: '两底面在同一侧，折叠后重叠',
+                plane: {
+                    rects: [
+                        { x: 0, y: 0, w: 60, h: 120 },
+                        { x: 60, y: 0, w: 60, h: 120 },
+                        { x: 120, y: 0, w: 60, h: 120 }
+                    ],
+                    triangles: [
+                        { type: 'top', x: 0, y: 0, base: 60, height: 40 },  // 左上
+                        { type: 'top', x: 120, y: 0, base: 60, height: 40 }  // 右上（错误：同侧）
+                    ]
+                },
+                prism3d: {
+                    type: 'error-overlap',
+                    description: '两三角形重叠'
+                }
+            },
+            c: {
+                name: 'C',
+                correct: false,
+                errorText: '结构无法封闭成三棱柱',
+                plane: {
+                    rects: [
+                        { x: 0, y: 0, w: 60, h: 120 },
+                        { x: 60, y: 0, w: 60, h: 120 },
+                        { x: 120, y: 0, w: 60, h: 120 }
+                    ],
+                    triangles: [
+                        { type: 'bottom', x: 0, y: 120, base: 60, height: 40 }  // 左下
+                    ],
+                    extraRect: { x: 120, y: -40, w: 60, h: 40 }  // 右上多余矩形
+                },
+                prism3d: {
+                    type: 'error-open',
+                    description: '无法封闭'
+                }
+            },
+            d: {
+                name: 'D',
+                correct: false,
+                errorText: '缺少两个底面三角形',
+                plane: {
+                    rects: [
+                        { x: 0, y: 0, w: 60, h: 120 },
+                        { x: 60, y: 0, w: 60, h: 120 },
+                        { x: 120, y: 0, w: 60, h: 120 }
+                    ],
+                    triangles: []  // 无三角形
+                },
+                prism3d: {
+                    type: 'error-missing',
+                    description: '缺少底面'
+                }
+            }
+        };
+        
+        let currentState = 'a';
+        
+        // 绘制三角形
+        function drawTriangle(svg, type, x, y, base, height) {
+            let points;
+            if (type === 'top') {
+                // 顶点向上
+                points = `${x},${y} ${x + base},${y} ${x + base/2},${y - height}`;
+            } else {
+                // 顶点向下
+                points = `${x},${y} ${x + base},${y} ${x + base/2},${y + height}`;
+            }
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', points);
+            polygon.setAttribute('fill', '#fff3e0');
+            polygon.setAttribute('stroke', '#000000');
+            polygon.setAttribute('stroke-width', '1.5');
+            polygon.setAttribute('opacity', '0.8');
+            svg.appendChild(polygon);
+        }
+        
+        // 绘制平面图形
+        function drawPlane(optionKey) {
+            const group = document.getElementById('scene2-plane-group');
+            group.innerHTML = '';
+            
+            const opt = options[optionKey];
+            const plane = opt.plane;
+            
+            // 绘制矩形
+            plane.rects.forEach(rect => {
+                const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                r.setAttribute('x', rect.x);
+                r.setAttribute('y', rect.y);
+                r.setAttribute('width', rect.w);
+                r.setAttribute('height', rect.h);
+                r.setAttribute('fill', '#e3f2fd');
+                r.setAttribute('stroke', '#000000');
+                r.setAttribute('stroke-width', '1.5');
+                r.setAttribute('opacity', '0.6');
+                group.appendChild(r);
+            });
+            
+            // 绘制三角形
+            plane.triangles.forEach(tri => {
+                drawTriangle(group, tri.type, tri.x, tri.type === 'top' ? tri.y : tri.y, tri.base, tri.height);
+            });
+            
+            // 绘制额外矩形（选项 C）
+            if (plane.extraRect) {
+                const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                r.setAttribute('x', plane.extraRect.x);
+                r.setAttribute('y', plane.extraRect.y);
+                r.setAttribute('width', plane.extraRect.w);
+                r.setAttribute('height', plane.extraRect.h);
+                r.setAttribute('fill', '#e3f2fd');
+                r.setAttribute('stroke', '#000000');
+                r.setAttribute('stroke-width', '1.5');
+                r.setAttribute('opacity', '0.6');
+                group.appendChild(r);
+            }
+        }
+        
+        // 绘制 3D 结果
+        function draw3DResult(optionKey) {
+            const group = document.getElementById('scene2-3d-group');
+            group.innerHTML = '';
+            
+            const opt = options[optionKey];
+            const result = opt.prism3d;
+            
+            if (result.type === 'success') {
+                // 绘制成功的三棱柱
+                result.faces.forEach(face => {
+                    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    poly.setAttribute('points', face.points);
+                    poly.setAttribute('fill', face.fill);
+                    poly.setAttribute('stroke', face.stroke);
+                    poly.setAttribute('stroke-width', '2');
+                    poly.setAttribute('opacity', '0.85');
+                    group.appendChild(poly);
+                });
+                
+                // 添加棱线
+                const lines = [
+                    { x1: 0, y1: 100, x2: 80, y2: 60 },
+                    { x1: 80, y1: 60, x2: 160, y2: 100 },
+                    { x1: 80, y1: 60, x2: 80, y2: 140 },
+                    { x1: 40, y1: 20, x2: 120, y2: 20 },
+                    { x1: 40, y1: 20, x2: 0, y2: 100 },
+                    { x1: 120, y1: 20, x2: 160, y2: 100 }
+                ];
+                lines.forEach(line => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', line.x1);
+                    l.setAttribute('y1', line.y1);
+                    l.setAttribute('x2', line.x2);
+                    l.setAttribute('y2', line.y2);
+                    l.setAttribute('stroke', '#1565c0');
+                    l.setAttribute('stroke-width', '2');
+                    l.setAttribute('stroke-dasharray', '4,2');
+                    l.setAttribute('opacity', '0.6');
+                    group.appendChild(l);
+                });
+            } else if (result.type === 'error-overlap') {
+                // 选项 B：两三角形重叠
+                // 绘制三个矩形折叠成的筒
+                const筒 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                筒.setAttribute('d', 'M 20,80 L 60,60 L 100,80 L 100,160 L 60,180 L 20,160 Z');
+                筒.setAttribute('fill', '#ffcdd2');
+                筒.setAttribute('stroke', '#c62828');
+                筒.setAttribute('stroke-width', '2');
+                筒.setAttribute('opacity', '0.7');
+                group.appendChild(筒);
+                
+                // 两个重叠的三角形（都在顶部）
+                const tri1 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                tri1.setAttribute('points', '20,80 60,60 40,40');
+                tri1.setAttribute('fill', '#ff8a65');
+                tri1.setAttribute('stroke', '#c62828');
+                tri1.setAttribute('stroke-width', '2');
+                group.appendChild(tri1);
+                
+                const tri2 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                tri2.setAttribute('points', '100,80 60,60 80,40');
+                tri2.setAttribute('fill', '#ff7043');
+                tri2.setAttribute('stroke', '#c62828');
+                tri2.setAttribute('stroke-width', '2');
+                tri2.setAttribute('opacity', '0.8');
+                group.appendChild(tri2);
+                
+                // 重叠标识
+                const overlapText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                overlapText.setAttribute('x', '60');
+                overlapText.setAttribute('y', '50');
+                overlapText.setAttribute('font-size', '12');
+                overlapText.setAttribute('fill', '#c62828');
+                overlapText.setAttribute('text-anchor', 'middle');
+                overlapText.setAttribute('font-weight', 'bold');
+                overlapText.textContent = '重叠!';
+                group.appendChild(overlapText);
+            } else if (result.type === 'error-open') {
+                // 选项 C：无法封闭
+                const openShape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                openShape.setAttribute('d', 'M 20,80 L 60,60 L 100,80 L 100,160 L 60,180 L 20,160');
+                openShape.setAttribute('fill', 'none');
+                openShape.setAttribute('stroke', '#c62828');
+                openShape.setAttribute('stroke-width', '3');
+                openShape.setAttribute('stroke-dasharray', '5,3');
+                group.appendChild(openShape);
+                
+                // 缺口标识
+                const gapText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                gapText.setAttribute('x', '60');
+                gapText.setAttribute('y', '100');
+                gapText.setAttribute('font-size', '14');
+                gapText.setAttribute('fill', '#c62828');
+                gapText.setAttribute('text-anchor', 'middle');
+                gapText.setAttribute('font-weight', 'bold');
+                gapText.textContent = '无法封闭';
+                group.appendChild(gapText);
+                
+                // 问号
+                const qMark = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                qMark.setAttribute('x', '60');
+                qMark.setAttribute('y', '130');
+                qMark.setAttribute('font-size', '40');
+                qMark.setAttribute('fill', '#c62828');
+                qMark.setAttribute('text-anchor', 'middle');
+                qMark.textContent = '?';
+                group.appendChild(qMark);
+            } else if (result.type === 'error-missing') {
+                // 选项 D：缺少底面
+                const tube = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                tube.setAttribute('x', '20');
+                tube.setAttribute('y', '60');
+                tube.setAttribute('width', '80');
+                tube.setAttribute('height', '120');
+                tube.setAttribute('fill', '#e0e0e0');
+                tube.setAttribute('stroke', '#757575');
+                tube.setAttribute('stroke-width', '2');
+                tube.setAttribute('opacity', '0.6');
+                group.appendChild(tube);
+                
+                // 缺失标识
+                const missingText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                missingText.setAttribute('x', '60');
+                missingText.setAttribute('y', '50');
+                missingText.setAttribute('font-size', '12');
+                missingText.setAttribute('fill', '#c62828');
+                missingText.setAttribute('text-anchor', 'middle');
+                missingText.textContent = '缺少底面';
+                group.appendChild(missingText);
+                
+                const missingText2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                missingText2.setAttribute('x', '60');
+                missingText2.setAttribute('y', '200');
+                missingText2.setAttribute('font-size', '12');
+                missingText2.setAttribute('fill', '#c62828');
+                missingText2.setAttribute('text-anchor', 'middle');
+                missingText2.textContent = '缺少底面';
+                group.appendChild(missingText2);
+            }
+        }
+        
+        // 更新标识显示
+        function updateIndicators(optionKey) {
+            const opt = options[optionKey];
+            const checkmarkGroup = document.getElementById('scene2-checkmark-group');
+            const crossGroup = document.getElementById('scene2-cross-group');
+            const errorText = document.getElementById('scene2-error-text');
+            
+            if (opt.correct) {
+                checkmarkGroup.classList.remove('scene2-fade');
+                checkmarkGroup.classList.add('scene2-visible');
+                crossGroup.classList.remove('scene2-visible');
+                crossGroup.classList.add('scene2-fade');
+                errorText.classList.remove('scene2-visible');
+                errorText.classList.add('scene2-fade');
+                errorText.textContent = '';
+            } else {
+                checkmarkGroup.classList.remove('scene2-visible');
+                checkmarkGroup.classList.add('scene2-fade');
+                crossGroup.classList.remove('scene2-fade');
+                crossGroup.classList.add('scene2-visible');
+                errorText.classList.remove('scene2-fade');
+                errorText.classList.add('scene2-visible');
+                errorText.textContent = opt.errorText;
+            }
+        }
+        
+        // 更新选项卡状态
+        function updateTabs(activeKey) {
+            ['a', 'b', 'c', 'd'].forEach(key => {
+                const tab = document.getElementById(`scene2-tab-${key}`);
+                if (key === activeKey) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+        }
+        
+        // 切换状态
+        function switchState(optionKey) {
+            if (currentState === optionKey) return;
+            
+            currentState = optionKey;
+            
+            // 更新视图
+            drawPlane(optionKey);
+            draw3DResult(optionKey);
+            updateIndicators(optionKey);
+            updateTabs(optionKey);
+        }
+        
+        // 绑定事件
+        document.getElementById('scene2-tab-a').addEventListener('click', () => switchState('a'));
+        document.getElementById('scene2-tab-b').addEventListener('click', () => switchState('b'));
+        document.getElementById('scene2-tab-c').addEventListener('click', () => switchState('c'));
+        document.getElementById('scene2-tab-d').addEventListener('click', () => switchState('d'));
+        
+        // 初始化
+        drawPlane('a');
+        draw3DResult('a');
+        updateIndicators('a');
+        updateTabs('a');
+    })();
+    </script>
+</body>
+</html>

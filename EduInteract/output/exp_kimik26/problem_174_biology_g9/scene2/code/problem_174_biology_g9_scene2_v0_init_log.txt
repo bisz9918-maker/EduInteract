@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>突触结构与兴奋传导</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-mode-controls { position: absolute; top: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px; z-index: 10; }
+        .scene2-btn {
+            padding: 6px 18px; font-size: 14px; border: 1.5px solid #666; border-radius: 4px;
+            background: #f5f5f5; cursor: pointer; transition: all 0.2s; font-family: inherit;
+        }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn.active { background: #e3f2fd; border-color: #1565c0; color: #1565c0; font-weight: bold; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- 模式切换按钮 -->
+        <div id="scene2-mode-controls">
+            <button id="scene2-btn-mode-b" class="scene2-btn active">刺激b点</button>
+            <button id="scene2-btn-mode-c" class="scene2-btn">刺激c点</button>
+        </div>
+
+        <!-- SVG 图示区 -->
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 导线：a到电流计（分段绘制，避免bounding box与标签重叠） -->
+            <line x1="140" y1="250" x2="140" y2="265" stroke="#888888" stroke-width="1.5"/>
+            <line x1="140" y1="265" x2="105" y2="265" stroke="#888888" stroke-width="1.5"/>
+            <line x1="105" y1="265" x2="105" y2="110" stroke="#888888" stroke-width="1.5"/>
+            <line x1="105" y1="110" x2="345" y2="110" stroke="#888888" stroke-width="1.5"/>
+
+            <!-- 导线：d到电流计（分段绘制） -->
+            <line x1="640" y1="250" x2="640" y2="265" stroke="#888888" stroke-width="1.5"/>
+            <line x1="640" y1="265" x2="675" y2="265" stroke="#888888" stroke-width="1.5"/>
+            <line x1="675" y1="265" x2="675" y2="110" stroke="#888888" stroke-width="1.5"/>
+            <line x1="675" y1="110" x2="415" y2="110" stroke="#888888" stroke-width="1.5"/>
+
+            <!-- 神经元A胞体 -->
+            <path id="scene2-neuron-a" d="M120,340 C100,320 110,290 140,280 C170,270 190,290 185,320 C180,350 140,360 120,340 Z" fill="#1565c0" fill-opacity="0.15" stroke="#000000" stroke-width="1.5"/>
+            <!-- 神经元A轴突 -->
+            <path id="scene2-axon-a" d="M175,300 Q200,275 230,250" fill="none" stroke="#000000" stroke-width="4"/>
+
+            <!-- 神经元B胞体 -->
+            <path id="scene2-neuron-b" d="M255,330 C235,310 245,280 275,270 C305,260 325,280 320,310 C315,340 275,350 255,330 Z" fill="#2e7d32" fill-opacity="0.15" stroke="#000000" stroke-width="1.5"/>
+            <!-- 神经元B轴突 -->
+            <line id="scene2-axon-b" x1="310" y1="250" x2="430" y2="250" stroke="#000000" stroke-width="4"/>
+
+            <!-- 神经元C胞体 -->
+            <path id="scene2-neuron-c" d="M455,330 C435,310 445,280 475,270 C505,260 525,280 520,310 C515,340 475,350 455,330 Z" fill="#c62828" fill-opacity="0.15" stroke="#000000" stroke-width="1.5"/>
+            <!-- 神经元C轴突 -->
+            <line id="scene2-axon-c" x1="445" y1="250" x2="660" y2="250" stroke="#000000" stroke-width="4"/>
+
+            <!-- 突触A-B -->
+            <g id="scene2-synapse-ab">
+                <line x1="230" y1="242" x2="230" y2="258" stroke="#000000" stroke-width="2"/>
+                <line x1="245" y1="242" x2="245" y2="258" stroke="#000000" stroke-width="2"/>
+                <!-- 突触小泡 -->
+                <circle cx="215" cy="235" r="3" fill="#5c6bc0" fill-opacity="0.6"/>
+                <circle cx="222" cy="230" r="3" fill="#5c6bc0" fill-opacity="0.6"/>
+                <circle cx="225" cy="238" r="3" fill="#5c6bc0" fill-opacity="0.6"/>
+            </g>
+
+            <!-- 突触B-C -->
+            <g id="scene2-synapse-bc">
+                <line x1="430" y1="242" x2="430" y2="258" stroke="#000000" stroke-width="2"/>
+                <line x1="445" y1="242" x2="445" y2="258" stroke="#000000" stroke-width="2"/>
+                <!-- 突触小泡 -->
+                <circle cx="415" cy="235" r="3" fill="#5c6bc0" fill-opacity="0.6"/>
+                <circle cx="422" cy="230" r="3" fill="#5c6bc0" fill-opacity="0.6"/>
+                <circle cx="425" cy="238" r="3" fill="#5c6bc0" fill-opacity="0.6"/>
+            </g>
+
+            <!-- 测量点 -->
+            <circle id="scene2-point-a" cx="140" cy="250" r="4" fill="#000000"/>
+            <circle id="scene2-point-b" cx="300" cy="250" r="4" fill="#000000"/>
+            <circle id="scene2-point-c" cx="480" cy="250" r="4" fill="#000000"/>
+            <circle id="scene2-point-d" cx="640" cy="250" r="4" fill="#000000"/>
+
+            <!-- 点标签（向上偏移避免与轴突线重叠） -->
+            <text id="scene2-label-a" x="140" y="200" text-anchor="middle" font-size="14" fill="#000000">a</text>
+            <text id="scene2-label-b" x="300" y="200" text-anchor="middle" font-size="14" fill="#000000">b</text>
+            <text id="scene2-label-c" x="480" y="200" text-anchor="middle" font-size="14" fill="#000000">c</text>
+            <text id="scene2-label-d" x="640" y="200" text-anchor="middle" font-size="14" fill="#000000">d</text>
+
+            <!-- 神经元标签 -->
+            <text id="scene2-label-A" x="145" y="375" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">A</text>
+            <text id="scene2-label-B" x="290" y="375" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">B</text>
+            <text id="scene2-label-C" x="470" y="375" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">C</text>
+
+            <!-- 突触标签（放在轴突上方，避免与胞体重叠） -->
+            <text id="scene2-label-pre" x="405" y="235" text-anchor="middle" font-size="12" fill="#555555">突触前膜</text>
+            <text id="scene2-label-post" x="540" y="235" text-anchor="middle" font-size="12" fill="#555555">突触后膜</text>
+
+            <!-- 电流计 -->
+            <g id="scene2-ammeter">
+                <!-- 表盘 -->
+                <circle cx="380" cy="110" r="35" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+                <!-- 刻度 -->
+                <line x1="380" y1="80" x2="380" y2="85" stroke="#000000" stroke-width="1"/>
+                <line x1="380" y1="135" x2="380" y2="140" stroke="#000000" stroke-width="1"/>
+                <line x1="350" y1="110" x2="355" y2="110" stroke="#000000" stroke-width="1"/>
+                <line x1="405" y1="110" x2="410" y2="110" stroke="#000000" stroke-width="1"/>
+                <!-- 接线柱 -->
+                <circle cx="345" cy="110" r="4" fill="#000000"/>
+                <circle cx="415" cy="110" r="4" fill="#000000"/>
+                <!-- 指针（初始垂直向下90°） -->
+                <line id="scene2-ammeter-pointer" x1="380" y1="110" x2="380" y2="138" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+                <!-- 中心点 -->
+                <circle cx="380" cy="110" r="3" fill="#000000"/>
+            </g>
+
+            <!-- 电流计标签 -->
+            <text id="scene2-label-ammeter" x="380" y="60" text-anchor="middle" font-size="14" fill="#000000">电流计</text>
+
+            <!-- 动态元素容器 -->
+            <g id="scene2-dynamic-layer"></g>
+        </svg>
+
+        <!-- 播放按钮 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-play" class="scene2-btn">播放传导</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        const svg = document.getElementById('scene2-svg');
+        const dynamicLayer = document.getElementById('scene2-dynamic-layer');
+        const pointer = document.getElementById('scene2-ammeter-pointer');
+        const btnModeB = document.getElementById('scene2-btn-mode-b');
+        const btnModeC = document.getElementById('scene2-btn-mode-c');
+        const btnPlay = document.getElementById('scene2-btn-play');
+
+        // 状态
+        let state = {
+            mode: 'b', // 'b' 或 'c'
+            isPlaying: false,
+            animationId: null,
+            startTime: 0
+        };
+
+        // 指针旋转辅助函数
+        function setPointerAngle(angle) {
+            // angle: 0=右, 90=下, 180=左, 270=上
+            const rad = (angle - 90) * Math.PI / 180;
+            const len = 28;
+            const x2 = 380 + len * Math.cos(rad);
+            const y2 = 110 + len * Math.sin(rad);
+            pointer.setAttribute('x2', x2);
+            pointer.setAttribute('y2', y2);
+        }
+
+        // 创建兴奋波
+        function createWave(cx, cy, color, id) {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', cx);
+            circle.setAttribute('cy', cy);
+            circle.setAttribute('r', 8);
+            circle.setAttribute('fill', color);
+            circle.setAttribute('fill-opacity', '0.7');
+            circle.setAttribute('id', id);
+            dynamicLayer.appendChild(circle);
+            return circle;
+        }
+
+        // 创建闪电符号
+        function createFlash(x, y) {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('id', 'scene2-flash');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M${x-4},${y-12} L${x+2},${y-2} L${x-2},${y-2} L${x+4},${y+12} L${x-2},${y+2} L${x+2},${y+2} Z`);
+            path.setAttribute('fill', '#ffd700');
+            path.setAttribute('stroke', '#e6c200');
+            path.setAttribute('stroke-width', '1');
+            g.appendChild(path);
+            dynamicLayer.appendChild(g);
+            return g;
+        }
+
+        // 创建禁止符号
+        function createBlockSign(x, y) {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('id', 'scene2-block-sign');
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', 10);
+            circle.setAttribute('fill', 'none');
+            circle.setAttribute('stroke', '#c62828');
+            circle.setAttribute('stroke-width', '2');
+            const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line1.setAttribute('x1', x - 6);
+            line1.setAttribute('y1', y - 6);
+            line1.setAttribute('x2', x + 6);
+            line1.setAttribute('y2', y + 6);
+            line1.setAttribute('stroke', '#c62828');
+            line1.setAttribute('stroke-width', '2');
+            const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line2.setAttribute('x1', x + 6);
+            line2.setAttribute('y1', y - 6);
+            line2.setAttribute('x2', x - 6);
+            line2.setAttribute('y2', y + 6);
+            line2.setAttribute('stroke', '#c62828');
+            line2.setAttribute('stroke-width', '2');
+            g.appendChild(circle);
+            g.appendChild(line1);
+            g.appendChild(line2);
+            dynamicLayer.appendChild(g);
+            return g;
+        }
+
+        // 创建结果文字
+        function createResultText(text, color) {
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', 460);
+            t.setAttribute('y', 110);
+            t.setAttribute('id', 'scene2-result-text');
+            t.setAttribute('font-size', '14');
+            t.setAttribute('fill', color);
+            t.setAttribute('font-weight', 'bold');
+            t.textContent = text;
+            dynamicLayer.appendChild(t);
+            return t;
+        }
+
+        // 创建递质粒子
+        function createParticles(synapseX, synapseEndX, y) {
+            const particles = [];
+            for (let i = 0; i < 5; i++) {
+                const p = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                const offsetY = (Math.random() - 0.5) * 12;
+                p.setAttribute('cx', synapseX + Math.random() * 5);
+                p.setAttribute('cy', y + offsetY);
+                p.setAttribute('r', 2.5);
+                p.setAttribute('fill', '#5c6bc0');
+                p.setAttribute('fill-opacity', '0.8');
+                p.setAttribute('class', 'scene2-particle');
+                dynamicLayer.appendChild(p);
+                particles.push({
+                    el: p,
+                    startX: synapseX + Math.random() * 3,
+                    endX: synapseEndX - Math.random() * 3,
+                    y: y + offsetY,
+                    delay: Math.random() * 0.3,
+                    speed: 0.5 + Math.random() * 0.5
+                });
+            }
+            return particles;
+        }
+
+        // 清除所有动态元素
+        function clearDynamic() {
+            if (state.animationId) {
+                cancelAnimationFrame(state.animationId);
+                state.animationId = null;
+            }
+            dynamicLayer.innerHTML = '';
+            setPointerAngle(90);
+        }
+
+        // 重置状态
+        function reset() {
+            clearDynamic();
+            state.isPlaying = false;
+            btnPlay.disabled = false;
+            btnPlay.style.opacity = '1';
+        }
+
+        // 线性插值
+        function lerp(a, b, t) {
+            return a + (b - a) * t;
+        }
+
+        // 动画：刺激b点
+        function playAnimationB() {
+            if (state.isPlaying) return;
+            reset();
+            state.isPlaying = true;
+            btnPlay.disabled = true;
+            btnPlay.style.opacity = '0.5';
+            state.startTime = performance.now();
+
+            const flash = createFlash(300, 180);
+            const waveLeft = createWave(300, 250, '#2e7d32', 'scene2-wave-left');
+            const waveRight = createWave(300, 250, '#2e7d32', 'scene2-wave-right');
+            let particles = [];
+            let waveC = null;
+            let resultShown = false;
+
+            function animate(now) {
+                const t = (now - state.startTime) / 1000;
+
+                // 1. t=0.0s: 闪电出现，兴奋波出发
+                // 2. t=0.5s: 兴奋波1到达a，指针第1次偏转（左偏135°）
+                // 3. t=0.5s~1.5s: 指针保持左偏
+                // 4. t=1.5s: 兴奋波2到达B-C突触，触发递质释放
+                // 5. t=1.5s~2.5s: 递质释放，兴奋波在C内变为红色，传向d
+                // 6. t=3.0s: 兴奋波到达d，指针第2次偏转（右偏45°）
+                // 7. t=3.0s~4.0s: 指针保持右偏
+                // 8. t=4.0s~4.5s: 指针回到垂直
+                // 9. t=4.5s: 显示结果
+
+                // 兴奋波1: b(300) -> a(140)
+                if (t <= 0.5) {
+                    const progress = t / 0.5;
+                    waveLeft.setAttribute('cx', lerp(300, 140, progress));
+                } else if (waveLeft.parentNode) {
+                    waveLeft.remove();
+                }
+
+                // 兴奋波2: b(300) -> B-C突触(430)
+                if (t <= 1.5) {
+                    const progress = Math.min(t / 1.5, 1);
+                    waveRight.setAttribute('cx', lerp(300, 430, progress));
+                } else if (waveRight.parentNode) {
+                    waveRight.remove();
+                }
+
+                // 指针第1次偏转 (0.5s, 左偏135°)
+                if (t >= 0.5 && t < 0.7) {
+                    const p = (t - 0.5) / 0.2;
+                    setPointerAngle(lerp(90, 135, p));
+                } else if (t >= 0.7 && t < 3.0) {
+                    setPointerAngle(135);
+                }
+
+                // 递质释放 (1.5s开始)
+                if (t >= 1.5 && t < 2.5 && particles.length === 0) {
+                    particles = createParticles(430, 445, 250);
+                }
+                if (particles.length > 0) {
+                    particles.forEach(pt => {
+                        const ptTime = t - 1.5 - pt.delay;
+                        if (ptTime > 0 && ptTime < 1.0) {
+                            const p = Math.min(ptTime / 1.0, 1);
+                            pt.el.setAttribute('cx', lerp(pt.startX, pt.endX, p));
+                        } else if (ptTime >= 1.0) {
+                            pt.el.remove();
+                        }
+                    });
+                }
+
+                // C内兴奋波 (1.5s开始，从445到640，持续1.5s)
+                if (t >= 1.5 && t < 3.0) {
+                    if (!waveC || !waveC.parentNode) {
+                        waveC = createWave(445, 250, '#c62828', 'scene2-wave-c');
+                    }
+                    const progress = Math.min((t - 1.5) / 1.5, 1);
+                    waveC.setAttribute('cx', lerp(445, 640, progress));
+                } else if (waveC && waveC.parentNode && t >= 3.0) {
+                    waveC.remove();
+                }
+
+                // 指针第2次偏转 (3.0s, 右偏45°)
+                if (t >= 3.0 && t < 3.2) {
+                    const p = (t - 3.0) / 0.2;
+                    setPointerAngle(lerp(135, 45, p));
+                } else if (t >= 3.2 && t < 4.0) {
+                    setPointerAngle(45);
+                }
+
+                // 指针回中 (4.0s~4.5s)
+                if (t >= 4.0 && t < 4.5) {
+                    const p = (t - 4.0) / 0.5;
+                    setPointerAngle(lerp(45, 90, p));
+                }
+
+                // 显示结果
+                if (t >= 4.5 && !resultShown) {
+                    resultShown = true;
+                    if (flash.parentNode) flash.remove();
+                    createResultText('偏转2次', '#2e7d32');
+                    state.isPlaying = false;
+                    btnPlay.disabled = false;
+                    btnPlay.style.opacity = '1';
+                    return;
+                }
+
+                if (state.isPlaying) {
+                    state.animationId = requestAnimationFrame(animate);
+                }
+            }
+
+            state.animationId = requestAnimationFrame(animate);
+        }
+
+        // 动画：刺激c点
+        function playAnimationC() {
+            if (state.isPlaying) return;
+            reset();
+            state.isPlaying = true;
+            btnPlay.disabled = true;
+            btnPlay.style.opacity = '0.5';
+            state.startTime = performance.now();
+
+            const flash = createFlash(480, 160);
+            const waveRight = createWave(480, 250, '#c62828', 'scene2-wave-right');
+            const waveLeft = createWave(480, 250, '#c62828', 'scene2-wave-left');
+            let blockSign = null;
+            let resultShown = false;
+
+            function animate(now) {
+                const t = (now - state.startTime) / 1000;
+
+                // 1. t=0.0s: 闪电出现，兴奋波出发
+                // 2. t=0.4s: 兴奋波1到达d，指针第1次偏转（右偏45°）
+                // 3. t=0.4s~1.2s: 指针保持右偏
+                // 4. t=1.2s~1.8s: 兴奋波2继续向左到B-C突触后膜
+                // 5. t=1.8s: 出现禁止符号
+                // 6. t=1.2s~2.0s: 指针回中
+                // 7. t=2.0s: 显示结果
+
+                // 兴奋波1: c(480) -> d(640)
+                if (t <= 0.4) {
+                    const progress = t / 0.4;
+                    waveRight.setAttribute('cx', lerp(480, 640, progress));
+                } else if (waveRight.parentNode) {
+                    waveRight.remove();
+                }
+
+                // 兴奋波2: c(480) -> B-C突触后膜(445)
+                if (t <= 1.8) {
+                    const progress = Math.min(t / 1.8, 1);
+                    waveLeft.setAttribute('cx', lerp(480, 445, progress));
+                } else if (waveLeft.parentNode) {
+                    waveLeft.remove();
+                }
+
+                // 指针第1次偏转 (0.4s, 右偏45°)
+                if (t >= 0.4 && t < 0.6) {
+                    const p = (t - 0.4) / 0.2;
+                    setPointerAngle(lerp(90, 45, p));
+                } else if (t >= 0.6 && t < 1.2) {
+                    setPointerAngle(45);
+                }
+
+                // 指针回中 (1.2s~2.0s)
+                if (t >= 1.2 && t < 2.0) {
+                    const p = (t - 1.2) / 0.8;
+                    setPointerAngle(lerp(45, 90, p));
+                }
+
+                // 禁止符号 (1.8s)
+                if (t >= 1.8 && !blockSign) {
+                    blockSign = createBlockSign(437, 220);
+                }
+
+                // 显示结果
+                if (t >= 2.0 && !resultShown) {
+                    resultShown = true;
+                    if (flash.parentNode) flash.remove();
+                    if (blockSign && blockSign.parentNode) blockSign.remove();
+                    createResultText('仅偏转1次', '#c62828');
+                    state.isPlaying = false;
+                    btnPlay.disabled = false;
+                    btnPlay.style.opacity = '1';
+                    return;
+                }
+
+                if (state.isPlaying) {
+                    state.animationId = requestAnimationFrame(animate);
+                }
+            }
+
+            state.animationId = requestAnimationFrame(animate);
+        }
+
+        // 播放按钮点击
+        btnPlay.addEventListener('click', function() {
+            if (state.mode === 'b') {
+                playAnimationB();
+            } else {
+                playAnimationC();
+            }
+        });
+
+        // 模式切换
+        btnModeB.addEventListener('click', function() {
+            if (state.mode === 'b') return;
+            state.mode = 'b';
+            btnModeB.classList.add('active');
+            btnModeC.classList.remove('active');
+            reset();
+        });
+
+        btnModeC.addEventListener('click', function() {
+            if (state.mode === 'c') return;
+            state.mode = 'c';
+            btnModeC.classList.add('active');
+            btnModeB.classList.remove('active');
+            reset();
+        });
+
+        // 初始化
+        setPointerAngle(90);
+    })();
+    </script>
+</body>
+</html>

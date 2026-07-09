@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 30°N 纬线圈晨昏线判读图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; z-index: 10; }
+        .scene1-btn { padding: 8px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        #scene1-prev-btn { background: #e0e0e0; color: #666; }
+        #scene1-prev-btn:hover:not(:disabled) { background: #bdbdbd; }
+        #scene1-next-btn { background: #1565c0; color: white; }
+        #scene1-next-btn:hover:not(:disabled) { background: #0d47a1; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-hint { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); font-size: 16px; color: #c62828; font-weight: bold; background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 4px; opacity: 0; transition: opacity 0.3s; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 纬线圈 -->
+            <circle id="scene1-circle" cx="400" cy="250" r="180" fill="none" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 中心点（北极） -->
+            <circle id="scene1-center" cx="400" cy="250" r="6" fill="#000000"/>
+            
+            <!-- 45°E 经线 -->
+            <line id="scene1-line-45E" x1="400" y1="250" x2="400" y2="70" stroke="#888888" stroke-width="4" stroke-dasharray="5,5"/>
+            
+            <!-- 45°W 经线 -->
+            <line id="scene1-line-45W" x1="400" y1="250" x2="580" y2="250" stroke="#888888" stroke-width="4" stroke-dasharray="5,5"/>
+            
+            <!-- 标签 30°N (移到更上方，远离纬线圈) -->
+            <text id="scene1-label-30N" x="400" y="50" text-anchor="middle" font-size="16" fill="#000000">30°N</text>
+            
+            <!-- 标签 45°E (移到 30°N 下方，错开位置) -->
+            <text id="scene1-label-45E" x="400" y="70" text-anchor="middle" font-size="14" fill="#666666">45°E</text>
+            
+            <!-- 标签 45°W (移到更右侧) -->
+            <text id="scene1-label-45W" x="605" y="250" text-anchor="start" font-size="14" fill="#666666">45°W</text>
+            
+            <!-- 晨线 -->
+            <line id="scene1-morning-line" x1="400" y1="250" x2="235" y2="207" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            
+            <!-- 昏线 -->
+            <line id="scene1-evening-line" x1="400" y1="250" x2="565" y2="207" stroke="#c62828" stroke-width="2" opacity="0"/>
+            
+            <!-- A 点 -->
+            <circle id="scene1-A-point" cx="235" cy="207" r="8" fill="#c62828" opacity="0"/>
+            
+            <!-- B 点 -->
+            <circle id="scene1-B-point" cx="565" cy="207" r="8" fill="#c62828" opacity="0"/>
+            
+            <!-- 标签 A (移到更左上方，远离纬线圈) -->
+            <text id="scene1-label-A" x="205" y="185" text-anchor="end" font-size="16" fill="#000000" opacity="0">A</text>
+            
+            <!-- 标签 B (移到更右上方，远离纬线圈) -->
+            <text id="scene1-label-B" x="595" y="185" text-anchor="start" font-size="16" fill="#000000" opacity="0">B</text>
+            
+            <!-- 标签 晨线 (移到更左方) -->
+            <text id="scene1-label-morning" x="175" y="215" text-anchor="end" font-size="14" fill="#1565c0" opacity="0">晨线</text>
+            
+            <!-- 标签 昏线 (移到更右方，远离 B 点) -->
+            <text id="scene1-label-evening" x="620" y="215" text-anchor="start" font-size="14" fill="#c62828" opacity="0">昏线</text>
+            
+            <!-- 昼弧 -->
+            <path id="scene1-day-arc" d="M 235,207 A 180,180 0 0,1 565,207" fill="#1565c0" fill-opacity="0.2" opacity="0"/>
+            
+            <!-- 夜弧 -->
+            <path id="scene1-night-arc" d="M 565,207 A 180,180 0 0,1 235,207" fill="#000000" fill-opacity="0.1" opacity="0"/>
+            
+            <!-- 标签 昼弧 (移到圆外上方，远离 30°N 标签，放在画布边缘) -->
+            <text id="scene1-label-day" x="400" y="5" text-anchor="middle" font-size="14" fill="#1565c0" opacity="0">昼弧</text>
+            
+            <!-- 标签 夜弧 (移到更下方，远离纬线圈) -->
+            <text id="scene1-label-night" x="400" y="450" text-anchor="middle" font-size="14" fill="#333333" opacity="0">夜弧</text>
+            
+            <!-- 晨线 15°角弧 -->
+            <path id="scene1-angle-morning" d="M 370,250 A 30,30 0 0,0 342,223" fill="none" stroke="#888880" stroke-width="1" opacity="0"/>
+            
+            <!-- 昏线 15°角弧 -->
+            <path id="scene1-angle-evening" d="M 430,250 A 30,30 0 0,1 458,223" fill="none" stroke="#888880" stroke-width="1" opacity="0"/>
+            
+            <!-- 标签 15°（左）(移到更左下方，远离纬线圈和晨线) -->
+            <text id="scene1-label-angle-left" x="230" y="335" text-anchor="middle" font-size="12" fill="#666666" opacity="0">15°</text>
+            
+            <!-- 标签 15°（右）(移到更右下方，远离纬线圈和昏线) -->
+            <text id="scene1-label-angle-right" x="570" y="335" text-anchor="middle" font-size="12" fill="#666666" opacity="0">15°</text>
+            
+            <!-- A 点高亮动画圆 -->
+            <circle id="scene1-A-highlight" cx="235" cy="207" r="12" fill="none" stroke="#c62828" stroke-width="3" opacity="0"/>
+        </svg>
+        
+        <!-- 提示文字 -->
+        <div id="scene1-hint" class="scene1-hint">A 点地方时=10 时（昼长 16 小时，日出=12-8=4 时）</div>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-next-btn" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（调整后）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 纬线圈 | 圆形 | 圆心 (400,250) | 半径 180 | - | 黑色粗线 |
+        // | 中心点（北极） | 实心圆 | (400,250) | 6×6 | - | 北极点投影 |
+        // | 45°E 经线 | 线段 | (400,250)-(400,70) | 4×180 | - | 垂直虚线 |
+        // | 45°W 经线 | 线段 | (400,250)-(580,250) | 4×180 | - | 水平虚线 |
+        // | 晨线 | 线段 | (400,250)-(235,207) | 4×180 | - | 蓝色实线，与水平夹角 15° |
+        // | 昏线 | 线段 | (400,250)-(565,207) | 4×180 | - | 红色实线，与水平夹角 15° |
+        // | A 点 | 实心圆 | (235,207) | 8×8 | 左上方 | 晨线与纬线圈交点 |
+        // | B 点 | 实心圆 | (565,207) | 8×8 | 右上方 | 昏线与纬线圈交点 |
+        // | 昼弧 | 圆弧 | A 到 B 上半部分 | 半径 180 | - | 蓝色填充 20% 透明度 |
+        // | 夜弧 | 圆弧 | A 到 B 下半部分 | 半径 180 | - | 黑色填充 10% 透明度 |
+        // | 晨线 15°角弧 | 小圆弧 | 圆心处晨线与水平线之间 | 半径 30 | - | 灰色细线 |
+        // | 昏线 15°角弧 | 小圆弧 | 圆心处昏线与水平线之间 | 半径 30 | - | 灰色细线 |
+        
+        const currentStepMax = 4;
+        let currentStep = 0;
+        
+        // 元素显示数组 - 每个步骤需要显示的元素 ID
+        const stepElements = {
+            0: ['scene1-circle', 'scene1-center', 'scene1-line-45E', 'scene1-line-45W', 'scene1-label-30N', 'scene1-label-45E', 'scene1-label-45W'],
+            1: ['scene1-morning-line', 'scene1-evening-line', 'scene1-A-point', 'scene1-B-point', 'scene1-label-A', 'scene1-label-B', 'scene1-label-morning', 'scene1-label-evening'],
+            2: ['scene1-day-arc', 'scene1-night-arc', 'scene1-label-day', 'scene1-label-night'],
+            3: ['scene1-angle-morning', 'scene1-angle-evening', 'scene1-label-angle-left', 'scene1-label-angle-right'],
+            4: ['scene1-A-highlight']
+        };
+        
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 300);
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有步骤元素
+            for (let step = 0; step <= currentStepMax; step++) {
+                stepElements[step].forEach(elId => hide(elId));
+            }
+            
+            // 显示当前步骤及之前步骤的所有元素
+            for (let step = 0; step <= currentStep; step++) {
+                stepElements[step].forEach(elId => show(elId));
+            }
+            
+            // 更新按钮状态
+            document.getElementById('scene1-prev-btn').disabled = (currentStep === 0);
+            document.getElementById('scene1-next-btn').disabled = (currentStep === currentStepMax);
+            
+            // 更新提示文字
+            const hint = document.getElementById('scene1-hint');
+            if (currentStep === 4) {
+                hint.style.opacity = '1';
+            } else {
+                hint.style.opacity = '0';
+            }
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene1-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        document.getElementById('scene1-next-btn').addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

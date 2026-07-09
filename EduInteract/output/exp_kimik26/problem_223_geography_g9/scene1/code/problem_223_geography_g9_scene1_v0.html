@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球公转与四季</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            background: #e3f2fd; border: 1px solid #1565c0; border-radius: 4px;
+            color: #1565c0; font-family: "Microsoft YaHei", sans-serif;
+        }
+        #scene1-controls button:disabled {
+            background: #f5f5f5; border-color: #bdbdbd; color: #9e9e9e; cursor: not-allowed;
+        }
+        #scene1-step-indicator { font-size: 13px; color: #616161; min-width: 60px; text-align: center; }
+        .scene1-step-only { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 红色箭头标记（直射光线） -->
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <!-- 黑色箭头标记（公转方向） -->
+                <marker id="scene1-arrow-black" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L7,3 z" fill="#000"/>
+                </marker>
+                <!-- 地球裁剪路径 -->
+                <clipPath id="scene1-clip-a"><circle cx="500" cy="250" r="32"/></clipPath>
+                <clipPath id="scene1-clip-b"><circle cx="300" cy="120" r="32"/></clipPath>
+                <clipPath id="scene1-clip-c"><circle cx="100" cy="250" r="32"/></clipPath>
+                <clipPath id="scene1-clip-d"><circle cx="300" cy="380" r="32"/></clipPath>
+            </defs>
+
+            <!-- 太阳 -->
+            <circle id="scene1-sun-glow" cx="300" cy="250" r="34" fill="#fff9c4" opacity="0.5"/>
+            <circle id="scene1-sun" cx="300" cy="250" r="22" fill="#f9a825"/>
+            <text x="190" y="121" text-anchor="middle" font-size="14" fill="#000">太阳</text>
+
+            <!-- 公转轨道 -->
+            <ellipse id="scene1-orbit" cx="300" cy="250" rx="200" ry="130" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- 公转方向箭头 -->
+            <line x1="400" y1="165" x2="380" y2="145" stroke="#000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)"/>
+            <line x1="220" y1="145" x2="200" y2="165" stroke="#000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)"/>
+            <line x1="200" y1="335" x2="220" y2="355" stroke="#000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)"/>
+            <line x1="380" y1="355" x2="400" y2="335" stroke="#000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)"/>
+            <text x="480" y="140" font-size="14" fill="#000">公转方向</text>
+
+            <!-- 地球 a（右，冬至位置） -->
+            <g id="scene1-group-a">
+                <circle cx="500" cy="250" r="32" fill="#1565c0" stroke="#000" stroke-width="1.5"/>
+                <!-- 地轴 -->
+                <line x1="489" y1="280" x2="511" y2="220" stroke="#000" stroke-width="2"/>
+                <circle cx="511" cy="220" r="2" fill="#000"/>
+                <circle cx="489" cy="280" r="2" fill="#000"/>
+                <!-- 纬线（裁剪到圆内） -->
+                <g clip-path="url(#scene1-clip-a)">
+                    <line x1="471" y1="239" x2="528" y2="261" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="475" y1="228" x2="532" y2="249" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="467" y1="251" x2="524" y2="271" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="495" y1="218" x2="524" y2="229" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="475" y1="271" x2="505" y2="282" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                </g>
+                <!-- 夜半球（右半圆，背向太阳） -->
+                <path d="M500,218 A32,32 0 0,1 500,282 Z" fill="#9e9e9e" opacity="0.5"/>
+                <!-- 极昼极夜（步骤1显示） -->
+                <path class="scene1-step1-only" d="M504.99,281.62 A32,32 0 0,0 475.85,271.02 Z" fill="#ffeb3b" opacity="0" style="display:none"/>
+                <path class="scene1-step1-only" d="M524.15,228.98 A32,32 0 0,1 495.01,218.38 Z" fill="#607d8b" opacity="0" style="display:none"/>
+            </g>
+
+            <!-- 地球 b（上，春分位置） -->
+            <g id="scene1-group-b">
+                <circle cx="300" cy="120" r="32" fill="#1565c0" stroke="#000" stroke-width="1.5"/>
+                <line x1="289" y1="150" x2="311" y2="90" stroke="#000" stroke-width="2"/>
+                <circle cx="311" cy="90" r="2" fill="#000"/>
+                <circle cx="289" cy="150" r="2" fill="#000"/>
+                <g clip-path="url(#scene1-clip-b)">
+                    <line x1="271" y1="109" x2="328" y2="131" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="275" y1="98" x2="332" y2="119" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="267" y1="121" x2="324" y2="141" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="295" y1="88" x2="324" y2="99" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="275" y1="141" x2="305" y2="152" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                </g>
+                <path d="M268,120 A32,32 0 0,0 332,120 Z" fill="#9e9e9e" opacity="0.5"/>
+            </g>
+
+            <!-- 地球 c（左，夏至位置） -->
+            <g id="scene1-group-c">
+                <circle cx="100" cy="250" r="32" fill="#1565c0" stroke="#000" stroke-width="1.5"/>
+                <line x1="89" y1="280" x2="111" y2="220" stroke="#000" stroke-width="2"/>
+                <circle cx="111" cy="220" r="2" fill="#000"/>
+                <circle cx="89" cy="280" r="2" fill="#000"/>
+                <g clip-path="url(#scene1-clip-c)">
+                    <line x1="71" y1="239" x2="128" y2="261" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="75" y1="228" x2="132" y2="249" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="67" y1="251" x2="124" y2="271" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="95" y1="218" x2="124" y2="229" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="75" y1="271" x2="105" y2="282" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                </g>
+                <path d="M100,218 A32,32 0 0,0 100,282 Z" fill="#9e9e9e" opacity="0.5"/>
+                <!-- 极昼极夜（步骤3显示） -->
+                <path class="scene1-step3-only" d="M124.15,228.98 A32,32 0 0,1 95.01,218.38 Z" fill="#ffeb3b" opacity="0" style="display:none"/>
+                <path class="scene1-step3-only" d="M104.99,281.62 A32,32 0 0,0 75.85,271.02 Z" fill="#607d8b" opacity="0" style="display:none"/>
+            </g>
+
+            <!-- 地球 d（下，秋分位置） -->
+            <g id="scene1-group-d">
+                <circle cx="300" cy="380" r="32" fill="#1565c0" stroke="#000" stroke-width="1.5"/>
+                <line x1="289" y1="410" x2="311" y2="350" stroke="#000" stroke-width="2"/>
+                <circle cx="311" cy="350" r="2" fill="#000"/>
+                <circle cx="289" cy="410" r="2" fill="#000"/>
+                <g clip-path="url(#scene1-clip-d)">
+                    <line x1="271" y1="369" x2="328" y2="391" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="275" y1="358" x2="332" y2="379" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="267" y1="381" x2="324" y2="401" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="295" y1="348" x2="324" y2="359" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                    <line x1="275" y1="401" x2="305" y2="412" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                </g>
+                <path d="M268,380 A32,32 0 0,1 332,380 Z" fill="#9e9e9e" opacity="0.5"/>
+            </g>
+
+            <!-- 直射光线（步骤1-4分别显示） -->
+            <line class="scene1-step1-only" x1="300" y1="250" x2="468" y2="250" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-red)" opacity="0" style="display:none"/>
+            <line class="scene1-step2-only" x1="300" y1="250" x2="300" y2="152" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-red)" opacity="0" style="display:none"/>
+            <line class="scene1-step3-only" x1="300" y1="250" x2="132" y2="250" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-red)" opacity="0" style="display:none"/>
+            <line class="scene1-step4-only" x1="300" y1="250" x2="300" y2="348" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-red)" opacity="0" style="display:none"/>
+
+            <!-- 固定字母标签 -->
+            <text x="550" y="300" font-size="14" fill="#000" text-anchor="middle">a</text>
+            <text x="300" y="75" font-size="14" fill="#000" text-anchor="middle">b</text>
+            <text x="65" y="190" font-size="14" fill="#000" text-anchor="middle">c</text>
+            <text x="340" y="425" font-size="14" fill="#000" text-anchor="middle">d</text>
+
+            <!-- 步骤1标签：冬至 -->
+            <text class="scene1-step1-only" x="540" y="203" font-size="14" fill="#000" opacity="0" style="display:none">冬至</text>
+            <text class="scene1-step1-only" x="540" y="272" font-size="14" fill="#000" opacity="0" style="display:none">23.5°S</text>
+            <text class="scene1-step1-only" x="540" y="237" font-size="14" fill="#000" opacity="0" style="display:none">晨昏线</text>
+
+            <!-- 步骤2标签：春分 -->
+            <text class="scene1-step2-only" x="360" y="109" font-size="14" fill="#000" opacity="0" style="display:none">春分</text>
+            <text class="scene1-step2-only" x="360" y="55" font-size="14" fill="#000" opacity="0" style="display:none">0°（赤道）</text>
+            <text class="scene1-step2-only" x="360" y="82" font-size="14" fill="#000" opacity="0" style="display:none">晨昏线</text>
+
+            <!-- 步骤3标签：夏至 -->
+            <text class="scene1-step3-only" x="60" y="215" font-size="14" fill="#000" opacity="0" style="display:none">夏至</text>
+            <text class="scene1-step3-only" x="60" y="295" font-size="14" fill="#000" opacity="0" style="display:none">23.5°N</text>
+            <text class="scene1-step3-only" x="60" y="163" font-size="14" fill="#000" opacity="0" style="display:none">晨昏线</text>
+
+            <!-- 步骤4标签：秋分 -->
+            <text class="scene1-step4-only" x="340" y="398" font-size="14" fill="#000" opacity="0" style="display:none">秋分</text>
+            <text class="scene1-step4-only" x="365" y="452" font-size="14" fill="#000" opacity="0" style="display:none">0°（赤道）</text>
+            <text class="scene1-step4-only" x="390" y="410" font-size="14" fill="#000" opacity="0" style="display:none">晨昏线</text>
+
+            <!-- 步骤5标签：季节更替 -->
+            <text class="scene1-step5-only" x="400" y="100" font-size="14" fill="#000" text-anchor="middle" opacity="0" style="display:none">春季 → 夏季</text>
+            <text class="scene1-step5-only" x="200" y="100" font-size="14" fill="#000" text-anchor="middle" opacity="0" style="display:none">夏季 → 秋季</text>
+            <text class="scene1-step5-only" x="200" y="420" font-size="14" fill="#000" text-anchor="middle" opacity="0" style="display:none">秋季 → 冬季</text>
+            <text class="scene1-step5-only" x="400" y="420" font-size="14" fill="#000" text-anchor="middle" opacity="0" style="display:none">冬季 → 春季</text>
+            <text class="scene1-step5-only" x="45" y="120" font-size="14" fill="#000" opacity="0" style="display:none">北半球夏季 / 南半球冬季</text>
+            <text class="scene1-step5-only" x="462" y="170" font-size="14" fill="#000" opacity="0" style="display:none">北半球冬季 / 南半球夏季</text>
+
+            <!-- 高亮环（步骤1-4显示） -->
+            <circle id="scene1-highlight-ring" cx="500" cy="250" r="34" fill="none" stroke="#c62828" stroke-width="3" style="display:none"/>
+
+            <!-- 信息面板 -->
+            <rect x="610" y="70" width="170" height="320" fill="#f5f5f5" stroke="#e0e0e0" rx="4"/>
+            <foreignObject x="610" y="70" width="170" height="320">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="padding:12px; font-size:13px; line-height:1.6; color:#000;">
+                    <div id="scene1-panel-title" style="font-weight:bold; margin-bottom:8px; font-size:14px;">地球公转与四季</div>
+                    <div id="scene1-panel-content">地球沿椭圆轨道绕太阳公转，地轴倾斜方向保持不变。点击"下一步"查看二分二至日的地理现象。</div>
+                </div>
+            </foreignObject>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：地球公转与四季
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const highlightRing = document.getElementById('scene1-highlight-ring');
+        const panelTitle = document.getElementById('scene1-panel-title');
+        const panelContent = document.getElementById('scene1-panel-content');
+
+        // 高亮环位置配置
+        const highlightPositions = {
+            1: { cx: 500, cy: 250 }, // a 冬至
+            2: { cx: 300, cy: 120 }, // b 春分
+            3: { cx: 100, cy: 250 }, // c 夏至
+            4: { cx: 300, cy: 380 }  // d 秋分
+        };
+
+        // 信息面板内容配置
+        const panelData = {
+            0: {
+                title: '地球公转与四季',
+                content: '地球沿椭圆轨道绕太阳公转，地轴倾斜方向保持不变。点击"下一步"查看二分二至日的地理现象。'
+            },
+            1: {
+                title: '冬至日（a位置）',
+                content: '日期：12月22日前后<br>太阳直射：南回归线（23.5°S）<br>北半球昼夜：昼短夜长<br>北半球季节：冬季<br>特殊现象：北极圈极夜，南极圈极昼'
+            },
+            2: {
+                title: '春分日（b位置）',
+                content: '日期：3月21日前后<br>太阳直射：赤道（0°）<br>全球昼夜：昼夜等长<br>北半球季节：春季<br>晨昏线过两极，全球昼夜平分'
+            },
+            3: {
+                title: '夏至日（c位置）',
+                content: '日期：6月22日前后<br>太阳直射：北回归线（23.5°N）<br>北半球昼夜：昼长夜短（昼最长）<br>北半球季节：夏季<br>北半球获得太阳光热最多<br>特殊现象：北极圈极昼，南极圈极夜'
+            },
+            4: {
+                title: '秋分日（d位置）',
+                content: '日期：9月23日前后<br>太阳直射：赤道（0°）<br>全球昼夜：昼夜等长<br>北半球季节：秋季<br>晨昏线过两极，全球昼夜平分'
+            },
+            5: {
+                title: '季节更替与南北半球对比',
+                content: '公转方向：逆时针（自西向东）<br>北半球季节变化：春(b)→夏(c)→秋(d)→冬(a)<br>关键过渡：b→c 为春季过渡到夏季<br>南北半球季节相反：<br>· 北半球夏季时，南半球冬季<br>· 北半球冬季时，南半球夏季<br>原因：地轴倾斜且方向不变，太阳直射点在南北回归线之间移动'
+            }
+        };
+
+        function showElement(el) {
+            el.style.display = 'block';
+            requestAnimationFrame(function() {
+                el.style.opacity = '1';
+            });
+        }
+
+        function hideElement(el) {
+            el.style.opacity = '0';
+            setTimeout(function() {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 300);
+        }
+
+        function renderStep() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            const data = panelData[currentStep];
+            panelTitle.textContent = data.title;
+            panelContent.innerHTML = data.content;
+
+            if (currentStep >= 1 && currentStep <= 4) {
+                const pos = highlightPositions[currentStep];
+                highlightRing.setAttribute('cx', pos.cx);
+                highlightRing.setAttribute('cy', pos.cy);
+                highlightRing.style.display = 'block';
+            } else {
+                highlightRing.style.display = 'none';
+            }
+
+            for (let s = 1; s <= 5; s++) {
+                const els = document.querySelectorAll('.scene1-step' + s + '-only');
+                els.forEach(function(el) {
+                    if (s === currentStep) {
+                        showElement(el);
+                    } else {
+                        hideElement(el);
+                    }
+                });
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

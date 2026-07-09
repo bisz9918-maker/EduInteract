@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>两对基因的位置与互作机制</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-prev-btn, #scene2-next-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        #scene2-prev-btn:hover, #scene2-next-btn:hover { background: #e0e0e0; }
+        #scene2-prev-btn:disabled, #scene2-next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        /* 淡入动画 */
+        .scene2-fade-in { animation: scene2FadeIn 300ms ease-in-out forwards; }
+        @keyframes scene2FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .scene2-hidden { display: none; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 标题 (调整 y 坐标，避免与背景矩形重叠) -->
+            <text id="scene2-title" x="400" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">两对基因的位置与互作机制</text>
+            
+            <!-- ========== 左侧：染色体示意图 ========== -->
+            <g id="scene2-chromo-group">
+                <!-- 常染色体标签 (调整 y 坐标) -->
+                <text id="scene2-const-label" x="145" y="85" text-anchor="middle" font-size="13" fill="#333">常染色体</text>
+                
+                <!-- 常染色体 1（椭圆）(调整位置) -->
+                <ellipse id="scene2-chromo-const1" cx="120" cy="115" rx="12" ry="28" fill="rgba(0,0,0,0.15)" stroke="#000000" stroke-width="2"/>
+                <!-- 常染色体 2（椭圆）(调整位置) -->
+                <ellipse id="scene2-chromo-const2" cx="170" cy="115" rx="12" ry="28" fill="rgba(0,0,0,0.15)" stroke="#000000" stroke-width="2"/>
+                
+                <!-- A 基因座（蓝色圆点）(调整位置，放在染色体侧面) -->
+                <circle id="scene2-gene-A" cx="105" cy="115" r="4" fill="#1565c0" class="scene2-hidden"/>
+                <text id="scene2-gene-A-label" x="92" y="119" font-size="13" fill="#1565c0" font-weight="bold" class="scene2-hidden">A</text>
+                
+                <!-- a 基因座（蓝色圆点）(调整位置，放在染色体侧面) -->
+                <circle id="scene2-gene-a" cx="185" cy="115" r="4" fill="#1565c0" class="scene2-hidden"/>
+                <text id="scene2-gene-a-label" x="192" y="119" font-size="13" fill="#1565c0" font-weight="bold" class="scene2-hidden">a</text>
+                
+                <!-- 性染色体标签 (调整 y 坐标) -->
+                <text id="scene2-xy-label" x="145" y="205" text-anchor="middle" font-size="13" fill="#333">性染色体</text>
+                
+                <!-- X 染色体（棒状）(调整位置) -->
+                <rect id="scene2-chromo-x" x="105" y="220" width="20" height="65" rx="3" fill="rgba(0,0,0,0.15)" stroke="#000000" stroke-width="2"/>
+                <!-- Y 染色体（棒状，较短）(调整位置) -->
+                <rect id="scene2-chromo-y" x="165" y="220" width="15" height="40" rx="3" fill="rgba(0,0,0,0.15)" stroke="#000000" stroke-width="2"/>
+                
+                <!-- B 基因座（红色圆点，在 X 上）(调整位置，放在 X 染色体左侧) -->
+                <circle id="scene2-gene-B" cx="95" cy="245" r="4" fill="#c62828" class="scene2-hidden"/>
+                <text id="scene2-gene-B-label" x="82" y="249" font-size="13" fill="#c62828" font-weight="bold" class="scene2-hidden">B</text>
+                
+                <!-- b 基因座（红色圆点，在 X 上，等位基因位置示意）(调整位置，增加与 B 的间距) -->
+                <circle id="scene2-gene-b" cx="95" cy="275" r="4" fill="#c62828" class="scene2-hidden"/>
+                <text id="scene2-gene-b-label" x="82" y="279" font-size="13" fill="#c62828" font-weight="bold" class="scene2-hidden">b</text>
+                
+                <!-- Y 无基因标注 (调整位置) -->
+                <text id="scene2-y-nogene" x="190" y="245" font-size="11" fill="#666" class="scene2-hidden">无对应基因</text>
+                
+                <!-- 虚线框高亮（步骤 1）(调整位置) -->
+                <rect id="scene2-highlight-const" x="100" y="95" width="85" height="65" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" class="scene2-hidden"/>
+                <rect id="scene2-highlight-xy" x="85" y="210" width="105" height="90" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" class="scene2-hidden"/>
+            </g>
+            
+            <!-- ========== 右侧：基因互作逻辑图 ========== -->
+            <g id="scene2-flow-group">
+                <!-- 互作图标题 (调整 y 坐标) -->
+                <text id="scene2-flow-title" x="580" y="85" text-anchor="middle" font-size="15" font-weight="bold" fill="#000000">基因互作机制</text>
+                
+                <!-- 条件框 1：A_条件 (调整位置) -->
+                <rect id="scene2-cond1-box" x="430" y="115" width="130" height="38" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+                <text id="scene2-cond1-text" x="495" y="139" text-anchor="middle" font-size="12" fill="#1565c0" class="scene2-hidden">A_ (有 A 基因)</text>
+                
+                <!-- 条件框 2：B_条件 (调整位置) -->
+                <rect id="scene2-cond2-box" x="430" y="180" width="130" height="38" fill="#ffebee" stroke="#c62828" stroke-width="2" class="scene2-hidden"/>
+                <text id="scene2-cond2-text" x="495" y="204" text-anchor="middle" font-size="12" fill="#c62828" class="scene2-hidden">B_ (有 B 基因)</text>
+                
+                <!-- 长翅结果框（绿色）(调整位置) -->
+                <rect id="scene2-result-long-box" x="610" y="130" width="90" height="32" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" class="scene2-hidden"/>
+                <text id="scene2-result-long-text" x="655" y="151" text-anchor="middle" font-size="13" fill="#2e7d32" font-weight="bold" class="scene2-hidden">长翅</text>
+                
+                <!-- 小翅结果框（橙色）(调整位置) -->
+                <rect id="scene2-result-small-box" x="610" y="195" width="90" height="32" fill="#ffe0b2" stroke="#f57c00" stroke-width="2" class="scene2-hidden"/>
+                <text id="scene2-result-small-text" x="655" y="216" text-anchor="middle" font-size="13" fill="#f57c00" font-weight="bold" class="scene2-hidden">小翅</text>
+                
+                <!-- 残翅结果框（灰色）(调整位置) -->
+                <rect id="scene2-result-vestigial-box" x="460" y="255" width="90" height="32" fill="#e0e0e0" stroke="#888888" stroke-width="2" class="scene2-hidden"/>
+                <text id="scene2-result-vestigial-text" x="505" y="276" text-anchor="middle" font-size="13" fill="#666666" font-weight="bold" class="scene2-hidden">残翅</text>
+                
+                <!-- 箭头 1→2（条件判断流程）(调整位置) -->
+                <line id="scene2-arrow-1-2" x1="495" y1="153" x2="495" y2="180" stroke="#333" stroke-width="2" marker-end="url(#scene2-arrowhead)" class="scene2-hidden"/>
+                
+                <!-- 箭头 2→长翅 (调整位置) -->
+                <line id="scene2-arrow-2-long" x1="560" y1="195" x2="610" y2="147" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrowhead)" class="scene2-hidden"/>
+                
+                <!-- 箭头 2→小翅 (调整位置) -->
+                <line id="scene2-arrow-2-small" x1="560" y1="205" x2="610" y2="205" stroke="#f57c00" stroke-width="2" marker-end="url(#scene2-arrowhead)" class="scene2-hidden"/>
+                
+                <!-- 箭头 1→残翅 (调整位置) -->
+                <line id="scene2-arrow-1-vest" x1="495" y1="153" x2="460" y2="255" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrowhead)" class="scene2-hidden"/>
+                
+                <!-- 公式框 (调整位置和内容) -->
+                <rect id="scene2-formula-box" x="430" y="310" width="300" height="45" fill="#f5f5f5" stroke="#333" stroke-width="2" class="scene2-hidden"/>
+                <text id="scene2-formula-text" x="580" y="335" text-anchor="middle" font-size="11" fill="#333" class="scene2-hidden">长翅：A_ X^B_  |  小翅：A_ X^bY  |  残翅：aa_ _</text>
+            </g>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#333"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/4</span>
+            <button id="scene2-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：两对基因的位置与互作机制
+        
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 每步可见元素 ID 列表
+        const stepVisibility = {
+            0: {
+                show: ['scene2-title', 'scene2-const-label', 'scene2-chromo-const1', 'scene2-chromo-const2', 
+                       'scene2-xy-label', 'scene2-chromo-x', 'scene2-chromo-y', 'scene2-flow-title'],
+                hide: ['scene2-gene-A', 'scene2-gene-A-label', 'scene2-gene-a', 'scene2-gene-a-label',
+                       'scene2-gene-B', 'scene2-gene-B-label', 'scene2-gene-b', 'scene2-gene-b-label',
+                       'scene2-y-nogene', 'scene2-highlight-const', 'scene2-highlight-xy',
+                       'scene2-cond1-box', 'scene2-cond1-text', 'scene2-cond2-box', 'scene2-cond2-text',
+                       'scene2-result-long-box', 'scene2-result-long-text', 'scene2-result-small-box', 'scene2-result-small-text',
+                       'scene2-result-vestigial-box', 'scene2-result-vestigial-text',
+                       'scene2-arrow-1-2', 'scene2-arrow-2-long', 'scene2-arrow-2-small', 'scene2-arrow-1-vest',
+                       'scene2-formula-box', 'scene2-formula-text']
+            },
+            1: {
+                show: ['scene2-gene-A', 'scene2-gene-A-label', 'scene2-gene-a', 'scene2-gene-a-label',
+                       'scene2-gene-B', 'scene2-gene-B-label', 'scene2-gene-b', 'scene2-gene-b-label',
+                       'scene2-y-nogene', 'scene2-highlight-const', 'scene2-highlight-xy'],
+                hide: ['scene2-cond1-box', 'scene2-cond1-text', 'scene2-cond2-box', 'scene2-cond2-text',
+                       'scene2-result-long-box', 'scene2-result-long-text', 'scene2-result-small-box', 'scene2-result-small-text',
+                       'scene2-result-vestigial-box', 'scene2-result-vestigial-text',
+                       'scene2-arrow-1-2', 'scene2-arrow-2-long', 'scene2-arrow-2-small', 'scene2-arrow-1-vest',
+                       'scene2-formula-box', 'scene2-formula-text']
+            },
+            2: {
+                show: ['scene2-cond1-box', 'scene2-cond1-text', 'scene2-cond2-box', 'scene2-cond2-text',
+                       'scene2-result-long-box', 'scene2-result-long-text', 'scene2-result-small-box', 'scene2-result-small-text',
+                       'scene2-result-vestigial-box', 'scene2-result-vestigial-text',
+                       'scene2-arrow-1-2', 'scene2-arrow-2-long', 'scene2-arrow-2-small', 'scene2-arrow-1-vest'],
+                hide: ['scene2-formula-box', 'scene2-formula-text']
+            },
+            3: {
+                show: ['scene2-formula-box', 'scene2-formula-text'],
+                hide: []
+            }
+        };
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-fade-in');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('scene2-hidden');
+                el.classList.remove('scene2-fade-in');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = '步骤 ' + (currentStep + 1) + '/4';
+            
+            // 更新按钮状态
+            document.getElementById('scene2-prev-btn').disabled = (currentStep === 0);
+            document.getElementById('scene2-next-btn').disabled = (currentStep === totalSteps - 1);
+            
+            // 应用当前步骤的可见性
+            const visibility = stepVisibility[currentStep];
+            
+            // 显示当前步骤需要显示的元素
+            visibility.show.forEach(id => showElement(id));
+            
+            // 隐藏当前步骤需要隐藏的元素（只隐藏后续步骤才显示的元素）
+            visibility.hide.forEach(id => hideElement(id));
+        }
+        
+        // 初始化
+        function init() {
+            // 初始显示步骤 0 的元素
+            stepVisibility[0].show.forEach(id => showElement(id));
+            stepVisibility[0].hide.forEach(id => hideElement(id));
+            
+            // 绑定按钮事件
+            document.getElementById('scene2-prev-btn').addEventListener('click', function() {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateStep();
+                }
+            });
+            
+            document.getElementById('scene2-next-btn').addEventListener('click', function() {
+                if (currentStep < totalSteps - 1) {
+                    currentStep++;
+                    updateStep();
+                }
+            });
+            
+            // 初始化按钮状态
+            updateStep();
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

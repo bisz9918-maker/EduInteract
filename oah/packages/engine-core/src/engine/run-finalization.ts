@@ -1,0 +1,344 @@
+import type { ChatMessage, Message, ModelGenerateResponse, Run, RunStep, Session } from "@oah/api-contracts";
+
+import { AppError } from "../errors.js";
+import { assistantContentFromModelOutput } from "../execution-message-content.js";
+import type { ModelStepResult, SessionRepository, WorkspaceRecord } from "../types.js";
+
+type AssistantMessage = Extract<Message, { role: "assistant" }>;
+
+/**
+ * Fix up the usage reported by the AI SDK's `result.usage`.
+ *
+ * For multi-step tool-calling runs, the AI SDK's `streamText()` `result.usage`
+ * correctly reports cumulative `inputTokens` (growing context), but only
+ * reports the **last step's** `outputTokens` instead of the sum across all steps.
+ *
+ * We fix this by reading per-step usage from run_steps and
+ * summing all `outputTokens` values for `model_call` steps.
+ */
+function fixupUsageFromSteps(
+  reportedUsage: ModelGenerateResponse["usage"],
+  steps: RunStep[]
+): ModelGenerateResponse["usage"] {
+  let totalOutputTokens = 0;
+  let totalInputTokens = 0;
+  let hasModelCallStep = false;
+
+  for (const step of steps) {
+    if (step.stepType !== "model_call") continue;
+    hasModelCallStep = true;
+    const stepOutput = (step.output as Record<string, unknown> | undefined)
+      ?.response as Record<string, unknown> | undefined;
+    const stepUsage = stepOutput?.usage as Record<string, unknown> | undefined;
+    const out = stepUsage?.outputTokens;
+    const inp = stepUsage?.inputTokens;
+    if (typeof out === "number") {
+      totalOutputTokens += out;
+    }
+    if (typeof inp === "number") {
+      totalInputTokens = Math.max(totalInputTokens, inp);
+    }
+  }
+
+  if (!hasModelCallStep) {
+    return reportedUsage;
+  }
+
+  // Use step-level sums if reported usage is missing or obviously wrong
+  const reportedOut = reportedUsage?.outputTokens;
+  const needsFixup = reportedOut === undefined || reportedOut === 0 || reportedOut < totalOutputTokens;
+  if (!needsFixup) {
+    return reportedUsage;
+  }
+
+  const fixedInput = reportedUsage?.inputTokens ?? totalInputTokens;
+  return {
+    ...reportedUsage,
+    inputTokens: fixedInput,
+    outputTokens: totalOutputTokens,
+    totalTokens: fixedInput + totalOutputTokens
+  };
+}
+
+export interface RunFinalizationServiceDependencies {
+  sessionRepository: SessionRepository;
+  getRun: (runId: string) => Promise<Run>;
+  listRunSteps: (runId: string) => Promise<RunStep[]>;
+  ensureAssistantMessage: (
+    session: Session,
+    run: Run,
+    currentMessage: AssistantMessage | undefined,
+    allMessages?: Message[],
+    content?: string,
+    metadata?: Record<string, unknown> | undefined
+  ) => Promise<AssistantMessage>;
+  updateAssistantMessage: (
+    message: AssistantMessage,
+    content: AssistantMessage["content"]
+  ) => Promise<AssistantMessage>;
+  appendEvent: (input: {
+    sessionId: string;
+    runId: string;
+    event: "message.completed" | "run.completed" | "run.failed";
+    data: Record<string, unknown>;
+  }) => Promise<unknown>;
+  setRunStatus: (run: Run, nextStatus: Run["status"], patch: Partial<Run>) => Promise<Run>;
+  markRunTimedOut: (run: Run, runTimeoutMs: number | undefined) => Promise<Run>;
+  markRunCancelled: (sessionId: string, run: Run) => Promise<void>;
+  recordSystemStep: (run: Run, name: string, output?: Record<string, unknown>) => Promise<unknown>;
+  runLifecycleHooks: (
+    workspace: WorkspaceRecord,
+    session: Session | undefined,
+    run: Run,
+    eventName: "run_completed" | "run_failed"
+  ) => Promise<void>;
+  dispatchNextQueuedRun: (sessionId: string) => Promise<string | undefined>;
+  afterSuccessfulRun?:
+    | ((input: { workspace: WorkspaceRecord; session: Session; run: Run }) => Promise<void> | void)
+    | undefined;
+  buildGeneratedMessageMetadata: (
+    workspace: WorkspaceRecord,
+    agentName: string,
+    modelInput: { messages: ChatMessage[] },
+    modelCallStep?: { id: string; seq: number } | undefined
+  ) => Record<string, unknown>;
+  nowIso: () => string;
+}
+
+export class RunFinalizationService {
+  readonly #sessionRepository: SessionRepository;
+  readonly #getRun: RunFinalizationServiceDependencies["getRun"];
+  readonly #listRunSteps: RunFinalizationServiceDependencies["listRunSteps"];
+  readonly #ensureAssistantMessage: RunFinalizationServiceDependencies["ensureAssistantMessage"];
+  readonly #updateAssistantMessage: RunFinalizationServiceDependencies["updateAssistantMessage"];
+  readonly #appendEvent: RunFinalizationServiceDependencies["appendEvent"];
+  readonly #setRunStatus: RunFinalizationServiceDependencies["setRunStatus"];
+  readonly #markRunTimedOut: RunFinalizationServiceDependencies["markRunTimedOut"];
+  readonly #markRunCancelled: RunFinalizationServiceDependencies["markRunCancelled"];
+  readonly #recordSystemStep: RunFinalizationServiceDependencies["recordSystemStep"];
+  readonly #runLifecycleHooks: RunFinalizationServiceDependencies["runLifecycleHooks"];
+  readonly #dispatchNextQueuedRun: RunFinalizationServiceDependencies["dispatchNextQueuedRun"];
+  readonly #afterSuccessfulRun: RunFinalizationServiceDependencies["afterSuccessfulRun"];
+  readonly #buildGeneratedMessageMetadata: RunFinalizationServiceDependencies["buildGeneratedMessageMetadata"];
+  readonly #nowIso: RunFinalizationServiceDependencies["nowIso"];
+
+  constructor(dependencies: RunFinalizationServiceDependencies) {
+    this.#sessionRepository = dependencies.sessionRepository;
+    this.#getRun = dependencies.getRun;
+    this.#listRunSteps = dependencies.listRunSteps;
+    this.#ensureAssistantMessage = dependencies.ensureAssistantMessage;
+    this.#updateAssistantMessage = dependencies.updateAssistantMessage;
+    this.#appendEvent = dependencies.appendEvent;
+    this.#setRunStatus = dependencies.setRunStatus;
+    this.#markRunTimedOut = dependencies.markRunTimedOut;
+    this.#markRunCancelled = dependencies.markRunCancelled;
+    this.#recordSystemStep = dependencies.recordSystemStep;
+    this.#runLifecycleHooks = dependencies.runLifecycleHooks;
+    this.#dispatchNextQueuedRun = dependencies.dispatchNextQueuedRun;
+    this.#afterSuccessfulRun = dependencies.afterSuccessfulRun;
+    this.#buildGeneratedMessageMetadata = dependencies.buildGeneratedMessageMetadata;
+    this.#nowIso = dependencies.nowIso;
+  }
+
+  async finalizeSuccessfulRun(input: {
+    workspace: WorkspaceRecord;
+    session: Session;
+    run: Run;
+    assistantMessage: AssistantMessage | undefined;
+    completed: ModelGenerateResponse;
+    finalAssistantStep: ModelStepResult | undefined;
+    messageMetadata?: Record<string, unknown> | undefined;
+  }): Promise<void> {
+    const finalizedAssistantContent = assistantContentFromModelOutput({
+      text: input.completed.text,
+      content: Array.isArray(input.completed.content) ? input.completed.content : input.finalAssistantStep?.content,
+      reasoning: Array.isArray(input.completed.reasoning) ? input.completed.reasoning : input.finalAssistantStep?.reasoning
+    });
+    const latestRun = await this.#getRun(input.run.id);
+    const persistedAssistantMessage = await this.#ensureAssistantMessage(
+      input.session,
+      latestRun,
+      input.assistantMessage,
+      undefined,
+      typeof finalizedAssistantContent === "string" ? finalizedAssistantContent : input.completed.text,
+      input.messageMetadata ?? this.#buildGeneratedMessageMetadata(input.workspace, latestRun.effectiveAgentName, { messages: [] })
+    );
+    const updatedMessage =
+      JSON.stringify(persistedAssistantMessage.content) === JSON.stringify(finalizedAssistantContent)
+        ? persistedAssistantMessage
+        : await this.#updateAssistantMessage(persistedAssistantMessage, finalizedAssistantContent);
+
+    await this.#appendEvent({
+      sessionId: input.session.id,
+      runId: input.run.id,
+      event: "message.completed",
+      data: {
+        runId: input.run.id,
+        messageId: updatedMessage.id,
+        content: updatedMessage.content,
+        finishReason: input.completed.finishReason ?? "stop",
+        ...(updatedMessage.metadata ? { metadata: updatedMessage.metadata } : {})
+      }
+    });
+
+    const endedAt = this.#nowIso();
+    // Fix usage: AI SDK reports last step's outputTokens instead of sum across steps
+    const steps = await this.#listRunSteps(input.run.id);
+    const fixedUsage = fixupUsageFromSteps(input.completed.usage, steps);
+    const updatedRun = await this.#setRunStatus(latestRun, "completed", {
+      endedAt,
+      ...(fixedUsage ? { usage: fixedUsage } : {})
+    });
+    await this.#recordSystemStep(updatedRun, "run.completed", {
+      status: updatedRun.status
+    });
+
+    await this.#sessionRepository.update({
+      ...input.session,
+      activeAgentName: updatedRun.effectiveAgentName,
+      lastRunAt: endedAt,
+      updatedAt: endedAt
+    });
+
+    await this.#appendEvent({
+      sessionId: input.session.id,
+      runId: updatedRun.id,
+      event: "run.completed",
+      data: {
+        runId: updatedRun.id,
+        sessionId: input.session.id,
+        status: updatedRun.status,
+        ...(updatedRun.usage ? { usage: updatedRun.usage } : {})
+      }
+    });
+
+    await this.#runLifecycleHooks(input.workspace, input.session, updatedRun, "run_completed");
+    await this.#afterSuccessfulRun?.({
+      workspace: input.workspace,
+      session: input.session,
+      run: updatedRun
+    });
+    await this.#dispatchNextQueuedRun(input.session.id);
+  }
+
+  async finalizeTimedOutRun(input: {
+    workspace: WorkspaceRecord;
+    session: Session | undefined;
+    runId: string;
+    runTimeoutMs: number | undefined;
+  }): Promise<void> {
+    let run: Run;
+    try {
+      run = await this.#getRun(input.runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") return;
+      throw error;
+    }
+    const timedOutRun = await this.#markRunTimedOut(run, input.runTimeoutMs);
+    if (input.session) {
+      await this.#appendEvent({
+        sessionId: input.session.id,
+        runId: timedOutRun.id,
+        event: "run.failed",
+        data: {
+          runId: timedOutRun.id,
+          sessionId: input.session.id,
+          status: timedOutRun.status,
+          errorCode: timedOutRun.errorCode ?? "run_timed_out",
+          errorMessage: timedOutRun.errorMessage ?? "Run exceeded the configured timeout."
+        }
+      });
+    }
+    await this.#recordSystemStep(timedOutRun, "run.timed_out", {
+      status: timedOutRun.status,
+      ...(timedOutRun.errorCode ? { errorCode: timedOutRun.errorCode } : {}),
+      ...(timedOutRun.errorMessage ? { errorMessage: timedOutRun.errorMessage } : {})
+    });
+    await this.#runLifecycleHooks(input.workspace, input.session, timedOutRun, "run_failed");
+    if (timedOutRun.sessionId) {
+      await this.#dispatchNextQueuedRun(timedOutRun.sessionId);
+    }
+  }
+
+  async finalizeCancelledRun(input: {
+    session: Session | undefined;
+    runId: string;
+  }): Promise<void> {
+    let run: Run;
+    try {
+      run = await this.#getRun(input.runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") return;
+      throw error;
+    }
+    if (input.session) {
+      await this.#markRunCancelled(input.session.id, run);
+      await this.#dispatchNextQueuedRun(input.session.id);
+      return;
+    }
+
+    const cancelledRun = await this.#setRunStatus(run, "cancelled", {
+      endedAt: this.#nowIso(),
+      cancelRequestedAt: this.#nowIso()
+    });
+    await this.#recordSystemStep(cancelledRun, "run.cancelled", {
+      status: cancelledRun.status
+    });
+    if (cancelledRun.sessionId) {
+      await this.#dispatchNextQueuedRun(cancelledRun.sessionId);
+    }
+  }
+
+  async finalizeFailedRun(input: {
+    workspace: WorkspaceRecord;
+    session: Session | undefined;
+    runId: string;
+    errorCode: string;
+    errorMessage: string;
+  }): Promise<Run> {
+    let currentRun: Run;
+    try {
+      currentRun = await this.#getRun(input.runId);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "run_not_found") {
+        return undefined as unknown as Run;
+      }
+      throw error;
+    }
+    const failedRun =
+      currentRun.status === "failed" || currentRun.status === "timed_out"
+        ? currentRun
+        : await this.#setRunStatus(currentRun, "failed", {
+            endedAt: this.#nowIso(),
+            errorCode: input.errorCode,
+            errorMessage: input.errorMessage
+          });
+
+    if (input.session) {
+      await this.#appendEvent({
+        sessionId: input.session.id,
+        runId: failedRun.id,
+        event: "run.failed",
+        data: {
+          runId: failedRun.id,
+          sessionId: input.session.id,
+          status: failedRun.status,
+          errorCode: failedRun.errorCode ?? input.errorCode,
+          errorMessage: failedRun.errorMessage ?? input.errorMessage
+        }
+      });
+    }
+
+    await this.#recordSystemStep(failedRun, failedRun.status === "timed_out" ? "run.timed_out" : "run.failed", {
+      status: failedRun.status,
+      ...(failedRun.errorCode ? { errorCode: failedRun.errorCode } : {}),
+      ...(failedRun.errorMessage ? { errorMessage: failedRun.errorMessage } : {})
+    });
+
+    await this.#runLifecycleHooks(input.workspace, input.session, failedRun, "run_failed");
+    if (failedRun.sessionId) {
+      await this.#dispatchNextQueuedRun(failedRun.sessionId);
+    }
+    return failedRun;
+  }
+}

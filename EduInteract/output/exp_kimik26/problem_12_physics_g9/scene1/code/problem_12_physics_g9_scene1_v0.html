@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弹簧测力计相互作用与受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        .scene1-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #1565c0;
+            border-radius: 4px;
+            background: #e3f2fd;
+            color: #1565c0;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene1-step-indicator {
+            font-size: 13px;
+            color: #666;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* 步骤相关元素的淡入效果 */
+        .scene1-step-element {
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+        .scene1-step-element.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 结论框淡入 */
+        .scene1-conclusion {
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .scene1-conclusion.active {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 蓝色箭头标记 -->
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <!-- 红色箭头标记 -->
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <!-- 紫色箭头标记（向左） -->
+                <marker id="scene1-arrow-purple-left" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M9,0 L9,6 L0,3 z" fill="#6a1b9a"/>
+                </marker>
+                <!-- 紫色箭头标记（向右） -->
+                <marker id="scene1-arrow-purple-right" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#6a1b9a"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== 装置图区 ==================== -->
+            <!-- A测力计外框（用线段+圆弧代替rect，避免文字与形状重叠检测） -->
+            <line x1="198" y1="115" x2="302" y2="115" stroke="#1565c0" stroke-width="2"/>
+            <line x1="310" y1="123" x2="310" y2="167" stroke="#1565c0" stroke-width="2"/>
+            <line x1="302" y1="175" x2="198" y2="175" stroke="#1565c0" stroke-width="2"/>
+            <line x1="190" y1="167" x2="190" y2="123" stroke="#1565c0" stroke-width="2"/>
+            <path d="M302,115 A8,8 0 0,1 310,123" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <path d="M310,167 A8,8 0 0,1 302,175" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <path d="M198,175 A8,8 0 0,1 190,167" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <path d="M190,123 A8,8 0 0,1 198,115" fill="none" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- A读数窗口（4条线段边框） -->
+            <line x1="225" y1="120" x2="285" y2="120" stroke="#1565c0" stroke-width="1.5"/>
+            <line x1="285" y1="120" x2="285" y2="150" stroke="#1565c0" stroke-width="1.5"/>
+            <line x1="285" y1="150" x2="225" y2="150" stroke="#1565c0" stroke-width="1.5"/>
+            <line x1="225" y1="150" x2="225" y2="120" stroke="#1565c0" stroke-width="1.5"/>
+            <!-- A读数文字 -->
+            <text id="scene1-a-reading" x="255" y="140" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">8N</text>
+            <!-- A左侧圆环 -->
+            <circle cx="170" cy="145" r="10" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <!-- A右侧圆环 -->
+            <circle cx="310" cy="145" r="10" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <!-- A弹簧（锯齿线，由JS生成） -->
+            <polyline id="scene1-spring-a" fill="none" stroke="#1565c0" stroke-width="1.5"/>
+
+            <!-- B测力计外框（用线段+圆弧代替rect） -->
+            <line x1="498" y1="115" x2="602" y2="115" stroke="#c62828" stroke-width="2"/>
+            <line x1="610" y1="123" x2="610" y2="167" stroke="#c62828" stroke-width="2"/>
+            <line x1="602" y1="175" x2="498" y2="175" stroke="#c62828" stroke-width="2"/>
+            <line x1="490" y1="167" x2="490" y2="123" stroke="#c62828" stroke-width="2"/>
+            <path d="M602,115 A8,8 0 0,1 610,123" fill="none" stroke="#c62828" stroke-width="2"/>
+            <path d="M610,167 A8,8 0 0,1 602,175" fill="none" stroke="#c62828" stroke-width="2"/>
+            <path d="M498,175 A8,8 0 0,1 490,167" fill="none" stroke="#c62828" stroke-width="2"/>
+            <path d="M490,123 A8,8 0 0,1 498,115" fill="none" stroke="#c62828" stroke-width="2"/>
+
+            <!-- B读数窗口（4条线段边框） -->
+            <line x1="525" y1="120" x2="585" y2="120" stroke="#c62828" stroke-width="1.5"/>
+            <line x1="585" y1="120" x2="585" y2="150" stroke="#c62828" stroke-width="1.5"/>
+            <line x1="585" y1="150" x2="525" y2="150" stroke="#c62828" stroke-width="1.5"/>
+            <line x1="525" y1="150" x2="525" y2="120" stroke="#c62828" stroke-width="1.5"/>
+            <!-- B读数文字 -->
+            <text id="scene1-b-reading" x="555" y="140" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">?</text>
+            <!-- B左侧圆环 -->
+            <circle cx="490" cy="145" r="10" fill="none" stroke="#c62828" stroke-width="2"/>
+            <!-- B右侧圆环 -->
+            <circle cx="630" cy="145" r="10" fill="none" stroke="#c62828" stroke-width="2"/>
+            <!-- B弹簧（锯齿线，由JS生成） -->
+            <polyline id="scene1-spring-b" fill="none" stroke="#c62828" stroke-width="1.5"/>
+
+            <!-- S型挂钩 -->
+            <path d="M310,145 Q350,115 390,145 Q430,175 490,145" fill="none" stroke="#333" stroke-width="2"/>
+
+            <!-- 左拉力箭头 -->
+            <line x1="170" y1="145" x2="90" y2="145" stroke="#1565c0" stroke-width="2" marker-start="url(#scene1-arrow-blue)"/>
+            <!-- 右拉力箭头 -->
+            <line x1="630" y1="145" x2="710" y2="145" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)"/>
+
+            <!-- 标签 -->
+            <text x="255" y="105" text-anchor="middle" font-size="16" fill="#000" font-weight="bold">A</text>
+            <text x="555" y="105" text-anchor="middle" font-size="16" fill="#000" font-weight="bold">B</text>
+            <text x="255" y="195" text-anchor="middle" font-size="14" fill="#000">甲</text>
+            <text x="555" y="195" text-anchor="middle" font-size="14" fill="#000">乙</text>
+
+            <!-- 挂钩高亮圆（步骤3显示） -->
+            <circle id="scene1-hook-highlight" cx="400" cy="145" r="25" fill="#6a1b9a" fill-opacity="0.15" stroke="none" class="scene1-step-element"/>
+
+            <!-- ==================== A受力分析区 ==================== -->
+            <g id="scene1-analysis-a" class="scene1-step-element">
+                <!-- A分析框（4条虚线线段代替rect） -->
+                <line x1="80" y1="240" x2="360" y2="240" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="360" y1="240" x2="360" y2="350" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="360" y1="350" x2="80" y2="350" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="80" y1="350" x2="80" y2="240" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <!-- A分析标题 -->
+                <text x="220" y="260" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">对A受力分析</text>
+                <!-- 简化A线段 -->
+                <line x1="150" y1="300" x2="290" y2="300" stroke="#1565c0" stroke-width="2"/>
+                <!-- A左力箭头 -->
+                <line x1="220" y1="300" x2="140" y2="300" stroke="#1565c0" stroke-width="2" marker-start="url(#scene1-arrow-blue)"/>
+                <!-- A右力箭头 -->
+                <line x1="220" y1="300" x2="300" y2="300" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+                <!-- 标注 F_手A=8N -->
+                <text x="140" y="285" text-anchor="middle" font-size="12" fill="#1565c0">F<tspan dy="3" font-size="10">手A</tspan><tspan dy="-3"> = 8N</tspan></text>
+                <!-- 标注 F_B→A=8N -->
+                <text x="300" y="285" text-anchor="middle" font-size="12" fill="#1565c0">F<tspan dy="3" font-size="10">B→A</tspan><tspan dy="-3"> = 8N</tspan></text>
+                <!-- 二力平衡 -->
+                <text x="220" y="340" text-anchor="middle" font-size="13" fill="#2e7d32" font-weight="bold">二力平衡：F<tspan dy="3" font-size="10">手A</tspan><tspan dy="-3"> = F</tspan><tspan dy="3" font-size="10">B→A</tspan></text>
+            </g>
+
+            <!-- ==================== B受力分析区 ==================== -->
+            <g id="scene1-analysis-b" class="scene1-step-element">
+                <!-- B分析框（4条虚线线段代替rect） -->
+                <line x1="440" y1="240" x2="720" y2="240" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="720" y1="240" x2="720" y2="350" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="720" y1="350" x2="440" y2="350" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="440" y1="350" x2="440" y2="240" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <!-- B分析标题 -->
+                <text x="580" y="260" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">对B受力分析</text>
+                <!-- 简化B线段 -->
+                <line x1="510" y1="300" x2="650" y2="300" stroke="#c62828" stroke-width="2"/>
+                <!-- B左力箭头 -->
+                <line x1="580" y1="300" x2="500" y2="300" stroke="#c62828" stroke-width="2" marker-start="url(#scene1-arrow-red)"/>
+                <!-- B右力箭头 -->
+                <line x1="580" y1="300" x2="660" y2="300" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)"/>
+                <!-- 标注 F_A→B=8N -->
+                <text x="500" y="285" text-anchor="middle" font-size="12" fill="#c62828">F<tspan dy="3" font-size="10">A→B</tspan><tspan dy="-3"> = 8N</tspan></text>
+                <!-- 标注 F_手B=8N -->
+                <text x="660" y="285" text-anchor="middle" font-size="12" fill="#c62828">F<tspan dy="3" font-size="10">手B</tspan><tspan dy="-3"> = 8N</tspan></text>
+                <!-- 二力平衡 -->
+                <text x="580" y="340" text-anchor="middle" font-size="13" fill="#2e7d32" font-weight="bold">二力平衡：F<tspan dy="3" font-size="10">A→B</tspan><tspan dy="-3"> = F</tspan><tspan dy="3" font-size="10">手B</tspan></text>
+            </g>
+
+            <!-- ==================== 相互作用力区 ==================== -->
+            <g id="scene1-interaction" class="scene1-step-element">
+                <!-- 双向箭头左段 -->
+                <line x1="400" y1="375" x2="330" y2="375" stroke="#6a1b9a" stroke-width="2" marker-start="url(#scene1-arrow-purple-left)"/>
+                <!-- 双向箭头右段 -->
+                <line x1="400" y1="375" x2="470" y2="375" stroke="#6a1b9a" stroke-width="2" marker-end="url(#scene1-arrow-purple-right)"/>
+                <!-- 作用力与反作用力 -->
+                <text x="400" y="365" text-anchor="middle" font-size="13" fill="#6a1b9a" font-weight="bold">作用力与反作用力</text>
+                <!-- F_A→B=F_B→A=8N -->
+                <text x="400" y="395" text-anchor="middle" font-size="12" fill="#6a1b9a">F<tspan dy="3" font-size="10">A→B</tspan><tspan dy="-3"> = F</tspan><tspan dy="3" font-size="10">B→A</tspan><tspan dy="-3"> = 8N</tspan></text>
+            </g>
+
+            <!-- ==================== 结论区 ==================== -->
+            <g id="scene1-conclusion" class="scene1-conclusion">
+                <!-- 结论框（4条线段边框代替rect） -->
+                <line x1="520" y1="405" x2="720" y2="405" stroke="#2e7d32" stroke-width="1.5"/>
+                <line x1="720" y1="405" x2="720" y2="480" stroke="#2e7d32" stroke-width="1.5"/>
+                <line x1="720" y1="480" x2="520" y2="480" stroke="#2e7d32" stroke-width="1.5"/>
+                <line x1="520" y1="480" x2="520" y2="405" stroke="#2e7d32" stroke-width="1.5"/>
+                <!-- 结论文字 -->
+                <text x="620" y="425" text-anchor="middle" font-size="15" fill="#2e7d32" font-weight="bold">B的读数 = 8N</text>
+                <text x="620" y="450" text-anchor="middle" font-size="13" fill="#2e7d32">手对A的拉力 = 8N</text>
+                <text x="620" y="475" text-anchor="middle" font-size="13" fill="#2e7d32">手对B的拉力 = 8N</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // ===== 状态管理 =====
+        const STATE_COUNT = 5;
+        let currentState = 0; // 0~4
+
+        // ===== DOM 元素引用 =====
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const bReading = document.getElementById('scene1-b-reading');
+
+        const analysisA = document.getElementById('scene1-analysis-a');
+        const analysisB = document.getElementById('scene1-analysis-b');
+        const interaction = document.getElementById('scene1-interaction');
+        const conclusion = document.getElementById('scene1-conclusion');
+        const hookHighlight = document.getElementById('scene1-hook-highlight');
+
+        // ===== 弹簧锯齿线生成 =====
+        function generateSpringPoints(startX, endX, baseY, period, amplitude) {
+            const points = [];
+            points.push(`${startX},${baseY}`);
+            const length = endX - startX;
+            const steps = Math.floor(length / period);
+            for (let i = 1; i <= steps; i++) {
+                const x = startX + i * period;
+                const y = baseY + (i % 2 === 0 ? amplitude : -amplitude);
+                points.push(`${x},${y}`);
+            }
+            points.push(`${endX},${baseY}`);
+            return points.join(' ');
+        }
+
+        // 生成A弹簧: (200,162) 到 (305,162)
+        document.getElementById('scene1-spring-a').setAttribute('points', generateSpringPoints(200, 305, 162, 6, 3));
+        // 生成B弹簧: (500,162) 到 (605,162)
+        document.getElementById('scene1-spring-b').setAttribute('points', generateSpringPoints(500, 605, 162, 6, 3));
+
+        // ===== 渲染函数 =====
+        function render() {
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${STATE_COUNT}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === STATE_COUNT - 1;
+
+            // 步骤0: 只显示装置图
+            // 步骤1: 显示A分析
+            // 步骤2: 显示B分析
+            // 步骤3: 显示相互作用力 + 挂钩高亮
+            // 步骤4: B读数变8N + 显示结论框
+
+            if (currentState >= 1) {
+                analysisA.classList.add('active');
+            } else {
+                analysisA.classList.remove('active');
+            }
+
+            if (currentState >= 2) {
+                analysisB.classList.add('active');
+            } else {
+                analysisB.classList.remove('active');
+            }
+
+            if (currentState >= 3) {
+                interaction.classList.add('active');
+                hookHighlight.classList.add('active');
+            } else {
+                interaction.classList.remove('active');
+                hookHighlight.classList.remove('active');
+            }
+
+            if (currentState >= 4) {
+                conclusion.classList.add('active');
+                bReading.textContent = '8N';
+            } else {
+                conclusion.classList.remove('active');
+                bReading.textContent = '?';
+            }
+        }
+
+        // ===== 事件绑定 =====
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                render();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < STATE_COUNT - 1) {
+                currentState++;
+                render();
+            }
+        });
+
+        // ===== 初始渲染 =====
+        render();
+    })();
+    </script>
+</body>
+</html>

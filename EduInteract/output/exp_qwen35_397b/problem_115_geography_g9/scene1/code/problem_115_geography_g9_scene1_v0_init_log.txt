@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网坐标读取与点位识别</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-meridian {
+            stroke: #000000;
+            stroke-width: 4;
+            fill: none;
+        }
+        .scene1-parallel-dashed {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 5,5;
+        }
+        .scene1-parallel-solid {
+            stroke: #000000;
+            stroke-width: 4;
+            fill: none;
+        }
+        .scene1-point-base {
+            fill: #000000;
+        }
+        .scene1-highlight {
+            fill: #1565c0;
+            fill-opacity: 0.2;
+            stroke: #1565c0;
+            stroke-width: 2;
+        }
+        .scene1-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene1-coord-label {
+            font-size: 12px;
+            fill: #000000;
+        }
+        .scene1-lat-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene1-lon-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene1-arrow {
+            stroke: #2e7d32;
+            stroke-width: 4;
+            fill: none;
+        }
+        .scene1-arrow-label {
+            font-size: 14px;
+            fill: #2e7d32;
+        }
+        #scene1-coord-display {
+            font-size: 16px;
+            fill: #333333;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 2px solid #1565c0;
+            background: #ffffff;
+            color: #1565c0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        .scene1-btn:disabled {
+            border-color: #cccccc;
+            color: #cccccc;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 经线 -->
+            <line id="scene1-meridian-20W" class="scene1-meridian" x1="200" y1="50" x2="200" y2="350"/>
+            <line id="scene1-meridian-0" class="scene1-meridian" x1="300" y1="50" x2="300" y2="350"/>
+            <line id="scene1-meridian-20E" class="scene1-meridian" x1="400" y1="50" x2="400" y2="350"/>
+            <line id="scene1-meridian-40E" class="scene1-meridian" x1="500" y1="50" x2="500" y2="350"/>
+
+            <!-- 纬线 -->
+            <line id="scene1-parallel-665N" class="scene1-parallel-dashed" x1="150" y1="80" x2="550" y2="80"/>
+            <line id="scene1-parallel-235N" class="scene1-parallel-dashed" x1="150" y1="155" x2="550" y2="155"/>
+            <line id="scene1-parallel-0" class="scene1-parallel-solid" x1="150" y1="230" x2="550" y2="230"/>
+            <line id="scene1-parallel-235S" class="scene1-parallel-dashed" x1="150" y1="305" x2="550" y2="305"/>
+
+            <!-- 高亮圆（初始隐藏） -->
+            <circle id="scene1-highlight-jia" class="scene1-highlight" cx="300" cy="80" r="15" style="display:none;"/>
+            <circle id="scene1-highlight-yi" class="scene1-highlight" cx="200" cy="155" r="15" style="display:none;"/>
+            <circle id="scene1-highlight-bing" class="scene1-highlight" cx="300" cy="230" r="15" style="display:none;"/>
+            <circle id="scene1-highlight-ding" class="scene1-highlight" cx="400" cy="305" r="15" style="display:none;"/>
+            <circle id="scene1-highlight-E" class="scene1-highlight" cx="400" cy="230" r="15" style="display:none;"/>
+            <circle id="scene1-highlight-F" class="scene1-highlight" cx="500" cy="80" r="15" style="display:none;"/>
+
+            <!-- 标注点 -->
+            <circle id="scene1-point-jia" class="scene1-point-base" cx="300" cy="80" r="6"/>
+            <circle id="scene1-point-yi" class="scene1-point-base" cx="200" cy="155" r="6"/>
+            <circle id="scene1-point-bing" class="scene1-point-base" cx="300" cy="230" r="6"/>
+            <circle id="scene1-point-ding" class="scene1-point-base" cx="400" cy="305" r="6"/>
+            <circle id="scene1-point-E" class="scene1-point-base" cx="400" cy="230" r="6"/>
+            <circle id="scene1-point-F" class="scene1-point-base" cx="500" cy="80" r="6"/>
+
+            <!-- 点标签 -->
+            <text id="scene1-label-jia" class="scene1-label" x="285" y="70">甲</text>
+            <text id="scene1-label-yi" class="scene1-label" x="175" y="155">乙</text>
+            <text id="scene1-label-bing" class="scene1-label" x="285" y="250">丙</text>
+            <text id="scene1-label-ding" class="scene1-label" x="400" y="330">丁</text>
+            <text id="scene1-label-E" class="scene1-label" x="415" y="215">E</text>
+            <text id="scene1-label-F" class="scene1-label" x="515" y="70">F</text>
+
+            <!-- 经度标注 -->
+            <text id="scene1-lon-20W" class="scene1-lon-label" x="200" y="385" text-anchor="middle">20°</text>
+            <text id="scene1-lon-0" class="scene1-lon-label" x="300" y="385" text-anchor="middle">0°</text>
+            <text id="scene1-lon-20E" class="scene1-lon-label" x="400" y="385" text-anchor="middle">20°</text>
+            <text id="scene1-lon-40E" class="scene1-lon-label" x="500" y="385" text-anchor="middle">40°</text>
+
+            <!-- 纬度标注 -->
+            <text id="scene1-lat-665N" class="scene1-lat-label" x="570" y="85">66.5°</text>
+            <text id="scene1-lat-235N" class="scene1-lat-label" x="570" y="160">23.5°</text>
+            <text id="scene1-lat-0" class="scene1-lat-label" x="570" y="235">0°</text>
+            <text id="scene1-lat-235S" class="scene1-lat-label" x="570" y="310">23.5°</text>
+
+            <!-- 方向箭头（初始隐藏） -->
+            <g id="scene1-arrows" style="display:none;">
+                <!-- 北箭头 -->
+                <line class="scene1-arrow" x1="700" y1="100" x2="700" y2="70"/>
+                <polygon points="700,60 695,75 705,75" fill="#2e7d32"/>
+                <text class="scene1-arrow-label" x="700" y="55" text-anchor="middle">北</text>
+                
+                <!-- 南箭头 -->
+                <line class="scene1-arrow" x1="700" y1="300" x2="700" y2="340"/>
+                <polygon points="700,350 695,335 705,335" fill="#2e7d32"/>
+                <text class="scene1-arrow-label" x="700" y="365" text-anchor="middle">南</text>
+                
+                <!-- 东箭头 -->
+                <line class="scene1-arrow" x1="600" y1="370" x2="640" y2="370"/>
+                <polygon points="650,370 635,365 635,375" fill="#2e7d32"/>
+                <text class="scene1-arrow-label" x="665" y="375" text-anchor="middle">东</text>
+                
+                <!-- 西箭头 -->
+                <line class="scene1-arrow" x1="160" y1="370" x2="120" y2="370"/>
+                <polygon points="110,370 125,365 125,375" fill="#2e7d32"/>
+                <text class="scene1-arrow-label" x="95" y="375" text-anchor="middle">西</text>
+            </g>
+
+            <!-- 坐标显示区 -->
+            <text id="scene1-coord-display" x="400" y="425" text-anchor="middle">请选择下一步查看点位坐标</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/6</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 经纬网坐标读取与点位识别
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 各点坐标信息
+        const pointData = {
+            jia: { label: '甲', coord: '(0°, 66.5°N)' },
+            yi: { label: '乙', coord: '(20°W, 23.5°N)' },
+            bing: { label: '丙', coord: '(0°, 0°)' },
+            ding: { label: '丁', coord: '(20°E, 23.5°S)' },
+            E: { label: 'E', coord: '(20°E, 0°)' },
+            F: { label: 'F', coord: '(40°E, 66.5°N)' }
+        };
+
+        // DOM 元素
+        const coordDisplay = document.getElementById('scene1-coord-display');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const arrowsGroup = document.getElementById('scene1-arrows');
+
+        // 高亮元素
+        const highlights = {
+            jia: document.getElementById('scene1-highlight-jia'),
+            yi: document.getElementById('scene1-highlight-yi'),
+            bing: document.getElementById('scene1-highlight-bing'),
+            ding: document.getElementById('scene1-highlight-ding'),
+            E: document.getElementById('scene1-highlight-E'),
+            F: document.getElementById('scene1-highlight-F')
+        };
+
+        // 隐藏所有高亮
+        function hideAllHighlights() {
+            Object.values(highlights).forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+
+        // 显示指定高亮
+        function showHighlight(keys) {
+            hideAllHighlights();
+            if (Array.isArray(keys)) {
+                keys.forEach(key => {
+                    if (highlights[key]) {
+                        highlights[key].style.display = 'block';
+                    }
+                });
+            } else if (keys && highlights[keys]) {
+                highlights[keys].style.display = 'block';
+            }
+        }
+
+        // 更新坐标显示
+        function updateCoordDisplay(text) {
+            coordDisplay.textContent = text;
+        }
+
+        // 更新步骤指示器
+        function updateStepIndicator() {
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+        }
+
+        // 执行步骤
+        function goToStep(step) {
+            currentStep = step;
+            
+            switch(step) {
+                case 0:
+                    hideAllHighlights();
+                    arrowsGroup.style.display = 'none';
+                    updateCoordDisplay('请选择下一步查看点位坐标');
+                    break;
+                case 1:
+                    showHighlight('jia');
+                    arrowsGroup.style.display = 'none';
+                    updateCoordDisplay('甲：(0°, 66.5°N)');
+                    break;
+                case 2:
+                    showHighlight('yi');
+                    arrowsGroup.style.display = 'none';
+                    updateCoordDisplay('乙：(20°W, 23.5°N)');
+                    break;
+                case 3:
+                    showHighlight('bing');
+                    arrowsGroup.style.display = 'none';
+                    updateCoordDisplay('丙：(0°, 0°)');
+                    break;
+                case 4:
+                    showHighlight('ding');
+                    arrowsGroup.style.display = 'none';
+                    updateCoordDisplay('丁：(20°E, 23.5°S)');
+                    break;
+                case 5:
+                    showHighlight(['E', 'F']);
+                    arrowsGroup.style.display = 'none';
+                    updateCoordDisplay('E：(20°E, 0°)  F：(40°E, 66.5°N)');
+                    break;
+                case 6:
+                    showHighlight(['E', 'F']);
+                    arrowsGroup.style.display = 'block';
+                    updateCoordDisplay('方向指示：上北下南，左西右东');
+                    break;
+            }
+            
+            updateStepIndicator();
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                goToStep(currentStep - 1);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                goToStep(currentStep + 1);
+            }
+        });
+
+        // 初始化
+        updateStepIndicator();
+    })();
+    </script>
+</body>
+</html>

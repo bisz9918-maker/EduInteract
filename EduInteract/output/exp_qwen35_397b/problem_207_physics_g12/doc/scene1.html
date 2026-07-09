@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理情景与滑块A的运动过程</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-btn:hover:not(:disabled) { background: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 地面：水平线段 y=400，从x=50到x=750，带向下阴影线 -->
+            <line id="scene1-ground-line" x1="50" y1="400" x2="750" y2="400" stroke="#000000" stroke-width="2"/>
+            <g id="scene1-ground-shadows">
+                <!-- 地面阴影线 -->
+            </g>
+
+            <!-- 斜面主体：直角三角形，顶点(50,184)、(338,400)、(50,400) -->
+            <polygon id="scene1-incline" points="50,184 338,400 50,400" fill="#f5f5f5" stroke="#000000" stroke-width="2"/>
+
+            <!-- 木板 B：矩形(338,360)到(578,400) -->
+            <rect id="scene1-board-b" x="338" y="360" width="240" height="40" fill="#2e7d32" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+
+            <!-- 滑块 A：正方形 30×30px，初始位置在斜面顶端(40,169) -->
+            <rect id="scene1-block-a" x="40" y="169" width="30" height="30" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 运动箭头 1：沿斜面向下，从(150,250)到(220,300) -->
+            <g id="scene1-arrow1" style="display: none;">
+                <line x1="150" y1="250" x2="220" y2="300" stroke="#c62828" stroke-width="3"/>
+                <polygon points="220,300 210,293 213,300 210,307" fill="#c62828"/>
+            </g>
+
+            <!-- 运动箭头 2：水平向右，从(350,375)到(520,375) -->
+            <g id="scene1-arrow2" style="display: none;">
+                <line x1="350" y1="375" x2="520" y2="375" stroke="#c62828" stroke-width="3"/>
+                <polygon points="520,375 510,368 513,375 510,382" fill="#c62828"/>
+            </g>
+
+            <!-- 角度弧：半径 15px，圆心(318,380) -->
+            <path id="scene1-angle-arc" d="M 318 380 L 333 380 A 15 15 0 0 0 328 391" fill="none" stroke="#000000" stroke-width="1"/>
+
+            <!-- 标签：调整位置避免重叠 -->
+            <!-- α=37° 移到斜面底角左侧，地面上方 -->
+            <text id="scene1-label-alpha" x="285" y="390" font-size="14" fill="#000000">α=37°</text>
+            <!-- 9m 移到斜面上方更远位置，完全避开斜面多边形 -->
+            <text id="scene1-label-9m" x="250" y="220" font-size="14" fill="#000000">9m</text>
+            <!-- L=3m 移到木板上方更远位置 -->
+            <text id="scene1-label-l3m" x="458" y="310" font-size="14" fill="#000000">L=3m</text>
+            <!-- A 标签移到滑块上方 -->
+            <text id="scene1-label-a" x="55" y="145" font-size="14" fill="#000000">A</text>
+            <!-- B 标签移到木板上方，远离 L=3m -->
+            <text id="scene1-label-b" x="458" y="345" font-size="14" fill="#000000">B</text>
+            <!-- μ₁=0.5 移到地面下方 -->
+            <text id="scene1-label-mu1" x="100" y="435" font-size="14" fill="#000000">μ₁=0.5</text>
+            <!-- μ₂=? 移到地面下方右侧 -->
+            <text id="scene1-label-mu2" x="650" y="435" font-size="14" fill="#c62828">μ₂=?</text>
+            <!-- 刚好未滑下 移到更上方 -->
+            <text id="scene1-label-final" x="550" y="295" font-size="14" fill="#c62828" style="display: none;">刚好未滑下</text>
+
+            <!-- 步骤指示器：移到按钮上方更远位置 -->
+            <text id="scene1-step-indicator-svg" x="400" y="445" font-size="14" fill="#333" text-anchor="middle">步骤 0/3</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：物理情景与滑块A的运动过程
+
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 3;
+
+        // DOM 元素引用
+        const blockA = document.getElementById('scene1-block-a');
+        const arrow1 = document.getElementById('scene1-arrow1');
+        const arrow2 = document.getElementById('scene1-arrow2');
+        const labelFinal = document.getElementById('scene1-label-final');
+        const stepIndicator = document.getElementById('scene1-step-indicator-svg');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const boardB = document.getElementById('scene1-board-b');
+
+        // 滑块 A 的关键位置
+        const positions = {
+            top: { x: 40, y: 169 },      // 斜面顶端
+            bottom: { x: 308, y: 385 },  // 斜面底端
+            middle: { x: 450, y: 385 },  // B 中点
+            right: { x: 548, y: 385 }    // B 右端
+        };
+
+        // 地面阴影线生成
+        function createGroundShadows() {
+            const shadows = document.getElementById('scene1-ground-shadows');
+            for (let x = 50; x <= 750; x += 10) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x);
+                line.setAttribute('y1', 400);
+                line.setAttribute('x2', x - 5);
+                line.setAttribute('y2', 410);
+                line.setAttribute('stroke', '#888888');
+                line.setAttribute('stroke-width', '1');
+                shadows.appendChild(line);
+            }
+        }
+
+        // 显示/隐藏元素工具函数
+        function show(el) {
+            el.style.display = '';
+            el.style.opacity = '1';
+        }
+
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // 移动滑块 A 到指定位置
+        function moveBlockA(pos, callback) {
+            const duration = 400;
+            const startTime = performance.now();
+            const startX = parseFloat(blockA.getAttribute('x'));
+            const startY = parseFloat(blockA.getAttribute('y'));
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // 缓动函数
+                const eased = 1 - Math.pow(1 - progress, 3);
+                
+                const newX = startX + (pos.x - startX) * eased;
+                const newY = startY + (pos.y - startY) * eased;
+                
+                blockA.setAttribute('x', newX);
+                blockA.setAttribute('y', newY);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else if (callback) {
+                    callback();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            stepIndicator.textContent = `步骤 ${currentState}/${totalSteps}`;
+            
+            // 按钮状态
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === totalSteps;
+
+            // 根据当前状态显示/隐藏元素
+            switch (currentState) {
+                case 0:
+                    // 初始状态：只显示基础元素
+                    hide(arrow1);
+                    hide(arrow2);
+                    hide(labelFinal);
+                    moveBlockA(positions.top);
+                    boardB.setAttribute('stroke-width', '2');
+                    blockA.setAttribute('stroke-width', '2');
+                    break;
+                case 1:
+                    // A 从斜面顶端下滑
+                    show(arrow1);
+                    hide(arrow2);
+                    hide(labelFinal);
+                    moveBlockA(positions.bottom);
+                    boardB.setAttribute('stroke-width', '2');
+                    blockA.setAttribute('stroke-width', '2');
+                    break;
+                case 2:
+                    // A 滑上 B，减速滑行
+                    show(arrow1);
+                    show(arrow2);
+                    hide(labelFinal);
+                    moveBlockA(positions.middle);
+                    boardB.setAttribute('stroke-width', '2');
+                    blockA.setAttribute('stroke-width', '2');
+                    break;
+                case 3:
+                    // A 到达 B 右端，两者共速
+                    show(arrow1);
+                    show(arrow2);
+                    show(labelFinal);
+                    moveBlockA(positions.right);
+                    // 高亮显示
+                    boardB.setAttribute('stroke-width', '4');
+                    blockA.setAttribute('stroke-width', '4');
+                    break;
+            }
+        }
+
+        // 按钮事件处理
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        createGroundShadows();
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

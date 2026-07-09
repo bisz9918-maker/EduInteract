@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日照图综合分析 - Scene 2</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 按钮样式 */
+        .scene2-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene2-btn:hover {
+            background: #1565c0;
+        }
+        .scene2-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        /* 控件栏 */
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 闪烁动画 */
+        @keyframes scene2-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .scene2-pulsing {
+            animation: scene2-pulse 1s infinite;
+        }
+        /* 高亮样式 */
+        .scene2-highlight-terminator {
+            stroke: #c62828 !important;
+            stroke-width: 6px !important;
+        }
+        .scene2-highlight-tropic {
+            stroke: #c62828 !important;
+            stroke-width: 3px !important;
+        }
+        .scene2-highlight-meridian {
+            stroke: #c62828 !important;
+            stroke-width: 2px !important;
+        }
+        .scene2-highlight-meridian-blue {
+            stroke: #1565c0 !important;
+            stroke-width: 2px !important;
+        }
+        /* 极昼区域填充 */
+        #scene2-arctic-day {
+            fill: #fff9c4;
+            fill-opacity: 0;
+            transition: fill-opacity 0.5s;
+        }
+        #scene2-arctic-day.visible {
+            fill-opacity: 0.4;
+        }
+        /* 元素显隐 */
+        .scene2-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene2-visible {
+            opacity: 1;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头 -->
+            <defs>
+                <marker id="scene2-arrow-yellow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#fdd835" />
+                </marker>
+                <marker id="scene2-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- 夜半球（左半圆阴影） -->
+            <path id="scene2-night-hemisphere" d="M 230,110 A 140,140 0 0,0 230,390 L 230,250 Z" fill="#888888" fill-opacity="0.3" />
+
+            <!-- 纬线圈 - 圆心 (230,250) -->
+            <!-- 赤道圆 -->
+            <circle id="scene2-circle-equator" cx="230" cy="250" r="140" fill="none" stroke="#000000" stroke-width="2" />
+            <!-- 北回归线圆 -->
+            <circle id="scene2-circle-tropic" cx="230" cy="250" r="95" fill="none" stroke="#000000" stroke-width="1.5" />
+            <!-- 北极圈圆 -->
+            <circle id="scene2-circle-arctic" cx="230" cy="250" r="50" fill="none" stroke="#000000" stroke-width="1" />
+
+            <!-- 极昼区域（北极圈内部） -->
+            <circle id="scene2-arctic-day" cx="230" cy="250" r="50" fill="#fff9c4" fill-opacity="0" />
+
+            <!-- 经线（辐射状虚线） -->
+            <!-- 0°经线（向左） -->
+            <line id="scene2-meridian-0" x1="230" y1="250" x2="90" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+            <!-- 180°经线（向右） -->
+            <line id="scene2-meridian-180" x1="230" y1="250" x2="370" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+            <!-- 90°E经线（向上） -->
+            <line id="scene2-meridian-90E" x1="230" y1="250" x2="230" y2="110" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+            <!-- 90°W经线（向下） -->
+            <line id="scene2-meridian-90W" x1="230" y1="250" x2="230" y2="390" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- 晨昏线（垂直粗实线） -->
+            <line id="scene2-line-terminator" x1="230" y1="110" x2="230" y2="390" stroke="#000000" stroke-width="4" />
+
+            <!-- 太阳光线（三条平行箭头） -->
+            <line id="scene2-sun-ray-1" x1="470" y1="200" x2="420" y2="200" stroke="#fdd835" stroke-width="3" marker-end="url(#scene2-arrow-yellow)" />
+            <line id="scene2-sun-ray-2" x1="470" y1="250" x2="420" y2="250" stroke="#fdd835" stroke-width="3" marker-end="url(#scene2-arrow-yellow)" />
+            <line id="scene2-sun-ray-3" x1="470" y1="300" x2="420" y2="300" stroke="#fdd835" stroke-width="3" marker-end="url(#scene2-arrow-yellow)" />
+
+            <!-- 自转方向箭头（逆时针弧形） -->
+            <path id="scene2-rotation-arrow" d="M 120,280 A 40,40 0 0,1 150,250" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrow-black)" />
+
+            <!-- E、F、G 点 - 调整位置，标签放圆外 -->
+            <!-- E 点：放在北极圈上左侧，标签放更左 -->
+            <circle id="scene2-point-e" cx="185" cy="210" r="5" fill="#1565c0" />
+            <!-- F 点：放在北回归线上右侧，标签放更上 -->
+            <circle id="scene2-point-f" cx="295" cy="225" r="5" fill="#1565c0" />
+            <!-- G 点：放在赤道上右侧，标签放更右 -->
+            <circle id="scene2-point-g" cx="365" cy="250" r="5" fill="#1565c0" />
+
+            <!-- 直射点 -->
+            <circle id="scene2-point-subsolar" cx="325" cy="250" r="6" fill="#c62828" class="scene2-hidden" />
+
+            <!-- 标签 - 全部移到图形外部，避免与圆重叠 -->
+            <!-- 北极点标签 - 放在最上方 -->
+            <text id="scene2-label-north-pole" x="230" y="50" text-anchor="middle" font-size="13" fill="#000000">北极点</text>
+            <!-- 0°经线标签 - 放在左侧外部 -->
+            <text id="scene2-label-0deg" x="55" y="255" text-anchor="end" font-size="13" fill="#000000">0°</text>
+            <!-- 180°经线标签 - 放在右侧外部更远 -->
+            <text id="scene2-label-180deg" x="415" y="255" text-anchor="start" font-size="13" fill="#000000">180°</text>
+            <!-- 赤道标签 - 放在下方 -->
+            <text id="scene2-label-equator" x="230" y="430" text-anchor="middle" font-size="13" fill="#000000">赤道</text>
+            <!-- 北回归线标签 - 放在右上方外部远处 -->
+            <text id="scene2-label-tropic" x="400" y="155" text-anchor="start" font-size="12" fill="#000000">北回归线</text>
+            <!-- 北极圈标签 - 放在正上方外部，远离圆 -->
+            <text id="scene2-label-arctic" x="230" y="165" text-anchor="middle" font-size="12" fill="#000000">北极圈</text>
+            <!-- E 点标签 - 放在点左侧远处 -->
+            <text id="scene2-label-e" x="155" y="215" text-anchor="end" font-size="13" fill="#1565c0" font-weight="bold">E</text>
+            <!-- F 点标签 - 放在点上方远处 -->
+            <text id="scene2-label-f" x="295" y="200" text-anchor="middle" font-size="13" fill="#1565c0" font-weight="bold">F</text>
+            <!-- G 点标签 - 放在点右上方远处 -->
+            <text id="scene2-label-g" x="390" y="240" text-anchor="start" font-size="13" fill="#1565c0" font-weight="bold">G</text>
+            <!-- 直射点标签 - 放在点上方 -->
+            <text id="scene2-label-subsolar" x="325" y="225" text-anchor="middle" font-size="12" fill="#c62828" class="scene2-hidden">直射点</text>
+            <!-- 晨线标签 - 放在左下方 -->
+            <text id="scene2-label-morning" x="195" y="400" text-anchor="end" font-size="12" fill="#000000" class="scene2-hidden">晨线</text>
+            <!-- 昏线标签 - 放在右上方 -->
+            <text id="scene2-label-evening" x="265" y="85" text-anchor="start" font-size="12" fill="#000000" class="scene2-hidden">昏线</text>
+
+            <!-- 信息面板背景 - 放在右侧 -->
+            <rect id="scene2-info-bg" x="510" y="45" width="270" height="385" fill="#ffffff" stroke="#cccccc" stroke-width="1" />
+            <!-- 信息标题 - 放在 rect 上方外部 -->
+            <text id="scene2-info-title" x="525" y="25" text-anchor="start" font-size="16" font-weight="bold" fill="#000000">综合分析</text>
+            <!-- 信息内容区 -->
+            <foreignObject id="scene2-info-content" x="525" y="40" width="245" height="340">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; color:#333; line-height:1.5;">
+                    <div id="scene2-info-text">步骤 0：基础日照图</div>
+                </div>
+            </foreignObject>
+
+            <!-- 线速度比较条（初始隐藏）- 调整位置 -->
+            <g id="scene2-velocity-bars" class="scene2-hidden">
+                <!-- G 行 -->
+                <text x="525" y="310" font-size="10" fill="#000000">G</text>
+                <rect x="550" y="302" width="60" height="10" fill="#e0e0e0" />
+                <rect x="550" y="302" width="60" height="10" fill="#4caf50" />
+                <text x="620" y="310" font-size="10" fill="#000000">赤道</text>
+
+                <!-- F 行 -->
+                <text x="525" y="335" font-size="10" fill="#000000">F</text>
+                <rect x="550" y="327" width="60" height="10" fill="#e0e0e0" />
+                <rect x="550" y="327" width="46" height="10" fill="#4caf50" />
+                <text x="620" y="335" font-size="10" fill="#000000">北回归线</text>
+
+                <!-- E 行 -->
+                <text x="525" y="360" font-size="10" fill="#000000">E</text>
+                <rect x="550" y="352" width="60" height="10" fill="#e0e0e0" />
+                <rect x="550" y="352" width="24" height="10" fill="#4caf50" />
+                <text x="620" y="360" font-size="10" fill="#000000">北极圈</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/6</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 日照图综合分析
+
+        const currentStep = { value: 0 };
+        const totalSteps = 6;
+
+        // 每步的信息内容
+        const stepInfo = {
+            0: "步骤 0：基础日照图<br/>- 展示极地俯视图<br/>- 包含纬线圈、经线、晨昏线<br/>- 太阳光线从右侧射入",
+            1: "步骤 1：晨昏线识别<br/>- 晨昏线：昼夜分界线<br/>- 左侧为夜半球（阴影）<br/>- 右侧为昼半球（白色）<br/>- 顺着自转方向，由夜入昼为晨线",
+            2: "步骤 2：极昼现象与日期<br/>- 北极圈以内出现极昼<br/>- 太阳直射北回归线<br/>- 日期：6 月 22 日前后（夏至）<br/>- 答案：B.6 月 18 日 或 D.6 月 22 日",
+            3: "步骤 3：太阳直射点坐标<br/>- 纬度：23°26′N（北回归线）<br/>- 经度：180°（昼半球中央经线）<br/>- 直射点坐标：(23°26′N, 180°)",
+            4: "步骤 4：北京时间计算<br/>- 180°经线地方时 = 12:00<br/>- 120°E 与 180°相差 60°<br/>- 时间差 = 60°÷15°/h = 4 小时<br/>- 北京时间 = 12:00 - 4h = 8:00",
+            5: "步骤 5：昼夜长短与太阳高度<br/>- 佛山昼夜情况：昼长夜短<br/>- 佛山正午太阳高度：<br/>  H = 90° - |23°03′ - 23°26′|<br/>  H = 89°37′<br/>- 从北回归线向南北递减",
+            6: "步骤 6：自转线速度比较<br/>- 规律：纬度越低，线速度越大<br/>- 排序：G > F > E<br/>- G（赤道）：约 1670 km/h<br/>- F（23°26′N）：约 1536 km/h<br/>- E（66°34′N）：约 665 km/h"
+        };
+
+        // 获取元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const infoText = document.getElementById('scene2-info-text');
+
+        // 元素引用
+        const terminatorLine = document.getElementById('scene2-line-terminator');
+        const labelMorning = document.getElementById('scene2-label-morning');
+        const labelEvening = document.getElementById('scene2-label-evening');
+        const arcticDay = document.getElementById('scene2-arctic-day');
+        const pointSubsolar = document.getElementById('scene2-point-subsolar');
+        const labelSubsolar = document.getElementById('scene2-label-subsolar');
+        const circleTropic = document.getElementById('scene2-circle-tropic');
+        const meridian180 = document.getElementById('scene2-meridian-180');
+        const meridian0 = document.getElementById('scene2-meridian-0');
+        const velocityBars = document.getElementById('scene2-velocity-bars');
+
+        // 显示/隐藏工具函数
+        function show(el) {
+            el.classList.remove('scene2-hidden');
+            el.classList.add('scene2-visible');
+            if (el.style) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            el.classList.remove('scene2-visible');
+            el.classList.add('scene2-hidden');
+            if (el.style) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            const step = currentStep.value;
+
+            // 更新按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps);
+            btnNext.textContent = (step === totalSteps) ? '完成' : '下一步 ▶';
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${step}/${totalSteps}`;
+
+            // 更新信息面板
+            infoText.innerHTML = stepInfo[step];
+
+            // 重置所有高亮
+            terminatorLine.classList.remove('scene2-highlight-terminator');
+            circleTropic.classList.remove('scene2-highlight-tropic');
+            meridian180.classList.remove('scene2-highlight-meridian');
+            meridian0.classList.remove('scene2-highlight-meridian-blue');
+            arcticDay.classList.remove('visible');
+            pointSubsolar.classList.remove('scene2-pulsing');
+
+            // 步骤 0：基础状态
+            hide(labelMorning);
+            hide(labelEvening);
+            arcticDay.classList.remove('visible');
+            hide(pointSubsolar);
+            hide(labelSubsolar);
+            circleTropic.classList.remove('scene2-highlight-tropic');
+            meridian180.classList.remove('scene2-highlight-meridian');
+            meridian0.classList.remove('scene2-highlight-meridian-blue');
+            hide(velocityBars);
+
+            // 步骤 1：晨昏线高亮
+            if (step >= 1) {
+                terminatorLine.classList.add('scene2-highlight-terminator');
+                show(labelMorning);
+                show(labelEvening);
+            } else {
+                terminatorLine.classList.remove('scene2-highlight-terminator');
+            }
+
+            // 步骤 2：极昼区域
+            if (step >= 2) {
+                arcticDay.classList.add('visible');
+            } else {
+                arcticDay.classList.remove('visible');
+            }
+
+            // 步骤 3：直射点高亮
+            if (step >= 3) {
+                show(pointSubsolar);
+                show(labelSubsolar);
+                pointSubsolar.classList.add('scene2-pulsing');
+                circleTropic.classList.add('scene2-highlight-tropic');
+                meridian180.classList.add('scene2-highlight-meridian');
+            } else {
+                hide(pointSubsolar);
+                hide(labelSubsolar);
+                pointSubsolar.classList.remove('scene2-pulsing');
+            }
+
+            // 步骤 4：时间计算高亮
+            if (step >= 4) {
+                meridian0.classList.add('scene2-highlight-meridian-blue');
+                meridian180.classList.add('scene2-highlight-meridian');
+            } else {
+                meridian0.classList.remove('scene2-highlight-meridian-blue');
+            }
+
+            // 步骤 6：线速度比较条
+            if (step >= 6) {
+                show(velocityBars);
+            } else {
+                hide(velocityBars);
+            }
+        }
+
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep.value > 0) {
+                currentStep.value--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep.value < totalSteps) {
+                currentStep.value++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

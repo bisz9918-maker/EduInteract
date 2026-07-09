@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>碳四价规则与碳链键型推导</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        .scene2-btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        .scene2-btn-prev {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .scene2-btn-prev:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene2-btn-next {
+            background: #1565c0;
+            color: #fff;
+        }
+        .scene2-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* HTML 覆盖层 - 分析面板 */
+        .scene2-analysis-panel {
+            position: absolute;
+            left: 200px;
+            top: 268px;
+            width: 400px;
+            height: 70px;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            box-sizing: border-box;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.5;
+            z-index: 5;
+        }
+
+        /* HTML 覆盖层 - 放大示意图 */
+        .scene2-zoom-box {
+            position: absolute;
+            left: 420px;
+            top: 276px;
+            width: 160px;
+            height: 54px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            z-index: 6;
+        }
+        .scene2-zoom-box.active { display: flex; }
+        .scene2-zoom-atom {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #000;
+            flex-shrink: 0;
+        }
+        .scene2-zoom-atom.x-atom {
+            background: repeating-linear-gradient(45deg, #d7ccc8, #d7ccc8 2px, #8d6e63 2px, #8d6e63 3px);
+        }
+        .scene2-zoom-bond {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            align-items: center;
+        }
+        .scene2-zoom-bond-line {
+            width: 60px;
+            height: 2px;
+            background: #000;
+        }
+        .scene2-zoom-label {
+            font-size: 12px;
+            color: #333;
+            margin-left: 4px;
+        }
+
+        /* HTML 覆盖层 - 选项卡片 */
+        .scene2-option-card {
+            position: absolute;
+            width: 130px;
+            height: 35px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            color: #333;
+            transition: background 0.3s, border-color 0.3s, color 0.3s;
+            z-index: 5;
+        }
+        .scene2-option-card.wrong {
+            background: rgba(198, 40, 40, 0.2);
+            border-color: #c62828;
+            color: #c62828;
+        }
+        .scene2-option-card.correct {
+            background: rgba(46, 125, 50, 0.2);
+            border-color: #2e7d32;
+            color: #2e7d32;
+        }
+
+        /* SVG 内部样式 */
+        .scene2-atom-label { font-size: 14px; text-anchor: middle; fill: #000; }
+        .scene2-valence-label { font-size: 12px; text-anchor: middle; }
+        .scene2-position-label { font-size: 14px; text-anchor: middle; fill: #000; }
+        .scene2-highlight-ring {
+            fill: none;
+            stroke: #1565c0;
+            stroke-width: 3;
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+        }
+        .scene2-highlight-ring.active { opacity: 1; }
+
+        .scene2-bond-pending { stroke: #cccccc; stroke-width: 1; }
+        .scene2-bond-current { stroke: #1565c0; stroke-width: 3; }
+        .scene2-bond-done { stroke: #000000; stroke-width: 2; }
+
+        .scene2-lead-line {
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 4,2;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .scene2-lead-line.active { opacity: 1; }
+
+        .scene2-legend-text { font-size: 12px; fill: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义 -->
+            <defs>
+                <!-- X球斜线纹理 -->
+                <pattern id="scene2-x-pattern" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                    <rect width="6" height="6" fill="#d7ccc8"/>
+                    <line x1="0" y1="0" x2="0" y2="6" stroke="#8d6e63" stroke-width="1"/>
+                </pattern>
+            </defs>
+
+            <!-- 图例 -->
+            <circle cx="60" cy="50" r="8" fill="#fff" stroke="#000" stroke-width="1.5"/>
+            <text x="75" y="54" class="scene2-legend-text">氢原子</text>
+            <circle cx="150" cy="50" r="8" fill="#000" stroke="#000" stroke-width="1.5"/>
+            <text x="165" y="54" class="scene2-legend-text">碳原子</text>
+
+            <!-- ===== 原子球 ===== -->
+            <!-- H球 -->
+            <circle id="scene2-atom-h" cx="177" cy="190" r="12" fill="#fff" stroke="#000" stroke-width="1.5"/>
+            <text id="scene2-label-h" x="177" y="218" class="scene2-atom-label">H</text>
+
+            <!-- C1~C9球 -->
+            <g id="scene2-c-atoms">
+                <circle id="scene2-atom-c1" cx="219" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c2" cx="264" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c3" cx="309" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c4" cx="354" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c5" cx="399" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c6" cx="444" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c7" cx="489" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c8" cx="534" cy="190" r="14" fill="#000"/>
+                <circle id="scene2-atom-c9" cx="579" cy="190" r="14" fill="#000"/>
+            </g>
+
+            <!-- X球 -->
+            <circle id="scene2-atom-x" cx="621" cy="190" r="14" fill="url(#scene2-x-pattern)" stroke="#8d6e63" stroke-width="1.5"/>
+            <text id="scene2-label-x" x="621" y="218" class="scene2-atom-label">X</text>
+
+            <!-- 原子标签 C1~C9 -->
+            <text id="scene2-label-c1" x="219" y="218" class="scene2-atom-label">C₁</text>
+            <text id="scene2-label-c2" x="264" y="218" class="scene2-atom-label">C₂</text>
+            <text id="scene2-label-c3" x="309" y="218" class="scene2-atom-label">C₃</text>
+            <text id="scene2-label-c4" x="354" y="218" class="scene2-atom-label">C₄</text>
+            <text id="scene2-label-c5" x="399" y="218" class="scene2-atom-label">C₅</text>
+            <text id="scene2-label-c6" x="444" y="218" class="scene2-atom-label">C₆</text>
+            <text id="scene2-label-c7" x="489" y="218" class="scene2-atom-label">C₇</text>
+            <text id="scene2-label-c8" x="534" y="218" class="scene2-atom-label">C₈</text>
+            <text id="scene2-label-c9" x="579" y="218" class="scene2-atom-label">C₉</text>
+
+            <!-- 高亮环（在球上方） -->
+            <circle id="scene2-highlight-c1" cx="219" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c2" cx="264" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c3" cx="309" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c4" cx="354" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c5" cx="399" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c6" cx="444" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c7" cx="489" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c8" cx="534" cy="190" r="17" class="scene2-highlight-ring"/>
+            <circle id="scene2-highlight-c9" cx="579" cy="190" r="17" class="scene2-highlight-ring"/>
+
+            <!-- ===== 化学键 ===== -->
+            <!-- H-C1 单键 -->
+            <g id="scene2-bond-h-c1">
+                <line x1="189" y1="190" x2="205" y2="190" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C1-C2 键组 -->
+            <g id="scene2-bond-c1-c2">
+                <line x1="233" y1="187" x2="250" y2="187" class="scene2-bond-pending"/>
+                <line x1="233" y1="190" x2="250" y2="190" class="scene2-bond-pending"/>
+                <line x1="233" y1="193" x2="250" y2="193" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C2-C3 单键 -->
+            <g id="scene2-bond-c2-c3">
+                <line x1="278" y1="190" x2="295" y2="190" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C3-C4(①) 键组 -->
+            <g id="scene2-bond-c3-c4">
+                <line x1="323" y1="187" x2="340" y2="187" class="scene2-bond-pending"/>
+                <line x1="323" y1="190" x2="340" y2="190" class="scene2-bond-pending"/>
+                <line x1="323" y1="193" x2="340" y2="193" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C4-C5 单键 -->
+            <g id="scene2-bond-c4-c5">
+                <line x1="368" y1="190" x2="385" y2="190" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C5-C6 键组 -->
+            <g id="scene2-bond-c5-c6">
+                <line x1="413" y1="187" x2="430" y2="187" class="scene2-bond-pending"/>
+                <line x1="413" y1="190" x2="430" y2="190" class="scene2-bond-pending"/>
+                <line x1="413" y1="193" x2="430" y2="193" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C6-C7 单键 -->
+            <g id="scene2-bond-c6-c7">
+                <line x1="458" y1="190" x2="475" y2="190" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C7-C8 键组 -->
+            <g id="scene2-bond-c7-c8">
+                <line x1="503" y1="187" x2="520" y2="187" class="scene2-bond-pending"/>
+                <line x1="503" y1="190" x2="520" y2="190" class="scene2-bond-pending"/>
+                <line x1="503" y1="193" x2="520" y2="193" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C8-C9(②) 单键 -->
+            <g id="scene2-bond-c8-c9">
+                <line x1="548" y1="190" x2="565" y2="190" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- C9-X 键组 -->
+            <g id="scene2-bond-c9-x">
+                <line x1="593" y1="187" x2="607" y2="187" class="scene2-bond-pending"/>
+                <line x1="593" y1="190" x2="607" y2="190" class="scene2-bond-pending"/>
+                <line x1="593" y1="193" x2="607" y2="193" class="scene2-bond-pending"/>
+            </g>
+
+            <!-- ===== 位置标记 ①②③ ===== -->
+            <text id="scene2-mark-1" x="331" y="252" class="scene2-position-label">①</text>
+            <text id="scene2-mark-2" x="556" y="252" class="scene2-position-label">②</text>
+            <text id="scene2-mark-3" x="621" y="252" class="scene2-position-label">③</text>
+
+            <!-- ===== 价键计数标签 ===== -->
+            <text id="scene2-valence-c1" x="219" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c2" x="264" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c3" x="309" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c4" x="354" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c5" x="399" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c6" x="444" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c7" x="489" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c8" x="534" y="155" class="scene2-valence-label" fill="#888">待</text>
+            <text id="scene2-valence-c9" x="579" y="155" class="scene2-valence-label" fill="#888">待</text>
+
+            <!-- ===== 虚线引线 ===== -->
+            <line id="scene2-lead-1" x1="331" y1="259" x2="500" y2="276" class="scene2-lead-line"/>
+            <line id="scene2-lead-2" x1="556" y1="259" x2="500" y2="276" class="scene2-lead-line"/>
+            <line id="scene2-lead-3" x1="621" y1="259" x2="500" y2="276" class="scene2-lead-line"/>
+        </svg>
+
+        <!-- HTML 覆盖层：分析面板 -->
+        <div id="scene2-analysis-panel" class="scene2-analysis-panel">
+            从分子左端开始，利用碳四价规则<br>逐步推导每个碳原子的键型
+        </div>
+
+        <!-- HTML 覆盖层：放大示意图 -->
+        <div id="scene2-zoom-box" class="scene2-zoom-box">
+            <div id="scene2-zoom-left" class="scene2-zoom-atom"></div>
+            <div id="scene2-zoom-bond" class="scene2-zoom-bond">
+                <div class="scene2-zoom-bond-line"></div>
+                <div class="scene2-zoom-bond-line" style="display:none"></div>
+                <div class="scene2-zoom-bond-line" style="display:none"></div>
+            </div>
+            <div id="scene2-zoom-right" class="scene2-zoom-atom"></div>
+            <div id="scene2-zoom-label" class="scene2-zoom-label">单键</div>
+        </div>
+
+        <!-- HTML 覆盖层：选项卡片 -->
+        <div id="scene2-option-a" class="scene2-option-card" style="left:125px;top:355px;">A. 属于烃类</div>
+        <div id="scene2-option-b" class="scene2-option-card" style="left:265px;top:355px;">B. ①处为双键</div>
+        <div id="scene2-option-c" class="scene2-option-card" style="left:405px;top:355px;">C. ②处为单键</div>
+        <div id="scene2-option-d" class="scene2-option-card" style="left:545px;top:355px;">D. ③为Cl/F</div>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn scene2-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 0/7</span>
+            <button id="scene2-btn-next" class="scene2-btn scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // ===== 状态变量 =====
+        let currentStep = 0;
+        const totalSteps = 7;
+        let isAnimating = false;
+
+        // ===== DOM 元素缓存 =====
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const analysisPanel = document.getElementById('scene2-analysis-panel');
+        const zoomBox = document.getElementById('scene2-zoom-box');
+
+        // 高亮环
+        const highlights = {};
+        for (let i = 1; i <= 9; i++) {
+            highlights['c' + i] = document.getElementById('scene2-highlight-c' + i);
+        }
+
+        // 价键标签
+        const valenceLabels = {};
+        for (let i = 1; i <= 9; i++) {
+            valenceLabels['c' + i] = document.getElementById('scene2-valence-c' + i);
+        }
+
+        // 键组
+        const bonds = {
+            'h-c1': document.getElementById('scene2-bond-h-c1'),
+            'c1-c2': document.getElementById('scene2-bond-c1-c2'),
+            'c2-c3': document.getElementById('scene2-bond-c2-c3'),
+            'c3-c4': document.getElementById('scene2-bond-c3-c4'),
+            'c4-c5': document.getElementById('scene2-bond-c4-c5'),
+            'c5-c6': document.getElementById('scene2-bond-c5-c6'),
+            'c6-c7': document.getElementById('scene2-bond-c6-c7'),
+            'c7-c8': document.getElementById('scene2-bond-c7-c8'),
+            'c8-c9': document.getElementById('scene2-bond-c8-c9'),
+            'c9-x': document.getElementById('scene2-bond-c9-x'),
+        };
+
+        // 引线
+        const leads = {
+            1: document.getElementById('scene2-lead-1'),
+            2: document.getElementById('scene2-lead-2'),
+            3: document.getElementById('scene2-lead-3'),
+        };
+
+        // 选项
+        const options = {
+            a: document.getElementById('scene2-option-a'),
+            b: document.getElementById('scene2-option-b'),
+            c: document.getElementById('scene2-option-c'),
+            d: document.getElementById('scene2-option-d'),
+        };
+
+        // 放大区
+        const zoomBondLines = document.querySelectorAll('#scene2-zoom-bond .scene2-zoom-bond-line');
+        const zoomLabel = document.getElementById('scene2-zoom-label');
+        const zoomLeft = document.getElementById('scene2-zoom-left');
+        const zoomRight = document.getElementById('scene2-zoom-right');
+
+        // ===== 工具函数 =====
+        function setBondState(bondKey, state) {
+            const group = bonds[bondKey];
+            if (!group) return;
+            const lines = group.querySelectorAll('line');
+            lines.forEach(line => {
+                line.setAttribute('class', 'scene2-bond-' + state);
+            });
+        }
+
+        function setHighlight(atomKey, active) {
+            const el = highlights[atomKey];
+            if (!el) return;
+            if (active) el.classList.add('active');
+            else el.classList.remove('active');
+        }
+
+        function setValence(atomKey, text, color) {
+            const el = valenceLabels[atomKey];
+            if (!el) return;
+            el.textContent = text;
+            el.setAttribute('fill', color);
+        }
+
+        function setAnalysis(html) {
+            analysisPanel.innerHTML = html;
+        }
+
+        function setLead(num, active) {
+            const el = leads[num];
+            if (!el) return;
+            if (active) el.classList.add('active');
+            else el.classList.remove('active');
+        }
+
+        function setZoom(bondType, label, isX) {
+            if (bondType === 'single') {
+                zoomBondLines[0].style.display = 'block';
+                zoomBondLines[1].style.display = 'none';
+                zoomBondLines[2].style.display = 'none';
+            } else if (bondType === 'triple') {
+                zoomBondLines[0].style.display = 'block';
+                zoomBondLines[1].style.display = 'block';
+                zoomBondLines[2].style.display = 'block';
+            }
+            zoomLabel.textContent = label;
+            zoomLeft.className = 'scene2-zoom-atom';
+            zoomRight.className = isX ? 'scene2-zoom-atom x-atom' : 'scene2-zoom-atom';
+        }
+
+        function showZoom(active) {
+            if (active) zoomBox.classList.add('active');
+            else zoomBox.classList.remove('active');
+        }
+
+        function setOption(optKey, state) {
+            const opt = options[optKey];
+            if (!opt) return;
+            opt.classList.remove('wrong', 'correct');
+            if (state === 'wrong' || state === 'correct') {
+                opt.classList.add(state);
+            }
+        }
+
+        function resetAll() {
+            Object.keys(bonds).forEach(k => setBondState(k, 'pending'));
+            Object.keys(highlights).forEach(k => setHighlight(k, false));
+            for (let i = 1; i <= 9; i++) {
+                setValence('c' + i, '待', '#888');
+            }
+            Object.keys(leads).forEach(k => setLead(k, false));
+            showZoom(false);
+            Object.keys(options).forEach(k => setOption(k, 'neutral'));
+        }
+
+        // ===== 分步渲染 =====
+        function renderStep(step) {
+            resetAll();
+            stepIndicator.textContent = '步骤 ' + step + '/7';
+            btnPrev.disabled = step === 0;
+            btnNext.textContent = step === totalSteps ? '重新开始' : '下一步 ▶';
+
+            switch (step) {
+                case 0:
+                    setAnalysis('从分子左端开始，利用碳四价规则<br>逐步推导每个碳原子的键型');
+                    break;
+
+                case 1:
+                    setHighlight('c1', true);
+                    setValence('c1', '剩3', '#1565c0');
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'current');
+                    setAnalysis('C₁已连接1个H原子（单键），<br>剩余3个价键 → 与C₂形成三键');
+                    break;
+
+                case 2:
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'done');
+                    setBondState('c2-c3', 'current');
+                    setHighlight('c2', true);
+                    setValence('c1', '✓', '#000');
+                    setValence('c2', '剩1', '#1565c0');
+                    setAnalysis('C₂已用3键（与C₁三键），<br>剩余1个价键 → 与C₃形成单键');
+                    break;
+
+                case 3:
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'done');
+                    setBondState('c2-c3', 'done');
+                    setBondState('c3-c4', 'current');
+                    setHighlight('c3', true);
+                    setValence('c1', '✓', '#000');
+                    setValence('c2', '✓', '#000');
+                    setValence('c3', '剩3', '#1565c0');
+                    setAnalysis('C₃已用1键（与C₂单键），<br>剩余3个价键 → 与C₄形成三键（①处）');
+                    break;
+
+                case 4:
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'done');
+                    setBondState('c2-c3', 'done');
+                    setBondState('c3-c4', 'done');
+                    setBondState('c4-c5', 'done');
+                    setBondState('c5-c6', 'done');
+                    setBondState('c6-c7', 'done');
+                    setBondState('c7-c8', 'done');
+                    setBondState('c8-c9', 'done');
+                    setBondState('c9-x', 'done');
+                    for (let i = 1; i <= 9; i++) {
+                        setValence('c' + i, '✓', '#000');
+                    }
+                    setAnalysis('规律：单键-三键交替出现，<br>所有碳原子均满足四价');
+                    break;
+
+                case 5:
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'done');
+                    setBondState('c2-c3', 'done');
+                    setBondState('c3-c4', 'done');
+                    setBondState('c4-c5', 'done');
+                    setBondState('c5-c6', 'done');
+                    setBondState('c6-c7', 'done');
+                    setBondState('c7-c8', 'done');
+                    setBondState('c8-c9', 'done');
+                    setBondState('c9-x', 'done');
+                    for (let i = 1; i <= 9; i++) {
+                        setValence('c' + i, '✓', '#000');
+                    }
+                    setLead(1, true);
+                    showZoom(true);
+                    setZoom('triple', '三键', false);
+                    setOption('b', 'wrong');
+                    setAnalysis('①处实际为三键，不是双键<br>→ 选项B错误');
+                    break;
+
+                case 6:
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'done');
+                    setBondState('c2-c3', 'done');
+                    setBondState('c3-c4', 'done');
+                    setBondState('c4-c5', 'done');
+                    setBondState('c5-c6', 'done');
+                    setBondState('c6-c7', 'done');
+                    setBondState('c7-c8', 'done');
+                    setBondState('c8-c9', 'done');
+                    setBondState('c9-x', 'done');
+                    for (let i = 1; i <= 9; i++) {
+                        setValence('c' + i, '✓', '#000');
+                    }
+                    setLead(2, true);
+                    showZoom(true);
+                    setZoom('single', '单键', false);
+                    setOption('b', 'wrong');
+                    setOption('c', 'correct');
+                    setAnalysis('②处为单键<br>→ 选项C正确');
+                    break;
+
+                case 7:
+                    setBondState('h-c1', 'done');
+                    setBondState('c1-c2', 'done');
+                    setBondState('c2-c3', 'done');
+                    setBondState('c3-c4', 'done');
+                    setBondState('c4-c5', 'done');
+                    setBondState('c5-c6', 'done');
+                    setBondState('c6-c7', 'done');
+                    setBondState('c7-c8', 'done');
+                    setBondState('c8-c9', 'done');
+                    setBondState('c9-x', 'done');
+                    for (let i = 1; i <= 9; i++) {
+                        setValence('c' + i, '✓', '#000');
+                    }
+                    setLead(3, true);
+                    showZoom(true);
+                    setZoom('triple', '三键', true);
+                    setOption('a', 'wrong');
+                    setOption('b', 'wrong');
+                    setOption('c', 'correct');
+                    setOption('d', 'wrong');
+                    setAnalysis('C₉剩余3价，与X形成三键。Cl/F只能单键<br>→ D错误；含X非烃 → A也错误');
+                    break;
+            }
+        }
+
+        // ===== 事件绑定 =====
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0 && !isAnimating) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (isAnimating) return;
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            } else {
+                currentStep = 0;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

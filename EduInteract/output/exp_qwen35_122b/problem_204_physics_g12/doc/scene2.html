@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 圆盘转动系统临界状态分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; cursor: pointer; transition: all 0.2s; }
+        .scene2-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene2-btn:disabled { border-color: #cccccc; color: #cccccc; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333333; line-height: 34px; min-width: 100px; text-align: center; }
+        .scene2-critical-label { font-size: 13px; font-weight: bold; fill: #c62828; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 圆盘 -->
+            <ellipse cx="400" cy="250" rx="180" ry="90" fill="#f5f5f5" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 转轴 -->
+            <rect x="395" y="100" width="10" height="300" fill="#666666"/>
+            
+            <!-- 旋转箭头（弧形） -->
+            <path d="M 440 180 A 60 60 0 0 1 470 210" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+            </defs>
+            
+            <!-- 圆心 O -->
+            <circle cx="400" cy="250" r="4" fill="#000000"/>
+            <text id="scene2-label-O" x="385" y="155" font-size="16" fill="#000000">O</text>
+            
+            <!-- 物体 B -->
+            <rect id="scene2-obj-B" x="450" y="240" width="30" height="20" fill="rgba(21, 101, 192, 0.2)" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-B" x="465" y="150" font-size="16" fill="#000000">B</text>
+            
+            <!-- 物体 A -->
+            <rect id="scene2-obj-A" x="560" y="240" width="30" height="20" fill="rgba(21, 101, 192, 0.2)" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-A" x="575" y="150" font-size="16" fill="#000000">A</text>
+            
+            <!-- 半径辅助线 OB -->
+            <line id="scene2-line-OB" x1="400" y1="250" x2="465" y2="250" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 半径辅助线 AB -->
+            <line id="scene2-line-AB" x1="465" y1="250" x2="575" y2="250" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 距离标注 r_B -->
+            <text id="scene2-label-rB" x="432" y="355" font-size="14" fill="#000000">r<sub>B</sub></text>
+            
+            <!-- 距离标注 r_A -->
+            <text id="scene2-label-rA" x="520" y="355" font-size="14" fill="#000000">r<sub>A</sub></text>
+            
+            <!-- 力矢量 f_B（指向圆心，向左） -->
+            <g id="scene2-group-fB">
+                <line id="scene2-arrow-fB" x1="465" y1="250" x2="420" y2="250" stroke="#f57c00" stroke-width="3" marker-end="url(#arrowhead-fB)"/>
+                <defs>
+                    <marker id="arrowhead-fB" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#f57c00"/>
+                    </marker>
+                </defs>
+                <text id="scene2-label-fB" x="442" y="235" font-size="14" fill="#f57c00">f<sub>B</sub></text>
+            </g>
+            
+            <!-- 力矢量 f_A（指向圆心，向左） -->
+            <g id="scene2-group-fA">
+                <line id="scene2-arrow-fA" x1="575" y1="250" x2="480" y2="250" stroke="#f57c00" stroke-width="3" marker-end="url(#arrowhead-fA)"/>
+                <defs>
+                    <marker id="arrowhead-fA" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#f57c00"/>
+                    </marker>
+                </defs>
+                <text id="scene2-label-fA" x="527" y="235" font-size="14" fill="#f57c00">f<sub>A</sub></text>
+            </g>
+            
+            <!-- 力矢量 T_AB 作用于 B（向右） -->
+            <g id="scene2-group-TAB-B" style="display: none;">
+                <line id="scene2-arrow-TAB-B" x1="465" y1="250" x2="500" y2="250" stroke="#2e7d32" stroke-width="3" marker-end="url(#arrowhead-TAB)"/>
+                <defs>
+                    <marker id="arrowhead-TAB" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <text id="scene2-label-TAB-B" x="482" y="235" font-size="14" fill="#2e7d32">T<sub>AB</sub></text>
+            </g>
+            
+            <!-- 力矢量 T_AB 作用于 A（向左） -->
+            <g id="scene2-group-TAB-A" style="display: none;">
+                <line id="scene2-arrow-TAB-A" x1="575" y1="250" x2="540" y2="250" stroke="#2e7d32" stroke-width="3" marker-end="url(#arrowhead-TAB2)"/>
+                <defs>
+                    <marker id="arrowhead-TAB2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <text id="scene2-label-TAB-A" x="557" y="235" font-size="14" fill="#2e7d32">T<sub>AB</sub></text>
+            </g>
+            
+            <!-- 力矢量 T_OB 作用于 B（向左） -->
+            <g id="scene2-group-TOB" style="display: none;">
+                <line id="scene2-arrow-TOB" x1="465" y1="250" x2="430" y2="250" stroke="#2e7d32" stroke-width="3" marker-end="url(#arrowhead-TOB)"/>
+                <defs>
+                    <marker id="arrowhead-TOB" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <text id="scene2-label-TOB" x="447" y="270" font-size="14" fill="#2e7d32">T<sub>OB</sub></text>
+            </g>
+            
+            <!-- 临界标识标签 -->
+            <text id="scene2-critical-1" class="scene2-critical-label" x="595" y="215" style="display: none;">临界：AB 绳开始有张力</text>
+            <text id="scene2-critical-3" class="scene2-critical-label" x="485" y="215" style="display: none;">临界：OB 绳开始有张力</text>
+            <text id="scene2-critical-5" class="scene2-critical-label" x="595" y="215" style="display: none;">临界：A 即将滑动</text>
+            
+            <!-- 右侧状态显示区 -->
+            <rect id="scene2-status-box" x="620" y="120" width="160" height="220" fill="#ffffff" stroke="#cccccc" stroke-width="1" rx="5"/>
+            <text id="scene2-status-title" x="630" y="145" font-size="15" font-weight="bold" fill="#333333">力状态分析</text>
+            <text id="scene2-status-omega" x="630" y="175" font-size="13" fill="#333333"></text>
+            <text id="scene2-status-fA" x="630" y="200" font-size="13" fill="#f57c00"></text>
+            <text id="scene2-status-fB" x="630" y="225" font-size="13" fill="#f57c00"></text>
+            <text id="scene2-status-TAB" x="630" y="250" font-size="13" fill="#2e7d32"></text>
+            <text id="scene2-status-TOB" x="630" y="275" font-size="13" fill="#2e7d32"></text>
+            <text id="scene2-status-note" x="630" y="310" font-size="12" fill="#666666"></text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 圆盘转动系统临界状态分析
+        // 布局坐标表（参考）：
+        // | 元素 | 位置 | 备注 |
+        // | 圆盘中心 | (400,250) | 椭圆中心 |
+        // | 物体 B | (450,240)-(480,260) | r_B=10cm |
+        // | 物体 A | (560,240)-(590,260) | r_A=20cm |
+        // | 圆心 O | (400,250) | 转轴位置 |
+        
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            // DOM 元素引用
+            elements: {
+                svg: document.getElementById('scene2-svg'),
+                btnPrev: document.getElementById('scene2-btn-prev'),
+                btnNext: document.getElementById('scene2-btn-next'),
+                stepIndicator: document.getElementById('scene2-step-indicator'),
+                
+                // 力矢量组
+                groupFB: document.getElementById('scene2-group-fB'),
+                groupFA: document.getElementById('scene2-group-fA'),
+                groupTAB_B: document.getElementById('scene2-group-TAB-B'),
+                groupTAB_A: document.getElementById('scene2-group-TAB-A'),
+                groupTOB: document.getElementById('scene2-group-TOB'),
+                
+                // 力矢量箭头
+                arrowFB: document.getElementById('scene2-arrow-fB'),
+                arrowFA: document.getElementById('scene2-arrow-fA'),
+                arrowTAB_B: document.getElementById('scene2-arrow-TAB-B'),
+                arrowTAB_A: document.getElementById('scene2-arrow-TAB-A'),
+                arrowTOB: document.getElementById('scene2-arrow-TOB'),
+                
+                // 力标签
+                labelFB: document.getElementById('scene2-label-fB'),
+                labelFA: document.getElementById('scene2-label-fA'),
+                labelTAB_B: document.getElementById('scene2-label-TAB-B'),
+                labelTAB_A: document.getElementById('scene2-label-TAB-A'),
+                labelTOB: document.getElementById('scene2-label-TOB'),
+                
+                // 临界标识
+                critical1: document.getElementById('scene2-critical-1'),
+                critical3: document.getElementById('scene2-critical-3'),
+                critical5: document.getElementById('scene2-critical-5'),
+                
+                // 状态显示
+                statusOmega: document.getElementById('scene2-status-omega'),
+                statusFA: document.getElementById('scene2-status-fA'),
+                statusFB: document.getElementById('scene2-status-fB'),
+                statusTAB: document.getElementById('scene2-status-TAB'),
+                statusTOB: document.getElementById('scene2-status-TOB'),
+                statusNote: document.getElementById('scene2-status-note')
+            },
+            
+            // 状态配置
+            stepConfig: [
+                {
+                    // 步骤 0：ω < ω₀
+                    omega: 'ω < ω₀',
+                    fA: 'f_A = mω²r_A',
+                    fB: 'f_B = mω²r_B',
+                    TAB: 'T_AB = 0',
+                    TOB: 'T_OB = 0',
+                    note: '静摩擦力提供向心力',
+                    fAColor: '#f57c00',
+                    fBColor: '#f57c00',
+                    fAWidth: 3,
+                    fBWidth: 3,
+                    fALength: 30,
+                    fBLength: 15,
+                    showTAB: false,
+                    showTOB: false,
+                    showCritical1: false,
+                    showCritical3: false,
+                    showCritical5: false
+                },
+                {
+                    // 步骤 1：ω = ω₀（AB 绳开始有张力）
+                    omega: 'ω = ω₀',
+                    fA: 'f_A = f_max = 0.5mg',
+                    fB: 'f_B = mω₀²r_B',
+                    TAB: 'T_AB = 0⁺',
+                    TOB: 'T_OB = 0',
+                    note: '临界：AB 绳开始有张力',
+                    fAColor: '#c62828',
+                    fBColor: '#f57c00',
+                    fAWidth: 5,
+                    fBWidth: 3,
+                    fALength: 60,
+                    fBLength: 30,
+                    showTAB: true,
+                    TABLength: 5,
+                    showTOB: false,
+                    showCritical1: true,
+                    showCritical3: false,
+                    showCritical5: false
+                },
+                {
+                    // 步骤 2：ω₀ < ω < ω₁
+                    omega: 'ω₀ < ω < ω₁',
+                    fA: 'f_A = f_max',
+                    fB: 'f_B < f_max',
+                    TAB: 'T_AB > 0',
+                    TOB: 'T_OB = 0',
+                    note: 'T_AB 随ω增大而增大',
+                    fAColor: '#c62828',
+                    fBColor: '#f57c00',
+                    fAWidth: 5,
+                    fBWidth: 3,
+                    fALength: 60,
+                    fBLength: 40,
+                    showTAB: true,
+                    TABLength: 20,
+                    showTOB: false,
+                    showCritical1: false,
+                    showCritical3: false,
+                    showCritical5: false
+                },
+                {
+                    // 步骤 3：ω = ω₁（OB 绳开始有张力）
+                    omega: 'ω = ω₁',
+                    fA: 'f_A = f_max',
+                    fB: 'f_B = f_max = 0.5mg',
+                    TAB: 'T_AB > 0',
+                    TOB: 'T_OB = 0⁺',
+                    note: '临界：OB 绳开始有张力',
+                    fAColor: '#c62828',
+                    fBColor: '#c62828',
+                    fAWidth: 5,
+                    fBWidth: 5,
+                    fALength: 60,
+                    fBLength: 60,
+                    showTAB: true,
+                    TABLength: 35,
+                    showTOB: true,
+                    TOBLength: 5,
+                    showCritical1: false,
+                    showCritical3: true,
+                    showCritical5: false
+                },
+                {
+                    // 步骤 4：ω₁ < ω < ω₂
+                    omega: 'ω₁ < ω < ω₂',
+                    fA: 'f_A = f_max',
+                    fB: 'f_B = f_max',
+                    TAB: 'T_AB 增大',
+                    TOB: 'T_OB > 0',
+                    note: '两绳张力均增大',
+                    fAColor: '#c62828',
+                    fBColor: '#c62828',
+                    fAWidth: 5,
+                    fBWidth: 5,
+                    fALength: 60,
+                    fBLength: 60,
+                    showTAB: true,
+                    TABLength: 50,
+                    showTOB: true,
+                    TOBLength: 25,
+                    showCritical1: false,
+                    showCritical3: false,
+                    showCritical5: false
+                },
+                {
+                    // 步骤 5：ω = ω₂（A 即将滑动）
+                    omega: 'ω = ω₂',
+                    fA: 'f_A + T_AB = mω₂²r_A',
+                    fB: 'f_B = f_max',
+                    TAB: 'T_AB < 2mg',
+                    TOB: 'T_OB > 0',
+                    note: '临界：A 即将滑动',
+                    fAColor: '#c62828',
+                    fBColor: '#c62828',
+                    fAWidth: 5,
+                    fBWidth: 5,
+                    fALength: 60,
+                    fBLength: 60,
+                    showTAB: true,
+                    TABLength: 70,
+                    showTOB: true,
+                    TOBLength: 45,
+                    showCritical1: false,
+                    showCritical3: false,
+                    showCritical5: true
+                }
+            ],
+            
+            // 初始化
+            init: function() {
+                this.updateDisplay();
+                this.bindEvents();
+            },
+            
+            // 绑定事件
+            bindEvents: function() {
+                const self = this;
+                this.elements.btnPrev.addEventListener('click', function() {
+                    if (self.currentStep > 0) {
+                        self.currentStep--;
+                        self.updateDisplay();
+                    }
+                });
+                this.elements.btnNext.addEventListener('click', function() {
+                    if (self.currentStep < self.totalSteps) {
+                        self.currentStep++;
+                        self.updateDisplay();
+                    }
+                });
+            },
+            
+            // 更新显示
+            updateDisplay: function() {
+                const config = this.stepConfig[this.currentStep];
+                const el = this.elements;
+                
+                // 更新步骤指示器
+                el.stepIndicator.textContent = '步骤 ' + this.currentStep + '/' + this.totalSteps;
+                
+                // 更新按钮状态
+                el.btnPrev.disabled = (this.currentStep === 0);
+                el.btnNext.disabled = (this.currentStep === this.totalSteps);
+                
+                // 更新状态显示文本
+                el.statusOmega.textContent = 'ω: ' + config.omega;
+                el.statusFA.textContent = config.fA;
+                el.statusFB.textContent = config.fB;
+                el.statusTAB.textContent = config.TAB;
+                el.statusTOB.textContent = config.TOB;
+                el.statusNote.textContent = config.note;
+                
+                // 更新力矢量颜色
+                el.arrowFB.setAttribute('stroke', config.fBColor);
+                el.arrowFA.setAttribute('stroke', config.fAColor);
+                el.labelFB.setAttribute('fill', config.fBColor);
+                el.labelFA.setAttribute('fill', config.fAColor);
+                
+                // 更新力矢量线宽
+                el.arrowFB.setAttribute('stroke-width', config.fBWidth);
+                el.arrowFA.setAttribute('stroke-width', config.fAWidth);
+                
+                // 更新 f_B 箭头长度（从 B 向左）
+                const fBEndX = 465 - config.fBLength;
+                el.arrowFB.setAttribute('x2', fBEndX);
+                
+                // 更新 f_A 箭头长度（从 A 向左）
+                const fAEndX = 575 - config.fALength;
+                el.arrowFA.setAttribute('x2', fAEndX);
+                
+                // 更新 T_AB 显示
+                if (config.showTAB) {
+                    el.groupTAB_B.style.display = 'block';
+                    el.groupTAB_A.style.display = 'block';
+                    // T_AB 作用于 B（向右）
+                    el.arrowTAB_B.setAttribute('x2', 465 + config.TABLength);
+                    // T_AB 作用于 A（向左）
+                    el.arrowTAB_A.setAttribute('x2', 575 - config.TABLength);
+                } else {
+                    el.groupTAB_B.style.display = 'none';
+                    el.groupTAB_A.style.display = 'none';
+                }
+                
+                // 更新 T_OB 显示
+                if (config.showTOB) {
+                    el.groupTOB.style.display = 'block';
+                    el.arrowTOB.setAttribute('x2', 465 - config.TOBLength);
+                } else {
+                    el.groupTOB.style.display = 'none';
+                }
+                
+                // 更新临界标识
+                el.critical1.style.display = config.showCritical1 ? 'block' : 'none';
+                el.critical3.style.display = config.showCritical3 ? 'block' : 'none';
+                el.critical5.style.display = config.showCritical5 ? 'block' : 'none';
+                
+                // 触发 MathJax 重新渲染
+                if (window.MathJax && MathJax.typesetPromise) {
+                    MathJax.typesetPromise();
+                }
+            }
+        };
+        
+        // 初始化场景
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

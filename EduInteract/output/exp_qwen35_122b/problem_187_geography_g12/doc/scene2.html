@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 四地点地理坐标计算与空间分布</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; transition: all 0.2s; }
+        .scene2-btn:hover { background: #e3f2fd; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-box { fill: #fff3e0; stroke: #ff9800; stroke-width: 1; }
+        .scene2-box-text { font-size: 13px; fill: #333; }
+        .scene2-coord-list { font-size: 11px; fill: #333; }
+        .scene2-meridian { stroke: #000000; stroke-width: 2; }
+        .scene2-equator { stroke: #000000; stroke-width: 2; }
+        .scene2-point { fill: #1565c0; }
+        .scene2-label { font-size: 13px; fill: #333; }
+        .scene2-coord-label { font-size: 12px; fill: #1565c0; font-weight: bold; }
+        .scene2-direction-arrow { stroke: #c62828; stroke-width: 3; fill: none; marker-end: url(#scene2-arrowhead); }
+        .scene2-direction-label { font-size: 13px; fill: #c62828; font-weight: bold; }
+        .scene2-region-label { font-size: 12px; fill: #2e7d32; font-weight: bold; }
+        .scene2-hidden { display: none; opacity: 0; }
+        .scene2-visible { display: block; opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+            </defs>
+            
+            <!-- 0°经线（本初子午线） -->
+            <line class="scene2-meridian" x1="400" y1="80" x2="400" y2="380" />
+            <text class="scene2-label" x="405" y="70">0°</text>
+            
+            <!-- 赤道 -->
+            <line class="scene2-equator" x1="100" y1="230" x2="700" y2="230" />
+            <text class="scene2-label" x="710" y="235">赤道</text>
+            
+            <!-- 四地标记点 -->
+            <circle class="scene2-point" id="scene2-point1" cx="520" cy="200" r="6" />
+            <circle class="scene2-point" id="scene2-point2" cx="340" cy="140" r="6" />
+            <circle class="scene2-point" id="scene2-point3" cx="380" cy="135" r="6" />
+            <circle class="scene2-point" id="scene2-point4" cx="680" cy="185" r="6" />
+            
+            <!-- 步骤 1：经度标注（步骤 3 时隐藏） -->
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lon1">120°E</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lon2">60°E</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lon3">0°</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lon4">180°</text>
+            
+            <!-- 步骤 2：纬度标注（步骤 3 时隐藏） -->
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lat1">30°N</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lat2">50°N</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lat3">52°N</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-lat4">37°N</text>
+            
+            <!-- 步骤 3：完整坐标标签 -->
+            <text class="scene2-coord-label scene2-hidden" id="scene2-coord1">① 30°N,120°E</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-coord2">② 50°N,60°E</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-coord3">③ 52°N,0°</text>
+            <text class="scene2-coord-label scene2-hidden" id="scene2-coord4">④ 37°N,180°</text>
+            
+            <!-- 步骤 4：方向箭头和标签 -->
+            <path class="scene2-direction-arrow scene2-hidden" id="scene2-arrow-dir" d="M520,200 L680,185" />
+            <text class="scene2-direction-label scene2-hidden" id="scene2-dir-label">④在①东北方向</text>
+            
+            <!-- 区域地理标签 -->
+            <text class="scene2-region-label scene2-hidden" id="scene2-region1">沪宁杭</text>
+            <text class="scene2-region-label scene2-hidden" id="scene2-region3">北海渔场</text>
+            
+            <!-- 计算说明框 -->
+            <rect class="scene2-box" id="scene2-calc-box" x="50" y="400" width="230" height="80" rx="5" />
+            <text class="scene2-box-text" id="scene2-calc-text" x="65" y="425">根据热水器倾角和地方时计算地理坐标</text>
+            
+            <!-- 坐标列表框 -->
+            <rect class="scene2-box" id="scene2-list-box" x="620" y="400" width="160" height="80" rx="5" />
+            <text class="scene2-coord-list scene2-hidden" id="scene2-list-text"></text>
+            
+            <!-- 控件栏 -->
+            <div id="scene2-controls">
+                <button class="scene2-btn" id="scene2-btn-prev" disabled>◀ 上一步</button>
+                <button class="scene2-btn" id="scene2-btn-next">下一步 ▶</button>
+            </div>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表对照：
+        // | 元素 | 位置 | 备注 |
+        // | 0°经线 | (400,80)-(400,380) | 垂直参考线 |
+        // | 赤道 | (100,230)-(700,230) | 水平参考线 |
+        // | ①地标记点 | (520,200) | 30°N,120°E |
+        // | ②地标记点 | (340,140) | 50°N,60°E |
+        // | ③地标记点 | (380,135) | 52°N,0° |
+        // | ④地标记点 | (680,185) | 37°N,180° |
+        // | 计算说明框 | (50,400)-(280,480) | 淡橙色背景 |
+        // | 坐标列表框 | (620,400)-(780,480) | 显示四地坐标 |
+        
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+            }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 步骤 0：初始状态 - 只显示经线、赤道、标记点
+            // 步骤 1：+显示经度标注
+            // 步骤 2：+显示纬度标注
+            // 步骤 3：+显示完整坐标标签、坐标列表（隐藏经度/纬度单独标注）
+            // 步骤 4：+显示方向箭头、方向标签、区域地理标签
+            // 步骤 5：结论状态
+            
+            // 计算说明文本
+            const calcTexts = [
+                '根据热水器倾角和地方时计算地理坐标',
+                '经度计算：经度 = (当地 12 时 - 世界时) × 15°',
+                '纬度计算：正午太阳高度 = 90° - 倾角，纬度 = 23°26\' + (90° - 正午太阳高度 - 23°26\')',
+                '四地完整坐标已确定',
+                '方向关系：④在①东北方向',
+                '结论：四地坐标已确定，可用于后续分析'
+            ];
+            document.getElementById('scene2-calc-text').textContent = calcTexts[currentStep];
+            
+            // 步骤 1：显示经度标注（步骤 3 时隐藏）
+            if (currentStep >= 1 && currentStep < 3) {
+                show(document.getElementById('scene2-lon1'));
+                show(document.getElementById('scene2-lon2'));
+                show(document.getElementById('scene2-lon3'));
+                show(document.getElementById('scene2-lon4'));
+                // 设置经度标注位置（在标记点下方）
+                document.getElementById('scene2-lon1').setAttribute('x', '520');
+                document.getElementById('scene2-lon1').setAttribute('y', '225');
+                document.getElementById('scene2-lon2').setAttribute('x', '340');
+                document.getElementById('scene2-lon2').setAttribute('y', '165');
+                document.getElementById('scene2-lon3').setAttribute('x', '380');
+                document.getElementById('scene2-lon3').setAttribute('y', '160');
+                document.getElementById('scene2-lon4').setAttribute('x', '680');
+                document.getElementById('scene2-lon4').setAttribute('y', '210');
+            } else {
+                hide(document.getElementById('scene2-lon1'));
+                hide(document.getElementById('scene2-lon2'));
+                hide(document.getElementById('scene2-lon3'));
+                hide(document.getElementById('scene2-lon4'));
+            }
+            
+            // 步骤 2：显示纬度标注（步骤 3 时隐藏）
+            if (currentStep >= 2 && currentStep < 3) {
+                show(document.getElementById('scene2-lat1'));
+                show(document.getElementById('scene2-lat2'));
+                show(document.getElementById('scene2-lat3'));
+                show(document.getElementById('scene2-lat4'));
+                // 设置纬度标注位置（在标记点左侧）
+                document.getElementById('scene2-lat1').setAttribute('x', '490');
+                document.getElementById('scene2-lat1').setAttribute('y', '205');
+                document.getElementById('scene2-lat2').setAttribute('x', '305');
+                document.getElementById('scene2-lat2').setAttribute('y', '145');
+                document.getElementById('scene2-lat3').setAttribute('x', '345');
+                document.getElementById('scene2-lat3').setAttribute('y', '145');
+                document.getElementById('scene2-lat4').setAttribute('x', '650');
+                document.getElementById('scene2-lat4').setAttribute('y', '190');
+            } else {
+                hide(document.getElementById('scene2-lat1'));
+                hide(document.getElementById('scene2-lat2'));
+                hide(document.getElementById('scene2-lat3'));
+                hide(document.getElementById('scene2-lat4'));
+            }
+            
+            // 步骤 3：显示完整坐标标签和坐标列表
+            if (currentStep >= 3) {
+                show(document.getElementById('scene2-coord1'));
+                show(document.getElementById('scene2-coord2'));
+                show(document.getElementById('scene2-coord3'));
+                show(document.getElementById('scene2-coord4'));
+                show(document.getElementById('scene2-list-box'));
+                show(document.getElementById('scene2-list-text'));
+                
+                // 设置坐标标签位置（在标记点上方，②和③错开）
+                document.getElementById('scene2-coord1').setAttribute('x', '525');
+                document.getElementById('scene2-coord1').setAttribute('y', '175');
+                document.getElementById('scene2-coord2').setAttribute('x', '300');
+                document.getElementById('scene2-coord2').setAttribute('y', '110');
+                document.getElementById('scene2-coord3').setAttribute('x', '390');
+                document.getElementById('scene2-coord3').setAttribute('y', '105');
+                document.getElementById('scene2-coord4').setAttribute('x', '685');
+                document.getElementById('scene2-coord4').setAttribute('y', '160');
+                
+                // 坐标列表内容（使用 tspan 换行）
+                const listText = document.getElementById('scene2-list-text');
+                listText.innerHTML = '';
+                const coords = ['① 30°N,120°E', '② 50°N,60°E', '③ 52°N,0°', '④ 37°N,180°'];
+                coords.forEach((coord, idx) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', '630');
+                    tspan.setAttribute('dy', idx === 0 ? '14' : '14');
+                    tspan.textContent = coord;
+                    listText.appendChild(tspan);
+                });
+            } else {
+                hide(document.getElementById('scene2-coord1'));
+                hide(document.getElementById('scene2-coord2'));
+                hide(document.getElementById('scene2-coord3'));
+                hide(document.getElementById('scene2-coord4'));
+                hide(document.getElementById('scene2-list-text'));
+            }
+            
+            // 步骤 4：显示方向箭头、方向标签、区域地理标签
+            if (currentStep >= 4) {
+                show(document.getElementById('scene2-arrow-dir'));
+                show(document.getElementById('scene2-dir-label'));
+                show(document.getElementById('scene2-region1'));
+                show(document.getElementById('scene2-region3'));
+                
+                // 设置方向标签位置（在箭头上方，远离坐标标签）
+                document.getElementById('scene2-dir-label').setAttribute('x', '595');
+                document.getElementById('scene2-dir-label').setAttribute('y', '155');
+                document.getElementById('scene2-region1').setAttribute('x', '540');
+                document.getElementById('scene2-region1').setAttribute('y', '235');
+                document.getElementById('scene2-region3').setAttribute('x', '360');
+                document.getElementById('scene2-region3').setAttribute('y', '170');
+            } else {
+                hide(document.getElementById('scene2-arrow-dir'));
+                hide(document.getElementById('scene2-dir-label'));
+                hide(document.getElementById('scene2-region1'));
+                hide(document.getElementById('scene2-region3'));
+            }
+            
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === TOTAL_STEPS - 1);
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

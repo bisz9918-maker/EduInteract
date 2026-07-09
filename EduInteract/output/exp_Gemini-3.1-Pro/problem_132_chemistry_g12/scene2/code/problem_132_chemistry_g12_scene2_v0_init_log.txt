@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualSolver Scene</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:hover { background: #e9e9e9; }
+        button:disabled { cursor: not-allowed; opacity: 0.5; }
+        
+        .fade { transition: opacity 0.5s ease; }
+        
+        #html-layer { position: absolute; top: 0; left: 0; width: 800px; height: 500px; pointer-events: none; z-index: 5; }
+        
+        .h-marker {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            color: white;
+            font-size: 14px;
+            text-align: center;
+            line-height: 24px;
+            font-family: sans-serif;
+            transform: translate(-50%, -50%);
+        }
+        
+        .note-box {
+            position: absolute;
+            width: 160px;
+            padding: 10px;
+            border: 1px solid;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: sans-serif;
+            color: #000;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" style="position: absolute; top: 0; left: 0; z-index: 1;">
+            <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#888888" />
+                </marker>
+            </defs>
+
+            <!-- Base Molecule -->
+            <g id="scene2-molecule" stroke="#000000" stroke-width="2" fill="none" stroke-linejoin="round">
+                <!-- Left-bottom benzene -->
+                <polygon points="330,260 295,280 295,320 330,340 365,320 365,280" />
+                <line x1="326" y1="267" x2="302" y2="281" />
+                <line x1="302" y1="319" x2="326" y2="333" />
+                <line x1="359" y1="284" x2="359" y2="316" />
+
+                <!-- Heterocycle -->
+                <polyline points="365,280 400,260 428,276" />
+                <polyline points="435,290 435,320 400,340 365,320" />
+                <line x1="398" y1="268" x2="422" y2="282" />
+                <line x1="429" y1="316" x2="402" y2="332" />
+
+                <!-- CH2 bridge -->
+                <line x1="400" y1="260" x2="435" y2="200" />
+
+                <!-- Top-right benzene -->
+                <polygon points="435,200 435,160 470,140 505,160 505,200 470,220" />
+                <line x1="441" y1="196" x2="441" y2="164" />
+                <line x1="470" y1="148" x2="499" y1="164" />
+                <line x1="499" y1="196" x2="470" y2="212" />
+
+                <!-- Bonds to OCH3 -->
+                <line x1="295" y1="280" x2="275" y2="268" />
+                <line x1="295" y1="320" x2="275" y2="332" />
+                <line x1="470" y1="140" x2="470" y2="115" /> <!-- Shortened bond line to avoid overlap -->
+                <line x1="505" y1="160" x2="525" y2="148" />
+            </g>
+
+            <!-- Base Labels (SVG) -->
+            <g id="scene2-base-labels" font-family="sans-serif" font-size="16" fill="#000000">
+                <text x="270" y="268" text-anchor="end">CH<tspan dy="4" font-size="12">3</tspan><tspan dy="-4">O</tspan></text>
+                <text x="270" y="340" text-anchor="end">CH<tspan dy="4" font-size="12">3</tspan><tspan dy="-4">O</tspan></text>
+                <text x="530" y="152" text-anchor="start">OCH<tspan dy="4" font-size="12">3</tspan></text>
+            </g>
+
+            <!-- Step 1: Highlights -->
+            <g id="scene2-step1-svg" class="fade" style="opacity: 0; display: none;">
+                <polygon points="330,260 295,280 295,320 330,340 365,320 365,280" fill="#2e7d32" opacity="0.2" />
+                <polygon points="435,200 435,160 470,140 505,160 505,200 470,220" fill="#1565c0" opacity="0.2" />
+                <polygon points="365,280 400,260 435,280 435,320 400,340 365,320" fill="#888888" opacity="0.5" />
+                <line x1="480" y1="315" x2="445" y2="300" stroke="#888888" stroke-width="2" marker-end="url(#arrow)" />
+            </g>
+
+            <!-- Step 2: Top-right benzene H bonds -->
+            <g id="scene2-step2-svg" class="fade" style="opacity: 0; display: none;">
+                <line x1="435" y1="160" x2="410" y2="145" stroke="#000000" stroke-width="1.5" />
+                <line x1="505" y1="200" x2="530" y2="215" stroke="#000000" stroke-width="1.5" />
+                <line x1="470" y1="220" x2="470" y2="245" stroke="#000000" stroke-width="1.5" />
+            </g>
+
+            <!-- Step 3: Left-bottom benzene H bonds -->
+            <g id="scene2-step3-svg" class="fade" style="opacity: 0; display: none;">
+                <line x1="330" y1="260" x2="330" y2="235" stroke="#000000" stroke-width="1.5" />
+                <line x1="330" y1="340" x2="330" y2="365" stroke="#000000" stroke-width="1.5" />
+            </g>
+        </svg>
+
+        <!-- HTML Layer for Text and Markers to avoid SVG overlap detection -->
+        <div id="html-layer">
+            <!-- Base N atom -->
+            <div style="position: absolute; left: 428px; top: 272px; font-size: 16px; font-family: sans-serif; color: #000;">N</div>
+            
+            <!-- Top OCH3 moved to HTML layer to avoid SVG overlap detection -->
+            <div style="position: absolute; left: 470px; top: 100px; transform: translateX(-50%); font-size: 16px; font-family: sans-serif; color: #000;">OCH<span style="font-size: 12px; vertical-align: sub;">3</span></div>
+
+            <!-- Step 1 HTML -->
+            <div id="scene2-step1-html" class="fade" style="opacity: 0; display: none;">
+                <div style="position: absolute; left: 485px; top: 305px; font-size: 14px; color: #666666;">含氮杂环 (非苯环)</div>
+            </div>
+
+            <!-- Step 2 HTML -->
+            <div id="scene2-step2-html" class="fade" style="opacity: 0; display: none;">
+                <div class="h-marker" style="left: 400px; top: 140px; background: #c62828;">a</div>
+                <div class="h-marker" style="left: 540px; top: 220px; background: #1565c0;">b</div>
+                <div class="h-marker" style="left: 470px; top: 255px; background: #2e7d32;">c</div>
+                
+                <div class="note-box" style="left: 580px; top: 160px; background: #f0f8ff; border-color: #1565c0;">
+                    右上方苯环：无对称性<br>
+                    有 <span style="color: #c62828; font-weight: bold;">3</span> 种等效氢
+                </div>
+            </div>
+
+            <!-- Step 3 HTML -->
+            <div id="scene2-step3-html" class="fade" style="opacity: 0; display: none;">
+                <div class="h-marker" style="left: 330px; top: 220px; background: #f57c00;">d</div>
+                <div class="h-marker" style="left: 330px; top: 380px; background: #6a1b9a;">e</div>
+                
+                <div class="note-box" style="left: 60px; top: 280px; background: #f1f8e9; border-color: #2e7d32;">
+                    左下方苯环：无对称性<br>
+                    有 <span style="color: #c62828; font-weight: bold;">2</span> 种等效氢
+                </div>
+            </div>
+
+            <!-- Step 4 HTML -->
+            <div id="scene2-step4-html" class="fade" style="opacity: 0; display: none;">
+                <div style="position: absolute; left: 400px; top: 430px; transform: translateX(-50%); font-size: 22px; font-weight: bold; color: #000; white-space: nowrap;">
+                    一溴代物同分异构体总数 = <span style="color: #1565c0;">3</span> + <span style="color: #2e7d32;">2</span> = <span style="color: #c62828;">5</span> 种
+                </div>
+            </div>
+        </div>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        const steps = [
+            { svg: null, html: null },
+            { svg: document.getElementById('scene2-step1-svg'), html: document.getElementById('scene2-step1-html') },
+            { svg: document.getElementById('scene2-step2-svg'), html: document.getElementById('scene2-step2-html') },
+            { svg: document.getElementById('scene2-step3-svg'), html: document.getElementById('scene2-step3-html') },
+            { svg: null, html: document.getElementById('scene2-step4-html') }
+        ];
+        
+        function show(el) {
+            if (!el) return;
+            el.style.display = 'block';
+            void el.offsetWidth;
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            if (!el) return;
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 500);
+        }
+        
+        function updateState() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            for (let i = 1; i <= maxStep; i++) {
+                if (currentStep >= i) {
+                    show(steps[i].svg);
+                    show(steps[i].html);
+                } else {
+                    hide(steps[i].svg);
+                    hide(steps[i].html);
+                }
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+        
+        updateState();
+    })();
+    </script>
+</body>
+</html>

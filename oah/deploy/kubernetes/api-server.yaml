@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oah-api
+  labels:
+    app.kubernetes.io/name: oah-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: open-agent-harness
+spec:
+  replicas: 2
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oah-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oah-api
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: open-agent-harness
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: ghcr.io/open-agent-harness/open-agent-harness:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/index.js", "--config", "/etc/oah/server.yaml", "--api-only"]
+          ports:
+            - containerPort: 8787
+              name: http
+          env:
+            - name: OAH_CONFIG
+              value: /etc/oah/server.yaml
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=320"
+            - name: OAH_ALLOW_PRIVATE_INTERNAL_MODEL_ROUTES
+              value: "true"
+            - name: OAH_WORKSPACE_PREWARM_ENABLED
+              value: "false"
+            - name: OAH_OBJECT_STORAGE_SYNC_TRUST_MANAGED_PREFIXES
+              value: "true"
+            - name: OAH_POSTGRES_POOL_MAX
+              value: "5"
+            - name: OAH_REDIS_READY_QUEUE_READINESS_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_CLAIM_SCAN_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_PRESSURE_SCAN_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_INSPECT_LIMIT
+              value: "100"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: oah-config
+              mountPath: /etc/oah
+              readOnly: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+      volumes:
+        - name: oah-config
+          configMap:
+            name: oah-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oah-api
+spec:
+  selector:
+    app.kubernetes.io/name: oah-api
+  ports:
+    - name: http
+      port: 8787
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: oah-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oah-api

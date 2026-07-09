@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电小球在匀强电场中的运动与碰撞</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; background: #f5f5f5; transition: background 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-counter { font-size: 14px; color: #555; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 电场箭头组 (y=80) -->
+            <g id="scene1-field-arrows">
+                <path d="M150,80 L180,80 M175,75 L180,80 L175,85" stroke="#2e7d32" stroke-width="2" fill="none"/>
+                <path d="M300,80 L330,80 M325,75 L330,80 L325,85" stroke="#2e7d32" stroke-width="2" fill="none"/>
+                <path d="M450,80 L480,80 M475,75 L480,80 L475,85" stroke="#2e7d32" stroke-width="2" fill="none"/>
+                <path d="M600,80 L630,80 M625,75 L630,80 L625,85" stroke="#2e7d32" stroke-width="2" fill="none"/>
+                <path d="M750,80 L780,80 M775,75 L780,80 L775,85" stroke="#2e7d32" stroke-width="2" fill="none"/>
+            </g>
+            <text id="scene1-label-e" x="760" y="60" text-anchor="start" font-size="16" fill="#2e7d32" font-style="italic">E</text>
+
+            <!-- 虚线参考线 y=250 -->
+            <line id="scene1-dashed-line" x1="100" y1="250" x2="750" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+
+            <!-- 水平面基线 y=280 -->
+            <line id="scene1-base-line" x1="100" y1="280" x2="750" y2="280" stroke="#000000" stroke-width="3"/>
+
+            <!-- 轨迹暗示线 -->
+            <line id="scene1-track-a" x1="120" y1="265" x2="120" y2="265" stroke="#1565c0" stroke-width="1" opacity="0"/>
+            <line id="scene1-track-b" x1="160" y1="275" x2="160" y2="275" stroke="#c62828" stroke-width="1" opacity="0"/>
+
+            <!-- L 引导线 (步骤0) -->
+            <g id="scene1-l-group">
+                <line id="scene1-l-line" x1="120" y1="270" x2="160" y2="270" stroke="#000000" stroke-width="1"/>
+                <path id="scene1-l-bracket" d="M120,265 L120,275 M160,265 L160,275" stroke="#000000" stroke-width="1" fill="none"/>
+                <text id="scene1-label-l" x="140" y="295" text-anchor="middle" font-size="14" fill="#000000" font-style="italic">L</text>
+            </g>
+
+            <!-- A球 -->
+            <circle id="scene1-ball-a" cx="120" cy="250" r="15" stroke="#1565c0" stroke-width="2" fill="#1565c0" fill-opacity="0.2"/>
+            <!-- B球 -->
+            <circle id="scene1-ball-b" cx="160" cy="250" r="15" stroke="#c62828" stroke-width="2" fill="#c62828" fill-opacity="0.2"/>
+
+            <!-- 球名称标签：放在球左/右上方，与质量标签水平分开 -->
+            <text id="scene1-label-a" x="80" y="225" text-anchor="middle" font-size="14" fill="#000000">A</text>
+            <text id="scene1-label-b" x="200" y="225" text-anchor="middle" font-size="14" fill="#000000">B</text>
+
+            <!-- 质量标签：放在球正上方，与名称标签水平分开 -->
+            <text id="scene1-label-ma" x="105" y="225" text-anchor="middle" font-size="13" fill="#000000" font-style="italic">m</text>
+            <text id="scene1-label-mb" x="175" y="225" text-anchor="middle" font-size="13" fill="#000000" font-style="italic">m</text>
+
+            <!-- 电荷标签：放在A球左下方外部 -->
+            <text id="scene1-label-q" x="98" y="272" text-anchor="start" font-size="13" fill="#000000">+q</text>
+
+            <!-- 速度箭头 -->
+            <g id="scene1-arrow-va-group" opacity="0">
+                <line id="scene1-arrow-va" x1="135" y1="245" x2="135" y2="245" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+            </g>
+            <g id="scene1-arrow-vb-group" opacity="0">
+                <line id="scene1-arrow-vb" x1="175" y1="225" x2="175" y2="225" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-red)"/>
+            </g>
+
+            <!-- 速度标签：统一放在箭头末端下方 y=260，避免与上方标签重叠 -->
+            <text id="scene1-label-va" x="135" y="260" text-anchor="middle" font-size="13" fill="#1565c0" opacity="0" font-style="italic">v₁</text>
+            <text id="scene1-label-vb" x="175" y="260" text-anchor="middle" font-size="13" fill="#c62828" opacity="0" font-style="italic">v₁</text>
+
+            <!-- 时间标签 -->
+            <text id="scene1-label-t1" x="100" y="300" text-anchor="middle" font-size="14" fill="#2e7d32" opacity="0" font-style="italic">t₁</text>
+            <text id="scene1-label-t2" x="220" y="300" text-anchor="middle" font-size="14" fill="#2e7d32" opacity="0" font-style="italic">2t₁</text>
+            <text id="scene1-label-t3" x="460" y="300" text-anchor="middle" font-size="14" fill="#2e7d32" opacity="0" font-style="italic">2t₁</text>
+
+            <!-- 碰撞说明文字：放在较高位置，避免与质量标签重叠 -->
+            <text id="scene1-collision-text" x="160" y="170" text-anchor="middle" font-size="13" fill="#2e7d32" opacity="0">速度交换</text>
+
+            <!-- 步骤说明文字 -->
+            <text id="scene1-step-desc" x="400" y="420" text-anchor="middle" font-size="14" fill="#2e7d32">初始状态：A、B静止，间距L</text>
+
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+            </defs>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-counter">步骤 1/6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 元素引用
+        const ballA = document.getElementById('scene1-ball-a');
+        const ballB = document.getElementById('scene1-ball-b');
+        const labelA = document.getElementById('scene1-label-a');
+        const labelB = document.getElementById('scene1-label-b');
+        const labelMa = document.getElementById('scene1-label-ma');
+        const labelMb = document.getElementById('scene1-label-mb');
+        const labelQ = document.getElementById('scene1-label-q');
+        const lGroup = document.getElementById('scene1-l-group');
+        const trackA = document.getElementById('scene1-track-a');
+        const trackB = document.getElementById('scene1-track-b');
+        const arrowVaGroup = document.getElementById('scene1-arrow-va-group');
+        const arrowVbGroup = document.getElementById('scene1-arrow-vb-group');
+        const arrowVa = document.getElementById('scene1-arrow-va');
+        const arrowVb = document.getElementById('scene1-arrow-vb');
+        const labelVa = document.getElementById('scene1-label-va');
+        const labelVb = document.getElementById('scene1-label-vb');
+        const labelT1 = document.getElementById('scene1-label-t1');
+        const labelT2 = document.getElementById('scene1-label-t2');
+        const labelT3 = document.getElementById('scene1-label-t3');
+        const collisionText = document.getElementById('scene1-collision-text');
+        const stepDesc = document.getElementById('scene1-step-desc');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepCounter = document.getElementById('scene1-step-counter');
+
+        // 辅助函数
+        function setAttrs(el, attrs) {
+            for (const [k, v] of Object.entries(attrs)) {
+                el.setAttribute(k, v);
+            }
+        }
+        function show(el) { el.style.display = ''; el.style.opacity = '1'; }
+        function hide(el) { el.style.display = 'none'; el.style.opacity = '0'; }
+        function setOpacity(el, op) { el.style.opacity = String(op); }
+
+        // 标签位置计算辅助函数（与球心cx联动，保持固定间距避免重叠）
+        function nameAPos(cx) { return { x: cx - 50, y: 225 }; }
+        function massAPos(cx) { return { x: cx - 25, y: 225 }; }
+        function nameBPos(cx) { return { x: cx + 50, y: 225 }; }
+        function massBPos(cx) { return { x: cx + 25, y: 225 }; }
+        function qPos(cx) { return { x: cx - 40, y: 272 }; }
+
+        // 步骤数据
+        const steps = [
+            // 步骤0: 初始状态
+            {
+                desc: '初始状态：A、B静止，间距L',
+                ballA: { cx: 120, cy: 250 },
+                ballB: { cx: 160, cy: 250 },
+                labelA: nameAPos(120),
+                labelB: nameBPos(160),
+                labelMa: massAPos(120),
+                labelMb: massBPos(160),
+                labelQ: qPos(120),
+                showL: true,
+                trackA: { x1: 120, y1: 265, x2: 120, y2: 265, opacity: 0 },
+                trackB: { x1: 160, y1: 275, x2: 160, y2: 275, opacity: 0 },
+                arrowVa: { x1: 135, y1: 245, x2: 135, y2: 245, show: false },
+                arrowVb: { x1: 175, y1: 225, x2: 175, y2: 225, show: false },
+                labelVa: { x: 135, y: 260, text: 'v₁', show: false },
+                labelVb: { x: 175, y: 260, text: 'v₁', show: false },
+                labelT1: { show: false },
+                labelT2: { show: false },
+                labelT3: { show: false },
+                collisionText: { show: false, x: 160 }
+            },
+            // 步骤1: A加速至第一次碰撞前
+            {
+                desc: 'A球在电场力作用下匀加速运动，经时间t₁与B碰撞',
+                ballA: { cx: 160, cy: 250 },
+                ballB: { cx: 160, cy: 250 },
+                labelA: nameAPos(160),
+                labelB: nameBPos(160),
+                labelMa: massAPos(160),
+                labelMb: massBPos(160),
+                labelQ: qPos(160),
+                showL: false,
+                trackA: { x1: 120, y1: 265, x2: 160, y2: 265, opacity: 0.3 },
+                trackB: { x1: 160, y1: 275, x2: 160, y2: 275, opacity: 0 },
+                arrowVa: { x1: 175, y1: 245, x2: 205, y2: 245, show: true },
+                arrowVb: { x1: 175, y1: 225, x2: 175, y2: 225, show: false },
+                labelVa: { x: 230, y: 260, text: 'v₁', show: true },
+                labelVb: { x: 175, y: 260, text: 'v₁', show: false },
+                labelT1: { show: true },
+                labelT2: { show: false },
+                labelT3: { show: false },
+                collisionText: { show: false, x: 160 }
+            },
+            // 步骤2: 第一次碰撞瞬间
+            {
+                desc: '第一次弹性碰撞：速度交换，A静止，B以v₁运动',
+                ballA: { cx: 160, cy: 250 },
+                ballB: { cx: 160, cy: 250 },
+                labelA: nameAPos(160),
+                labelB: nameBPos(160),
+                labelMa: massAPos(160),
+                labelMb: massBPos(160),
+                labelQ: qPos(160),
+                showL: false,
+                trackA: { x1: 120, y1: 265, x2: 160, y2: 265, opacity: 0.3 },
+                trackB: { x1: 160, y1: 275, x2: 160, y2: 275, opacity: 0 },
+                arrowVa: { x1: 175, y1: 245, x2: 175, y2: 245, show: false },
+                arrowVb: { x1: 175, y1: 225, x2: 205, y2: 225, show: true },
+                labelVa: { x: 230, y: 260, text: 'v₁', show: false },
+                labelVb: { x: 230, y: 260, text: 'v₁', show: true },
+                labelT1: { show: true },
+                labelT2: { show: false },
+                labelT3: { show: false },
+                collisionText: { show: true, x: 160 }
+            },
+            // 步骤3: A重新加速至第二次碰撞前
+            {
+                desc: 'A重新加速，B匀速运动，经时间2t₁发生第二次碰撞',
+                ballA: { cx: 320, cy: 250 },
+                ballB: { cx: 320, cy: 250 },
+                labelA: nameAPos(320),
+                labelB: nameBPos(320),
+                labelMa: massAPos(320),
+                labelMb: massBPos(320),
+                labelQ: qPos(320),
+                showL: false,
+                trackA: { x1: 160, y1: 265, x2: 320, y2: 265, opacity: 0.3 },
+                trackB: { x1: 160, y1: 275, x2: 320, y2: 275, opacity: 0.3 },
+                arrowVa: { x1: 335, y1: 245, x2: 395, y2: 245, show: true },
+                arrowVb: { x1: 335, y1: 225, x2: 365, y2: 225, show: true },
+                labelVa: { x: 420, y: 260, text: '2v₁', show: true },
+                labelVb: { x: 350, y: 260, text: 'v₁', show: true },
+                labelT1: { show: true },
+                labelT2: { show: true },
+                labelT3: { show: false },
+                collisionText: { show: false, x: 320 }
+            },
+            // 步骤4: 第二次碰撞瞬间
+            {
+                desc: '第二次弹性碰撞：再次速度交换',
+                ballA: { cx: 320, cy: 250 },
+                ballB: { cx: 320, cy: 250 },
+                labelA: nameAPos(320),
+                labelB: nameBPos(320),
+                labelMa: massAPos(320),
+                labelMb: massBPos(320),
+                labelQ: qPos(320),
+                showL: false,
+                trackA: { x1: 160, y1: 265, x2: 320, y2: 265, opacity: 0.3 },
+                trackB: { x1: 160, y1: 275, x2: 320, y2: 275, opacity: 0.3 },
+                arrowVa: { x1: 335, y1: 245, x2: 365, y2: 245, show: true },
+                arrowVb: { x1: 335, y1: 225, x2: 395, y2: 225, show: true },
+                labelVa: { x: 350, y: 260, text: 'v₁', show: true },
+                labelVb: { x: 420, y: 260, text: '2v₁', show: true },
+                labelT1: { show: true },
+                labelT2: { show: true },
+                labelT3: { show: false },
+                collisionText: { show: true, x: 320 }
+            },
+            // 步骤5: 运动至第三次碰撞前
+            {
+                desc: 'A继续加速，B匀速运动，即将发生第三次碰撞（A末速度3v₁）',
+                ballA: { cx: 640, cy: 250 },
+                ballB: { cx: 640, cy: 250 },
+                labelA: nameAPos(640),
+                labelB: nameBPos(640),
+                labelMa: massAPos(640),
+                labelMb: massBPos(640),
+                labelQ: qPos(640),
+                showL: false,
+                trackA: { x1: 320, y1: 265, x2: 640, y2: 265, opacity: 0.3 },
+                trackB: { x1: 320, y1: 275, x2: 640, y2: 275, opacity: 0.3 },
+                arrowVa: { x1: 655, y1: 245, x2: 745, y2: 245, show: true },
+                arrowVb: { x1: 655, y1: 225, x2: 715, y2: 225, show: true },
+                labelVa: { x: 770, y: 260, text: '3v₁', show: true },
+                labelVb: { x: 730, y: 260, text: '2v₁', show: true },
+                labelT1: { show: true },
+                labelT2: { show: true },
+                labelT3: { show: true },
+                collisionText: { show: false, x: 640 }
+            }
+        ];
+
+        function renderStep(step) {
+            const s = steps[step];
+
+            // 球位置
+            setAttrs(ballA, { cx: s.ballA.cx, cy: s.ballA.cy });
+            setAttrs(ballB, { cx: s.ballB.cx, cy: s.ballB.cy });
+
+            // 标签位置
+            setAttrs(labelA, { x: s.labelA.x, y: s.labelA.y });
+            setAttrs(labelB, { x: s.labelB.x, y: s.labelB.y });
+            setAttrs(labelMa, { x: s.labelMa.x, y: s.labelMa.y });
+            setAttrs(labelMb, { x: s.labelMb.x, y: s.labelMb.y });
+            setAttrs(labelQ, { x: s.labelQ.x, y: s.labelQ.y });
+
+            // L引导线
+            lGroup.style.display = s.showL ? '' : 'none';
+
+            // 轨迹线
+            setAttrs(trackA, { x1: s.trackA.x1, y1: s.trackA.y1, x2: s.trackA.x2, y2: s.trackA.y2 });
+            setAttrs(trackB, { x1: s.trackB.x1, y1: s.trackB.y1, x2: s.trackB.x2, y2: s.trackB.y2 });
+            setOpacity(trackA, s.trackA.opacity);
+            setOpacity(trackB, s.trackB.opacity);
+
+            // A速度箭头
+            if (s.arrowVa.show) {
+                show(arrowVaGroup);
+                setAttrs(arrowVa, { x1: s.arrowVa.x1, y1: s.arrowVa.y1, x2: s.arrowVa.x2, y2: s.arrowVa.y2 });
+            } else {
+                hide(arrowVaGroup);
+            }
+
+            // B速度箭头
+            if (s.arrowVb.show) {
+                show(arrowVbGroup);
+                setAttrs(arrowVb, { x1: s.arrowVb.x1, y1: s.arrowVb.y1, x2: s.arrowVb.x2, y2: s.arrowVb.y2 });
+            } else {
+                hide(arrowVbGroup);
+            }
+
+            // 速度标签
+            if (s.labelVa.show) {
+                show(labelVa);
+                setAttrs(labelVa, { x: s.labelVa.x, y: s.labelVa.y });
+                labelVa.textContent = s.labelVa.text;
+            } else {
+                hide(labelVa);
+            }
+            if (s.labelVb.show) {
+                show(labelVb);
+                setAttrs(labelVb, { x: s.labelVb.x, y: s.labelVb.y });
+                labelVb.textContent = s.labelVb.text;
+            } else {
+                hide(labelVb);
+            }
+
+            // 时间标签
+            s.labelT1.show ? show(labelT1) : hide(labelT1);
+            s.labelT2.show ? show(labelT2) : hide(labelT2);
+            s.labelT3.show ? show(labelT3) : hide(labelT3);
+
+            // 碰撞文字
+            if (s.collisionText.show) {
+                show(collisionText);
+                setAttrs(collisionText, { x: s.collisionText.x });
+            } else {
+                hide(collisionText);
+            }
+
+            // 步骤说明
+            stepDesc.textContent = s.desc;
+
+            // 按钮状态
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === totalSteps - 1;
+            stepCounter.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

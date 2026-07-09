@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阴影面积的割补法验证</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene2-dim {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene2-area-text {
+            font-size: 14px;
+            fill: #000000;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene2-btn-prev, #scene2-btn-next {
+            width: 100px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        #scene2-btn-prev:hover, #scene2-btn-next:hover {
+            background: #e0e0e0;
+        }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-state-indicator {
+            font-size: 14px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 正方形 ABCD 边框 -->
+            <rect id="scene2-square-abcd" x="280" y="100" width="250" height="250" 
+                  fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 菱形 PQCB 边框 -->
+            <polygon id="scene2-rhombus-pqcb" points="430,150 680,150 530,350 280,350" 
+                     fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 阴影区域：五边形 ABPED -->
+            <polygon id="scene2-shadow" points="280,100 280,350 430,150 530,150 530,100" 
+                     fill="#1565c0" opacity="0.3"/>
+            
+            <!-- 分割线 PH（步骤 1 显示） -->
+            <line id="scene2-line-ph" x1="430" y1="150" x2="430" y2="350" 
+                  stroke="#2e7d32" stroke-width="2" 
+                  style="opacity: 0;"/>
+            
+            <!-- 辅助线 PE（步骤 1 显示） -->
+            <line id="scene2-line-pe" x1="430" y1="150" x2="530" y2="150" 
+                  stroke="#888888" stroke-width="1" stroke-dasharray="4,4"
+                  style="opacity: 0;"/>
+            
+            <!-- 点标签 -->
+            <text id="scene2-label-a" x="265" y="95" class="scene2-label">A</text>
+            <text id="scene2-label-b" x="265" y="370" class="scene2-label">B</text>
+            <text id="scene2-label-c" x="535" y="370" class="scene2-label">C</text>
+            <text id="scene2-label-d" x="545" y="95" class="scene2-label">D</text>
+            <text id="scene2-label-p" x="415" y="145" class="scene2-label">P</text>
+            <text id="scene2-label-h" x="430" y="385" class="scene2-label" 
+                  style="opacity: 0;">H</text>
+            <text id="scene2-label-e" x="545" y="145" class="scene2-label">E</text>
+            
+            <!-- 尺寸标注（步骤 2 显示） -->
+            <text id="scene2-dim-5" x="265" y="225" class="scene2-dim" 
+                  style="opacity: 0;">5</text>
+            <text id="scene2-dim-3" x="355" y="385" class="scene2-dim" 
+                  style="opacity: 0;">3</text>
+            <text id="scene2-dim-2-hc" x="480" y="385" class="scene2-dim" 
+                  style="opacity: 0;">2</text>
+            <text id="scene2-dim-4" x="445" y="250" class="scene2-dim" 
+                  style="opacity: 0;">4</text>
+            <text id="scene2-dim-2-pe" x="480" y="135" class="scene2-dim" 
+                  style="opacity: 0;">2</text>
+            
+            <!-- 面积计算文本（步骤 3 显示） -->
+            <text id="scene2-area-text1" x="350" y="420" class="scene2-area-text" 
+                  style="opacity: 0;">梯形 ABHP 面积 = (5+4)×3÷2 = 13.5</text>
+            <text id="scene2-area-text2" x="350" y="440" class="scene2-area-text" 
+                  style="opacity: 0;">矩形 PHDE 面积 = 2×1 = 2</text>
+            <text id="scene2-area-text3" x="350" y="460" class="scene2-area-text" 
+                  style="opacity: 0;">阴影总面积 = 13.5 + 2 = 15.5</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-state-indicator">步骤 0 / 3</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：阴影面积的割补法验证
+        
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 3;
+        
+        // 元素引用
+        const linePH = document.getElementById('scene2-line-ph');
+        const linePE = document.getElementById('scene2-line-pe');
+        const labelH = document.getElementById('scene2-label-h');
+        const dim5 = document.getElementById('scene2-dim-5');
+        const dim3 = document.getElementById('scene2-dim-3');
+        const dim2hc = document.getElementById('scene2-dim-2-hc');
+        const dim4 = document.getElementById('scene2-dim-4');
+        const dim2pe = document.getElementById('scene2-dim-2-pe');
+        const areaText1 = document.getElementById('scene2-area-text1');
+        const areaText2 = document.getElementById('scene2-area-text2');
+        const areaText3 = document.getElementById('scene2-area-text3');
+        const stateIndicator = document.getElementById('scene2-state-indicator');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        // 工具函数：显示元素（带淡入动画）
+        function showElement(el) {
+            el.style.transition = 'opacity 300ms ease';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(el) {
+            el.style.transition = 'opacity 300ms ease';
+            el.style.opacity = '0';
+        }
+        
+        // 更新状态
+        function updateState() {
+            // 更新状态指示器
+            stateIndicator.textContent = `步骤 ${currentState} / ${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps);
+            
+            // 根据当前状态显示/隐藏元素
+            // 步骤 0：只显示基础图形（正方形、菱形、阴影、点标签 A/B/C/D/P/E）
+            // 步骤 1：显示分割线 PH、辅助线 PE、点标签 H
+            // 步骤 2：显示尺寸标注
+            // 步骤 3：显示面积计算文本
+            
+            if (currentState >= 1) {
+                showElement(linePH);
+                showElement(linePE);
+                showElement(labelH);
+            } else {
+                hideElement(linePH);
+                hideElement(linePE);
+                hideElement(labelH);
+            }
+            
+            if (currentState >= 2) {
+                showElement(dim5);
+                showElement(dim3);
+                showElement(dim2hc);
+                showElement(dim4);
+                showElement(dim2pe);
+            } else {
+                hideElement(dim5);
+                hideElement(dim3);
+                hideElement(dim2hc);
+                hideElement(dim4);
+                hideElement(dim2pe);
+            }
+            
+            if (currentState >= 3) {
+                showElement(areaText1);
+                showElement(areaText2);
+                showElement(areaText3);
+            } else {
+                hideElement(areaText1);
+                hideElement(areaText2);
+                hideElement(areaText3);
+            }
+        }
+        
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateState();
+            }
+        });
+        
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

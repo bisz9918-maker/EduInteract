@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑动变阻器电阻变化与支路电流关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <defs>
+                <!-- L₂ 灯泡发光渐变 -->
+                <radialGradient id="scene2-bulb-glow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#ffd600" stop-opacity="1"/>
+                    <stop offset="100%" stop-color="#ffd600" stop-opacity="0"/>
+                </radialGradient>
+            </defs>
+
+            <!-- 电阻丝基座 -->
+            <rect id="scene2-rheostat-base" x="80" y="180" width="300" height="40" fill="#e0e0e0" stroke="#666666" stroke-width="2"/>
+
+            <!-- 未接入电阻丝（虚线，左侧） -->
+            <line id="scene2-rheostat-wire-inactive" x1="80" y1="200" x2="100" y2="200" stroke="#888888" stroke-width="3" stroke-dasharray="5,5"/>
+
+            <!-- 接入电阻丝（实线高亮，右侧） -->
+            <line id="scene2-rheostat-wire-active" x1="100" y1="200" x2="380" y2="200" stroke="#c62828" stroke-width="5"/>
+
+            <!-- 滑片 P 三角形 -->
+            <polygon id="scene2-slider-p" points="100,200 85,170 115,170" fill="#1565c0"/>
+
+            <!-- 滑片 P 标签 -->
+            <text id="scene2-label-p" x="100" y="150" text-anchor="middle" font-size="14" fill="#000000">P</text>
+
+            <!-- R 数值框 -->
+            <rect id="scene2-r-box" x="160" y="240" width="80" height="30" fill="#f5f5f5" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-r" x="200" y="260" text-anchor="middle" font-size="14" fill="#1565c0">R=20Ω</text>
+
+            <!-- L₂ 灯泡发光效果 -->
+            <circle id="scene2-bulb-l2-glow" cx="550" cy="200" r="50" fill="url(#scene2-bulb-glow)" opacity="0.3"/>
+
+            <!-- L₂ 灯泡 -->
+            <circle id="scene2-bulb-l2" cx="550" cy="200" r="35" fill="#ffd600" stroke="#000000" stroke-width="2"/>
+
+            <!-- L₂ 标签 -->
+            <text id="scene2-label-l2" x="550" y="165" text-anchor="middle" font-size="14" fill="#000000">L₂</text>
+
+            <!-- 电流表 A -->
+            <circle id="scene2-ammeter-a" cx="650" cy="200" r="25" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <text id="scene2-ammeter-text" x="650" y="205" text-anchor="middle" font-size="18" fill="#000000">A</text>
+
+            <!-- I₂ 数值框 -->
+            <rect id="scene2-i2-box" x="615" y="160" width="70" height="25" fill="#f5f5f5" stroke="#1565c0" stroke-width="2"/>
+            <text id="scene2-label-i2" x="650" y="177" text-anchor="middle" font-size="14" fill="#1565c0">I₂=0.15A</text>
+
+            <!-- 滑片移动指示箭头 -->
+            <line id="scene2-arrow-line" x1="380" y1="200" x2="420" y2="200" stroke="#666666" stroke-width="3" marker-end="url(#scene2-arrowhead)"/>
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#666666"/>
+                </marker>
+            </defs>
+
+            <!-- 方向标签 -->
+            <text id="scene2-label-direction" x="400" y="185" text-anchor="middle" font-size="14" fill="#000000">右移</text>
+
+            <!-- 底部滑块轨道 -->
+            <line id="scene2-slider-track" x1="100" y1="460" x2="700" y2="460" stroke="#cccccc" stroke-width="6" stroke-linecap="round"/>
+
+            <!-- 底部滑块手柄 -->
+            <circle id="scene2-slider-handle" cx="100" cy="460" r="15" fill="#1565c0"/>
+
+            <!-- 滑块标签 -->
+            <text id="scene2-label-slider" x="400" y="430" text-anchor="middle" font-size="14" fill="#000000">拖动滑片 P</text>
+        </svg>
+
+        <div id="scene2-controls"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 滑动变阻器电阻变化与支路电流关系
+
+        // 坐标常量
+        const RHEOSTAT_LEFT = 80;
+        const RHEOSTAT_RIGHT = 380;
+        const SLIDER_MIN_X = 100;
+        const SLIDER_MAX_X = 370;
+        const SLIDER_TRACK_LEFT = 100;
+        const SLIDER_TRACK_RIGHT = 700;
+
+        // 物理量范围
+        const R_MAX = 20;  // 最大电阻 20Ω
+        const R_MIN = 0;   // 最小电阻 0Ω
+        const I2_MIN = 0.15;  // 最小电流 0.15A
+        const I2_MAX = 0.60;  // 最大电流 0.60A
+        const BRIGHTNESS_MIN = 0.3;  // 最小亮度 30%
+        const BRIGHTNESS_MAX = 1.0;  // 最大亮度 100%
+
+        // 当前状态
+        let currentX = SLIDER_MIN_X;
+        let isDragging = false;
+
+        // DOM 元素
+        const sliderP = document.getElementById('scene2-slider-p');
+        const labelP = document.getElementById('scene2-label-p');
+        const wireInactive = document.getElementById('scene2-rheostat-wire-inactive');
+        const wireActive = document.getElementById('scene2-rheostat-wire-active');
+        const labelR = document.getElementById('scene2-label-r');
+        const bulbL2 = document.getElementById('scene2-bulb-l2');
+        const bulbGlow = document.getElementById('scene2-bulb-l2-glow');
+        const labelI2 = document.getElementById('scene2-label-i2');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+
+        // 计算物理量
+        function calculateValues(x) {
+            // 滑片越靠右，接入电阻越小
+            const ratio = (SLIDER_MAX_X - x) / (SLIDER_MAX_X - SLIDER_MIN_X);
+            const R = R_MIN + (R_MAX - R_MIN) * ratio;
+            const I2 = I2_MIN + (I2_MAX - I2_MIN) * ratio;
+            const brightness = BRIGHTNESS_MIN + (BRIGHTNESS_MAX - BRIGHTNESS_MIN) * ratio;
+            return { R, I2, brightness };
+        }
+
+        // 更新显示
+        function updateDisplay(x) {
+            const { R, I2, brightness } = calculateValues(x);
+
+            // 更新滑片 P 位置
+            sliderP.setAttribute('points', `${x},200 ${x-15},170 ${x+15},170`);
+            labelP.setAttribute('x', x);
+
+            // 更新电阻丝
+            wireInactive.setAttribute('x2', x);
+            wireActive.setAttribute('x1', x);
+
+            // 更新 R 数值
+            labelR.textContent = `R=${R.toFixed(1)}Ω`;
+
+            // 更新 I₂ 数值
+            labelI2.textContent = `I₂=${I2.toFixed(2)}A`;
+
+            // 更新灯泡亮度
+            bulbGlow.setAttribute('opacity', brightness * 0.5);
+            // 调整灯泡颜色饱和度
+            const saturation = 50 + brightness * 50;
+            bulbL2.setAttribute('fill', `hsl(45, ${saturation}%, ${40 + brightness * 30}%)`);
+
+            // 更新底部滑块手柄
+            // 映射变阻器 x 范围到滑块轨道 x 范围
+            const trackRatio = (x - SLIDER_MIN_X) / (SLIDER_MAX_X - SLIDER_MIN_X);
+            const handleX = SLIDER_TRACK_LEFT + trackRatio * (SLIDER_TRACK_RIGHT - SLIDER_TRACK_LEFT);
+            sliderHandle.setAttribute('cx', handleX);
+        }
+
+        // 拖拽事件处理
+        function handleStart(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+
+        function handleMove(e) {
+            if (!isDragging) return;
+
+            const svg = document.getElementById('scene2-svg');
+            const rect = svg.getBoundingClientRect();
+            let clientX;
+
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+            } else {
+                clientX = e.clientX;
+            }
+
+            // 计算滑块手柄位置
+            let handleX = clientX - rect.left;
+            handleX = Math.max(SLIDER_TRACK_LEFT, Math.min(SLIDER_TRACK_RIGHT, handleX));
+
+            // 映射回变阻器 x 范围
+            const trackRatio = (handleX - SLIDER_TRACK_LEFT) / (SLIDER_TRACK_RIGHT - SLIDER_TRACK_LEFT);
+            currentX = SLIDER_MIN_X + trackRatio * (SLIDER_MAX_X - SLIDER_MIN_X);
+
+            updateDisplay(currentX);
+        }
+
+        function handleEnd() {
+            isDragging = false;
+        }
+
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', handleStart);
+        sliderHandle.addEventListener('touchstart', handleStart);
+
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove);
+
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchend', handleEnd);
+
+        // 初始化显示
+        updateDisplay(currentX);
+    })();
+    </script>
+</body>
+</html>

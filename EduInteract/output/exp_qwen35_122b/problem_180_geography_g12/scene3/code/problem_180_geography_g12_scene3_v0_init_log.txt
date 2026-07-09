@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 地方时计算与北京时间推导</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #333; border-radius: 6px; background: #fff; cursor: pointer; transition: all 0.2s; }
+        .scene3-btn:hover:not(:disabled) { background: #e3f2fd; border-color: #1976d2; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene3-btn.active { background: #1976d2; color: #fff; }
+        svg { display: block; }
+        .scene3-text { font-size: 14px; fill: #000000; }
+        .scene3-text-small { font-size: 12px; fill: #000000; }
+        .scene3-text-bold { font-size: 14px; fill: #000000; font-weight: bold; }
+        .scene3-fade { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 地球轮廓 - 缩小并左移 -->
+            <circle id="scene3-circle-earth" cx="240" cy="250" r="110" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 夜半球阴影 -->
+            <path id="scene3-path-night" d="M 130,250 A 110,110 0 0,1 240,140 L 240,360 A 110,110 0 0,1 130,250" fill="#cfd8dc" opacity="0.5"/>
+            
+            <!-- 纬线（横线） -->
+            <line id="scene3-line-equator" x1="130" y1="250" x2="350" y2="250" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-line-latitude1" x1="140" y1="214" x2="340" y2="214" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            <line id="scene3-line-latitude2" x1="147" y1="178" x2="333" y2="178" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            <line id="scene3-line-latitude3" x1="140" y1="286" x2="340" y2="286" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            <line id="scene3-line-latitude4" x1="147" y1="322" x2="333" y2="322" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            
+            <!-- 经线（竖线） -->
+            <line id="scene3-line-meridian1" x1="240" y1="140" x2="240" y2="360" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-line-meridian2" x1="211" y1="154" x2="211" y2="346" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            <line id="scene3-line-meridian3" x1="182" y1="170" x2="182" y2="330" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            <line id="scene3-line-meridian4" x1="269" y1="154" x2="269" y2="346" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            <line id="scene3-line-meridian5" x1="298" y1="170" x2="298" y2="330" stroke="#000000" stroke-width="1" opacity="0.5"/>
+            
+            <!-- 晨昏线 -->
+            <path id="scene3-path-terminator" d="M 182,178 Q 240,214 290,250" fill="none" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- A/B/C 点 -->
+            <circle id="scene3-point-a" cx="290" cy="250" r="4" fill="#000000"/>
+            <circle id="scene3-point-b" cx="182" cy="178" r="4" fill="#000000"/>
+            <circle id="scene3-point-c" cx="350" cy="250" r="4" fill="#000000"/>
+            
+            <!-- 北极 N 和南极 S -->
+            <circle id="scene3-point-n" cx="240" cy="140" r="3" fill="#000000"/>
+            <circle id="scene3-point-s" cx="240" cy="360" r="3" fill="#000000"/>
+            
+            <!-- 标签 - 全部放在地球外部，确保不重叠 -->
+            <text id="scene3-label-n" x="235" y="125" class="scene3-text-bold">N</text>
+            <text id="scene3-label-s" x="235" y="380" class="scene3-text-bold">S</text>
+            <text id="scene3-label-a" x="305" y="275" class="scene3-text">A</text>
+            <text id="scene3-label-b" x="162" y="160" class="scene3-text">B</text>
+            <text id="scene3-label-c" x="360" y="265" class="scene3-text">C</text>
+            <text id="scene3-label-arctic" x="260" y="105" class="scene3-text">73°41′</text>
+            
+            <!-- 太阳光线 -->
+            <defs>
+                <marker id="scene3-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+            </defs>
+            <line id="scene3-ray1" x1="520" y1="150" x2="460" y2="170" stroke="#000000" stroke-width="2" marker-end="url(#scene3-arrowhead)"/>
+            <line id="scene3-ray2" x1="520" y1="250" x2="460" y2="250" stroke="#000000" stroke-width="2" marker-end="url(#scene3-arrowhead)"/>
+            <line id="scene3-ray3" x1="520" y1="350" x2="460" y2="330" stroke="#000000" stroke-width="2" marker-end="url(#scene3-arrowhead)"/>
+            
+            <!-- 步骤 1: C 点经线高亮 -->
+            <line id="scene3-line-c-meridian" x1="350" y1="140" x2="350" y2="360" stroke="#2e7d32" stroke-width="3" class="scene3-fade" style="opacity: 0; display: none;"/>
+            <text id="scene3-label-c-time" x="360" y="125" class="scene3-text-small scene3-fade" style="opacity: 0; display: none;">C 点地方时=12:00</text>
+            
+            <!-- 步骤 2: 西半球范围 -->
+            <path id="scene3-path-west-hemisphere" d="M 160,250 A 130,130 0 0,1 320,250" fill="none" stroke="#ff9800" stroke-width="2" class="scene3-fade" style="opacity: 0; display: none;"/>
+            <text id="scene3-label-west-hemisphere" x="175" y="90" class="scene3-text-small scene3-fade" style="opacity: 0; display: none;">西半球：160°E-20°W</text>
+            
+            <!-- 步骤 4: 120°E 经线 -->
+            <line id="scene3-line-120e" x1="290" y1="140" x2="290" y2="360" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,3" class="scene3-fade" style="opacity: 0; display: none;"/>
+            <text id="scene3-label-120e" x="275" y="115" class="scene3-text-small scene3-fade" style="opacity: 0; display: none;">120°E（北京）</text>
+            
+            <!-- 步骤 4: 经度差弧线 -->
+            <path id="scene3-path-longitude-diff" d="M 350,230 Q 320,200 290,230" fill="none" stroke="#ff9800" stroke-width="2" class="scene3-fade" style="opacity: 0; display: none;"/>
+            <text id="scene3-label-longitude-diff" x="315" y="195" class="scene3-text-small scene3-fade" style="opacity: 0; display: none;">经度差=140°</text>
+            
+            <!-- 时间计算框 - 缩小高度，减少行间距，确保不裁切 -->
+            <rect id="scene3-rect-calc-box" x="420" y="60" width="340" height="350" fill="#fff9c4" stroke="#000000" stroke-width="1" class="scene3-fade" style="opacity: 0; display: none;"/>
+            <g id="scene3-calc-content" class="scene3-fade" style="opacity: 0; display: none;">
+                <text id="scene3-calc-step1" x="435" y="90" class="scene3-text-bold">步骤 1：确定 C 点经度</text>
+                <text id="scene3-calc-step1-1" x="435" y="118" class="scene3-text-small">西半球共 180°,图示 6 等分</text>
+                <text id="scene3-calc-step1-2" x="435" y="146" class="scene3-text-small">每份 30°,C 点在最右侧</text>
+                <text id="scene3-calc-step1-3" x="435" y="174" class="scene3-text">C 点经度=20°W</text>
+                
+                <text id="scene3-calc-step2" x="435" y="208" class="scene3-text-bold">步骤 2：计算经度差</text>
+                <text id="scene3-calc-step2-1" x="435" y="236" class="scene3-text-small">C 点 20°W 与北京 120°E</text>
+                <text id="scene3-calc-step2-2" x="435" y="264" class="scene3-text">经度差=20°+120°=140°</text>
+                
+                <text id="scene3-calc-step3" x="435" y="298" class="scene3-text-bold">步骤 3：换算时间差</text>
+                <text id="scene3-calc-step3-1" x="435" y="326" class="scene3-text">140°÷15°/小时=9 小时 20 分</text>
+                
+                <text id="scene3-calc-step4" x="435" y="360" class="scene3-text-bold">步骤 4：计算北京时间</text>
+                <text id="scene3-calc-step4-1" x="435" y="388" class="scene3-text-small">北京在 C 点东侧，时间更早</text>
+                <text id="scene3-calc-step4-2" x="435" y="416" class="scene3-text">北京时间=12:00+9:20=21:20</text>
+                <text id="scene3-calc-conclusion" x="435" y="450" class="scene3-text-bold">结论：此刻北京时间为 21 时 20 分</text>
+            </g>
+        </svg>
+        
+        <div id="scene3-controls">
+            <button id="scene3-prev-btn" class="scene3-btn" disabled>◀ 上一步</button>
+            <button id="scene3-next-btn" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 地方时计算与北京时间推导
+        // 坐标表对照：
+        // 地球轮廓：圆心 (240,250)，半径 110
+        // 北极 N：(240,140)，南极 S：(240,360)
+        // A 点：(290,250)，B 点：(182,178)，C 点：(350,250)
+        
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el) el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // 渲染当前步骤
+        function renderStep() {
+            const prevBtn = document.getElementById('scene3-prev-btn');
+            const nextBtn = document.getElementById('scene3-next-btn');
+            
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            if (currentStep === TOTAL_STEPS - 1) {
+                nextBtn.textContent = '完成 ✓';
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+                nextBtn.disabled = false;
+            }
+            
+            // 根据步骤控制元素显示
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示基础元素
+                    break;
+                    
+                case 1:
+                    // 显示 C 点经线高亮和 C 点地方时
+                    show(document.getElementById('scene3-line-c-meridian'));
+                    show(document.getElementById('scene3-label-c-time'));
+                    break;
+                    
+                case 2:
+                    // 显示西半球范围
+                    show(document.getElementById('scene3-path-west-hemisphere'));
+                    show(document.getElementById('scene3-label-west-hemisphere'));
+                    break;
+                    
+                case 3:
+                    // 显示时间计算框和步骤 1 内容
+                    show(document.getElementById('scene3-rect-calc-box'));
+                    show(document.getElementById('scene3-calc-content'));
+                    show(document.getElementById('scene3-calc-step1'));
+                    show(document.getElementById('scene3-calc-step1-1'));
+                    show(document.getElementById('scene3-calc-step1-2'));
+                    show(document.getElementById('scene3-calc-step1-3'));
+                    break;
+                    
+                case 4:
+                    // 显示 120°E 经线、经度差弧线和步骤 2 内容
+                    show(document.getElementById('scene3-line-120e'));
+                    show(document.getElementById('scene3-label-120e'));
+                    show(document.getElementById('scene3-path-longitude-diff'));
+                    show(document.getElementById('scene3-label-longitude-diff'));
+                    show(document.getElementById('scene3-calc-step2'));
+                    show(document.getElementById('scene3-calc-step2-1'));
+                    show(document.getElementById('scene3-calc-step2-2'));
+                    break;
+                    
+                case 5:
+                    // 显示步骤 3、4 内容和结论
+                    show(document.getElementById('scene3-calc-step3'));
+                    show(document.getElementById('scene3-calc-step3-1'));
+                    show(document.getElementById('scene3-calc-step4'));
+                    show(document.getElementById('scene3-calc-step4-1'));
+                    show(document.getElementById('scene3-calc-step4-2'));
+                    show(document.getElementById('scene3-calc-conclusion'));
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        document.getElementById('scene3-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        document.getElementById('scene3-next-btn').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

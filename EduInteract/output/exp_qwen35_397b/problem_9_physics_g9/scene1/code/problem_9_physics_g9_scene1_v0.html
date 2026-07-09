@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路开关状态分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1565c0;
+            color: white;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #0d47a1;
+        }
+        .scene1-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        .wire {
+            stroke: #000000;
+            stroke-width: 3;
+            fill: none;
+        }
+        .current-path {
+            stroke: #1565c0;
+            stroke-width: 5;
+            fill: none;
+            stroke-linecap: round;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .current-path.visible {
+            opacity: 1;
+        }
+        .bulb-highlight {
+            fill: #2e7d32;
+            fill-opacity: 0.2;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .bulb-highlight.visible {
+            opacity: 1;
+        }
+        .short-circuit {
+            stroke: #c62828;
+            stroke-width: 3;
+            stroke-dasharray: 5,5;
+            fill: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .short-circuit.visible {
+            opacity: 1;
+        }
+        .switch-blade {
+            stroke: #000000;
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+        }
+        .contact-point {
+            fill: #000000;
+        }
+        .state-box {
+            fill: #ffffff;
+            stroke: #bdbdbd;
+            stroke-width: 1;
+        }
+        .state-text {
+            font-size: 11px;
+            fill: #333;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 状态说明区背景 -->
+            <rect id="scene1-state-bg" class="state-box" x="670" y="40" width="120" height="120" rx="5"/>
+            
+            <!-- 状态说明文字 -->
+            <text id="scene1-state-title" class="state-text" x="730" y="60" text-anchor="middle" font-weight="bold" font-size="12">开关状态</text>
+            <text id="scene1-state-desc" class="state-text" x="730" y="80" text-anchor="middle">原图</text>
+            <text id="scene1-state-analysis" class="state-text" x="730" y="100" text-anchor="middle" font-size="10px">初始状态</text>
+            
+            <!-- 导线框架 -->
+            <!-- 左侧竖线 -->
+            <line class="wire" x1="100" y1="120" x2="100" y2="380"/>
+            <!-- 顶部横线（左段，到 S₂ 左侧） -->
+            <line class="wire" x1="100" y1="120" x2="300" y2="120"/>
+            <!-- 顶部横线（右段，从 S₂ 右侧） -->
+            <line class="wire" x1="400" y1="120" x2="650" y2="120"/>
+            <!-- 右侧竖线 -->
+            <line class="wire" x1="650" y1="120" x2="650" y2="380"/>
+            <!-- 中间横线（L₁ 左侧到 L₁） -->
+            <line class="wire" x1="100" y1="250" x2="175" y2="250"/>
+            <!-- 中间横线（L₁ 右侧到 L₂ 左侧） -->
+            <line class="wire" x1="225" y1="250" x2="475" y2="250"/>
+            <!-- 中间横线（L₂ 右侧到右侧竖线） -->
+            <line class="wire" x1="525" y1="250" x2="650" y2="250"/>
+            <!-- 底部横线（左段） -->
+            <line class="wire" x1="100" y1="380" x2="350" y2="380"/>
+            <!-- 底部横线（右段，到 S₁） -->
+            <line class="wire" x1="550" y1="380" x2="600" y2="380"/>
+            <!-- 电源负极连接 -->
+            <line class="wire" x1="100" y1="380" x2="100" y2="420"/>
+            <!-- 电源正极连接 -->
+            <line class="wire" x1="550" y1="380" x2="550" y2="420"/>
+            <!-- 电源横线 -->
+            <line class="wire" x1="350" y1="420" x2="550" y2="420"/>
+            <!-- S₁ 触点 b 连接线 -->
+            <line class="wire" x1="475" y1="250" x2="475" y2="350"/>
+            <line class="wire" x1="475" y1="350" x2="580" y2="350"/>
+            
+            <!-- 电源符号 -->
+            <g id="scene1-power">
+                <!-- 负极（短线） -->
+                <line x1="350" y1="410" x2="350" y2="430" stroke="#000" stroke-width="3"/>
+                <!-- 正极（长线） -->
+                <line x1="550" y1="405" x2="550" y2="435" stroke="#000" stroke-width="3"/>
+                <text x="450" y="455" text-anchor="middle" font-size="14" fill="#333">3V</text>
+            </g>
+            
+            <!-- L₁ 灯泡 -->
+            <g id="scene1-l1-group">
+                <circle id="scene1-l1-highlight" class="bulb-highlight" cx="200" cy="250" r="30"/>
+                <circle cx="200" cy="250" r="25" fill="none" stroke="#000" stroke-width="2"/>
+                <line x1="185" y1="235" x2="215" y2="265" stroke="#000" stroke-width="2"/>
+                <line x1="215" y1="235" x2="185" y2="265" stroke="#000" stroke-width="2"/>
+                <text x="200" y="205" text-anchor="middle" font-size="13" fill="#333">L₁</text>
+                <text x="200" y="175" text-anchor="middle" font-size="10" fill="#666">6V 6W</text>
+            </g>
+            
+            <!-- L₂ 灯泡 -->
+            <g id="scene1-l2-group">
+                <circle id="scene1-l2-highlight" class="bulb-highlight" cx="500" cy="250" r="30"/>
+                <circle cx="500" cy="250" r="25" fill="none" stroke="#000" stroke-width="2"/>
+                <line x1="485" y1="235" x2="515" y2="265" stroke="#000" stroke-width="2"/>
+                <line x1="515" y1="235" x2="485" y2="265" stroke="#000" stroke-width="2"/>
+                <text x="500" y="205" text-anchor="middle" font-size="13" fill="#333">L₂</text>
+                <text x="500" y="175" text-anchor="middle" font-size="10" fill="#666">3V 3W</text>
+            </g>
+            
+            <!-- S₂ 开关（顶部） -->
+            <g id="scene1-s2-group">
+                <!-- 左侧触点 -->
+                <circle cx="300" cy="120" r="4" class="contact-point"/>
+                <!-- 右侧触点 -->
+                <circle cx="400" cy="120" r="4" class="contact-point"/>
+                <!-- 闸刀（默认断开，翘起） -->
+                <line id="scene1-s2-blade" class="switch-blade" x1="300" y1="120" x2="350" y2="100"/>
+                <text x="350" y="80" text-anchor="middle" font-size="13" fill="#333">S₂</text>
+            </g>
+            
+            <!-- S₁ 开关（单刀双掷，右下角） -->
+            <g id="scene1-s1-group">
+                <!-- 公共端触点 -->
+                <circle cx="600" cy="380" r="4" class="contact-point"/>
+                <!-- 触点 a（上） -->
+                <circle id="scene1-s1-a" cx="650" cy="320" r="4" class="contact-point"/>
+                <text x="670" y="318" font-size="11" fill="#333">a</text>
+                <!-- 触点 b（下） -->
+                <circle id="scene1-s1-b" cx="580" cy="350" r="4" class="contact-point"/>
+                <text x="595" y="340" font-size="11" fill="#333">b</text>
+                <!-- 闸刀（默认中间位置） -->
+                <line id="scene1-s1-blade" class="switch-blade" x1="600" y1="380" x2="620" y2="350"/>
+                <text x="600" y="430" text-anchor="middle" font-size="13" fill="#333">S₁</text>
+            </g>
+            
+            <!-- 短路路径（L₂ 两端） -->
+            <path id="scene1-short-l2" class="short-circuit" d="M 475 250 L 475 120 L 650 120 L 650 250"/>
+            
+            <!-- 电流路径 -->
+            <!-- 路径1: S₁接 a，串联 -->
+            <path id="scene1-path1" class="current-path" d="M 550 420 L 600 420 L 600 380 L 650 380 L 650 320 L 650 250 L 525 250"/>
+            <path id="scene1-path1-mid" class="current-path" d="M 475 250 L 225 250 L 175 250 L 100 250 L 100 380 L 350 380"/>
+            
+            <!-- 路径2: S₁接 b，只有 L₁ -->
+            <path id="scene1-path2" class="current-path" d="M 550 420 L 600 420 L 600 380 L 580 380 L 580 350 L 475 350 L 475 250 L 225 250 L 175 250 L 100 250 L 100 380 L 350 380"/>
+            
+            <!-- 路径3: S₂闭合 S₁接 a，并联 -->
+            <path id="scene1-path3-main" class="current-path" d="M 550 420 L 600 420 L 600 380 L 650 380 L 650 320 L 650 250"/>
+            <path id="scene1-path3-l2" class="current-path" d="M 525 250 L 475 250"/>
+            <path id="scene1-path3-s2" class="current-path" d="M 650 120 L 400 120 L 300 120 L 100 120 L 100 250 L 175 250"/>
+            <path id="scene1-path3-return" class="current-path" d="M 225 250 L 100 250 L 100 380 L 350 380"/>
+            
+            <!-- 路径4: S₂闭合 S₁接 b，L₂短路 -->
+            <path id="scene1-path4" class="current-path" d="M 550 420 L 600 420 L 600 380 L 580 380 L 580 350 L 475 350 L 475 250 L 225 250 L 175 250 L 100 250 L 100 380 L 350 380"/>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 状态数据
+        const states = [
+            {
+                // 步骤 0: 初始状态
+                s2: 'open',
+                s1: 'mid',
+                paths: [],
+                highlights: [],
+                shortCircuit: false,
+                title: '原图',
+                desc: '开关初始状态',
+                analysis: 'S₂断开，S₁未连接'
+            },
+            {
+                // 步骤 1: S₂断开，S₁接 a
+                s2: 'open',
+                s1: 'a',
+                paths: ['scene1-path1', 'scene1-path1-mid'],
+                highlights: ['scene1-l1-highlight', 'scene1-l2-highlight'],
+                shortCircuit: false,
+                title: 'S₂断开，S₁接 a',
+                desc: 'L₁与 L₂串联',
+                analysis: '总电阻大，电流小'
+            },
+            {
+                // 步骤 2: S₂断开，S₁接 b
+                s2: 'open',
+                s1: 'b',
+                paths: ['scene1-path2'],
+                highlights: ['scene1-l1-highlight'],
+                shortCircuit: false,
+                title: 'S₂断开，S₁接 b',
+                desc: '只有 L₁接入',
+                analysis: 'L₂断路，L₁电压 3V'
+            },
+            {
+                // 步骤 3: S₂闭合，S₁接 a
+                s2: 'closed',
+                s1: 'a',
+                paths: ['scene1-path3-main', 'scene1-path3-l2', 'scene1-path3-s2', 'scene1-path3-return'],
+                highlights: ['scene1-l1-highlight', 'scene1-l2-highlight'],
+                shortCircuit: false,
+                title: 'S₂闭合，S₁接 a',
+                desc: 'L₁与 L₂并联',
+                analysis: '各支路电压 3V'
+            },
+            {
+                // 步骤 4: S₂闭合，S₁接 b
+                s2: 'closed',
+                s1: 'b',
+                paths: ['scene1-path4'],
+                highlights: ['scene1-l1-highlight'],
+                shortCircuit: true,
+                title: 'S₂闭合，S₁接 b',
+                desc: 'L₂被短路',
+                analysis: '只有 L₁工作'
+            },
+            {
+                // 步骤 5: 结论
+                s2: 'closed',
+                s1: 'b',
+                paths: ['scene1-path4'],
+                highlights: ['scene1-l1-highlight'],
+                shortCircuit: true,
+                title: '结论',
+                desc: '正确选项：D',
+                analysis: 'L₁正常发光，L₂不亮'
+            }
+        ];
+        
+        let currentStep = 0;
+        
+        // 获取元素
+        const s2Blade = document.getElementById('scene1-s2-blade');
+        const s1Blade = document.getElementById('scene1-s1-blade');
+        const stateTitle = document.getElementById('scene1-state-title');
+        const stateDesc = document.getElementById('scene1-state-desc');
+        const stateAnalysis = document.getElementById('scene1-state-analysis');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const shortL2 = document.getElementById('scene1-short-l2');
+        
+        // 更新开关位置
+        function updateSwitches(state) {
+            // S₂ 开关
+            if (state.s2 === 'open') {
+                s2Blade.setAttribute('x2', '350');
+                s2Blade.setAttribute('y2', '100');
+            } else {
+                s2Blade.setAttribute('x2', '400');
+                s2Blade.setAttribute('y2', '120');
+            }
+            
+            // S₁ 开关
+            if (state.s1 === 'mid') {
+                s1Blade.setAttribute('x2', '620');
+                s1Blade.setAttribute('y2', '350');
+            } else if (state.s1 === 'a') {
+                s1Blade.setAttribute('x2', '650');
+                s1Blade.setAttribute('y2', '320');
+            } else {
+                s1Blade.setAttribute('x2', '580');
+                s1Blade.setAttribute('y2', '350');
+            }
+        }
+        
+        // 更新高亮和路径
+        function updateVisuals(state) {
+            // 隐藏所有路径
+            document.querySelectorAll('.current-path').forEach(el => {
+                el.classList.remove('visible');
+            });
+            // 显示指定路径
+            state.paths.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('visible');
+            });
+            
+            // 隐藏所有高亮
+            document.querySelectorAll('.bulb-highlight').forEach(el => {
+                el.classList.remove('visible');
+            });
+            // 显示指定高亮
+            state.highlights.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('visible');
+            });
+            
+            // 短路路径
+            if (state.shortCircuit) {
+                shortL2.classList.add('visible');
+            } else {
+                shortL2.classList.remove('visible');
+            }
+        }
+        
+        // 更新状态文字
+        function updateStateText(state) {
+            stateTitle.textContent = state.title;
+            stateDesc.textContent = state.desc;
+            stateAnalysis.textContent = state.analysis;
+            stepIndicator.textContent = `步骤 ${currentStep}/5`;
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === 5;
+        }
+        
+        // 渲染当前状态
+        function renderState() {
+            const state = states[currentStep];
+            updateSwitches(state);
+            updateVisuals(state);
+            updateStateText(state);
+            updateButtons();
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderState();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 5) {
+                currentStep++;
+                renderState();
+            }
+        });
+        
+        // 初始化
+        renderState();
+    })();
+    </script>
+</body>
+</html>

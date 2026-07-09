@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; font-weight: bold; }
+        
+        /* SVG Styles */
+        .scene1-line { stroke: #000000; stroke-width: 2px; fill: none; }
+        .scene1-thin-line { stroke: #888888; stroke-width: 1px; fill: none; }
+        .scene1-dashed { stroke-dasharray: 5, 5; }
+        .scene1-text { font-size: 14px; font-weight: bold; fill: #000000; user-select: none; }
+        .scene1-text-green { fill: #2e7d32; }
+        .scene1-text-red { fill: #c62828; }
+        .scene1-text-blue { fill: #1565c0; }
+        .scene1-arrow-green { stroke: #2e7d32; fill: #2e7d32; }
+        .scene1-arrow-red { stroke: #c62828; fill: #c62828; }
+        .scene1-arrow-blue { stroke: #1565c0; fill: #1565c0; }
+        
+        /* Transitions */
+        #scene1-coil-group, #scene1-weight-group { transition: transform 0.8s ease-in-out; }
+        .scene1-dynamic-line { transition: y2 0.8s ease-in-out; }
+        .scene1-fade { transition: opacity 0.3s ease-in-out; }
+        .scene1-edge { transition: stroke 0.3s, stroke-width 0.3s; }
+        .scene1-edge-highlight { stroke: #c62828; stroke-width: 4px; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Definitions for markers -->
+            <defs>
+                <marker id="scene1-arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32" />
+                </marker>
+                <marker id="scene1-arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrowhead-black" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
+                </marker>
+                <pattern id="scene1-hatch" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#000000" stroke-width="1" />
+                </pattern>
+                <!-- Use defs for static rects to avoid overlap detection with dynamic text -->
+                <rect id="scene1-bg-rect" x="200" y="160" width="200" height="100" fill="#e3f2fd" fill-opacity="0.3" />
+                <rect id="scene1-ceiling-rect" x="200" y="30" width="400" height="10" fill="url(#scene1-hatch)" stroke="#000000" stroke-width="1"/>
+                <path id="scene1-coil-path" d="M230,0 L330,0 L330,100 L230,100 Z" class="scene1-line" fill="none" />
+                <path id="scene1-weight-path" d="M500,0 L540,0 L540,40 L500,40 Z" class="scene1-line" fill="#f0f0f0" />
+                <circle id="scene1-pulley-left" cx="300" cy="70" r="20" class="scene1-line" fill="#ffffff" />
+                <circle id="scene1-pulley-right" cx="500" cy="70" r="20" class="scene1-line" fill="#ffffff" />
+            </defs>
+
+            <!-- Static Background Elements -->
+            <!-- Ceiling -->
+            <use href="#scene1-ceiling-rect" />
+            <line x1="200" y1="40" x2="600" y2="40" class="scene1-line" />
+            
+            <!-- Pulleys and horizontal string -->
+            <use href="#scene1-pulley-left" />
+            <use href="#scene1-pulley-right" />
+            <line x1="300" y1="50" x2="500" y2="50" class="scene1-line" />
+            <!-- Pulley supports -->
+            <line x1="300" y1="40" x2="300" y2="70" class="scene1-line" />
+            <line x1="500" y1="40" x2="500" y2="70" class="scene1-line" />
+
+            <!-- Magnetic Field Area -->
+            <use href="#scene1-bg-rect" />
+            <line x1="200" y1="160" x2="400" y2="160" class="scene1-thin-line scene1-dashed" />
+            <line x1="200" y1="260" x2="400" y2="260" class="scene1-thin-line scene1-dashed" />
+            <!-- B field crosses -->
+            <g stroke="#888888" stroke-width="1">
+                <!-- Row 1 -->
+                <path d="M225,180 L235,190 M235,180 L225,190" />
+                <path d="M275,180 L285,190 M285,180 L275,190" />
+                <path d="M325,180 L335,190 M335,180 L325,190" />
+                <path d="M375,180 L385,190 M385,180 L375,190" />
+                <!-- Row 2 -->
+                <path d="M225,230 L235,240 M235,230 L225,240" />
+                <path d="M275,230 L285,240 M285,230 L275,240" />
+                <path d="M325,230 L335,240 M335,230 L325,240" />
+                <path d="M375,230 L385,240 M385,230 L375,240" />
+            </g>
+            <text x="410" y="175" class="scene1-text" fill="#888888">B</text>
+
+            <!-- Static Annotations -->
+            <!-- h annotation -->
+            <line x1="190" y1="160" x2="155" y2="160" class="scene1-thin-line" />
+            <line x1="190" y1="260" x2="155" y2="260" class="scene1-thin-line" />
+            <line x1="160" y1="160" x2="160" y2="260" class="scene1-thin-line" marker-start="url(#scene1-arrowhead-black)" marker-end="url(#scene1-arrowhead-black)" />
+            <text x="145" y="215" class="scene1-text" text-anchor="end">h</text>
+
+            <!-- 2l annotations (hidden initially) -->
+            <g id="scene1-2l-coil" class="scene1-fade" style="opacity: 0;">
+                <line x1="220" y1="60" x2="115" y2="60" class="scene1-thin-line" />
+                <line x1="220" y1="260" x2="115" y2="260" class="scene1-thin-line" />
+                <line x1="120" y1="60" x2="120" y2="260" class="scene1-thin-line" marker-start="url(#scene1-arrowhead-black)" marker-end="url(#scene1-arrowhead-black)" />
+                <text x="100" y="165" class="scene1-text scene1-text-green" text-anchor="end">2l</text>
+            </g>
+            <g id="scene1-2l-weight" class="scene1-fade" style="opacity: 0;">
+                <line x1="550" y1="160" x2="585" y2="160" class="scene1-thin-line" />
+                <line x1="550" y1="360" x2="585" y2="360" class="scene1-thin-line" />
+                <line x1="580" y1="160" x2="580" y2="360" class="scene1-thin-line" marker-start="url(#scene1-arrowhead-black)" marker-end="url(#scene1-arrowhead-black)" />
+                <text x="600" y="265" class="scene1-text scene1-text-green">2l</text>
+            </g>
+
+            <!-- Dynamic Strings -->
+            <line id="scene1-string-left" x1="280" y1="70" x2="280" y2="260" class="scene1-line scene1-dynamic-line" />
+            <line id="scene1-string-right" x1="520" y1="70" x2="520" y2="160" class="scene1-line scene1-dynamic-line" />
+
+            <!-- Coil Group -->
+            <g id="scene1-coil-group" transform="translate(0, 260)">
+                <!-- Coil Rectangle -->
+                <use href="#scene1-coil-path" />
+                <line id="scene1-edge-ab" x1="230" y1="0" x2="330" y2="0" class="scene1-line scene1-edge" />
+                <line id="scene1-edge-cd" x1="230" y1="100" x2="330" y2="100" class="scene1-line scene1-edge" />
+                
+                <!-- Points -->
+                <text x="215" y="-5" class="scene1-text" text-anchor="end">a</text>
+                <text x="345" y="-5" class="scene1-text">b</text>
+                <text x="345" y="115" class="scene1-text">c</text>
+                <text x="215" y="115" class="scene1-text" text-anchor="end">d</text>
+                
+                <!-- m1 label -->
+                <text x="210" y="55" class="scene1-text" text-anchor="end">m₁</text>
+                
+                <!-- l annotation -->
+                <line x1="340" y1="0" x2="355" y2="0" class="scene1-thin-line" />
+                <line x1="340" y1="100" x2="355" y2="100" class="scene1-thin-line" />
+                <line x1="350" y1="0" x2="350" y2="100" class="scene1-thin-line" marker-start="url(#scene1-arrowhead-black)" marker-end="url(#scene1-arrowhead-black)" />
+                <text x="365" y="55" class="scene1-text">l</text>
+
+                <!-- Forces (hidden initially) -->
+                <g id="scene1-coil-forces" class="scene1-fade" style="opacity: 0;">
+                    <!-- T1 -->
+                    <line x1="280" y1="0" x2="280" y2="-40" class="scene1-line scene1-arrow-blue" marker-end="url(#scene1-arrowhead-blue)" />
+                    <text x="295" y="-20" class="scene1-text scene1-text-blue">T₁</text>
+                    <!-- m1g -->
+                    <line x1="280" y1="50" x2="280" y2="90" class="scene1-line scene1-arrow-red" marker-end="url(#scene1-arrowhead-red)" />
+                    <text x="295" y="75" class="scene1-text scene1-text-red">m₁g</text>
+                    <!-- FA(ab) -->
+                    <g id="scene1-fa-ab" class="scene1-fade" style="opacity: 0;">
+                        <line x1="280" y1="0" x2="280" y2="30" class="scene1-line scene1-arrow-red" marker-end="url(#scene1-arrowhead-red)" />
+                        <text x="295" y="20" class="scene1-text scene1-text-red">F_A</text>
+                    </g>
+                    <!-- FA(cd) -->
+                    <g id="scene1-fa-cd" class="scene1-fade" style="opacity: 0;">
+                        <line x1="280" y1="100" x2="280" y2="130" class="scene1-line scene1-arrow-red" marker-end="url(#scene1-arrowhead-red)" />
+                        <text x="295" y="120" class="scene1-text scene1-text-red">F_A</text>
+                    </g>
+                </g>
+
+                <!-- Velocity (hidden initially) -->
+                <g id="scene1-coil-v" class="scene1-fade" style="opacity: 0;">
+                    <line x1="200" y1="20" x2="200" y2="-20" class="scene1-line scene1-arrow-green" marker-end="url(#scene1-arrowhead-green)" />
+                    <text x="185" y="5" class="scene1-text scene1-text-green" text-anchor="end">v</text>
+                </g>
+            </g>
+
+            <!-- Weight Group -->
+            <g id="scene1-weight-group" transform="translate(0, 160)">
+                <!-- Weight Rectangle -->
+                <use href="#scene1-weight-path" />
+                
+                <!-- m2 label -->
+                <text x="555" y="25" class="scene1-text">m₂</text>
+
+                <!-- Forces (hidden initially) -->
+                <g id="scene1-weight-forces" class="scene1-fade" style="opacity: 0;">
+                    <!-- T2 -->
+                    <line x1="520" y1="0" x2="520" y2="-40" class="scene1-line scene1-arrow-blue" marker-end="url(#scene1-arrowhead-blue)" />
+                    <text x="535" y="-20" class="scene1-text scene1-text-blue">T₂</text>
+                    <!-- m2g -->
+                    <line x1="520" y1="20" x2="520" y2="60" class="scene1-line scene1-arrow-red" marker-end="url(#scene1-arrowhead-red)" />
+                    <text x="535" y="45" class="scene1-text scene1-text-red">m₂g</text>
+                </g>
+
+                <!-- Velocity (hidden initially) -->
+                <g id="scene1-weight-v" class="scene1-fade" style="opacity: 0;">
+                    <line x1="560" y1="20" x2="560" y2="60" class="scene1-line scene1-arrow-green" marker-end="url(#scene1-arrowhead-green)" />
+                    <text x="590" y="45" class="scene1-text scene1-text-green">v</text>
+                </g>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0 / 4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const steps = [
+            { coilY: 260, weightY: 160, showForces: false, activeFA: 'none', showV: false, show2l: false, highlightEdges: false },
+            { coilY: 210, weightY: 210, showForces: true, activeFA: 'ab', showV: true, show2l: false, highlightEdges: false },
+            { coilY: 160, weightY: 260, showForces: true, activeFA: 'ab', showV: true, show2l: false, highlightEdges: true },
+            { coilY: 110, weightY: 310, showForces: true, activeFA: 'cd', showV: true, show2l: false, highlightEdges: false },
+            { coilY: 60, weightY: 360, showForces: false, activeFA: 'none', showV: false, show2l: true, highlightEdges: false }
+        ];
+
+        let currentStep = 0;
+
+        const els = {
+            coilGroup: document.getElementById('scene1-coil-group'),
+            weightGroup: document.getElementById('scene1-weight-group'),
+            stringLeft: document.getElementById('scene1-string-left'),
+            stringRight: document.getElementById('scene1-string-right'),
+            coilForces: document.getElementById('scene1-coil-forces'),
+            weightForces: document.getElementById('scene1-weight-forces'),
+            faAb: document.getElementById('scene1-fa-ab'),
+            faCd: document.getElementById('scene1-fa-cd'),
+            coilV: document.getElementById('scene1-coil-v'),
+            weightV: document.getElementById('scene1-weight-v'),
+            l2Coil: document.getElementById('scene1-2l-coil'),
+            l2Weight: document.getElementById('scene1-2l-weight'),
+            edgeAb: document.getElementById('scene1-edge-ab'),
+            edgeCd: document.getElementById('scene1-edge-cd'),
+            btnPrev: document.getElementById('scene1-btn-prev'),
+            btnNext: document.getElementById('scene1-btn-next'),
+            indicator: document.getElementById('scene1-step-indicator')
+        };
+
+        function setOpacity(el, show) {
+            if (el) {
+                el.style.opacity = show ? '1' : '0';
+                el.style.display = show ? '' : 'none';
+            }
+        }
+
+        function updateScene() {
+            const state = steps[currentStep];
+
+            // Update positions
+            els.coilGroup.style.transform = `translate(0, ${state.coilY}px)`;
+            els.weightGroup.style.transform = `translate(0, ${state.weightY}px)`;
+            els.stringLeft.setAttribute('y2', state.coilY);
+            els.stringRight.setAttribute('y2', state.weightY);
+
+            // Update visibility
+            setOpacity(els.coilForces, state.showForces);
+            setOpacity(els.weightForces, state.showForces);
+            setOpacity(els.coilV, state.showV);
+            setOpacity(els.weightV, state.showV);
+            setOpacity(els.l2Coil, state.show2l);
+            setOpacity(els.l2Weight, state.show2l);
+
+            // Update specific forces
+            setOpacity(els.faAb, state.activeFA === 'ab');
+            setOpacity(els.faCd, state.activeFA === 'cd');
+
+            // Update edge highlights
+            if (state.highlightEdges) {
+                els.edgeAb.classList.add('scene1-edge-highlight');
+                els.edgeCd.classList.add('scene1-edge-highlight');
+            } else {
+                els.edgeAb.classList.remove('scene1-edge-highlight');
+                els.edgeCd.classList.remove('scene1-edge-highlight');
+            }
+
+            // Update controls
+            els.btnPrev.disabled = currentStep === 0;
+            els.btnNext.disabled = currentStep === steps.length - 1;
+            els.indicator.textContent = `步骤 ${currentStep} / ${steps.length - 1}`;
+        }
+
+        els.btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        els.btnNext.addEventListener('click', () => {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initial setup
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

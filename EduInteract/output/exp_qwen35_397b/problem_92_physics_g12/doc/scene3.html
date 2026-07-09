@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点电荷电场中圆周运动分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-svg { width: 800px; height: 500px; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; font-weight: bold; min-width: 80px; text-align: center; }
+        .scene3-element { transition: opacity 0.3s ease; }
+        .scene3-hidden { opacity: 0; }
+        .scene3-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene3-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene3-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene3-arrow-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#7b1fa2" />
+                </marker>
+                <!-- 荧光屏斜线填充图案 -->
+                <pattern id="scene3-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#2e7d32" stroke-width="2" />
+                </pattern>
+            </defs>
+
+            <!-- 中心线 RO (始终显示) -->
+            <line id="scene3-center-line" x1="50" y1="250" x2="750" y2="250" stroke="#999" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- PS 界面 (始终显示) -->
+            <line id="scene3-ps-interface" x1="450" y1="80" x2="450" y2="420" stroke="#999" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- 点电荷 Q (始终显示) -->
+            <circle id="scene3-charge-q" cx="600" cy="250" r="6" fill="#1565c0" />
+            <!-- 标签 Q 放在点电荷右上方，远离圆弧 -->
+            <text id="scene3-label-q" x="620" y="235" font-size="14" fill="#1565c0" font-weight="bold">Q</text>
+            <!-- 标签 O 放在点电荷正下方更远处 -->
+            <text id="scene3-label-o" x="600" y="320" font-size="14" fill="#333" text-anchor="middle">O</text>
+
+            <!-- 荧光屏 EF (始终显示) -->
+            <line id="scene3-screen-ef" x1="650" y1="250" x2="750" y2="250" stroke="#2e7d32" stroke-width="4" />
+            <rect id="scene3-screen-fill" x="650" y="246" width="100" height="8" fill="url(#scene3-hatch)" opacity="0.5" />
+            <!-- 标签 E、F 放在荧光屏上方 -->
+            <text id="scene3-label-e" x="650" y="230" font-size="14" fill="#2e7d32" text-anchor="middle">E</text>
+            <text id="scene3-label-f" x="750" y="230" font-size="14" fill="#2e7d32" text-anchor="middle">F</text>
+
+            <!-- 粒子入射点 (步骤 0 显示) -->
+            <circle id="scene3-particle-initial" cx="450" cy="250" r="4" fill="#ff6f00" class="scene3-element scene3-visible" />
+
+            <!-- 圆弧轨迹 (步骤 1 显示) -->
+            <!-- 圆弧在中心线下方：圆心 O(600,250), 半径 85px, 从 PS 界面下方到荧光屏 -->
+            <path id="scene3-arc-trajectory" d="M 450 290 A 85 85 0 0 0 685 250" stroke="#c62828" stroke-width="2" fill="none" class="scene3-element scene3-hidden" />
+
+            <!-- 轨道半径 r (步骤 2 显示) -->
+            <!-- 粒子位置在圆弧上，约 (515,295) -->
+            <line id="scene3-radius-r" x1="600" y1="250" x2="515" y2="295" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="4,4" class="scene3-element scene3-hidden" />
+            <!-- 标签 r 放在半径线中点下方更远处 -->
+            <text id="scene3-label-r" x="555" y="340" font-size="14" fill="#1565c0" text-anchor="middle" class="scene3-element scene3-hidden">r</text>
+
+            <!-- 几何关系标注 y (步骤 2 显示) -->
+            <line id="scene3-geo-y-line" x1="450" y1="250" x2="450" y2="290" stroke="#7b1fa2" stroke-width="1.5" class="scene3-element scene3-hidden" />
+            <!-- 双箭头 -->
+            <line id="scene3-geo-y-arrow1" x1="445" y1="250" x2="450" y2="255" stroke="#7b1fa2" stroke-width="1.5" class="scene3-element scene3-hidden" />
+            <line id="scene3-geo-y-arrow2" x1="445" y1="255" x2="450" y2="250" stroke="#7b1fa2" stroke-width="1.5" class="scene3-element scene3-hidden" />
+            <line id="scene3-geo-y-arrow3" x1="445" y1="290" x2="450" y2="285" stroke="#7b1fa2" stroke-width="1.5" class="scene3-element scene3-hidden" />
+            <line id="scene3-geo-y-arrow4" x1="445" y1="285" x2="450" y2="290" stroke="#7b1fa2" stroke-width="1.5" class="scene3-element scene3-hidden" />
+            <!-- 标签 y 放在左侧 -->
+            <text id="scene3-label-y" x="435" y="275" font-size="14" fill="#7b1fa2" text-anchor="end" class="scene3-element scene3-hidden">y</text>
+
+            <!-- 粒子位置 (步骤 2 显示) -->
+            <circle id="scene3-particle" cx="515" cy="295" r="4" fill="#ff6f00" class="scene3-element scene3-hidden" />
+
+            <!-- 库仑力 F (步骤 3 显示) -->
+            <line id="scene3-force-f" x1="515" y1="295" x2="600" y2="250" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene3-arrow-green)" class="scene3-element scene3-hidden" />
+            <!-- 标签 F 放在力箭头中点右上方，远离圆弧 -->
+            <text id="scene3-label-f-force" x="580" y="280" font-size="14" fill="#2e7d32" font-weight="bold" class="scene3-element scene3-hidden">F</text>
+
+            <!-- 速度 v (步骤 3 显示) -->
+            <!-- 切线方向：从 (515,295) 沿圆弧切线，指向右下方 -->
+            <line id="scene3-velocity-v" x1="515" y1="295" x2="550" y2="315" stroke="#c62828" stroke-width="2" marker-end="url(#scene3-arrow-red)" class="scene3-element scene3-hidden" />
+            <!-- 标签 v 放在速度箭头下方更远处 -->
+            <text id="scene3-label-v" x="540" y="355" font-size="14" fill="#c62828" font-weight="bold" class="scene3-element scene3-hidden">v</text>
+
+            <!-- 公式框 (步骤 4 显示) -->
+            <rect id="scene3-formula-box" x="50" y="40" width="340" height="100" stroke="#000" stroke-width="1" fill="rgba(255,255,255,0.95)" class="scene3-element scene3-hidden" />
+            <!-- 使用 foreignObject 包裹 HTML 内容，让 MathJax 正确渲染 -->
+            <foreignObject id="scene3-formula-foreign" x="60" y="50" width="320" height="80" class="scene3-element scene3-hidden">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:14px;color:#000;">
+                    <div style="margin-bottom:8px;">库仑力提供向心力：</div>
+                    <div style="text-align:center;">$$\frac{kQq}{r^2} = \frac{mv^2}{r}$$</div>
+                    <div style="text-align:center;">解得：$$Q = \frac{mv^2 r}{kq}$$</div>
+                </div>
+            </foreignObject>
+        </svg>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1/5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+            <button id="scene3-btn-reset" class="scene3-btn">重置</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3: 点电荷电场中圆周运动的几何关系与库仑力分析
+
+        // 状态机：当前步骤 (0-4)
+        let currentState = 0;
+        const totalSteps = 5;
+
+        // 每步显示的元素 ID 列表
+        const stepElements = {
+            0: ['scene3-particle-initial'],
+            1: ['scene3-arc-trajectory'],
+            2: ['scene3-radius-r', 'scene3-label-r', 'scene3-geo-y-line', 'scene3-geo-y-arrow1', 'scene3-geo-y-arrow2', 'scene3-geo-y-arrow3', 'scene3-geo-y-arrow4', 'scene3-label-y', 'scene3-particle'],
+            3: ['scene3-force-f', 'scene3-label-f-force', 'scene3-velocity-v', 'scene3-label-v'],
+            4: ['scene3-formula-box', 'scene3-formula-foreign']
+        };
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene3-hidden');
+                el.classList.add('scene3-visible');
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene3-visible');
+                el.classList.add('scene3-hidden');
+            }
+        }
+
+        // 更新场景显示
+        function updateScene() {
+            // 隐藏所有步骤元素
+            for (let step = 1; step < totalSteps; step++) {
+                if (stepElements[step]) {
+                    stepElements[step].forEach(id => hideElement(id));
+                }
+            }
+            // 隐藏初始粒子点（步骤 1 及以后不显示）
+            if (currentState > 0) {
+                hideElement('scene3-particle-initial');
+            } else {
+                showElement('scene3-particle-initial');
+            }
+
+            // 显示当前步骤及之前步骤的元素
+            for (let step = 1; step <= currentState; step++) {
+                if (stepElements[step]) {
+                    stepElements[step].forEach(id => showElement(id));
+                }
+            }
+
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = '步骤 ' + (currentState + 1) + '/' + totalSteps;
+
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = (currentState === 0);
+            document.getElementById('scene3-btn-next').disabled = (currentState === totalSteps - 1);
+
+            // 触发 MathJax 重新渲染
+            if (window.MathJax && currentState === 4) {
+                setTimeout(function() {
+                    MathJax.typesetPromise();
+                }, 50);
+            }
+        }
+
+        // 事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateScene();
+            }
+        });
+
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                updateScene();
+            }
+        });
+
+        document.getElementById('scene3-btn-reset').addEventListener('click', function() {
+            currentState = 0;
+            updateScene();
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

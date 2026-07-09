@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 物体 A 的浮力计算与体积推导</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 4px; background: #fff; }
+        .scene2-btn:hover { background: #f0f0f0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        .scene2-fade-in { animation: scene2-fadeIn 0.3s ease-in-out; }
+        @keyframes scene2-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .scene2-highlight { animation: scene2-highlight 0.5s ease-in-out; }
+        @keyframes scene2-highlight { 0%, 100% { stroke-width: 3px; } 50% { stroke-width: 5px; } }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 布局坐标表（实现对照依据） -->
+            <!-- | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 | -->
+            <!-- | 水容器 | 矩形框 | (50,200)-(350,420) | 300×220 | - | 左侧容器，显示水面线 | -->
+            <!-- | 水面线 | 线段 | (50,240)-(350,240) | 300×2 | - | 虚线表示 | -->
+            <!-- | 物体 A | 矩形 | (120,280)-(280,360) | 160×80 | - | 浸没在水中，填充#e3f2fd 20% 透明度 | -->
+            <!-- | G_A 箭头 | 箭头 | (200,280)-(200,320) | 40 | 右侧 | 红色向下，长度 40px | -->
+            <!-- | G_A 标签 | text | (210,300) | ~80×16 | 右方 | "G_A=29.4N" | -->
+            <!-- | T 箭头 | 箭头 | (200,360)-(200,325) | 35 | 右侧 | 蓝色向上，长度 35px | -->
+            <!-- | T 标签 | text | (210,340) | ~70×16 | 右方 | "T=19.6N" | -->
+            <!-- | F_浮 箭头 | 箭头 | (160,360)-(160,330) | 30 | 左侧 | 绿色向上，长度 30px | -->
+            <!-- | F_浮 标签 | text | (130,340) | ~80×16 | 左方 | "F_浮=?"/"F_浮=9.8N" | -->
+            <!-- | 公式框 1-4 | 矩形 | (400,100)-(750,xxx) | 350×60 | - | 公式显示区 | -->
+            <!-- | 体积示意立方体 | 立方体线框 | (450,420)-(650,480) | 200×60 | - | 透视立方体表示 1000cm³ | -->
+            <!-- | 体积标签 | text | (520,490) | ~100×16 | 下方 | "V_排=1000cm³" | -->
+            <!-- | 结论框 | 矩形 | (400,420)-(750,480) | 350×60 | - | 最终结论，红色背景 | -->
+
+            <!-- 水容器 -->
+            <rect id="scene2-container-rect" x="50" y="200" width="300" height="220" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 水面线 -->
+            <line id="scene2-waterline" x1="50" y1="240" x2="350" y2="240" stroke="#888880" stroke-width="2" stroke-dasharray="8,4"/>
+            
+            <!-- 物体 A -->
+            <rect id="scene2-objA" x="120" y="280" width="160" height="80" fill="#e3f2fd" fill-opacity="0.3" stroke="#000000" stroke-width="2"/>
+            <text id="scene2-objA-label" x="200" y="325" text-anchor="middle" font-size="18" fill="#000">A</text>
+            
+            <!-- G_A 箭头（重力，向下） -->
+            <line id="scene2-arrow-GA" x1="200" y1="280" x2="200" y2="320" stroke="#c62828" stroke-width="3"/>
+            <polygon id="scene2-arrow-GA-head" points="200,320 195,310 205,310" fill="#c62828"/>
+            <text id="scene2-label-GA" x="210" y="305" font-size="14" fill="#c62828">G_A=29.4N</text>
+            
+            <!-- T 箭头（拉力，向上） -->
+            <line id="scene2-arrow-T" x1="200" y1="360" x2="200" y2="325" stroke="#1565c0" stroke-width="3"/>
+            <polygon id="scene2-arrow-T-head" points="200,325 195,335 205,335" fill="#1565c0"/>
+            <text id="scene2-label-T" x="210" y="345" font-size="14" fill="#1565c0">T=19.6N</text>
+            
+            <!-- F_浮 箭头（浮力，向上） -->
+            <line id="scene2-arrow-buoy" x1="160" y1="360" x2="160" y2="330" stroke="#2e7d32" stroke-width="3"/>
+            <polygon id="scene2-arrow-buoy-head" points="160,330 155,340 165,340" fill="#2e7d32"/>
+            <text id="scene2-label-buoy" x="130" y="345" font-size="14" fill="#2e7d32">F_浮=?</text>
+            
+            <!-- 公式框 1：平衡方程 -->
+            <rect id="scene2-formula1-box" x="400" y="100" width="350" height="60" fill="#f5f5f5" stroke="#000000" stroke-width="1" opacity="0"/>
+            <text id="scene2-formula1-text" x="575" y="135" text-anchor="middle" font-size="16" fill="#000" opacity="0">F_浮 + T = G_A</text>
+            
+            <!-- 公式框 2：代入计算 -->
+            <rect id="scene2-formula2-box" x="400" y="180" width="350" height="60" fill="#f5f5f5" stroke="#000000" stroke-width="1" opacity="0"/>
+            <text id="scene2-formula2-text" x="575" y="215" text-anchor="middle" font-size="16" fill="#000" opacity="0">F_浮 = 29.4N - 19.6N</text>
+            
+            <!-- 公式框 3：阿基米德原理 -->
+            <rect id="scene2-formula3-box" x="400" y="260" width="350" height="60" fill="#f5f5f5" stroke="#000000" stroke-width="1" opacity="0"/>
+            <text id="scene2-formula3-text" x="575" y="295" text-anchor="middle" font-size="16" fill="#000" opacity="0">F_浮 = ρ_水 × g × V_排</text>
+            
+            <!-- 公式框 4：体积计算 -->
+            <rect id="scene2-formula4-box" x="400" y="340" width="350" height="60" fill="#f5f5f5" stroke="#000000" stroke-width="1" opacity="0"/>
+            <text id="scene2-formula4-text" x="575" y="375" text-anchor="middle" font-size="16" fill="#000" opacity="0">V_排 = 9.8N / (1000kg/m³ × 9.8N/kg)</text>
+            
+            <!-- 体积示意立方体 -->
+            <g id="scene2-volume-box" opacity="0">
+                <!-- 立方体透视线框 -->
+                <line x1="450" y1="450" x2="550" y2="450" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="550" y1="450" x2="650" y2="430" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="650" y1="430" x2="550" y2="430" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="550" y1="430" x2="450" y2="450" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="450" y1="450" x2="450" y2="470" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="550" y1="450" x2="550" y2="470" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="650" y1="430" x2="650" y2="450" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="550" y1="430" x2="550" y2="450" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="450" y1="470" x2="550" y2="470" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="550" y1="470" x2="650" y2="450" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+                <line x1="650" y1="450" x2="550" y2="450" stroke="#888880" stroke-width="1" stroke-dasharray="4,2"/>
+            </g>
+            <text id="scene2-volume-label" x="550" y="495" text-anchor="middle" font-size="14" fill="#000" opacity="0">V_排=1000cm³</text>
+            
+            <!-- 结论框 -->
+            <rect id="scene2-conclusion-box" x="400" y="420" width="350" height="60" fill="#ffcdd2" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <text id="scene2-conclusion-text" x="575" y="450" text-anchor="middle" font-size="16" fill="#c62828" opacity="0">选项 B 错误！正确体积为 1000cm³</text>
+            <text id="scene2-conclusion-subtext" x="575" y="475" text-anchor="middle" font-size="14" fill="#c62828" opacity="0">（应为 1000cm³，而非 500cm³）</text>
+        </svg>
+        
+        <div id="scene2-step-indicator">步骤 0/5</div>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 物体 A 的浮力计算与体积推导
+        
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 元素引用
+        const elements = {
+            // 公式框和文本
+            formula1Box: document.getElementById('scene2-formula1-box'),
+            formula1Text: document.getElementById('scene2-formula1-text'),
+            formula2Box: document.getElementById('scene2-formula2-box'),
+            formula2Text: document.getElementById('scene2-formula2-text'),
+            formula3Box: document.getElementById('scene2-formula3-box'),
+            formula3Text: document.getElementById('scene2-formula3-text'),
+            formula4Box: document.getElementById('scene2-formula4-box'),
+            formula4Text: document.getElementById('scene2-formula4-text'),
+            // 体积相关
+            volumeBox: document.getElementById('scene2-volume-box'),
+            volumeLabel: document.getElementById('scene2-volume-label'),
+            // 结论
+            conclusionBox: document.getElementById('scene2-conclusion-box'),
+            conclusionText: document.getElementById('scene2-conclusion-text'),
+            conclusionSubtext: document.getElementById('scene2-conclusion-subtext'),
+            // 浮力标签
+            buoyLabel: document.getElementById('scene2-label-buoy'),
+            // 浮力箭头
+            buoyArrow: document.getElementById('scene2-arrow-buoy'),
+            buoyArrowHead: document.getElementById('scene2-arrow-buoy-head'),
+            // 按钮和指示器
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next'),
+            stepIndicator: document.getElementById('scene2-step-indicator')
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+        
+        // 更新步骤显示
+        function updateScene() {
+            // 重置所有元素
+            hide(elements.formula1Box);
+            hide(elements.formula1Text);
+            hide(elements.formula2Box);
+            hide(elements.formula2Text);
+            hide(elements.formula3Box);
+            hide(elements.formula3Text);
+            hide(elements.formula4Box);
+            hide(elements.formula4Text);
+            hide(elements.volumeBox);
+            hide(elements.volumeLabel);
+            hide(elements.conclusionBox);
+            hide(elements.conclusionText);
+            hide(elements.conclusionSubtext);
+            
+            // 重置浮力标签
+            elements.buoyLabel.textContent = 'F_浮=?';
+            elements.buoyLabel.style.opacity = '1';
+            elements.buoyArrow.setAttribute('stroke-width', '3');
+            elements.buoyArrowHead.setAttribute('fill', '#2e7d32');
+            
+            // 根据步骤显示对应元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：显示平衡方程
+                    show(elements.formula1Box);
+                    show(elements.formula1Text);
+                    break;
+                    
+                case 1:
+                    // 显示代入计算
+                    show(elements.formula1Box);
+                    show(elements.formula1Text);
+                    show(elements.formula2Box);
+                    show(elements.formula2Text);
+                    // 高亮浮力箭头
+                    elements.buoyArrow.setAttribute('stroke-width', '5');
+                    elements.buoyArrowHead.setAttribute('fill', '#1b5e20');
+                    break;
+                    
+                case 2:
+                    // 更新浮力值，显示阿基米德原理
+                    elements.buoyLabel.textContent = 'F_浮=9.8N';
+                    show(elements.formula1Box);
+                    show(elements.formula1Text);
+                    elements.formula2Text.textContent = 'F_浮 = 29.4N - 19.6N = 9.8N';
+                    show(elements.formula2Box);
+                    show(elements.formula2Text);
+                    show(elements.formula3Box);
+                    show(elements.formula3Text);
+                    break;
+                    
+                case 3:
+                    // 显示体积计算
+                    elements.buoyLabel.textContent = 'F_浮=9.8N';
+                    show(elements.formula1Box);
+                    show(elements.formula1Text);
+                    elements.formula2Text.textContent = 'F_浮 = 29.4N - 19.6N = 9.8N';
+                    show(elements.formula2Box);
+                    show(elements.formula2Text);
+                    show(elements.formula3Box);
+                    show(elements.formula3Text);
+                    show(elements.formula4Box);
+                    show(elements.formula4Text);
+                    break;
+                    
+                case 4:
+                    // 显示体积结果
+                    elements.buoyLabel.textContent = 'F_浮=9.8N';
+                    show(elements.formula1Box);
+                    show(elements.formula1Text);
+                    elements.formula2Text.textContent = 'F_浮 = 29.4N - 19.6N = 9.8N';
+                    show(elements.formula2Box);
+                    show(elements.formula2Text);
+                    show(elements.formula3Box);
+                    show(elements.formula3Text);
+                    elements.formula4Text.textContent = 'V_排 = 0.001m³ = 1000cm³';
+                    show(elements.formula4Box);
+                    show(elements.formula4Text);
+                    show(elements.volumeBox);
+                    show(elements.volumeLabel);
+                    break;
+                    
+                case 5:
+                    // 显示结论
+                    elements.buoyLabel.textContent = 'F_浮=9.8N';
+                    show(elements.formula1Box);
+                    show(elements.formula1Text);
+                    elements.formula2Text.textContent = 'F_浮 = 29.4N - 19.6N = 9.8N';
+                    show(elements.formula2Box);
+                    show(elements.formula2Text);
+                    show(elements.formula3Box);
+                    show(elements.formula3Text);
+                    elements.formula4Text.textContent = 'V_排 = 0.001m³ = 1000cm³';
+                    show(elements.formula4Box);
+                    show(elements.formula4Text);
+                    show(elements.volumeBox);
+                    show(elements.volumeLabel);
+                    show(elements.conclusionBox);
+                    show(elements.conclusionText);
+                    show(elements.conclusionSubtext);
+                    break;
+            }
+            
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            elements.btnPrev.disabled = (currentStep === 0);
+            elements.btnNext.disabled = (currentStep === totalSteps);
+        }
+        
+        // 事件绑定
+        elements.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        elements.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

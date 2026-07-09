@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 正三角形穿过正方形</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #e0e0e0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-stage-indicator { background: #c62828; color: white; padding: 8px 16px; border-radius: 4px; font-size: 14px; min-width: 140px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 水平基准线 -->
+            <line x1="50" y1="340" x2="450" y2="340" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 正方形 -->
+            <rect id="scene1-square" x="180" y="220" width="120" height="120" fill="#e0e0e0" fill-opacity="0.8" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 正三角形 -->
+            <polygon id="scene1-triangle" points="30,340 150,340 90,236" fill="#e0e0e0" fill-opacity="0.8" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 重叠区域（动态） -->
+            <path id="scene1-overlap" d="" fill="#ffffff" stroke="#000000" stroke-width="2" style="display: none;"/>
+            
+            <!-- 标签 -->
+            <text id="scene1-square-label" x="240" y="210" text-anchor="middle" font-size="14">正方形 (边长=1)</text>
+            <text id="scene1-triangle-label" x="90" y="226" text-anchor="middle" font-size="14">正三角形 (边长=1)</text>
+            <text id="scene1-s-label" x="640" y="110" text-anchor="middle" font-size="16" font-weight="bold">S</text>
+            
+            <!-- S-t 图像坐标轴 -->
+            <line x1="520" y1="360" x2="760" y2="360" stroke="#000000" stroke-width="2"/>
+            <line x1="520" y1="360" x2="520" y2="120" stroke="#000000" stroke-width="2"/>
+            <text x="750" y="380" text-anchor="middle" font-size="14">t</text>
+            <text x="500" y="140" text-anchor="middle" font-size="14">S</text>
+            <text x="505" y="375" text-anchor="middle" font-size="14">O</text>
+            
+            <!-- S-t 曲线（动态） -->
+            <polyline id="scene1-curve" points="" fill="none" stroke="#1565c0" stroke-width="3"/>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn">◀ 上一步</button>
+            <div id="scene1-stage-indicator">阶段 0：初始位置</div>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表：
+        // 正方形：(180,220)-(300,340)，边长 120px
+        // 三角形：底边长 120px，高=120×√3/2≈104px
+        // 阶段 0-6 的三角形右顶点 x 坐标：[150, 180, 240, 300, 360, 420, 480]
+        // S-t 曲线关键点：(0,0)→(1,0)→(3,0.22)→(5,0.43)→(7,0.43)→(9,0.22)→(11,0)
+        
+        // 阶段数据
+        const stages = [
+            { x: 150, S: 0, desc: "阶段 0：初始位置" },
+            { x: 180, S: 0, desc: "阶段 1：开始进入" },
+            { x: 240, S: Math.sqrt(3)/8, desc: "阶段 2：部分进入" },
+            { x: 300, S: Math.sqrt(3)/4, desc: "阶段 3：完全重叠" },
+            { x: 360, S: Math.sqrt(3)/4, desc: "阶段 4：开始离开" },
+            { x: 420, S: Math.sqrt(3)/8, desc: "阶段 5：部分离开" },
+            { x: 480, S: 0, desc: "阶段 6：完全离开" }
+        ];
+        
+        // S-t 曲线关键点（t, S）
+        const curvePoints = [
+            { t: 0, S: 0 },
+            { t: 1, S: 0 },
+            { t: 3, S: Math.sqrt(3)/8 },
+            { t: 5, S: Math.sqrt(3)/4 },
+            { t: 7, S: Math.sqrt(3)/4 },
+            { t: 9, S: Math.sqrt(3)/8 },
+            { t: 11, S: 0 }
+        ];
+        
+        let currentStage = 0;
+        
+        // 更新三角形位置
+        function updateTriangle(stage) {
+            const triangle = document.getElementById('scene1-triangle');
+            const x = stage.x;
+            // 三角形顶点：底边 y=340，高=104，底边长=120
+            // 右顶点在 x，左顶点在 x-120，顶点在 (x-60, 236)
+            triangle.setAttribute('points', `${x-120},340 ${x},340 ${x-60},236`);
+        }
+        
+        // 更新 S-t 曲线
+        function updateCurve(stageIndex) {
+            const curve = document.getElementById('scene1-curve');
+            let points = '';
+            
+            // 根据当前阶段显示对应的曲线段
+            for (let i = 0; i <= stageIndex; i++) {
+                const pt = curvePoints[i];
+                // 坐标转换：t 轴从 520 到 760（240px），S 轴从 360 到 120（240px）
+                const px = 520 + pt.t * 240 / 11;
+                const py = 360 - pt.S * 240 / (Math.sqrt(3)/4);
+                points += `${px},${py} `;
+            }
+            
+            curve.setAttribute('points', points.trim());
+        }
+        
+        // 更新阶段指示器
+        function updateIndicator(stageIndex) {
+            const indicator = document.getElementById('scene1-stage-indicator');
+            indicator.textContent = stages[stageIndex].desc;
+        }
+        
+        // 更新按钮状态
+        function updateButtons(stageIndex) {
+            const prevBtn = document.getElementById('scene1-prev-btn');
+            const nextBtn = document.getElementById('scene1-next-btn');
+            prevBtn.disabled = stageIndex === 0;
+            nextBtn.disabled = stageIndex === 6;
+        }
+        
+        // 重绘整个场景
+        function redraw() {
+            updateTriangle(stages[currentStage]);
+            updateCurve(currentStage);
+            updateIndicator(currentStage);
+            updateButtons(currentStage);
+        }
+        
+        // 事件绑定
+        document.getElementById('scene1-prev-btn').addEventListener('click', function() {
+            if (currentStage > 0) {
+                currentStage--;
+                redraw();
+            }
+        });
+        
+        document.getElementById('scene1-next-btn').addEventListener('click', function() {
+            if (currentStage < 6) {
+                currentStage++;
+                redraw();
+            }
+        });
+        
+        // 初始化
+        redraw();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形 ABC 中 AB 边上的高</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 控件栏样式 */
+        #scene1-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #scene1-btn-prev {
+            background: #e0e0e0;
+            color: #333;
+        }
+        #scene1-btn-prev:hover:not(:disabled) {
+            background: #c0c0c0;
+        }
+        #scene1-btn-next {
+            background: #1565c0;
+            color: white;
+        }
+        #scene1-btn-next:hover:not(:disabled) {
+            background: #0d47a1;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #666;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene1-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene1-visible {
+            opacity: 1;
+            display: block;
+        }
+        /* 动画过渡 */
+        .scene1-transition {
+            transition: opacity 0.3s ease, stroke-width 0.3s ease, fill 0.3s ease;
+        }
+        /* 脉冲动画 */
+        @keyframes scene1-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .scene1-pulse {
+            animation: scene1-pulse 1s infinite;
+        }
+        /* 闪烁动画 */
+        @keyframes scene1-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .scene1-blink {
+            animation: scene1-blink 0.4s ease 2;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 底边 AD (水平基线) -->
+            <line id="scene1-line-ad" x1="150" y1="350" x2="550" y2="350" stroke="#000" stroke-width="1.5" />
+            
+            <!-- 左侧矩形 (辅助图形) -->
+            <rect id="scene1-rect-left" x="150" y="250" width="150" height="100" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            
+            <!-- 右侧矩形 (辅助图形) -->
+            <rect id="scene1-rect-right" x="300" y="150" width="250" height="200" fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            
+            <!-- 三角形 ABC 填充 -->
+            <polygon id="scene1-tri-abc-fill" points="150,350 300,350 550,150" fill="rgba(21,101,192,0.2)" class="scene1-transition" />
+            
+            <!-- 三角形 ABC 边框 -->
+            <polygon id="scene1-tri-abc-stroke" points="150,350 300,350 550,150" fill="none" stroke="#000" stroke-width="1.5" />
+            
+            <!-- 边 AB (底边，初始普通，步骤2加粗) -->
+            <line id="scene1-line-ab" x1="150" y1="350" x2="300" y2="350" stroke="#000" stroke-width="1.5" class="scene1-transition" />
+            
+            <!-- 边 BC -->
+            <line id="scene1-line-bc" x1="300" y1="350" x2="550" y2="150" stroke="#000" stroke-width="1.5" />
+            
+            <!-- 边 AC -->
+            <line id="scene1-line-ac" x1="150" y1="350" x2="550" y2="150" stroke="#000" stroke-width="1.5" />
+            
+            <!-- 高 CD (蓝色，步骤2后显示) -->
+            <line id="scene1-line-cd" x1="550" y1="150" x2="550" y2="350" stroke="#1565c0" stroke-width="2.5" class="scene1-hidden scene1-transition" />
+            
+            <!-- 选项 CB (红色虚线，步骤4对比用) -->
+            <line id="scene1-line-cb-option" x1="300" y1="350" x2="550" y2="150" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" class="scene1-hidden" />
+            
+            <!-- 选项 EB (红色虚线，步骤4对比用) -->
+            <line id="scene1-line-eb-option" x1="300" y1="250" x2="300" y2="350" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" class="scene1-hidden" />
+            
+            <!-- 直角符号 (L形，步骤3显示) -->
+            <polyline id="scene1-rect-right-angle" points="535,335 550,335 550,350" fill="none" stroke="#000" stroke-width="1.5" class="scene1-hidden scene1-transition" />
+            
+            <!-- 顶点圆点 -->
+            <circle id="scene1-point-a" cx="150" cy="350" r="5" fill="#000" class="scene1-transition" />
+            <circle id="scene1-point-b" cx="300" cy="350" r="5" fill="#000" class="scene1-transition" />
+            <circle id="scene1-point-c" cx="550" cy="150" r="5" fill="#000" class="scene1-transition" />
+            <circle id="scene1-point-d" cx="550" cy="350" r="5" fill="#000" class="scene1-transition" />
+            <circle id="scene1-point-e" cx="300" cy="250" r="5" fill="#000" class="scene1-transition" />
+            
+            <!-- 顶点标签 -->
+            <text id="scene1-label-a" x="135" y="370" font-size="14" fill="#000">A</text>
+            <text id="scene1-label-b" x="300" y="368" font-size="14" fill="#000" text-anchor="middle">B</text>
+            <text id="scene1-label-c" x="565" y="135" font-size="14" fill="#000">C</text>
+            <text id="scene1-label-d" x="565" y="370" font-size="14" fill="#000">D</text>
+            <text id="scene1-label-e" x="285" y="235" font-size="14" fill="#000" text-anchor="end">E</text>
+            
+            <!-- 功能标签 -->
+            <text id="scene1-label-base-ab" x="225" y="385" font-size="14" fill="#000" text-anchor="middle" class="scene1-hidden scene1-transition">底边 AB</text>
+            <text id="scene1-label-height-cd" x="575" y="250" font-size="14" fill="#1565c0" class="scene1-hidden scene1-transition">高 CD</text>
+            <text id="scene1-label-foot-d" x="565" y="390" font-size="14" fill="#000" class="scene1-hidden scene1-transition">垂足 D</text>
+            
+            <!-- 正确/错误标记 -->
+            <text id="scene1-mark-check" x="590" y="245" font-size="16" fill="#1565c0" class="scene1-hidden scene1-transition">✓</text>
+            <text id="scene1-mark-cross-cb" x="560" y="160" font-size="16" fill="#c62828" class="scene1-hidden scene1-transition">✗</text>
+            <text id="scene1-mark-cross-eb" x="315" y="290" font-size="16" fill="#c62828" class="scene1-hidden scene1-transition">✗</text>
+            
+            <!-- 对比说明文字 (步骤4) -->
+            <text id="scene1-explain-cb" x="580" y="180" font-size="12" fill="#c62828" class="scene1-hidden scene1-transition">CB：不垂直于 AB</text>
+            <text id="scene1-explain-eb" x="320" y="310" font-size="12" fill="#c62828" class="scene1-hidden scene1-transition">EB：不是从顶点 C 出发</text>
+            <text id="scene1-explain-cd" x="580" y="270" font-size="12" fill="#1565c0" class="scene1-hidden scene1-transition">CD：从 C 垂直于 AB ✓</text>
+            
+            <!-- 结论文字 (步骤5) -->
+            <text id="scene1-conclusion" x="400" y="420" font-size="16" fill="#1565c0" font-weight="bold" text-anchor="middle" class="scene1-hidden scene1-transition">答案：B. CD</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/6</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 三角形 ABC 中 AB 边上的高的判定
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 |
+        // |------|------|-----------|------|-------------|
+        // | 底边 AD | 线段 | (150,350)-(550,350) | 400×2 | - |
+        // | 点 A | 圆点 | (150,350) | r=5 | 左下 (-15,+20) |
+        // | 点 B | 圆点 | (300,350) | r=5 | 下方 (0,+18) |
+        // | 点 D | 圆点 | (550,350) | r=5 | 右下 (+15,+20) |
+        // | 点 C | 圆点 | (550,150) | r=5 | 右上 (+15,-15) |
+        // | 点 E | 圆点 | (300,250) | r=5 | 左上 (-15,-15) |
+        // | 左侧矩形 | 矩形 | (150,250)-(300,350) | 150×100 | - |
+        // | 右侧矩形 | 矩形 | (300,150)-(550,350) | 250×200 | - |
+        // | 三角形 ABC | 多边形 | A(150,350)-B(300,350)-C(550,150) | - | - |
+        // | 高 CD | 线段 | (550,150)-(550,350) | 200×3 | 右侧 (+20,0) |
+        // | 直角符号 | L 形 | (535,335)-(550,350) | 15×15 | - |
+        // | "√" | text | (590,245) | ~16×16 | 右侧 |
+        
+        // 状态定义：每个步骤显示/隐藏的元素
+        const steps = [
+            // 步骤 0：初始状态 - 显示原图基础结构
+            {
+                visible: ['scene1-line-ad', 'scene1-rect-left', 'scene1-rect-right', 
+                          'scene1-tri-abc-fill', 'scene1-tri-abc-stroke', 'scene1-line-ab',
+                          'scene1-line-bc', 'scene1-line-ac',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-point-c', 
+                          'scene1-point-d', 'scene1-point-e',
+                          'scene1-label-a', 'scene1-label-b', 'scene1-label-c', 
+                          'scene1-label-d', 'scene1-label-e'],
+                hidden: ['scene1-line-cd', 'scene1-line-cb-option', 'scene1-line-eb-option',
+                         'scene1-rect-right-angle', 'scene1-label-base-ab', 'scene1-label-height-cd',
+                         'scene1-label-foot-d', 'scene1-mark-check', 'scene1-mark-cross-cb',
+                         'scene1-mark-cross-eb', 'scene1-explain-cb', 'scene1-explain-eb',
+                         'scene1-explain-cd', 'scene1-conclusion']
+            },
+            // 步骤 1：高亮三角形 ABC 三顶点
+            {
+                visible: ['scene1-line-ad', 'scene1-rect-left', 'scene1-rect-right',
+                          'scene1-tri-abc-fill', 'scene1-tri-abc-stroke', 'scene1-line-ab',
+                          'scene1-line-bc', 'scene1-line-ac',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-point-c',
+                          'scene1-point-d', 'scene1-point-e',
+                          'scene1-label-a', 'scene1-label-b', 'scene1-label-c',
+                          'scene1-label-d', 'scene1-label-e'],
+                hidden: ['scene1-line-cd', 'scene1-line-cb-option', 'scene1-line-eb-option',
+                         'scene1-rect-right-angle', 'scene1-label-base-ab', 'scene1-label-height-cd',
+                         'scene1-label-foot-d', 'scene1-mark-check', 'scene1-mark-cross-cb',
+                         'scene1-mark-cross-eb', 'scene1-explain-cb', 'scene1-explain-eb',
+                         'scene1-explain-cd', 'scene1-conclusion'],
+                highlight: ['scene1-point-a', 'scene1-point-b', 'scene1-point-c', 'scene1-tri-abc-fill']
+            },
+            // 步骤 2：标注底边 AB，显示高 CD
+            {
+                visible: ['scene1-line-ad', 'scene1-rect-left', 'scene1-rect-right',
+                          'scene1-tri-abc-fill', 'scene1-tri-abc-stroke', 'scene1-line-ab',
+                          'scene1-line-bc', 'scene1-line-ac', 'scene1-line-cd',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-point-c',
+                          'scene1-point-d', 'scene1-point-e',
+                          'scene1-label-a', 'scene1-label-b', 'scene1-label-c',
+                          'scene1-label-d', 'scene1-label-e',
+                          'scene1-label-base-ab', 'scene1-label-height-cd'],
+                hidden: ['scene1-line-cb-option', 'scene1-line-eb-option',
+                         'scene1-rect-right-angle', 'scene1-label-foot-d', 'scene1-mark-check',
+                         'scene1-mark-cross-cb', 'scene1-mark-cross-eb', 'scene1-explain-cb',
+                         'scene1-explain-eb', 'scene1-explain-cd', 'scene1-conclusion'],
+                bold: ['scene1-line-ab']
+            },
+            // 步骤 3：高亮 CD，标注垂直符号
+            {
+                visible: ['scene1-line-ad', 'scene1-rect-left', 'scene1-rect-right',
+                          'scene1-tri-abc-fill', 'scene1-tri-abc-stroke', 'scene1-line-ab',
+                          'scene1-line-bc', 'scene1-line-ac', 'scene1-line-cd',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-point-c',
+                          'scene1-point-d', 'scene1-point-e',
+                          'scene1-label-a', 'scene1-label-b', 'scene1-label-c',
+                          'scene1-label-d', 'scene1-label-e',
+                          'scene1-label-base-ab', 'scene1-label-height-cd',
+                          'scene1-rect-right-angle', 'scene1-label-foot-d'],
+                hidden: ['scene1-line-cb-option', 'scene1-line-eb-option',
+                         'scene1-mark-check', 'scene1-mark-cross-cb', 'scene1-mark-cross-eb',
+                         'scene1-explain-cb', 'scene1-explain-eb', 'scene1-explain-cd',
+                         'scene1-conclusion'],
+                blink: ['scene1-line-cd']
+            },
+            // 步骤 4：对比展示三个选项
+            {
+                visible: ['scene1-line-ad', 'scene1-rect-left', 'scene1-rect-right',
+                          'scene1-tri-abc-fill', 'scene1-tri-abc-stroke', 'scene1-line-ab',
+                          'scene1-line-bc', 'scene1-line-ac', 'scene1-line-cd',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-point-c',
+                          'scene1-point-d', 'scene1-point-e',
+                          'scene1-label-a', 'scene1-label-b', 'scene1-label-c',
+                          'scene1-label-d', 'scene1-label-e',
+                          'scene1-label-base-ab', 'scene1-label-height-cd',
+                          'scene1-rect-right-angle', 'scene1-label-foot-d',
+                          'scene1-line-cb-option', 'scene1-line-eb-option',
+                          'scene1-mark-check', 'scene1-mark-cross-cb', 'scene1-mark-cross-eb',
+                          'scene1-explain-cb', 'scene1-explain-eb', 'scene1-explain-cd'],
+                hidden: ['scene1-conclusion']
+            },
+            // 步骤 5：结论确认
+            {
+                visible: ['scene1-line-ad', 'scene1-rect-left', 'scene1-rect-right',
+                          'scene1-tri-abc-fill', 'scene1-tri-abc-stroke', 'scene1-line-ab',
+                          'scene1-line-bc', 'scene1-line-ac', 'scene1-line-cd',
+                          'scene1-point-a', 'scene1-point-b', 'scene1-point-c',
+                          'scene1-point-d', 'scene1-point-e',
+                          'scene1-label-a', 'scene1-label-b', 'scene1-label-c',
+                          'scene1-label-d', 'scene1-label-e',
+                          'scene1-label-base-ab', 'scene1-label-height-cd',
+                          'scene1-rect-right-angle', 'scene1-label-foot-d',
+                          'scene1-line-cb-option', 'scene1-line-eb-option',
+                          'scene1-mark-check', 'scene1-mark-cross-cb', 'scene1-mark-cross-eb',
+                          'scene1-explain-cb', 'scene1-explain-eb', 'scene1-explain-cd',
+                          'scene1-conclusion'],
+                hidden: [],
+                pulse: ['scene1-line-cd']
+            }
+        ];
+        
+        let currentStep = 0;
+        const totalSteps = steps.length;
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep(stepIndex) {
+            const step = steps[stepIndex];
+            
+            // 清除所有特殊效果
+            document.querySelectorAll('[id^="scene1-"]').forEach(el => {
+                el.classList.remove('scene1-pulse', 'scene1-blink');
+                if (el.id.startsWith('scene1-point-')) {
+                    el.setAttribute('r', '5');
+                }
+                if (el.id === 'scene1-tri-abc-fill') {
+                    el.setAttribute('fill', 'rgba(21,101,192,0.2)');
+                }
+                if (el.id === 'scene1-line-ab') {
+                    el.setAttribute('stroke-width', '1.5');
+                }
+            });
+            
+            // 应用隐藏列表
+            step.hidden.forEach(id => hideElement(id));
+            
+            // 应用显示列表
+            step.visible.forEach(id => showElement(id));
+            
+            // 应用高亮效果（步骤1）
+            if (step.highlight) {
+                step.highlight.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (el.tagName === 'circle') {
+                            el.setAttribute('r', '7');
+                        }
+                        if (el.id === 'scene1-tri-abc-fill') {
+                            el.setAttribute('fill', 'rgba(21,101,192,0.3)');
+                        }
+                    }
+                });
+            }
+            
+            // 应用加粗效果（步骤2）
+            if (step.bold) {
+                step.bold.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.setAttribute('stroke-width', '3');
+                    }
+                });
+            }
+            
+            // 应用闪烁效果（步骤3）
+            if (step.blink) {
+                step.blink.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.add('scene1-blink');
+                    }
+                });
+            }
+            
+            // 应用脉冲效果（步骤5）
+            if (step.pulse) {
+                step.pulse.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.add('scene1-pulse');
+                    }
+                });
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${stepIndex + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (stepIndex === 0);
+            document.getElementById('scene1-btn-next').disabled = (stepIndex === totalSteps - 1);
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep(currentStep);
+            }
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep(currentStep);
+            }
+        }
+        
+        // 绑定事件
+        document.getElementById('scene1-btn-next').addEventListener('click', nextStep);
+        document.getElementById('scene1-btn-prev').addEventListener('click', prevStep);
+        
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

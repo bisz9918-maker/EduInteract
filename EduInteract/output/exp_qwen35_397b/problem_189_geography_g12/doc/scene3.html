@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>东西半球划分与晨昏线位置关系</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene3-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene3-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+            transition: background 0.2s;
+        }
+        .scene3-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene3-btn.active {
+            background: #4caf50;
+            color: white;
+            border-color: #4caf50;
+        }
+        .scene3-hemisphere-label {
+            font-size: 14px;
+            fill: #333;
+        }
+        .scene3-meridian {
+            stroke: #888888;
+            stroke-width: 1;
+            fill: none;
+            stroke-dasharray: 4, 2;
+        }
+        .scene3-equator {
+            stroke: #888888;
+            stroke-width: 1;
+            fill: none;
+        }
+        .scene3-tropic {
+            stroke: #888888;
+            stroke-width: 1;
+            fill: none;
+            stroke-dasharray: 4, 2;
+        }
+        .scene3-boundary {
+            stroke: #2e7d32;
+            stroke-width: 2;
+            fill: none;
+        }
+        .scene3-boundary-highlight {
+            stroke: #2e7d32;
+            stroke-width: 4;
+            fill: none;
+        }
+        .scene3-terminator {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        .scene3-day-region {
+            fill: #f5f5f5;
+            opacity: 0.2;
+        }
+        .scene3-night-region {
+            fill: #1565c0;
+            opacity: 0.4;
+        }
+        .scene3-time-panel {
+            fill: #f5f5f5;
+            stroke: #333;
+            stroke-width: 1;
+        }
+        .scene3-time-label {
+            font-size: 14px;
+            fill: #333;
+        }
+        .scene3-time-value {
+            font-size: 18px;
+            fill: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 东半球轮廓 -->
+            <circle id="scene3-east-hemisphere" cx="200" cy="220" r="140" stroke="#000000" stroke-width="1.5" fill="none"/>
+            
+            <!-- 西半球轮廓 -->
+            <circle id="scene3-west-hemisphere" cx="600" cy="220" r="140" stroke="#000000" stroke-width="1.5" fill="none"/>
+            
+            <!-- 东半球经线 -->
+            <ellipse class="scene3-meridian" cx="200" cy="220" rx="20" ry="140"/>
+            <ellipse class="scene3-meridian" cx="200" cy="220" rx="60" ry="140"/>
+            <ellipse class="scene3-meridian" cx="200" cy="220" rx="100" ry="140"/>
+            <ellipse class="scene3-meridian" cx="200" cy="220" rx="140" ry="140"/>
+            
+            <!-- 西半球经线 -->
+            <ellipse class="scene3-meridian" cx="600" cy="220" rx="20" ry="140"/>
+            <ellipse class="scene3-meridian" cx="600" cy="220" rx="60" ry="140"/>
+            <ellipse class="scene3-meridian" cx="600" cy="220" rx="100" ry="140"/>
+            <ellipse class="scene3-meridian" cx="600" cy="220" rx="140" ry="140"/>
+            
+            <!-- 东半球纬线 -->
+            <line class="scene3-equator" x1="60" y1="220" x2="340" y2="220"/>
+            <line class="scene3-tropic" x1="60" y1="170" x2="340" y2="170"/>
+            <line class="scene3-tropic" x1="60" y1="270" x2="340" y2="270"/>
+            <line class="scene3-tropic" x1="60" y1="120" x2="340" y2="120"/>
+            <line class="scene3-tropic" x1="60" y1="320" x2="340" y2="320"/>
+            
+            <!-- 西半球纬线 -->
+            <line class="scene3-equator" x1="460" y1="220" x2="740" y2="220"/>
+            <line class="scene3-tropic" x1="460" y1="170" x2="740" y2="170"/>
+            <line class="scene3-tropic" x1="460" y1="270" x2="740" y2="270"/>
+            <line class="scene3-tropic" x1="460" y1="120" x2="740" y2="120"/>
+            <line class="scene3-tropic" x1="460" y1="320" x2="740" y2="320"/>
+            
+            <!-- 东西半球分界线 -->
+            <line id="scene3-20w-boundary" class="scene3-boundary" x1="120" y1="80" x2="120" y2="360"/>
+            <line id="scene3-160e-boundary" class="scene3-boundary" x1="680" y1="80" x2="680" y2="360"/>
+            
+            <!-- 昼夜区域填充 -->
+            <g id="scene3-day-night-overlay">
+                <rect id="scene3-day-region" class="scene3-day-region" x="0" y="0" width="800" height="500"/>
+                <rect id="scene3-night-region" class="scene3-night-region" x="0" y="0" width="800" height="500"/>
+            </g>
+            
+            <!-- 晨昏线 -->
+            <line id="scene3-terminator-line" class="scene3-terminator" x1="200" y1="80" x2="200" y2="360"/>
+            
+            <!-- 标签 -->
+            <text class="scene3-hemisphere-label" x="200" y="380" text-anchor="middle">东半球</text>
+            <text class="scene3-hemisphere-label" x="600" y="380" text-anchor="middle">西半球</text>
+            
+            <text class="scene3-hemisphere-label" x="115" y="205" text-anchor="end">20°W</text>
+            <text class="scene3-hemisphere-label" x="200" y="205" text-anchor="middle">0°</text>
+            <text class="scene3-hemisphere-label" x="600" y="205" text-anchor="middle">180°</text>
+            <text class="scene3-hemisphere-label" x="685" y="205" text-anchor="start">160°E</text>
+            
+            <text class="scene3-hemisphere-label" x="350" y="220" text-anchor="start">赤道</text>
+            
+            <!-- 极点标注 -->
+            <text class="scene3-hemisphere-label" x="200" y="70" text-anchor="middle">N</text>
+            <text class="scene3-hemisphere-label" x="200" y="375" text-anchor="middle">S</text>
+            <text class="scene3-hemisphere-label" x="600" y="70" text-anchor="middle">N</text>
+            <text class="scene3-hemisphere-label" x="600" y="375" text-anchor="middle">S</text>
+            
+            <!-- 信息面板 -->
+            <rect class="scene3-time-panel" x="680" y="50" width="100" height="120"/>
+            <text class="scene3-time-label" x="730" y="70" text-anchor="middle">北京时间</text>
+            <text id="scene3-time-display" class="scene3-time-value" x="730" y="100" text-anchor="middle">3 月 21 日 12:00</text>
+        </svg>
+        
+        <div id="scene3-controls">
+            <button id="scene3-state-btn-0" class="scene3-btn active">春分/秋分</button>
+            <button id="scene3-state-btn-1" class="scene3-btn">东半球黑夜</button>
+            <button id="scene3-state-btn-2" class="scene3-btn">西半球黑夜</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现：东西半球划分与晨昏线位置关系
+        
+        // 状态定义
+        const states = [
+            {
+                name: '春分/秋分',
+                terminatorX: 200,  // 晨昏线在东半球中央
+                dayStart: 200,
+                nightStart: 0,
+                nightWidth: 200,
+                timeText: '3 月 21 日 12:00',
+                highlightBoundary: null
+            },
+            {
+                name: '东半球黑夜',
+                terminatorX: 120,  // 晨昏线在 20°W
+                dayStart: 0,
+                nightStart: 120,
+                nightWidth: 680,  // 20°W 以东为夜
+                timeText: '3 月 22 日 02:00',
+                highlightBoundary: '20w'
+            },
+            {
+                name: '西半球黑夜',
+                terminatorX: 680,  // 晨昏线在 160°E
+                dayStart: 680,
+                nightStart: 0,
+                nightWidth: 680,  // 160°E 以西为夜
+                timeText: '3 月 21 日 10:40',
+                highlightBoundary: '160e'
+            }
+        ];
+        
+        let currentState = 0;
+        
+        // 获取 DOM 元素
+        const terminatorLine = document.getElementById('scene3-terminator-line');
+        const dayRegion = document.getElementById('scene3-day-region');
+        const nightRegion = document.getElementById('scene3-night-region');
+        const timeDisplay = document.getElementById('scene3-time-display');
+        const boundary20w = document.getElementById('scene3-20w-boundary');
+        const boundary160e = document.getElementById('scene3-160e-boundary');
+        const btn0 = document.getElementById('scene3-state-btn-0');
+        const btn1 = document.getElementById('scene3-state-btn-1');
+        const btn2 = document.getElementById('scene3-state-btn-2');
+        const buttons = [btn0, btn1, btn2];
+        
+        // 更新状态函数
+        function updateState(newState) {
+            currentState = newState;
+            const state = states[newState];
+            
+            // 更新晨昏线位置
+            terminatorLine.setAttribute('x1', state.terminatorX);
+            terminatorLine.setAttribute('x2', state.terminatorX);
+            
+            // 更新昼夜区域
+            dayRegion.setAttribute('x', state.dayStart);
+            dayRegion.setAttribute('width', 800 - state.dayStart);
+            
+            nightRegion.setAttribute('x', state.nightStart);
+            nightRegion.setAttribute('width', state.nightWidth);
+            
+            // 更新时间显示
+            timeDisplay.textContent = state.timeText;
+            
+            // 更新分界线高亮
+            boundary20w.setAttribute('class', 'scene3-boundary');
+            boundary160e.setAttribute('class', 'scene3-boundary');
+            
+            if (state.highlightBoundary === '20w') {
+                boundary20w.setAttribute('class', 'scene3-boundary-highlight');
+            } else if (state.highlightBoundary === '160e') {
+                boundary160e.setAttribute('class', 'scene3-boundary-highlight');
+            }
+            
+            // 更新按钮状态
+            buttons.forEach((btn, idx) => {
+                if (idx === newState) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+        
+        // 绑定按钮事件
+        btn0.addEventListener('click', () => updateState(0));
+        btn1.addEventListener('click', () => updateState(1));
+        btn2.addEventListener('click', () => updateState(2));
+        
+        // 初始化状态
+        updateState(0);
+    })();
+    </script>
+</body>
+</html>

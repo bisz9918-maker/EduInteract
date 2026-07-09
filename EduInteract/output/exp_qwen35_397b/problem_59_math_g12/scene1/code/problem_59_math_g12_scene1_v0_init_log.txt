@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测量河宽 - 三角形几何模型</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-fade-in {
+            animation: scene1FadeIn 300ms ease-in-out forwards;
+        }
+        @keyframes scene1FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .scene1-hidden {
+            display: none;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            width: 100px;
+            height: 35px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 河岸线 -->
+            <line id="scene1-river-top" x1="50" y1="130" x2="750" y2="130" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-river-bottom" x1="50" y1="380" x2="750" y2="380" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 三角形边 -->
+            <line id="scene1-tri-ac" x1="333" y1="380" x2="400" y2="130" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-tri-bc" x1="650" y1="380" x2="400" y2="130" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-tri-ab" x1="333" y1="380" x2="650" y2="380" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 辅助线 CD（虚线） -->
+            <line id="scene1-cd-dash" x1="400" y1="130" x2="400" y2="380" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 直角符号（L形折线） -->
+            <polyline id="scene1-right-angle" points="385,365 400,365 400,380" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 角度弧线 -->
+            <!-- ∠CAB 弧线：以 A(333,380) 为圆心，r=35，角度 0°~75° -->
+            <path id="scene1-arc-a" d="M 368 380 A 35 35 0 0 1 358.5 348.5" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <!-- ∠CBA 弧线：以 B(650,380) 为圆心，r=35，角度 105°~180° -->
+            <path id="scene1-arc-b" d="M 615 380 A 35 35 0 0 1 624.5 348.5" fill="none" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 直角三角形填充 -->
+            <polygon id="scene1-fill-acd" points="333,380 400,130 400,380" fill="#2e7d32" fill-opacity="0.2"/>
+            <polygon id="scene1-fill-bcd" points="400,380 400,130 650,380" fill="#2e7d32" fill-opacity="0.2"/>
+            
+            <!-- 顶点标签 -->
+            <text id="scene1-label-c" x="400" y="110" text-anchor="middle" font-size="14" fill="#000000">C</text>
+            <text id="scene1-label-a" x="318" y="400" text-anchor="middle" font-size="14" fill="#000000">A</text>
+            <text id="scene1-label-b" x="658" y="400" text-anchor="middle" font-size="14" fill="#000000">B</text>
+            <text id="scene1-label-d" x="408" y="400" text-anchor="start" font-size="14" fill="#000000">D</text>
+            
+            <!-- 角度值标注 -->
+            <text id="scene1-angle-75" x="355" y="370" text-anchor="start" font-size="14" fill="#1565c0">75°</text>
+            <text id="scene1-angle-45" x="618" y="370" text-anchor="end" font-size="14" fill="#1565c0">45°</text>
+            
+            <!-- 边长标注 -->
+            <text id="scene1-length-ab" x="492" y="415" text-anchor="middle" font-size="14" fill="#000000">96 米</text>
+            
+            <!-- 河宽标注 -->
+            <text id="scene1-length-cd" x="412" y="255" text-anchor="start" font-size="14" fill="#c62828">CD</text>
+            
+            <!-- 计算提示 -->
+            <text id="scene1-calc-hint" x="600" y="50" text-anchor="start" font-size="14" fill="#c62828" class="scene1-hidden">CD = BC × sin45°</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 布局坐标表（实现对照依据）：
+        // 上方河岸线: (50,130)-(750,130)
+        // 下方河岸线: (50,380)-(750,380)
+        // 边 AC: (333,380)-(400,130)
+        // 边 BC: (650,380)-(400,130)
+        // 边 AB: (333,380)-(650,380)
+        // 辅助线 CD: (400,130)-(400,380)
+        // 直角符号: (385,365)-(400,365)-(400,380)
+        // ∠CAB 弧线: 以 A(333,380) 为圆心，r=35，角度 0°~75°
+        // ∠CBA 弧线: 以 B(650,380) 为圆心，r=35，角度 105°~180°
+        // Rt△ACD 填充: (333,380)-(400,130)-(400,380)
+        // Rt△BCD 填充: (400,380)-(400,130)-(650,380)
+        // 标签 A: (318,400), 标签 B: (658,400), 标签 C: (400,110), 标签 D: (408,400)
+        // 75°标注: (355,370), 45°标注: (618,370), 96 米标注: (492,415), CD 河宽标注: (412,255)
+        // 上一步按钮: (280,455), 下一步按钮: (420,455)
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 获取所有元素
+        const elements = {
+            // 始终显示的基础元素
+            riverTop: document.getElementById('scene1-river-top'),
+            riverBottom: document.getElementById('scene1-river-bottom'),
+            triAC: document.getElementById('scene1-tri-ac'),
+            triBC: document.getElementById('scene1-tri-bc'),
+            triAB: document.getElementById('scene1-tri-ab'),
+            labelC: document.getElementById('scene1-label-c'),
+            labelA: document.getElementById('scene1-label-a'),
+            labelB: document.getElementById('scene1-label-b'),
+            
+            // 步骤 1 显示
+            arcA: document.getElementById('scene1-arc-a'),
+            arcB: document.getElementById('scene1-arc-b'),
+            angle75: document.getElementById('scene1-angle-75'),
+            angle45: document.getElementById('scene1-angle-45'),
+            lengthAB: document.getElementById('scene1-length-ab'),
+            
+            // 步骤 2 显示
+            cdDash: document.getElementById('scene1-cd-dash'),
+            rightAngle: document.getElementById('scene1-right-angle'),
+            labelD: document.getElementById('scene1-label-d'),
+            
+            // 步骤 3 显示
+            fillACD: document.getElementById('scene1-fill-acd'),
+            
+            // 步骤 4 显示
+            fillBCD: document.getElementById('scene1-fill-bcd'),
+            lengthCD: document.getElementById('scene1-length-cd'),
+            calcHint: document.getElementById('scene1-calc-hint')
+        };
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 工具函数：淡入元素
+        function fadeIn(el) {
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.style.display = 'block';
+                el.classList.add('scene1-fade-in');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 重置所有高亮
+            elements.triAC.setAttribute('stroke-width', '2');
+            elements.triBC.setAttribute('stroke-width', '2');
+            elements.cdDash.setAttribute('stroke-width', '2');
+            
+            // 步骤 0：基础图形
+            if (currentStep === 0) {
+                hide(elements.arcA);
+                hide(elements.arcB);
+                hide(elements.angle75);
+                hide(elements.angle45);
+                hide(elements.lengthAB);
+                hide(elements.cdDash);
+                hide(elements.rightAngle);
+                hide(elements.labelD);
+                hide(elements.fillACD);
+                hide(elements.fillBCD);
+                hide(elements.lengthCD);
+                hide(elements.calcHint);
+            }
+            // 步骤 1：标注已知条件
+            else if (currentStep === 1) {
+                fadeIn(elements.arcA);
+                fadeIn(elements.arcB);
+                fadeIn(elements.angle75);
+                fadeIn(elements.angle45);
+                fadeIn(elements.lengthAB);
+                hide(elements.cdDash);
+                hide(elements.rightAngle);
+                hide(elements.labelD);
+                hide(elements.fillACD);
+                hide(elements.fillBCD);
+                hide(elements.lengthCD);
+                hide(elements.calcHint);
+            }
+            // 步骤 2：作高辅助线
+            else if (currentStep === 2) {
+                show(elements.arcA);
+                show(elements.arcB);
+                show(elements.angle75);
+                show(elements.angle45);
+                show(elements.lengthAB);
+                fadeIn(elements.cdDash);
+                fadeIn(elements.rightAngle);
+                fadeIn(elements.labelD);
+                hide(elements.fillACD);
+                hide(elements.fillBCD);
+                hide(elements.lengthCD);
+                hide(elements.calcHint);
+            }
+            // 步骤 3：分析 Rt△ACD
+            else if (currentStep === 3) {
+                show(elements.arcA);
+                show(elements.arcB);
+                show(elements.angle75);
+                show(elements.angle45);
+                show(elements.lengthAB);
+                show(elements.cdDash);
+                show(elements.rightAngle);
+                show(elements.labelD);
+                fadeIn(elements.fillACD);
+                hide(elements.fillBCD);
+                hide(elements.lengthCD);
+                hide(elements.calcHint);
+                // 高亮 AC 和 CD
+                elements.triAC.setAttribute('stroke-width', '3');
+                elements.cdDash.setAttribute('stroke-width', '3');
+            }
+            // 步骤 4：分析 Rt△BCD 并展示计算关系
+            else if (currentStep === 4) {
+                show(elements.arcA);
+                show(elements.arcB);
+                show(elements.angle75);
+                show(elements.angle45);
+                show(elements.lengthAB);
+                show(elements.cdDash);
+                show(elements.rightAngle);
+                show(elements.labelD);
+                show(elements.fillACD);
+                fadeIn(elements.fillBCD);
+                fadeIn(elements.lengthCD);
+                fadeIn(elements.calcHint);
+                // 高亮 BC 和 CD
+                elements.triBC.setAttribute('stroke-width', '3');
+                elements.cdDash.setAttribute('stroke-width', '3');
+                // CD 标注红色加粗
+                elements.lengthCD.setAttribute('font-weight', 'bold');
+                elements.lengthCD.setAttribute('font-size', '16');
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

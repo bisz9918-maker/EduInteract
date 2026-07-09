@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>长方形计数——分类统计法</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 16px;
+            font-size: 14px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #scene1-controls button:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-count-text {
+            position: absolute;
+            bottom: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: bold;
+            color: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500 -->
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 坐标表注释：
+                大长方形外框：rect | (100,150)-(700,350) | 600×200
+                竖线 1: line | (200,150)-(200,350)
+                竖线 2: line | (300,150)-(300,350)
+                竖线 3: line | (550,150)-(550,350)
+                小长方形①: rect | (100,150)-(200,350) | 100×200
+                小长方形②: rect | (200,150)-(300,350) | 100×200
+                小长方形③: rect | (300,150)-(550,350) | 250×200
+                小长方形④: rect | (550,150)-(700,350) | 150×200
+                标签①: text | (150,280) - 调整 y 坐标避免与边框重叠
+                标签②: text | (250,280)
+                标签③: text | (425,280)
+                标签④: text | (625,280)
+            -->
+            
+            <!-- 大长方形外框 -->
+            <rect id="scene1-main-frame" x="100" y="150" width="600" height="200" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 竖线 -->
+            <line id="scene1-line1" x1="200" y1="150" x2="200" y2="350" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-line2" x1="300" y1="150" x2="300" y2="350" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-line3" x1="550" y1="150" x2="550" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 小长方形（基础边框） -->
+            <rect id="scene1-rect1" x="100" y="150" width="100" height="200" fill="none" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-rect2" x="200" y="150" width="100" height="200" fill="none" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-rect3" x="300" y="150" width="250" height="200" fill="none" stroke="#000000" stroke-width="1"/>
+            <rect id="scene1-rect4" x="550" y="150" width="150" height="200" fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 编号标签（白色圆形背景 + 黑色数字）- y 坐标调整为 280，避免与边框重叠 -->
+            <circle id="scene1-label1-bg" cx="150" cy="280" r="12" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+            <text id="scene1-label1" x="150" y="285" font-size="14" text-anchor="middle" fill="#000000">①</text>
+            
+            <circle id="scene1-label2-bg" cx="250" cy="280" r="12" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+            <text id="scene1-label2" x="250" y="285" font-size="14" text-anchor="middle" fill="#000000">②</text>
+            
+            <circle id="scene1-label3-bg" cx="425" cy="280" r="12" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+            <text id="scene1-label3" x="425" y="285" font-size="14" text-anchor="middle" fill="#000000">③</text>
+            
+            <circle id="scene1-label4-bg" cx="625" cy="280" r="12" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+            <text id="scene1-label4" x="625" y="285" font-size="14" text-anchor="middle" fill="#000000">④</text>
+            
+            <!-- 高亮边框组（初始隐藏） -->
+            <g id="scene1-highlight-group" style="display: none;">
+                <!-- 单个高亮（蓝色） -->
+                <rect id="scene1-highlight-single-1" class="scene1-highlight-single" x="100" y="150" width="100" height="200" fill="none" stroke="#1565c0" stroke-width="3" opacity="0"/>
+                <rect id="scene1-highlight-single-2" class="scene1-highlight-single" x="200" y="150" width="100" height="200" fill="none" stroke="#1565c0" stroke-width="3" opacity="0"/>
+                <rect id="scene1-highlight-single-3" class="scene1-highlight-single" x="300" y="150" width="250" height="200" fill="none" stroke="#1565c0" stroke-width="3" opacity="0"/>
+                <rect id="scene1-highlight-single-4" class="scene1-highlight-single" x="550" y="150" width="150" height="200" fill="none" stroke="#1565c0" stroke-width="3" opacity="0"/>
+                
+                <!-- 两个组合高亮（红色） -->
+                <rect id="scene1-highlight-double-1" class="scene1-highlight-double" x="100" y="150" width="200" height="200" fill="none" stroke="#c62828" stroke-width="3" opacity="0"/>
+                <rect id="scene1-highlight-double-2" class="scene1-highlight-double" x="200" y="150" width="350" height="200" fill="none" stroke="#c62828" stroke-width="3" opacity="0"/>
+                <rect id="scene1-highlight-double-3" class="scene1-highlight-double" x="300" y="150" width="400" height="200" fill="none" stroke="#c62828" stroke-width="3" opacity="0"/>
+                
+                <!-- 三个组合高亮（绿色） -->
+                <rect id="scene1-highlight-triple-1" class="scene1-highlight-triple" x="100" y="150" width="450" height="200" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+                <rect id="scene1-highlight-triple-2" class="scene1-highlight-triple" x="200" y="150" width="500" height="200" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+                
+                <!-- 四个组合高亮（绿色） -->
+                <rect id="scene1-highlight-quadruple" class="scene1-highlight-quadruple" x="100" y="150" width="600" height="200" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            </g>
+        </svg>
+        
+        <!-- 计数信息 -->
+        <div id="scene1-count-text">单个：4 个</div>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：长方形计数——分类统计法
+        
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 步骤定义
+        const stepDefinitions = [
+            {
+                // 步骤 0：初始状态
+                text: "单个：4 个",
+                textColor: "#1565c0",
+                showSingle: false,
+                showDouble: false,
+                showTriple: false,
+                showQuadruple: false,
+                showSummary: false
+            },
+            {
+                // 步骤 1：单个高亮
+                text: "单个：4 个",
+                textColor: "#1565c0",
+                showSingle: true,
+                showDouble: false,
+                showTriple: false,
+                showQuadruple: false,
+                showSummary: false
+            },
+            {
+                // 步骤 2：两个组合
+                text: "两个组合：3 个",
+                textColor: "#c62828",
+                showSingle: false,
+                showDouble: true,
+                showTriple: false,
+                showQuadruple: false,
+                showSummary: false
+            },
+            {
+                // 步骤 3：三个组合
+                text: "三个组合：2 个",
+                textColor: "#2e7d32",
+                showSingle: false,
+                showDouble: false,
+                showTriple: true,
+                showQuadruple: false,
+                showSummary: false
+            },
+            {
+                // 步骤 4：四个组合
+                text: "四个组合：1 个",
+                textColor: "#2e7d32",
+                showSingle: false,
+                showDouble: false,
+                showTriple: false,
+                showQuadruple: true,
+                showSummary: false
+            },
+            {
+                // 步骤 5：汇总
+                text: "总计：4+3+2+1=10 个",
+                textColor: "#000000",
+                showSingle: false,
+                showDouble: false,
+                showTriple: false,
+                showQuadruple: false,
+                showSummary: true
+            }
+        ];
+        
+        // DOM 元素引用
+        const countText = document.getElementById('scene1-count-text');
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const highlightGroup = document.getElementById('scene1-highlight-group');
+        
+        // 高亮元素引用
+        const singleHighlights = [
+            document.getElementById('scene1-highlight-single-1'),
+            document.getElementById('scene1-highlight-single-2'),
+            document.getElementById('scene1-highlight-single-3'),
+            document.getElementById('scene1-highlight-single-4')
+        ];
+        const doubleHighlights = [
+            document.getElementById('scene1-highlight-double-1'),
+            document.getElementById('scene1-highlight-double-2'),
+            document.getElementById('scene1-highlight-double-3')
+        ];
+        const tripleHighlights = [
+            document.getElementById('scene1-highlight-triple-1'),
+            document.getElementById('scene1-highlight-triple-2')
+        ];
+        const quadrupleHighlight = document.getElementById('scene1-highlight-quadruple');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el) el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            const step = stepDefinitions[currentStep];
+            
+            // 更新计数文本
+            countText.textContent = step.text;
+            countText.style.color = step.textColor;
+            
+            // 显示高亮组
+            highlightGroup.style.display = 'block';
+            
+            // 隐藏所有高亮
+            singleHighlights.forEach(el => { el.style.opacity = '0'; el.style.display = 'none'; });
+            doubleHighlights.forEach(el => { el.style.opacity = '0'; el.style.display = 'none'; });
+            tripleHighlights.forEach(el => { el.style.opacity = '0'; el.style.display = 'none'; });
+            quadrupleHighlight.style.opacity = '0';
+            quadrupleHighlight.style.display = 'none';
+            
+            // 根据步骤显示对应高亮
+            if (step.showSingle) {
+                singleHighlights.forEach(el => {
+                    el.style.display = 'block';
+                    setTimeout(() => { el.style.opacity = '1'; }, 50);
+                });
+            }
+            if (step.showDouble) {
+                doubleHighlights.forEach(el => {
+                    el.style.display = 'block';
+                    setTimeout(() => { el.style.opacity = '1'; }, 50);
+                });
+            }
+            if (step.showTriple) {
+                tripleHighlights.forEach(el => {
+                    el.style.display = 'block';
+                    setTimeout(() => { el.style.opacity = '1'; }, 50);
+                });
+            }
+            if (step.showQuadruple) {
+                quadrupleHighlight.style.display = 'block';
+                setTimeout(() => { quadrupleHighlight.style.opacity = '1'; }, 50);
+            }
+            
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps);
+        }
+        
+        // 按钮事件绑定
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

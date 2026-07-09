@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光照图综合解析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { display: flex; align-items: center; font-size: 14px; font-weight: bold; }
+        .scene1-info-panel { position: absolute; top: 80px; right: 20px; width: 240px; height: 320px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; padding: 15px; box-sizing: border-box; font-size: 14px; line-height: 1.5; }
+        .scene1-info-panel h3 { margin-top: 0; margin-bottom: 10px; font-size: 16px; color: #333; }
+        .scene1-info-panel p { margin: 0 0 10px 0; }
+        
+        /* SVG Elements */
+        .scene1-transition { transition: all 0.3s ease; }
+        .scene1-hidden { opacity: 0 !important; pointer-events: none; }
+        
+        /* Text background to prevent overlap issues */
+        .text-bg { fill: #ffffff; opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <marker id="scene1-arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#000000" />
+                </marker>
+                <marker id="scene1-arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#f57f17" />
+                </marker>
+                <marker id="scene1-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                
+                <!-- Filters for text background -->
+                <filter id="solid-bg" x="-10%" y="-10%" width="120%" height="120%">
+                    <feFlood flood-color="white" flood-opacity="0.9" result="bg" />
+                    <feMerge>
+                        <feMergeNode in="bg"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+            </defs>
+
+            <!-- 南半球高亮 (Step 4) -->
+            <path id="scene1-south-highlight" class="scene1-transition scene1-hidden" d="M 140 240 A 160 160 0 0 0 460 240 Z" fill="#2e7d32" opacity="0.2" />
+
+            <!-- 夜半球阴影 -->
+            <path d="M 255 86.5 A 160 160 0 0 0 345 393.5 L 255 86.5 Z" fill="#000000" opacity="0.2" />
+
+            <!-- 地球轮廓 -->
+            <circle cx="300" cy="240" r="160" fill="none" stroke="#000000" stroke-width="1" />
+
+            <!-- 纬线 -->
+            <line x1="255" y1="86.5" x2="345" y2="86.5" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+            <line x1="219" y1="102" x2="381" y2="102" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+            <line x1="140" y1="240" x2="460" y2="240" stroke="#000000" stroke-width="1" /> <!-- 赤道 -->
+            <line x1="219" y1="378" x2="381" y2="378" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+            <line x1="255" y1="393.5" x2="345" y2="393.5" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- 经线 -->
+            <path id="scene1-meridian-center" class="scene1-transition" d="M 300 80 L 300 400" fill="none" stroke="#000000" stroke-width="1" />
+            <path id="scene1-meridian-left1" class="scene1-transition" d="M 300 80 A 80 160 0 0 0 300 400" fill="none" stroke="#000000" stroke-width="1" />
+            <path d="M 300 80 A 80 160 0 0 1 300 400" fill="none" stroke="#000000" stroke-width="1" />
+            <path d="M 300 80 A 138.6 160 0 0 0 300 400" fill="none" stroke="#000000" stroke-width="1" />
+            <path d="M 300 80 A 138.6 160 0 0 1 300 400" fill="none" stroke="#000000" stroke-width="1" />
+
+            <!-- 晨昏线 -->
+            <line id="scene1-terminator" class="scene1-transition" x1="255" y1="86.5" x2="345" y2="393.5" stroke="#000000" stroke-width="1" />
+
+            <!-- 太阳光线 -->
+            <g id="scene1-sunrays" class="scene1-transition" stroke="#000000" stroke-width="1">
+                <line x1="520" y1="100" x2="450" y2="120" marker-end="url(#scene1-arrow-black)" class="scene1-ray" />
+                <line x1="520" y1="200" x2="450" y2="220" marker-end="url(#scene1-arrow-black)" class="scene1-ray" />
+                <line x1="520" y1="300" x2="450" y2="320" marker-end="url(#scene1-arrow-black)" class="scene1-ray" />
+            </g>
+
+            <!-- 基础点位与标签 -->
+            <!-- N -->
+            <text x="300" y="65" font-size="16" text-anchor="middle" fill="#000000" filter="url(#solid-bg)">N</text>
+            
+            <!-- S -->
+            <text x="300" y="425" font-size="16" text-anchor="middle" fill="#000000" filter="url(#solid-bg)">S</text>
+            
+            <!-- 73°41' -->
+            <text id="scene1-label-73" class="scene1-transition" x="320" y="65" font-size="16" fill="#000000" filter="url(#solid-bg)">73°41'</text>
+
+            <!-- A -->
+            <circle cx="300" cy="240" r="3" fill="#000000" />
+            <text x="315" y="230" font-size="16" fill="#000000" filter="url(#solid-bg)">A</text>
+
+            <!-- B -->
+            <circle cx="260" cy="102" r="3" fill="#000000" />
+            <text x="240" y="95" font-size="16" fill="#000000" filter="url(#solid-bg)">B</text>
+
+            <!-- C -->
+            <circle cx="460" cy="240" r="3" fill="#000000" />
+            <text x="475" y="245" font-size="16" fill="#000000" filter="url(#solid-bg)">C</text>
+
+            <!-- 动态标签 -->
+            <!-- 6:00 -->
+            <g id="scene1-label-6-group" class="scene1-transition scene1-hidden">
+                <text id="scene1-label-6" x="315" y="260" font-size="14" fill="#c62828" filter="url(#solid-bg)">6:00</text>
+            </g>
+            
+            <!-- 12:00 -->
+            <g id="scene1-label-12-group" class="scene1-transition scene1-hidden">
+                <text id="scene1-label-12" x="475" y="265" font-size="14" fill="#f57f17" filter="url(#solid-bg)">12:00</text>
+            </g>
+            
+            <!-- 4:00 -->
+            <g id="scene1-label-4-group" class="scene1-transition scene1-hidden">
+                <text id="scene1-label-4" x="220" y="115" font-size="14" fill="#1565c0" filter="url(#solid-bg)">4:00</text>
+            </g>
+
+            <!-- 经度差标注 -->
+            <g id="scene1-lon-diff" class="scene1-transition scene1-hidden">
+                <path d="M 220 250 L 220 255 L 300 255 L 300 250" fill="none" stroke="#1565c0" stroke-width="1" />
+                <text x="260" y="275" font-size="12" fill="#1565c0" text-anchor="middle" filter="url(#solid-bg)">30° (2小时)</text>
+            </g>
+
+            <!-- 自转方向 -->
+            <path id="scene1-rotation" class="scene1-transition scene1-hidden" d="M 270 230 Q 300 220 330 230" fill="none" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)" />
+        </svg>
+
+        <div id="scene1-info-panel" class="scene1-info-panel">
+            <h3>光照图解析</h3>
+            <div id="scene1-info-content">
+                <p>请点击「下一步」开始解析光照图。</p>
+            </div>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <div id="scene1-step-indicator">步骤 0 / 4</div>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const infoContent = document.getElementById('scene1-info-content');
+
+        // SVG Elements
+        const terminator = document.getElementById('scene1-terminator');
+        const sunrays = document.getElementById('scene1-sunrays');
+        const sunrayLines = document.querySelectorAll('.scene1-ray');
+        const meridianCenter = document.getElementById('scene1-meridian-center');
+        const meridianLeft1 = document.getElementById('scene1-meridian-left1');
+        const southHighlight = document.getElementById('scene1-south-highlight');
+        const label73 = document.getElementById('scene1-label-73');
+        
+        const label6Group = document.getElementById('scene1-label-6-group');
+        const label6 = document.getElementById('scene1-label-6');
+        
+        const label12Group = document.getElementById('scene1-label-12-group');
+        const label12 = document.getElementById('scene1-label-12');
+        
+        const label4Group = document.getElementById('scene1-label-4-group');
+        const label4 = document.getElementById('scene1-label-4');
+        
+        const lonDiff = document.getElementById('scene1-lon-diff');
+        const rotation = document.getElementById('scene1-rotation');
+
+        const stepData = [
+            {
+                text: "<p>请点击「下一步」开始解析光照图。</p>"
+            },
+            {
+                text: "<p><b>1. 晨昏线与A点</b></p><p>左侧为夜半球，右侧为昼半球，顺着自转方向（自西向东），由夜进入昼的界线为<b>晨线</b>。</p><p>A点位于赤道与晨线的交点，地方时为 <b>6:00</b>，此时太阳高度为 <b>0°</b>。</p>"
+            },
+            {
+                text: "<p><b>2. 直射点与C点</b></p><p>晨昏线与 73°41′N 相切，推导直射点纬度为 90° - 73°41′ = <b>16°19′N</b>。</p><p>C点在平分昼半球的经线上，地方时为 <b>12:00</b>，正午太阳高度为 <b>73°41′</b>。</p>"
+            },
+            {
+                text: "<p><b>3. B点昼长</b></p><p>相邻经线经度差为 30°。B点在A点以西 30°，时间晚 2 小时。</p><p>推导B点日出时间为 <b>4:00</b>，计算昼长 = (12 - 4) × 2 = <b>16小时</b>。</p>"
+            },
+            {
+                text: "<p><b>4. A点夜长与南半球</b></p><p>A点在赤道上，全年昼夜平分，夜长 <b>12小时</b>。</p><p>南半球阴影面积大于高亮(昼)面积，结论为南半球 <b>昼短夜长</b>。</p>"
+            }
+        ];
+
+        function updateScene(step) {
+            // Reset all
+            terminator.setAttribute('stroke', '#000000');
+            terminator.setAttribute('stroke-width', '1');
+            
+            sunrays.setAttribute('stroke', '#000000');
+            sunrays.setAttribute('stroke-width', '1');
+            sunrayLines.forEach(line => line.setAttribute('marker-end', 'url(#scene1-arrow-black)'));
+            
+            meridianCenter.setAttribute('stroke', '#000000');
+            meridianCenter.setAttribute('stroke-width', '1');
+            meridianLeft1.setAttribute('stroke', '#000000');
+            meridianLeft1.setAttribute('stroke-width', '1');
+            
+            label73.setAttribute('fill', '#000000');
+            label73.setAttribute('font-weight', 'normal');
+            
+            label6Group.classList.add('scene1-hidden');
+            label6.setAttribute('fill', '#c62828');
+            
+            label12Group.classList.add('scene1-hidden');
+            label12.setAttribute('fill', '#f57f17');
+            
+            label4Group.classList.add('scene1-hidden');
+            label4.setAttribute('fill', '#1565c0');
+            
+            lonDiff.classList.add('scene1-hidden');
+            rotation.classList.add('scene1-hidden');
+            southHighlight.classList.add('scene1-hidden');
+
+            // Apply step specific styles
+            if (step >= 1) {
+                label6Group.classList.remove('scene1-hidden');
+                if (step === 1) {
+                    terminator.setAttribute('stroke', '#c62828');
+                    terminator.setAttribute('stroke-width', '3');
+                    rotation.classList.remove('scene1-hidden');
+                } else {
+                    label6.setAttribute('fill', '#000000');
+                }
+            }
+
+            if (step >= 2) {
+                label12Group.classList.remove('scene1-hidden');
+                if (step === 2) {
+                    sunrays.setAttribute('stroke', '#f57f17');
+                    sunrays.setAttribute('stroke-width', '2');
+                    sunrayLines.forEach(line => line.setAttribute('marker-end', 'url(#scene1-arrow-orange)'));
+                    label73.setAttribute('fill', '#f57f17');
+                    label73.setAttribute('font-weight', 'bold');
+                } else {
+                    label12.setAttribute('fill', '#000000');
+                }
+            }
+
+            if (step >= 3) {
+                label4Group.classList.remove('scene1-hidden');
+                if (step === 3) {
+                    meridianCenter.setAttribute('stroke', '#1565c0');
+                    meridianCenter.setAttribute('stroke-width', '3');
+                    meridianLeft1.setAttribute('stroke', '#1565c0');
+                    meridianLeft1.setAttribute('stroke-width', '3');
+                    lonDiff.classList.remove('scene1-hidden');
+                } else {
+                    label4.setAttribute('fill', '#000000');
+                }
+            }
+
+            if (step >= 4) {
+                southHighlight.classList.remove('scene1-hidden');
+            }
+
+            // Update UI
+            infoContent.innerHTML = stepData[step].text;
+            stepIndicator.textContent = `步骤 ${step} / ${maxStep}`;
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === maxStep;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+
+        // Initialize
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

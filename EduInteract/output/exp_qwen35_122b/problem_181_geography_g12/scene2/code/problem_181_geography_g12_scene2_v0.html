@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 极地俯视图气压带风带分布</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-step-indicator { position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        button:hover:not(:disabled) { background: #e0e0e0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 经线系统：4 条从中心 (550,250) 向外辐射的实线 -->
+            <line id="scene2-meridian-0" x1="550" y1="250" x2="550" y2="120" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-meridian-90E" x1="550" y1="250" x2="680" y2="250" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-meridian-180" x1="550" y1="250" x2="550" y2="380" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-meridian-90W" x1="550" y1="250" x2="420" y2="250" stroke="#000000" stroke-width="2"/>
+
+            <!-- 经线标签（调整位置避免与椭圆重叠，移到更外侧） -->
+            <text id="scene2-label-0" x="550" y="95" text-anchor="middle" font-size="12" fill="#000">0°</text>
+            <text id="scene2-label-90E" x="720" y="255" text-anchor="middle" font-size="12" fill="#000">90°E</text>
+            <text id="scene2-label-180" x="550" y="395" text-anchor="middle" font-size="12" fill="#000">180°</text>
+            <text id="scene2-label-90W" x="380" y="255" text-anchor="middle" font-size="12" fill="#000">90°W</text>
+
+            <!-- 纬度圈：2 个同心虚线圆 -->
+            <circle id="scene2-circle-30deg" cx="550" cy="250" r="60" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" fill="none"/>
+            <circle id="scene2-circle-60deg" cx="550" cy="250" r="100" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" fill="none"/>
+
+            <!-- 纬度圈标签（调整位置避免与圆重叠，移到更外侧） -->
+            <text id="scene2-label-30deg" x="550" y="135" text-anchor="middle" font-size="12" fill="#666">30°</text>
+            <text id="scene2-label-60deg" x="550" y="95" text-anchor="middle" font-size="12" fill="#666">60°</text>
+
+            <!-- 气压带：3 个水平椭圆 -->
+            <ellipse id="scene2-ellipse-equator" cx="550" cy="250" rx="80" ry="10" stroke="#c62828" stroke-width="1.5" fill="rgba(198,40,40,0.15)"/>
+            <ellipse id="scene2-ellipse-subtropical" cx="550" cy="250" rx="120" ry="10" stroke="#c62828" stroke-width="1.5" fill="rgba(198,40,40,0.15)"/>
+            <ellipse id="scene2-ellipse-subpolar" cx="550" cy="250" rx="160" ry="10" stroke="#c62828" stroke-width="1.5" fill="rgba(198,40,40,0.15)"/>
+
+            <!-- 风带箭头（极地附近） -->
+            <line id="scene2-arrow-tradewind" x1="550" y1="190" x2="550" y2="210" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <polygon id="scene2-arrow-tradewind-head" points="550,210 546,202 554,202" fill="#1565c0" opacity="0"/>
+
+            <line id="scene2-arrow-westerlies" x1="550" y1="150" x2="570" y2="170" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <polygon id="scene2-arrow-westerlies-head" points="570,170 562,166 566,158" fill="#1565c0" opacity="0"/>
+
+            <line id="scene2-arrow-polar" x1="550" y1="110" x2="560" y2="130" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <polygon id="scene2-arrow-polar-head" points="560,130 554,122 558,118" fill="#1565c0" opacity="0"/>
+
+            <!-- a、b 标记点 -->
+            <circle id="scene2-point-a" cx="620" cy="320" r="3" fill="#2e7d32"/>
+            <circle id="scene2-point-b" cx="480" cy="180" r="3" fill="#2e7d32"/>
+
+            <!-- a、b 标签（调整位置避免与圆和线重叠，移到更外侧） -->
+            <text id="scene2-label-a" x="670" y="365" text-anchor="middle" font-size="12" fill="#000">a</text>
+            <text id="scene2-label-b" x="430" y="145" text-anchor="middle" font-size="12" fill="#000">b</text>
+
+            <!-- a、b 风向箭头 -->
+            <line id="scene2-arrow-a" x1="620" y1="320" x2="640" y2="340" stroke="#1565c0" stroke-width="2"/>
+            <polygon id="scene2-arrow-a-head" points="640,340 634,334 638,330" fill="#1565c0"/>
+
+            <line id="scene2-arrow-b" x1="480" y1="180" x2="460" y2="200" stroke="#1565c0" stroke-width="2"/>
+            <polygon id="scene2-arrow-b-head" points="460,200 464,192 458,188" fill="#1565c0"/>
+
+            <!-- 偏转方向标注（步骤 2 显示）（调整位置避免与圆重叠） -->
+            <text id="scene2-label-right" x="380" y="125" font-size="14" fill="#c62828" font-weight="bold" opacity="0">右偏</text>
+            <text id="scene2-label-left" x="700" y="375" font-size="14" fill="#2e7d32" font-weight="bold" opacity="0">左偏</text>
+
+            <!-- 结论文字（步骤 3、5 显示） -->
+            <text id="scene2-conclusion-hemisphere" x="100" y="200" font-size="16" fill="#c62828" font-weight="bold" opacity="0">北半球：风向右偏</text>
+            <text id="scene2-conclusion-season" x="100" y="240" font-size="16" fill="#2e7d32" font-weight="bold" opacity="0">夏季：气压带北移</text>
+
+            <!-- 图例 -->
+            <ellipse id="scene2-legend-ellipse" cx="120" cy="360" rx="20" ry="10" stroke="#c62828" stroke-width="1.5" fill="rgba(198,40,40,0.15)"/>
+            <text id="scene2-legend-text" x="150" y="365" font-size="12" fill="#000">气压带</text>
+
+            <!-- 极点 N（调整位置避免与圆重叠，移到圆内上方） -->
+            <text id="scene2-label-N" x="550" y="200" text-anchor="middle" font-size="14" fill="#000" font-weight="bold">N</text>
+
+            <!-- 高亮区域（步骤 3、4 使用） -->
+            <circle id="scene2-highlight-b" cx="480" cy="180" r="25" stroke="#c62828" stroke-width="2" fill="none" opacity="0"/>
+            <line id="scene2-highlight-arrow" x1="550" y1="230" x2="550" y2="210" stroke="#ff9800" stroke-width="2" opacity="0"/>
+            <polygon id="scene2-highlight-arrow-head" points="550,210 546,218 554,218" fill="#ff9800" opacity="0"/>
+        </svg>
+
+        <div id="scene2-step-indicator">步骤 0/5</div>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表对照：
+        // | 元素 | 位置 | 备注 |
+        // | 极地俯视图中心 | (550,250) | 图乙中心 |
+        // | 经线 0°(上) | (550,250)-(550,120) | 垂直向上 |
+        // | 经线 90°E(右) | (550,250)-(680,250) | 水平向右 |
+        // | 经线 180°(下) | (550,250)-(550,380) | 垂直向下 |
+        // | 经线 90°W(左) | (550,250)-(420,250) | 水平向左 |
+        // | 纬度圈 30° | 圆心 (550,250), 半径 60 | 灰色虚线 |
+        // | 纬度圈 60° | 圆心 (550,250), 半径 100 | 灰色虚线 |
+        // | a 点 | (620,320) | 绿色，南半球信风带位置 |
+        // | b 点 | (480,180) | 绿色，北半球西风带位置 |
+
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 5,
+
+            // 工具函数：显示元素
+            show: function(el) {
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            },
+
+            // 工具函数：隐藏元素
+            hide: function(el) {
+                if (el) {
+                    el.style.opacity = '0';
+                    // 对于 SVG 元素，使用 display 属性
+                    if (el.tagName === 'svg' || el.namespaceURI === 'http://www.w3.org/2000/svg') {
+                        el.style.display = 'none';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                }
+            },
+
+            // 工具函数：获取 SVG 元素
+            getEl: function(id) {
+                return document.getElementById('scene2-' + id);
+            },
+
+            // 更新场景显示
+            updateScene: function() {
+                const step = this.currentStep;
+
+                // 重置所有高亮
+                this.getEl('arrow-tradewind').style.strokeWidth = '2';
+                this.getEl('arrow-tradewind-head').setAttribute('fill', '#1565c0');
+                this.getEl('arrow-westerlies').style.strokeWidth = '2';
+                this.getEl('arrow-westerlies-head').setAttribute('fill', '#1565c0');
+                this.getEl('arrow-polar').style.strokeWidth = '2';
+                this.getEl('arrow-polar-head').setAttribute('fill', '#1565c0');
+                this.getEl('arrow-a').style.strokeWidth = '2';
+                this.getEl('arrow-a-head').setAttribute('fill', '#1565c0');
+                this.getEl('arrow-b').style.strokeWidth = '2';
+                this.getEl('arrow-b-head').setAttribute('fill', '#1565c0');
+                this.getEl('ellipse-subtropical').style.strokeWidth = '1.5';
+                this.getEl('highlight-b').style.opacity = '0';
+                this.getEl('highlight-arrow').style.opacity = '0';
+                this.getEl('highlight-arrow-head').style.opacity = '0';
+
+                // 步骤 0：初始状态 - 显示基础图
+                // 步骤 1：高亮风向箭头
+                // 步骤 2：显示偏转方向标注
+                // 步骤 3：显示半球结论，高亮 b 点区域
+                // 步骤 4：高亮副热带高气压带，显示偏移提示
+                // 步骤 5：显示季节结论
+
+                // 步骤 1：高亮 a、b 两点的风向箭头
+                if (step >= 1) {
+                    this.getEl('arrow-a').style.strokeWidth = '3';
+                    this.getEl('arrow-a-head').setAttribute('fill', '#0d47a1');
+                    this.getEl('arrow-b').style.strokeWidth = '3';
+                    this.getEl('arrow-b-head').setAttribute('fill', '#0d47a1');
+                }
+
+                // 步骤 2：显示偏转方向标注
+                if (step >= 2) {
+                    this.show(this.getEl('label-right'));
+                    this.show(this.getEl('label-left'));
+                }
+
+                // 步骤 3：显示半球结论，高亮 b 点区域
+                if (step >= 3) {
+                    this.show(this.getEl('conclusion-hemisphere'));
+                    this.getEl('highlight-b').style.opacity = '1';
+                }
+
+                // 步骤 4：高亮副热带高气压带，显示偏移提示
+                if (step >= 4) {
+                    this.getEl('ellipse-subtropical').style.strokeWidth = '3';
+                    this.getEl('highlight-arrow').style.opacity = '1';
+                    this.getEl('highlight-arrow-head').style.opacity = '1';
+                }
+
+                // 步骤 5：显示季节结论
+                if (step >= 5) {
+                    this.show(this.getEl('conclusion-season'));
+                }
+
+                // 更新按钮状态
+                document.getElementById('scene2-btn-prev').disabled = (step === 0);
+                document.getElementById('scene2-btn-next').disabled = (step === this.totalSteps);
+
+                // 更新步骤指示器
+                document.getElementById('scene2-step-indicator').textContent = '步骤 ' + step + '/' + this.totalSteps;
+            },
+
+            // 初始化
+            init: function() {
+                const btnPrev = document.getElementById('scene2-btn-prev');
+                const btnNext = document.getElementById('scene2-btn-next');
+
+                btnPrev.addEventListener('click', function() {
+                    if (scene2.currentStep > 0) {
+                        scene2.currentStep--;
+                        scene2.updateScene();
+                    }
+                });
+
+                btnNext.addEventListener('click', function() {
+                    if (scene2.currentStep < scene2.totalSteps) {
+                        scene2.currentStep++;
+                        scene2.updateScene();
+                    }
+                });
+
+                // 初始显示步骤 0
+                this.updateScene();
+            }
+        };
+
+        // 页面加载后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            scene2.init();
+        });
+    })();
+    </script>
+</body>
+</html>

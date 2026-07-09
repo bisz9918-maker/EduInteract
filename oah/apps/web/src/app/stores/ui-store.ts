@@ -1,0 +1,85 @@
+import { create } from "zustand";
+
+import type {
+  AppRequestErrorSummary,
+  ConsoleFilter,
+  InspectorTab,
+  MainViewMode,
+  SurfaceMode
+} from "../support";
+
+type TimelineInspectorMode = "all" | "execution" | "messages" | "calls" | "steps" | "events";
+
+type UiState = {
+  surfaceMode: SurfaceMode;
+  mainViewMode: MainViewMode;
+  inspectorTab: InspectorTab;
+  timelineInspectorMode: TimelineInspectorMode;
+  selectedTraceId: string;
+  selectedMessageId: string;
+  selectedStepId: string;
+  selectedEventId: string;
+  consoleOpen: boolean;
+  consoleHeight: number;
+  consoleFilter: ConsoleFilter;
+  sidebarCollapsed: boolean;
+  activity: string;
+  errorMessage: string;
+  activeError: AppRequestErrorSummary | null;
+  streamRevision: number;
+  setSurfaceMode: (value: SurfaceMode) => void;
+  setMainViewMode: (value: MainViewMode) => void;
+  setInspectorTab: (value: InspectorTab) => void;
+  setTimelineInspectorMode: (value: TimelineInspectorMode) => void;
+  setSelectedTraceId: (value: string) => void;
+  setSelectedMessageId: (value: string) => void;
+  setSelectedStepId: (value: string) => void;
+  setSelectedEventId: (value: string) => void;
+  setConsoleOpen: (value: boolean | ((current: boolean) => boolean)) => void;
+  setConsoleHeight: (value: number) => void;
+  setConsoleFilter: (value: ConsoleFilter) => void;
+  setSidebarCollapsed: (value: boolean | ((current: boolean) => boolean)) => void;
+  setActivity: (value: string) => void;
+  setErrorMessage: (value: string) => void;
+  setActiveError: (value: AppRequestErrorSummary | null | ((current: AppRequestErrorSummary | null) => AppRequestErrorSummary | null)) => void;
+  setStreamRevision: (value: number | ((current: number) => number)) => void;
+};
+
+export const useUiStore = create<UiState>((set) => ({
+  surfaceMode: "engine",
+  mainViewMode: "conversation",
+  inspectorTab: "overview",
+  timelineInspectorMode: "all",
+  selectedTraceId: "",
+  selectedMessageId: "",
+  selectedStepId: "",
+  selectedEventId: "",
+  consoleOpen: false,
+  consoleHeight: 280,
+  consoleFilter: "all",
+  sidebarCollapsed: false,
+  activity: "等待连接",
+  errorMessage: "",
+  activeError: null,
+  streamRevision: 0,
+  setSurfaceMode: (surfaceMode) => set({ surfaceMode }),
+  setMainViewMode: (mainViewMode) => set({ mainViewMode }),
+  setInspectorTab: (inspectorTab) => set({ inspectorTab }),
+  setTimelineInspectorMode: (timelineInspectorMode) => set({ timelineInspectorMode }),
+  setSelectedTraceId: (selectedTraceId) => set({ selectedTraceId }),
+  setSelectedMessageId: (selectedMessageId) => set({ selectedMessageId }),
+  setSelectedStepId: (selectedStepId) => set({ selectedStepId }),
+  setSelectedEventId: (selectedEventId) => set({ selectedEventId }),
+  setConsoleOpen: (value) =>
+    set((state) => ({ consoleOpen: typeof value === "function" ? value(state.consoleOpen) : value })),
+  setConsoleHeight: (consoleHeight) => set({ consoleHeight }),
+  setConsoleFilter: (consoleFilter) => set({ consoleFilter }),
+  setSidebarCollapsed: (value) =>
+    set((state) => ({ sidebarCollapsed: typeof value === "function" ? value(state.sidebarCollapsed) : value })),
+  setActivity: (activity) => set({ activity }),
+  setErrorMessage: (errorMessage) => set({ errorMessage }),
+  setActiveError: (value) =>
+    set((state) => ({ activeError: typeof value === "function" ? value(state.activeError) : value })),
+  setStreamRevision: (value) =>
+    set((state) => ({ streamRevision: typeof value === "function" ? value(state.streamRevision) : value }))
+}));

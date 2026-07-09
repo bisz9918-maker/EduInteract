@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>木块受力分析 - 平衡力与作用力反作用力</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-table {
+            position: absolute;
+            left: 100px;
+            top: 340px;
+            width: 600px;
+            border-collapse: collapse;
+            font-size: 14px;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #scene2-table.visible {
+            display: table;
+            opacity: 1;
+        }
+        #scene2-table td, #scene2-table th {
+            border: 1px solid #333;
+            padding: 8px 12px;
+            text-align: center;
+        }
+        #scene2-table th {
+            background: #f5f5f5;
+            font-weight: bold;
+        }
+        #scene2-table-row1 {
+            position: absolute;
+            left: 100px;
+            top: 350px;
+            font-size: 14px;
+            color: #1565c0;
+            display: none;
+            opacity: 0;
+        }
+        #scene2-table-row1.visible {
+            display: block;
+            opacity: 1;
+        }
+        #scene2-table-row2 {
+            position: absolute;
+            left: 100px;
+            top: 350px;
+            font-size: 14px;
+            color: #c62828;
+            display: none;
+            opacity: 0;
+        }
+        #scene2-table-row2.visible {
+            display: block;
+            opacity: 1;
+        }
+        .scene2-control-btn {
+            position: absolute;
+            width: 80px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #scene2-btn-prev {
+            left: 280px;
+            top: 455px;
+            background: #9e9e9e;
+            color: white;
+        }
+        #scene2-btn-prev:hover {
+            background: #757575;
+        }
+        #scene2-btn-prev:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-btn-next {
+            left: 440px;
+            top: 455px;
+            background: #1565c0;
+            color: white;
+        }
+        #scene2-btn-next:hover {
+            background: #0d47a1;
+        }
+        #scene2-step-indicator {
+            position: absolute;
+            left: 380px;
+            top: 462px;
+            font-size: 14px;
+            color: #666;
+        }
+        .scene2-force-label {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .scene2-object-label {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 木板：水平线段 (100,280)-(700,280) -->
+            <line id="scene2-wood-board" x1="100" y1="280" x2="700" y2="280" stroke="#000000" stroke-width="2" />
+            <text id="scene2-label-board" x="650" y="265" class="scene2-object-label" fill="#000000">木板</text>
+
+            <!-- 木块：矩形 左上角(350,220)，宽100高60 -->
+            <rect id="scene2-wood-block" x="350" y="220" width="100" height="60" fill="#2e7d32" fill-opacity="0.2" stroke="#2e7d32" stroke-width="2" />
+            <text id="scene2-label-block" x="375" y="205" class="scene2-object-label" fill="#000000">木块</text>
+
+            <!-- 重力 G 箭头：(400,250)→(400,310)，蓝色 -->
+            <line id="scene2-arrow-g" x1="400" y1="250" x2="400" y2="310" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead-blue)" />
+            <text id="scene2-label-g" x="410" y="280" class="scene2-force-label" fill="#1565c0">G</text>
+
+            <!-- 支持力 N 箭头：(400,250)→(400,190)，蓝色 -->
+            <line id="scene2-arrow-n" x1="400" y1="250" x2="400" y2="190" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrowhead-blue)" />
+            <text id="scene2-label-n" x="410" y="210" class="scene2-force-label" fill="#1565c0">N</text>
+
+            <!-- 压力 F 压箭头：(400,280)→(400,330)，红色 -->
+            <line id="scene2-arrow-f" x1="400" y1="280" x2="400" y2="330" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrowhead-red)" />
+            <text id="scene2-label-f" x="410" y="315" class="scene2-force-label" fill="#c62828">F 压</text>
+
+            <!-- 平衡力高亮框：(380,180)-(420,320) 蓝色虚线 -->
+            <rect id="scene2-highlight-balance" x="380" y="180" width="40" height="140" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" style="display:none; opacity:0;" />
+
+            <!-- 作用反作用高亮框：(380,240)-(420,340) 红色虚线 -->
+            <rect id="scene2-highlight-action-reaction" x="380" y="240" width="40" height="100" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" style="display:none; opacity:0;" />
+        </svg>
+
+        <!-- 步骤1说明文字 -->
+        <div id="scene2-table-row1">平衡力：作用在同一物体（木块）上</div>
+
+        <!-- 步骤2说明文字 -->
+        <div id="scene2-table-row2">作用力与反作用力：作用在不同物体上</div>
+
+        <!-- 对比表格 -->
+        <table id="scene2-table">
+            <thead>
+                <tr>
+                    <th>比较项目</th>
+                    <th>平衡力</th>
+                    <th>作用力与反作用力</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>作用物体</td>
+                    <td>同一物体</td>
+                    <td>不同物体</td>
+                </tr>
+                <tr>
+                    <td>力的性质</td>
+                    <td>可以不同</td>
+                    <td>一定相同</td>
+                </tr>
+                <tr>
+                    <td>依存关系</td>
+                    <td>独立存在</td>
+                    <td>同时产生同时消失</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 控件区 -->
+        <button id="scene2-btn-prev" class="scene2-control-btn">◀ 上一步</button>
+        <div id="scene2-step-indicator">步骤 1/4</div>
+        <button id="scene2-btn-next" class="scene2-control-btn">下一步 ▶</button>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 木块受力分析 - 平衡力与作用力反作用力
+
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 4;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 力箭头元素
+        const arrowG = document.getElementById('scene2-arrow-g');
+        const arrowN = document.getElementById('scene2-arrow-n');
+        const arrowF = document.getElementById('scene2-arrow-f');
+
+        // 高亮框元素
+        const highlightBalance = document.getElementById('scene2-highlight-balance');
+        const highlightActionReaction = document.getElementById('scene2-highlight-action-reaction');
+
+        // 说明文字和表格
+        const tableRow1 = document.getElementById('scene2-table-row1');
+        const tableRow2 = document.getElementById('scene2-table-row2');
+        const comparisonTable = document.getElementById('scene2-table');
+
+        // 辅助函数：显示元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+            if (el.tagName === 'rect') {
+                el.style.display = '';
+            }
+            if (el.tagName === 'TABLE') {
+                el.classList.add('visible');
+            }
+        }
+
+        // 辅助函数：隐藏元素
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+            if (el.tagName === 'rect') {
+                el.style.display = 'none';
+            }
+            if (el.tagName === 'TABLE') {
+                el.classList.remove('visible');
+            }
+        }
+
+        // 设置箭头线宽
+        function setArrowWidth(arrow, width) {
+            arrow.setAttribute('stroke-width', width);
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            // 重置所有高亮
+            hide(highlightBalance);
+            hide(highlightActionReaction);
+            hide(tableRow1);
+            hide(tableRow2);
+            hide(comparisonTable);
+
+            // 重置箭头线宽
+            setArrowWidth(arrowG, 2);
+            setArrowWidth(arrowN, 2);
+            setArrowWidth(arrowF, 2);
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            if (currentState === totalSteps - 1) {
+                btnNext.textContent = '完成';
+            } else {
+                btnNext.textContent = '下一步 ▶';
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${totalSteps}`;
+
+            // 根据当前状态显示相应元素
+            switch (currentState) {
+                case 0:
+                    // 初始状态：只显示基础图形
+                    break;
+
+                case 1:
+                    // 平衡力高亮
+                    show(highlightBalance);
+                    setArrowWidth(arrowG, 3);
+                    setArrowWidth(arrowN, 3);
+                    show(tableRow1);
+                    break;
+
+                case 2:
+                    // 作用力反作用力高亮
+                    show(highlightActionReaction);
+                    setArrowWidth(arrowN, 3);
+                    setArrowWidth(arrowF, 3);
+                    show(tableRow2);
+                    break;
+
+                case 3:
+                    // 显示对比表格
+                    show(comparisonTable);
+                    break;
+            }
+        }
+
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                renderStep();
+            }
+        });
+
+        // 初始化渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

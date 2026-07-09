@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>长方体表面最短路径</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-step-group {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .scene1-step-group.visible {
+            opacity: 1;
+        }
+        .scene1-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #333;
+            background: #f5f5f5;
+            cursor: pointer;
+            border-radius: 4px;
+            min-width: 80px;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- ===== 步骤0：长方体线框（始终可见） ===== -->
+            <g id="scene1-step0">
+                <!-- 可见棱（实线，#000000，2px） -->
+                <!-- 前面 -->
+                <line x1="290" y1="370" x2="440" y2="370" stroke="#000000" stroke-width="2"/>
+                <line x1="440" y1="370" x2="440" y2="120" stroke="#000000" stroke-width="2"/>
+                <line x1="290" y1="120" x2="440" y2="120" stroke="#000000" stroke-width="2"/>
+                <line x1="290" y1="120" x2="290" y2="370" stroke="#000000" stroke-width="2"/>
+                <!-- 右面 -->
+                <line x1="440" y1="370" x2="505" y2="340" stroke="#000000" stroke-width="2"/>
+                <line x1="505" y1="340" x2="505" y2="90" stroke="#000000" stroke-width="2"/>
+                <line x1="440" y1="120" x2="505" y2="90" stroke="#000000" stroke-width="2"/>
+                <!-- 上面 -->
+                <line x1="290" y1="120" x2="355" y2="90" stroke="#000000" stroke-width="2"/>
+                <line x1="355" y1="90" x2="505" y2="90" stroke="#000000" stroke-width="2"/>
+                <!-- 隐藏棱（虚线，#888888，1.5px） -->
+                <line x1="290" y1="370" x2="355" y2="340" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="355" y1="340" x2="505" y2="340" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+                <line x1="355" y1="340" x2="355" y2="90" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+            </g>
+
+            <!-- ===== 步骤1：顶点标签 ===== -->
+            <g id="scene1-step1-group" class="scene1-step-group">
+                <!-- 顶点小圆点 -->
+                <circle cx="290" cy="370" r="3" fill="#000000"/>
+                <circle cx="440" cy="370" r="3" fill="#000000"/>
+                <circle cx="505" cy="340" r="3" fill="#000000"/>
+                <circle cx="440" cy="120" r="3" fill="#000000"/>
+                <circle cx="505" cy="90" r="3" fill="#000000"/>
+                <circle cx="505" cy="190" r="3" fill="#000000"/>
+                <!-- 顶点标签 -->
+                <text x="275" y="395" font-size="14" fill="#000000" font-weight="bold">A</text>
+                <text x="455" y="395" font-size="14" fill="#000000" font-weight="bold">C</text>
+                <text x="520" y="360" font-size="14" fill="#000000" font-weight="bold">D</text>
+                <text x="425" y="115" font-size="14" fill="#000000" font-weight="bold">E</text>
+                <text x="520" y="85" font-size="14" fill="#000000" font-weight="bold">B</text>
+                <text x="520" y="195" font-size="14" fill="#000000" font-weight="bold">F</text>
+            </g>
+
+            <!-- ===== 步骤2：长度标注 ===== -->
+            <g id="scene1-step2-group" class="scene1-step-group">
+                <text x="365" y="395" font-size="14" fill="#1565c0" text-anchor="middle">AC=5cm</text>
+                <!-- CD=3cm 移到CD线段下方偏右，远离C和D标签 -->
+                <text x="480" y="420" font-size="14" fill="#1565c0">CD=3cm</text>
+                <text x="525" y="265" font-size="14" fill="#1565c0">DF=6cm</text>
+            </g>
+
+            <!-- ===== 步骤3：起点终点高亮 + 路径虚线 ===== -->
+            <g id="scene1-step3-group" class="scene1-step-group">
+                <!-- 起点A高亮 -->
+                <circle cx="290" cy="370" r="6" fill="#2e7d32" fill-opacity="0.3" stroke="none"/>
+                <!-- 终点F高亮 -->
+                <circle cx="505" cy="190" r="6" fill="#c62828" fill-opacity="0.3" stroke="none"/>
+                <!-- 表面路径虚线 A→C→D→F -->
+                <polyline points="290,370 440,370 505,340 505,190" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+            </g>
+
+            <!-- ===== 步骤4：问题文字 ===== -->
+            <g id="scene1-step4-group" class="scene1-step-group">
+                <text x="400" y="440" font-size="16" fill="#000000" text-anchor="middle">求A到F的最短表面距离</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        var currentStep = 0;
+        var maxStep = 4;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        var stepGroups = [
+            null,
+            document.getElementById('scene1-step1-group'),
+            document.getElementById('scene1-step2-group'),
+            document.getElementById('scene1-step3-group'),
+            document.getElementById('scene1-step4-group')
+        ];
+
+        function updateVisibility() {
+            for (var i = 1; i <= maxStep; i++) {
+                if (i <= currentStep) {
+                    stepGroups[i].classList.add('visible');
+                } else {
+                    stepGroups[i].classList.remove('visible');
+                }
+            }
+
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === maxStep);
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + maxStep;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateVisibility();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateVisibility();
+            }
+        });
+
+        // 初始化
+        updateVisibility();
+
+    })();
+    </script>
+</body>
+</html>

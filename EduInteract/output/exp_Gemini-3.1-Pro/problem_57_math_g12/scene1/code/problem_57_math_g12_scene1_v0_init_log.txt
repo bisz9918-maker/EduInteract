@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 6px 12px; font-size: 14px; cursor: pointer; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-status { font-size: 14px; color: #333; min-width: 200px; text-align: center; }
+        .scene1-label { position: absolute; font-size: 16px; font-family: "Times New Roman", Times, serif; pointer-events: none; transform: translate(-50%, -50%); z-index: 5; }
+        .scene1-label-math { font-style: italic; }
+        #scene1-label-p { color: #000; }
+        #scene1-label-o { color: #000; }
+        #scene1-label-a { color: #000; }
+        #scene1-label-m { color: #000; font-weight: bold; }
+        #scene1-label-alpha { color: #c62828; }
+        #scene1-label-beta { color: #2e7d32; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-label-p" class="scene1-label scene1-label-math">P</div>
+        <div id="scene1-label-o" class="scene1-label scene1-label-math">O</div>
+        <div id="scene1-label-a" class="scene1-label scene1-label-math">A</div>
+        <div id="scene1-label-m" class="scene1-label scene1-label-math">M</div>
+        <div id="scene1-label-alpha" class="scene1-label scene1-label-math">α</div>
+        <div id="scene1-label-beta" class="scene1-label scene1-label-math">β</div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <div id="scene1-status">步骤 1/6：题意演示</div>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const container = document.getElementById('scene1-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(800, 500);
+        renderer.setClearColor(0xffffff, 1);
+        container.insertBefore(renderer.domElement, container.firstChild);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 800 / 500, 0.1, 1000);
+        camera.position.set(20, 15, 25);
+        camera.lookAt(0, 0, 0);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.enablePan = false;
+        controls.minDistance = 10;
+        controls.maxDistance = 100;
+
+        // --- 几何元素 ---
+        // 平面 M
+        const gridHelper = new THREE.GridHelper(60, 60, 0x000000, 0x000000);
+        gridHelper.material.opacity = 0.1;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+        
+        const planeGeo = new THREE.PlaneGeometry(60, 60);
+        const planeMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false });
+        const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+        planeMesh.rotation.x = -Math.PI / 2;
+        scene.add(planeMesh);
+
+        // 点 O, P, A
+        const sphereGeo = new THREE.SphereGeometry(0.3, 16, 16);
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const pointO = new THREE.Mesh(sphereGeo, blackMat);
+        pointO.position.set(0, 0, 0);
+        scene.add(pointO);
+
+        const pointP = new THREE.Mesh(sphereGeo, blackMat);
+        const H = 10;
+        pointP.position.set(0, H, 0);
+        scene.add(pointP);
+
+        const pointA = new THREE.Mesh(sphereGeo, blackMat);
+        scene.add(pointA);
+
+        // 线段 PO
+        const lineMatDashed = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 0.5, gapSize: 0.5 });
+        const geoPO = new THREE.BufferGeometry().setFromPoints([pointP.position, pointO.position]);
+        const linePO = new THREE.Line(geoPO, lineMatDashed);
+        linePO.computeLineDistances();
+        scene.add(linePO);
+
+        // 线段 PA
+        const lineMatSolid = new THREE.LineBasicMaterial({ color: 0x000000 });
+        const geoPA = new THREE.BufferGeometry().setFromPoints([pointP.position, new THREE.Vector3(0,0,0)]);
+        const linePA = new THREE.Line(geoPA, lineMatSolid);
+        scene.add(linePA);
+
+        // 圆锥面
+        const coneMat = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false });
+        // 使用 CylinderGeometry 模拟双圆锥，顶点在原点，高度 60
+        const coneGeo = new THREE.CylinderGeometry(1, 0, 60, 32, 1, true);
+        coneGeo.translate(0, -30, 0); // 顶点移到原点
+        const coneMesh1 = new THREE.Mesh(coneGeo, coneMat);
+        const coneMesh2 = new THREE.Mesh(coneGeo, coneMat);
+        coneMesh2.rotation.x = Math.PI; // 反向
+        
+        const coneGroup = new THREE.Group();
+        coneGroup.add(coneMesh1);
+        coneGroup.add(coneMesh2);
+        coneGroup.position.copy(pointP.position);
+        scene.add(coneGroup);
+
+        // 轨迹交线
+        const trackMat = new THREE.LineBasicMaterial({ color: 0x1565c0, linewidth: 3 });
+        let trackLine = null;
+
+        // 角度弧线
+        const arcMatAlpha = new THREE.LineBasicMaterial({ color: 0xc62828 });
+        const arcMatBeta = new THREE.LineBasicMaterial({ color: 0x2e7d32 });
+        let arcAlphaLine = null;
+        let arcBetaLine = null;
+
+        // --- 状态与动画 ---
+        const steps = [
+            { text: "步骤 1/6：题意演示 (α=30°, β=20°)", alpha: 30, beta: 20 },
+            { text: "步骤 2/6：验证② (α=30°, β=90°)", alpha: 30, beta: 90 },
+            { text: "步骤 3/6：验证③ (α=30°, β=60°)", alpha: 30, beta: 60 },
+            { text: "步骤 4/6：验证④ (α=30°, β=75°)", alpha: 30, beta: 75 },
+            { text: "步骤 5/6：验证⑤ (α=30°, β=45°)", alpha: 30, beta: 45 },
+            { text: "步骤 6/6：验证① (α=0°, β=90°)", alpha: 0, beta: 90 }
+        ];
+        
+        let currentStep = 0;
+        let currentAlpha = steps[0].alpha;
+        let currentBeta = steps[0].beta;
+        let targetAlpha = steps[0].alpha;
+        let targetBeta = steps[0].beta;
+
+        // --- DOM 元素 ---
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const statusText = document.getElementById('scene1-status');
+        
+        const labelP = document.getElementById('scene1-label-p');
+        const labelO = document.getElementById('scene1-label-o');
+        const labelA = document.getElementById('scene1-label-a');
+        const labelM = document.getElementById('scene1-label-m');
+        const labelAlpha = document.getElementById('scene1-label-alpha');
+        const labelBeta = document.getElementById('scene1-label-beta');
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        function updateStep() {
+            targetAlpha = steps[currentStep].alpha;
+            targetBeta = steps[currentStep].beta;
+            statusText.textContent = steps[currentStep].text;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === steps.length - 1;
+        }
+
+        // 更新几何体
+        function updateGeometry() {
+            const alphaRad = currentAlpha * Math.PI / 180;
+            const betaRad = currentBeta * Math.PI / 180;
+
+            // 更新 A 点
+            const ax = H * Math.tan(alphaRad);
+            pointA.position.set(ax, 0, 0);
+
+            // 更新 PA 线段
+            const positionsPA = linePA.geometry.attributes.position.array;
+            positionsPA[3] = ax;
+            positionsPA[4] = 0;
+            positionsPA[5] = 0;
+            linePA.geometry.attributes.position.needsUpdate = true;
+
+            // 更新圆锥
+            if (currentBeta >= 89.9) {
+                coneGroup.visible = false;
+            } else {
+                coneGroup.visible = true;
+                const R = 60 * Math.tan(betaRad);
+                coneMesh1.scale.set(R, 1, R);
+                coneMesh2.scale.set(R, 1, R);
+                
+                // 旋转圆锥使其轴线对齐 PA
+                const dirPA = new THREE.Vector3().subVectors(pointA.position, pointP.position).normalize();
+                if (dirPA.lengthSq() > 0.0001) {
+                    const axisY = new THREE.Vector3(0, -1, 0);
+                    const quaternion = new THREE.Quaternion().setFromUnitVectors(axisY, dirPA);
+                    coneGroup.quaternion.copy(quaternion);
+                }
+            }
+
+            // 更新轨迹
+            if (trackLine) {
+                scene.remove(trackLine);
+                trackLine.geometry.dispose();
+                trackLine = null;
+            }
+
+            const pts = [];
+            if (currentBeta >= 89.9) {
+                if (currentAlpha > 0.1) {
+                    // β=90, α>0: 直线
+                    const x = -H / Math.tan(alphaRad);
+                    pts.push(new THREE.Vector3(x, 0, -30));
+                    pts.push(new THREE.Vector3(x, 0, 30));
+                }
+            } else if (currentAlpha < 0.1) {
+                // α=0: 圆
+                const r = H * Math.tan(betaRad);
+                for (let i = 0; i <= 64; i++) {
+                    const theta = i / 64 * Math.PI * 2;
+                    pts.push(new THREE.Vector3(r * Math.cos(theta), 0, r * Math.sin(theta)));
+                }
+            } else {
+                // 一般情况
+                const A = Math.pow(Math.sin(alphaRad), 2) - Math.pow(Math.cos(betaRad), 2);
+                const B = 2 * H * Math.sin(alphaRad) * Math.cos(alphaRad);
+                const C = H * H * (Math.pow(Math.cos(alphaRad), 2) - Math.pow(Math.cos(betaRad), 2));
+                const cos2Beta = Math.pow(Math.cos(betaRad), 2);
+
+                if (Math.abs(A) < 1e-5) {
+                    // 抛物线
+                    for (let z = -30; z <= 30; z += 1) {
+                        const x = (z * z * cos2Beta - C) / B;
+                        if (x >= -30 && x <= 30) pts.push(new THREE.Vector3(x, 0, z));
+                    }
+                } else {
+                    // 椭圆或双曲线
+                    const delta = B * B - 4 * A * C;
+                    const center_x = -B / (2 * A);
+                    
+                    if (A > 0) {
+                        // 双曲线
+                        for (let z = -30; z <= 30; z += 0.5) {
+                            const val = z * z * cos2Beta;
+                            const d = B * B - 4 * A * (C - val);
+                            if (d >= 0) {
+                                const sq = Math.sqrt(d);
+                                const x1 = (-B + sq) / (2 * A);
+                                const x2 = (-B - sq) / (2 * A);
+                                if (x1 >= -30 && x1 <= 30) pts.push(new THREE.Vector3(x1, 0, z));
+                                if (x2 >= -30 && x2 <= 30) pts.push(new THREE.Vector3(x2, 0, z));
+                            }
+                        }
+                    } else {
+                        // 椭圆
+                        if (delta < 0) {
+                            for (let i = 0; i <= 64; i++) {
+                                const theta = i / 64 * Math.PI * 2;
+                                // 参数方程近似
+                                const a = Math.sqrt(-delta / (4 * A * A));
+                                const b = Math.sqrt(-delta / (4 * A * cos2Beta));
+                                const x = center_x + a * Math.cos(theta);
+                                const z = b * Math.sin(theta);
+                                pts.push(new THREE.Vector3(x, 0, z));
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (pts.length > 0) {
+                // 简单排序以连线 (对于闭合曲线或单支)
+                if (currentAlpha > 0.1 && currentBeta < 89.9 && Math.abs(Math.pow(Math.sin(alphaRad), 2) - Math.pow(Math.cos(betaRad), 2)) > 1e-5 && (Math.pow(Math.sin(alphaRad), 2) - Math.pow(Math.cos(betaRad), 2)) > 0) {
+                    // 双曲线，不连线，用 Points
+                    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                    trackLine = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x1565c0, size: 0.5 }));
+                } else {
+                    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                    trackLine = new THREE.Line(geo, trackMat);
+                }
+                scene.add(trackLine);
+            }
+
+            // 更新角度弧线
+            if (arcAlphaLine) { scene.remove(arcAlphaLine); arcAlphaLine.geometry.dispose(); }
+            if (arcBetaLine) { scene.remove(arcBetaLine); arcBetaLine.geometry.dispose(); }
+
+            if (currentAlpha > 0.1) {
+                const rAlpha = 2;
+                const ptsAlpha = [];
+                for (let i = 0; i <= 16; i++) {
+                    const t = i / 16 * alphaRad;
+                    ptsAlpha.push(new THREE.Vector3(rAlpha * Math.sin(t), H - rAlpha * Math.cos(t), 0));
+                }
+                arcAlphaLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ptsAlpha), arcMatAlpha);
+                scene.add(arcAlphaLine);
+            }
+
+            if (currentBeta > 0.1 && currentBeta < 89.9) {
+                const rBeta = 2.5;
+                const ptsBeta = [];
+                // 在 PA 和母线之间
+                const dirPA = new THREE.Vector3(Math.sin(alphaRad), -Math.cos(alphaRad), 0);
+                const dirGen = new THREE.Vector3(Math.sin(alphaRad + betaRad), -Math.cos(alphaRad + betaRad), 0);
+                for (let i = 0; i <= 16; i++) {
+                    const t = i / 16;
+                    const v = new THREE.Vector3().lerpVectors(dirPA, dirGen, t).normalize().multiplyScalar(rBeta);
+                    ptsBeta.push(new THREE.Vector3(v.x, H + v.y, v.z));
+                }
+                arcBetaLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ptsBeta), arcMatBeta);
+                scene.add(arcBetaLine);
+            }
+        }
+
+        // 投影 3D 坐标到 2D 屏幕
+        function updateLabels() {
+            const widthHalf = 400;
+            const heightHalf = 250;
+
+            function toScreenPosition(obj, camera) {
+                const vector = new THREE.Vector3();
+                if (obj instanceof THREE.Vector3) {
+                    vector.copy(obj);
+                } else {
+                    obj.updateMatrixWorld();
+                    vector.setFromMatrixPosition(obj.matrixWorld);
+                }
+                vector.project(camera);
+                vector.x = (vector.x * widthHalf) + widthHalf;
+                vector.y = -(vector.y * heightHalf) + heightHalf;
+                return vector;
+            }
+
+            // 检查是否在相机前方
+            function isVisible(pos) {
+                const vector = new THREE.Vector3();
+                if (pos instanceof THREE.Vector3) {
+                    vector.copy(pos);
+                } else {
+                    pos.updateMatrixWorld();
+                    vector.setFromMatrixPosition(pos.matrixWorld);
+                }
+                vector.project(camera);
+                return vector.z < 1;
+            }
+
+            if (isVisible(pointP)) {
+                const posP = toScreenPosition(pointP, camera);
+                labelP.style.left = `${posP.x}px`;
+                labelP.style.top = `${posP.y - 20}px`;
+                labelP.style.display = 'block';
+            } else { labelP.style.display = 'none'; }
+
+            if (isVisible(pointO)) {
+                const posO = toScreenPosition(pointO, camera);
+                labelO.style.left = `${posO.x + 15}px`;
+                labelO.style.top = `${posO.y + 15}px`;
+                labelO.style.display = 'block';
+            } else { labelO.style.display = 'none'; }
+
+            if (isVisible(pointA)) {
+                const posA = toScreenPosition(pointA, camera);
+                labelA.style.left = `${posA.x + 15}px`;
+                labelA.style.top = `${posA.y + 15}px`;
+                labelA.style.display = 'block';
+            } else { labelA.style.display = 'none'; }
+
+            const posM3D = new THREE.Vector3(20, 0, 20);
+            if (isVisible(posM3D)) {
+                const posM = toScreenPosition(posM3D, camera);
+                labelM.style.left = `${posM.x}px`;
+                labelM.style.top = `${posM.y}px`;
+                labelM.style.display = 'block';
+            } else { labelM.style.display = 'none'; }
+
+            if (currentAlpha > 0.1) {
+                const alphaRad = currentAlpha * Math.PI / 180;
+                const posAlpha3D = new THREE.Vector3(2.5 * Math.sin(alphaRad/2), H - 2.5 * Math.cos(alphaRad/2), 0);
+                if (isVisible(posAlpha3D)) {
+                    const posAlpha = toScreenPosition(posAlpha3D, camera);
+                    labelAlpha.style.left = `${posAlpha.x - 15}px`;
+                    labelAlpha.style.top = `${posAlpha.y + 10}px`;
+                    labelAlpha.style.display = 'block';
+                } else { labelAlpha.style.display = 'none'; }
+            } else {
+                labelAlpha.style.display = 'none';
+            }
+
+            if (currentBeta > 0.1 && currentBeta < 89.9) {
+                const alphaRad = currentAlpha * Math.PI / 180;
+                const betaRad = currentBeta * Math.PI / 180;
+                const midRad = alphaRad + betaRad / 2;
+                const posBeta3D = new THREE.Vector3(3 * Math.sin(midRad), H - 3 * Math.cos(midRad), 0);
+                if (isVisible(posBeta3D)) {
+                    const posBeta = toScreenPosition(posBeta3D, camera);
+                    labelBeta.style.left = `${posBeta.x + 15}px`;
+                    labelBeta.style.top = `${posBeta.y + 15}px`;
+                    labelBeta.style.display = 'block';
+                } else { labelBeta.style.display = 'none'; }
+            } else {
+                labelBeta.style.display = 'none';
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 平滑过渡
+            currentAlpha += (targetAlpha - currentAlpha) * 0.1;
+            currentBeta += (targetBeta - currentBeta) * 0.1;
+
+            updateGeometry();
+            controls.update();
+            renderer.render(scene, camera);
+            updateLabels();
+        }
+        
+        // 初始化
+        updateGeometry();
+        animate();
+    </script>
+</body>
+</html>

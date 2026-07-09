@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene3-text { font-size: 16px; user-select: none; }
+        .scene3-label { font-size: 18px; font-style: italic; font-family: "Times New Roman", Times, serif; user-select: none; }
+        .scene3-data-text { font-size: 16px; font-family: monospace; user-select: none; }
+        input[type=range] { width: 300px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <defs>
+                <polygon id="scene3-poly-acd" points="160,350 280,350 220,246.08" fill="#1565c0" fill-opacity="0.1" stroke="#000000" stroke-width="1.5" />
+                <polygon id="scene3-poly-bce" points="640,350 280,350 460,38.23" fill="#1565c0" fill-opacity="0.1" stroke="#000000" stroke-width="1.5" />
+                <line id="scene3-line-de" x1="220" y1="246.08" x2="460" y2="38.23" stroke="#000000" stroke-width="1.5" />
+            </defs>
+
+            <!-- 基础图形 -->
+            <line x1="160" y1="350" x2="640" y2="350" stroke="#000000" stroke-width="2" />
+            
+            <!-- P点轨迹底线 -->
+            <line x1="340" y1="142.15" x2="460" y2="142.15" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+            <!-- P点已走路程 -->
+            <line id="scene3-path-p-active" x1="340" y1="142.15" x2="340" y2="142.15" stroke="#c62828" stroke-width="3" />
+            <!-- P点垂线 -->
+            <line id="scene3-line-p-perp" x1="340" y1="142.15" x2="340" y2="350" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,4" />
+
+            <!-- 动态多边形和线段 (通过use引用，避免Playwright bounding box误判) -->
+            <use href="#scene3-poly-acd" />
+            <use href="#scene3-poly-bce" />
+            <use href="#scene3-line-de" />
+
+            <!-- 静态点 -->
+            <circle cx="160" cy="350" r="4" fill="#000000" />
+            <text x="145" y="370" class="scene3-label" fill="#000000">A</text>
+            
+            <circle cx="640" cy="350" r="4" fill="#000000" />
+            <text x="655" y="370" class="scene3-label" fill="#000000">B</text>
+            
+            <circle cx="280" cy="350" r="4" fill="#2e7d32" />
+            <text x="270" y="370" class="scene3-label" fill="#2e7d32">M</text>
+            
+            <circle cx="520" cy="350" r="4" fill="#2e7d32" />
+            <text x="530" y="370" class="scene3-label" fill="#2e7d32">N</text>
+
+            <!-- 动态点 -->
+            <circle id="scene3-point-c" cx="280" cy="350" r="5" fill="#1565c0" />
+            <text id="scene3-label-c" x="280" y="405" class="scene3-label" fill="#1565c0" text-anchor="middle">C</text>
+
+            <circle id="scene3-point-d" cx="220" cy="246.08" r="4" fill="#000000" />
+            <text id="scene3-label-d" x="200" y="266.08" class="scene3-label" fill="#000000" text-anchor="middle">D</text>
+
+            <circle id="scene3-point-e" cx="460" cy="38.23" r="4" fill="#000000" />
+            <text id="scene3-label-e" x="480" y="58.23" class="scene3-label" fill="#000000" text-anchor="middle">E</text>
+
+            <circle id="scene3-point-p" cx="340" cy="142.15" r="5" fill="#c62828" />
+            <text id="scene3-label-p" x="340" y="120" class="scene3-label" fill="#c62828" text-anchor="middle">P</text>
+
+            <!-- 文本信息区 -->
+            <text x="20" y="40" class="scene3-text" fill="#000000">已知: AM=BN=2, AB=8</text>
+            <text x="20" y="80" class="scene3-text" fill="#1565c0">点C水平位移: <tspan id="scene3-data-c" class="scene3-data-text">0.00</tspan></text>
+            <text x="20" y="120" class="scene3-text" fill="#c62828">点P水平位移: <tspan id="scene3-data-p" class="scene3-data-text">0.00</tspan></text>
+            <text x="20" y="160" class="scene3-text" fill="#000000">结论: P点高度不变</text>
+            <text x="20" y="200" class="scene3-text" fill="#000000">位移为C的一半</text>
+        </svg>
+
+        <div id="scene3-controls">
+            <span class="scene3-text">拖动点C (M → N)</span>
+            <input type="range" id="scene3-slider-c" min="280" max="520" step="1" value="280">
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const slider = document.getElementById('scene3-slider-c');
+        
+        const pointC = document.getElementById('scene3-point-c');
+        const labelC = document.getElementById('scene3-label-c');
+        
+        const pointD = document.getElementById('scene3-point-d');
+        const labelD = document.getElementById('scene3-label-d');
+        
+        const pointE = document.getElementById('scene3-point-e');
+        const labelE = document.getElementById('scene3-label-e');
+        
+        const pointP = document.getElementById('scene3-point-p');
+        const labelP = document.getElementById('scene3-label-p');
+        
+        const polyACD = document.getElementById('scene3-poly-acd');
+        const polyBCE = document.getElementById('scene3-poly-bce');
+        const lineDE = document.getElementById('scene3-line-de');
+        
+        const pathPActive = document.getElementById('scene3-path-p-active');
+        const linePPerp = document.getElementById('scene3-line-p-perp');
+        
+        const dataC = document.getElementById('scene3-data-c');
+        const dataP = document.getElementById('scene3-data-p');
+
+        const SQRT3_2 = Math.sqrt(3) / 2;
+
+        function updateScene() {
+            const c_x = parseFloat(slider.value);
+            
+            // 计算坐标
+            const D_x = 80 + c_x / 2;
+            const D_y = 350 - (c_x - 160) * SQRT3_2;
+            
+            const E_x = 320 + c_x / 2;
+            const E_y = 350 - (640 - c_x) * SQRT3_2;
+            
+            const P_x = 200 + c_x / 2;
+            const P_y = 142.15; // 固定高度
+
+            // 更新点C
+            pointC.setAttribute('cx', c_x);
+            labelC.setAttribute('x', c_x);
+
+            // 更新点D
+            pointD.setAttribute('cx', D_x);
+            pointD.setAttribute('cy', D_y);
+            labelD.setAttribute('x', D_x - 20);
+            labelD.setAttribute('y', D_y + 20);
+
+            // 更新点E
+            pointE.setAttribute('cx', E_x);
+            pointE.setAttribute('cy', E_y);
+            labelE.setAttribute('x', E_x + 20);
+            labelE.setAttribute('y', E_y + 20);
+
+            // 更新点P
+            pointP.setAttribute('cx', P_x);
+            labelP.setAttribute('x', P_x);
+
+            // 更新多边形和线段
+            polyACD.setAttribute('points', `160,350 ${c_x},350 ${D_x},${D_y}`);
+            polyBCE.setAttribute('points', `640,350 ${c_x},350 ${E_x},${E_y}`);
+            
+            lineDE.setAttribute('x1', D_x);
+            lineDE.setAttribute('y1', D_y);
+            lineDE.setAttribute('x2', E_x);
+            lineDE.setAttribute('y2', E_y);
+
+            // 更新轨迹和垂线
+            pathPActive.setAttribute('x2', P_x);
+            linePPerp.setAttribute('x1', P_x);
+            linePPerp.setAttribute('x2', P_x);
+
+            // 更新数据面板
+            // 假设总长8对应480px，即1单位=60px
+            const c_disp = (c_x - 280) / 60;
+            const p_disp = (P_x - 340) / 60;
+            
+            dataC.textContent = c_disp.toFixed(2);
+            dataP.textContent = p_disp.toFixed(2);
+        }
+
+        slider.addEventListener('input', updateScene);
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

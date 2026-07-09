@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>靶上击中范围分析</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-svg { width: 800px; height: 500px; }
+        .scene3-element { opacity: 0; transition: opacity 0.3s ease; }
+        .scene3-visible { opacity: 1; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene3-btn-prev, #scene3-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; background: #1976d2; color: white; border: none; border-radius: 4px; }
+        #scene3-btn-prev:hover, #scene3-btn-next:hover { background: #1565c0; }
+        #scene3-btn-prev:disabled, #scene3-btn-next:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 公式区背景 -->
+            <rect id="scene3-formula-bg" x="620" y="120" width="160" height="260" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="1" class="scene3-element scene3-visible"/>
+            
+            <!-- 靶MN矩形 -->
+            <rect id="scene3-target-rect" x="420" y="120" width="160" height="260" fill="#ffffff" stroke="#000000" stroke-width="2" class="scene3-element scene3-visible"/>
+            
+            <!-- 击中区域填充（绿色半透明） -->
+            <rect id="scene3-hit-area" x="420" y="170" width="160" height="160" fill="#2e7d32" opacity="0.3" class="scene3-element"/>
+            
+            <!-- 中心点O'十字标记 -->
+            <g id="scene3-center-cross" class="scene3-element scene3-visible">
+                <line x1="494" y1="250" x2="506" y2="250" stroke="#000000" stroke-width="2"/>
+                <line x1="500" y1="244" x2="500" y2="256" stroke="#000000" stroke-width="2"/>
+            </g>
+            
+            <!-- 最大偏转点P₁ -->
+            <circle id="scene3-point-p1" cx="500" cy="170" r="6" fill="#c62828" class="scene3-element"/>
+            
+            <!-- 最小偏转点P₂ -->
+            <circle id="scene3-point-p2" cx="500" cy="330" r="6" fill="#c62828" class="scene3-element"/>
+            
+            <!-- 左侧标注竖线 -->
+            <line id="scene3-annot-line" x1="350" y1="170" x2="350" y2="330" stroke="#1565c0" stroke-width="2" class="scene3-element"/>
+            
+            <!-- y₁标注线 -->
+            <line id="scene3-y1-line" x1="340" y1="170" x2="360" y2="170" stroke="#1565c0" stroke-width="2" class="scene3-element"/>
+            
+            <!-- y₂标注线 -->
+            <line id="scene3-y2-line" x1="340" y1="330" x2="360" y2="330" stroke="#1565c0" stroke-width="2" class="scene3-element"/>
+            
+            <!-- Δy双箭头标注线 -->
+            <g id="scene3-delta-y" class="scene3-element">
+                <line x1="370" y1="170" x2="370" y2="330" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="370,170 365,180 375,180" fill="#1565c0"/>
+                <polygon points="370,330 365,320 375,320" fill="#1565c0"/>
+            </g>
+            
+            <!-- 上临界条件虚线d/2 -->
+            <line id="scene3-critical-top" x1="420" y1="140" x2="580" y2="140" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" class="scene3-element"/>
+            
+            <!-- 下临界条件虚线d/2 -->
+            <line id="scene3-critical-bottom" x1="420" y1="360" x2="580" y2="360" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" class="scene3-element"/>
+            
+            <!-- 标签 -->
+            <text id="scene3-label-m" x="590" y="115" font-size="14" fill="#333333" class="scene3-element scene3-visible">M</text>
+            <text id="scene3-label-n" x="590" y="395" font-size="14" fill="#333333" class="scene3-element scene3-visible">N</text>
+            <text id="scene3-label-o" x="515" y="245" font-size="14" fill="#333333" class="scene3-element scene3-visible">O'</text>
+            <text id="scene3-label-p1" x="510" y="155" font-size="14" fill="#333333" class="scene3-element">P₁</text>
+            <text id="scene3-label-p2" x="510" y="350" font-size="14" fill="#333333" class="scene3-element">P₂</text>
+            <text id="scene3-label-y1" x="310" y="165" font-size="14" fill="#333333" class="scene3-element">y₁</text>
+            <text id="scene3-label-y2" x="310" y="350" font-size="14" fill="#333333" class="scene3-element">y₂</text>
+            <text id="scene3-label-delta-y" x="380" y="255" font-size="14" fill="#333333" class="scene3-element">Δy</text>
+            <text id="scene3-label-d2-top" x="590" y="135" font-size="14" fill="#333333" class="scene3-element">d/2</text>
+            <text id="scene3-label-d2-bottom" x="590" y="375" font-size="14" fill="#333333" class="scene3-element">d/2</text>
+            
+            <!-- 公式区文本 -->
+            <text id="scene3-formula-title" x="630" y="145" font-size="13" fill="#333333" class="scene3-element scene3-visible">靶上击中分析</text>
+            <g id="scene3-formula1" class="scene3-element">
+                <foreignObject x="630" y="160" width="140" height="60">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:12px;color:#333;">
+                        $$|y| \le \frac{qU_0T^2}{8md}$$
+                    </div>
+                </foreignObject>
+            </g>
+            <g id="scene3-formula2" class="scene3-element">
+                <foreignObject x="630" y="230" width="140" height="60">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:12px;color:#333;">
+                        $$\frac{qU_0T^2}{8md} \le \frac{d}{2}$$
+                    </div>
+                </foreignObject>
+            </g>
+            <g id="scene3-formula3" class="scene3-element">
+                <foreignObject x="630" y="300" width="140" height="80">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:12px;color:#333;">
+                        $$W = qU_0$$<br/>
+                        <span style="font-size:10px;">(所有粒子做功相等)</span>
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 0/4</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 靶上击中范围分析
+        // 布局坐标表:
+        // | 元素 | 位置/范围 | 备注 |
+        // | 靶MN矩形 | (420,120)-(580,380) | 160×260 |
+        // | 中心点O' | (500,250) | 十字标记 |
+        // | P₁ | (500,170) | 最大偏转点 |
+        // | P₂ | (500,330) | 最小偏转点 |
+        // | 击中区域 | (420,170)-(580,330) | 160×160 |
+        // | 公式区 | (620,120)-(780,380) | 160×260 |
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 每步可见元素ID列表
+        const stepElements = {
+            0: ['scene3-target-rect', 'scene3-center-cross', 'scene3-label-m', 'scene3-label-n', 'scene3-label-o', 'scene3-formula-bg', 'scene3-formula-title'],
+            1: ['scene3-target-rect', 'scene3-center-cross', 'scene3-label-m', 'scene3-label-n', 'scene3-label-o', 'scene3-formula-bg', 'scene3-formula-title',
+                'scene3-point-p1', 'scene3-point-p2', 'scene3-label-p1', 'scene3-label-p2', 'scene3-y1-line', 'scene3-y2-line', 'scene3-label-y1', 'scene3-label-y2'],
+            2: ['scene3-target-rect', 'scene3-center-cross', 'scene3-label-m', 'scene3-label-n', 'scene3-label-o', 'scene3-formula-bg', 'scene3-formula-title',
+                'scene3-point-p1', 'scene3-point-p2', 'scene3-label-p1', 'scene3-label-p2', 'scene3-y1-line', 'scene3-y2-line', 'scene3-label-y1', 'scene3-label-y2',
+                'scene3-hit-area', 'scene3-annot-line', 'scene3-delta-y', 'scene3-label-delta-y', 'scene3-formula1'],
+            3: ['scene3-target-rect', 'scene3-center-cross', 'scene3-label-m', 'scene3-label-n', 'scene3-label-o', 'scene3-formula-bg', 'scene3-formula-title',
+                'scene3-point-p1', 'scene3-point-p2', 'scene3-label-p1', 'scene3-label-p2', 'scene3-y1-line', 'scene3-y2-line', 'scene3-label-y1', 'scene3-label-y2',
+                'scene3-hit-area', 'scene3-annot-line', 'scene3-delta-y', 'scene3-label-delta-y', 'scene3-formula1',
+                'scene3-critical-top', 'scene3-critical-bottom', 'scene3-label-d2-top', 'scene3-label-d2-bottom', 'scene3-formula2'],
+            4: ['scene3-target-rect', 'scene3-center-cross', 'scene3-label-m', 'scene3-label-n', 'scene3-label-o', 'scene3-formula-bg', 'scene3-formula-title',
+                'scene3-point-p1', 'scene3-point-p2', 'scene3-label-p1', 'scene3-label-p2', 'scene3-y1-line', 'scene3-y2-line', 'scene3-label-y1', 'scene3-label-y2',
+                'scene3-hit-area', 'scene3-annot-line', 'scene3-delta-y', 'scene3-label-delta-y', 'scene3-formula1',
+                'scene3-critical-top', 'scene3-critical-bottom', 'scene3-label-d2-top', 'scene3-label-d2-bottom', 'scene3-formula2', 'scene3-formula3']
+        };
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('scene3-visible');
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene3-visible');
+            }
+        }
+        
+        function updateDisplay() {
+            // 隐藏所有元素
+            document.querySelectorAll('.scene3-element').forEach(el => {
+                el.classList.remove('scene3-visible');
+            });
+            
+            // 显示当前步骤的元素
+            const elements = stepElements[currentStep];
+            elements.forEach(id => showElement(id));
+            
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = currentStep === 0;
+            document.getElementById('scene3-btn-next').disabled = currentStep === totalSteps;
+        }
+        
+        // 事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

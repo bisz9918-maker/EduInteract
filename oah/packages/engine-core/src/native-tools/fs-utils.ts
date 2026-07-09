@@ -1,0 +1,75 @@
+import path from "node:path";
+
+import { AppError } from "../errors.js";
+import type { WorkspaceFileSystem } from "../types.js";
+
+export function formatReadLines(
+  content: string,
+  offset: number,
+  limit: number
+): { rendered: string[]; truncated: boolean; totalLines: number } {
+  const lines = content.length === 0 ? [] : content.replaceAll("\r\n", "\n").split("\n");
+  const startIndex = offset <= 0 ? 0 : offset - 1;
+  if (startIndex > lines.length) {
+    throw new AppError(400, "native_tool_read_offset_invalid", `Offset ${offset} is out of range.`);
+  }
+
+  const slice = lines.slice(startIndex, startIndex + limit);
+  return {
+    rendered: slice.map((line, index) => `${startIndex + index + 1}: ${line}`),
+    truncated: startIndex + slice.length < lines.length,
+    totalLines: lines.length
+  };
+}
+
+export async function collectWorkspaceFiles(
+  fileSystem: WorkspaceFileSystem,
+  directory: string
+): Promise<Array<{ absolutePath: string; mtimeMs: number }>> {
+  const pending = [directory];
+  const files: Array<{ absolutePath: string; mtimeMs: number }> = [];
+
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) {
+      continue;
+    }
+
+    const entries = await fileSystem.readdir(current);
+    entries.sort((left, right) => left.name.localeCompare(right.name));
+
+    for (const entry of entries) {
+      const absoluteEntryPath = path.join(current, entry.name);
+      if (entry.kind === "directory") {
+        pending.push(absoluteEntryPath);
+        continue;
+      }
+
+      if (entry.kind === "file") {
+        const entryStat = await fileSystem.stat(absoluteEntryPath).catch(() => null);
+        if (entryStat?.kind === "file") {
+          files.push({ absolutePath: absoluteEntryPath, mtimeMs: entryStat.mtimeMs });
+        }
+      }
+    }
+  }
+
+  return files;
+}
+
+export async function readJsonFile<T>(fileSystem: WorkspaceFileSystem, filePath: string, fallback: T): Promise<T> {
+  const raw = await fileSystem.readFile(filePath).then((buffer) => buffer.toString("utf8")).catch(() => null);
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function ensureParentDirectory(fileSystem: WorkspaceFileSystem, filePath: string): Promise<void> {
+  await fileSystem.mkdir(path.dirname(filePath), { recursive: true });
+}

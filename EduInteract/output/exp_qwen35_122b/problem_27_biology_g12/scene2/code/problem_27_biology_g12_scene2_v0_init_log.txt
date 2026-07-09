@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>染色体变异与细胞分裂分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; background: #1976d2; color: white; }
+        .scene2-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+        .scene2-btn:hover:not(:disabled) { background: #1565c0; }
+        .scene2-conclusion-box { fill: #f5f5f5; stroke: #000000; stroke-width: 1px; }
+        .scene2-conclusion-text { font-size: 14px; fill: #000000; }
+        .scene2-conclusion-subtext { font-size: 12px; fill: #666666; }
+        .scene2-chromosome { fill: rgba(0,0,0,0.15); stroke: #000000; stroke-width: 3px; }
+        .scene2-chromosome-blue { fill: rgba(21,101,192,0.15); stroke: #1565c0; stroke-width: 3px; }
+        .scene2-chromosome-red { fill: rgba(198,40,40,0.3); stroke: #c62828; stroke-width: 4px; }
+        .scene2-arrow { stroke: #888888; stroke-width: 2px; fill: none; }
+        .scene2-arrow-highlight { stroke: #ff9800; stroke-width: 3px; }
+        .scene2-equator { stroke: #888888; stroke-width: 1px; stroke-dasharray: 5,5; }
+        .scene2-centromere { fill: #2e7d32; }
+        .scene2-gene-label { font-size: 14px; font-weight: bold; fill: #000000; }
+        .scene2-title { font-size: 16px; font-weight: bold; fill: #000000; }
+        .scene2-subtitle { font-size: 14px; fill: #000000; }
+        .scene2-label { font-size: 14px; fill: #000000; }
+        .scene2-highlight-box { fill: rgba(255,255,0,0.2); stroke: #ff9800; stroke-width: 2px; stroke-dasharray: 5,5; }
+        .scene2-blink { animation: scene2Blink 1s infinite; }
+        @keyframes scene2Blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .scene2-fade-in { animation: scene2FadeIn 0.3s ease-in; }
+        @keyframes scene2FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 标题（向下移动 15px 避免裁切） -->
+            <text x="400" y="30" text-anchor="middle" class="scene2-title">染色体变异与细胞分裂分析</text>
+
+            <!-- 左侧区域：正常 XY 男性 -->
+            <text x="80" y="55" class="scene2-subtitle">正常 XY 男性</text>
+            <!-- 正常 X 染色体 -->
+            <g id="scene2-chr-x-normal" class="scene2-fade-in">
+                <path d="M 105 180 L 120 140 L 135 180 M 105 140 L 120 180 L 135 140" class="scene2-chromosome"/>
+                <circle cx="120" cy="160" r="4" class="scene2-centromere"/>
+            </g>
+            <!-- 正常 Y 染色体 -->
+            <g id="scene2-chr-y-normal" class="scene2-fade-in">
+                <path d="M 167 160 L 180 120 L 193 160 M 180 120 L 180 160" class="scene2-chromosome"/>
+                <circle cx="180" cy="140" r="3" class="scene2-centromere"/>
+            </g>
+            <!-- X 标签（向下移动避免与 Y 片段重叠） -->
+            <text x="120" y="105" text-anchor="middle" id="scene2-label-x" class="scene2-label">X</text>
+            <!-- Y 标签 -->
+            <text x="180" y="105" text-anchor="middle" id="scene2-label-y" class="scene2-label">Y</text>
+
+            <!-- 移接箭头 -->
+            <path id="scene2-arrow" d="M 220 135 L 380 135" class="scene2-arrow"/>
+            <polygon id="scene2-arrow-head" points="380,135 370,130 370,140" class="scene2-arrow"/>
+            <!-- 移接文字 -->
+            <text x="300" y="115" text-anchor="middle" id="scene2-transfer-text" class="scene2-label">移接</text>
+
+            <!-- 右侧区域：XX 男性 -->
+            <text x="620" y="55" text-anchor="middle" class="scene2-subtitle">XX 男性（Ⅱ4）</text>
+            <!-- XX 男性 X1 染色体 -->
+            <g id="scene2-chr-x1-mutant">
+                <path d="M 485 180 L 500 140 L 515 180 M 485 140 L 500 180 L 515 140" class="scene2-chromosome-blue"/>
+                <circle cx="500" cy="160" r="4" class="scene2-centromere"/>
+            </g>
+            <!-- XX 男性 X2 染色体（带移接片段） -->
+            <g id="scene2-chr-x2-mutant">
+                <path d="M 545 180 L 560 140 L 575 180 M 545 140 L 560 180 L 575 140" class="scene2-chromosome-blue"/>
+                <circle cx="560" cy="160" r="4" class="scene2-centromere"/>
+                <!-- 移接片段高亮（向上移动避免与标签重叠） -->
+                <rect id="scene2-transfer-fragment" x="550" y="125" width="20" height="25" class="scene2-chromosome-red scene2-blink"/>
+            </g>
+            <!-- X1 标签 -->
+            <text x="500" y="105" text-anchor="middle" id="scene2-label-x1" class="scene2-label">X</text>
+            <!-- X2 标签 -->
+            <text x="560" y="105" text-anchor="middle" id="scene2-label-x2" class="scene2-label">X</text>
+            <!-- Y 片段标签（向左下移动避免与 X 标签重叠） -->
+            <text x="530" y="120" text-anchor="middle" id="scene2-y-fragment-label" class="scene2-label">Y 片段</text>
+
+            <!-- 变异结论框（调整文字位置避免与框体重叠） -->
+            <g id="scene2-variation-conclusion" style="display: none;">
+                <rect x="280" y="215" width="240" height="55" class="scene2-conclusion-box"/>
+                <text x="400" y="235" text-anchor="middle" class="scene2-conclusion-text">染色体结构变异（易位）</text>
+                <text x="400" y="255" text-anchor="middle" class="scene2-conclusion-subtext">变异本质：非同源染色体间片段转移</text>
+            </g>
+
+            <!-- 细胞图像标题（向下移动避免与细胞轮廓重叠） -->
+            <text id="scene2-cell-title" x="400" y="285" text-anchor="middle" style="display: none;" class="scene2-subtitle">图 2：精原细胞分裂</text>
+
+            <!-- 细胞轮廓 -->
+            <circle id="scene2-cell-outline" cx="400" cy="340" r="100" style="display: none;" class="scene2-chromosome"/>
+            <!-- 赤道板 -->
+            <line id="scene2-equator" x1="300" y1="340" x2="500" y2="340" style="display: none;" class="scene2-equator"/>
+
+            <!-- 四条染色体（向上移动避免与基因标签重叠） -->
+            <g id="scene2-chromosome-1" style="display: none;">
+                <path d="M 337 335 L 350 315 L 363 335 M 337 315 L 350 335 L 363 315" class="scene2-chromosome"/>
+                <circle cx="350" cy="325" r="3" class="scene2-centromere"/>
+            </g>
+            <g id="scene2-chromosome-2" style="display: none;">
+                <path d="M 367 335 L 380 315 L 393 335 M 367 315 L 380 335 L 393 315" class="scene2-chromosome"/>
+                <circle cx="380" cy="325" r="3" class="scene2-centromere"/>
+            </g>
+            <g id="scene2-chromosome-3" style="display: none;">
+                <path d="M 407 335 L 420 315 L 433 335 M 407 315 L 420 335 L 433 315" class="scene2-chromosome"/>
+                <circle cx="420" cy="325" r="3" class="scene2-centromere"/>
+            </g>
+            <g id="scene2-chromosome-4" style="display: none;">
+                <path d="M 437 335 L 450 315 L 463 335 M 437 315 L 450 335 L 463 315" class="scene2-chromosome"/>
+                <circle cx="450" cy="325" r="3" class="scene2-centromere"/>
+            </g>
+
+            <!-- 同源染色体高亮框（调整位置） -->
+            <g id="scene2-homologous-highlight" style="display: none;">
+                <rect x="330" y="300" width="70" height="40" class="scene2-highlight-box"/>
+                <rect x="400" y="300" width="70" height="40" class="scene2-highlight-box"/>
+            </g>
+
+            <!-- 基因标签（向上移动避免与染色体重叠） -->
+            <text id="scene2-gene-a" x="350" y="300" text-anchor="middle" style="display: none;" class="scene2-gene-label">A</text>
+            <text id="scene2-gene-a2" x="380" y="300" text-anchor="middle" style="display: none;" class="scene2-gene-label">a</text>
+            <text id="scene2-gene-b" x="420" y="300" text-anchor="middle" style="display: none;" class="scene2-gene-label">B</text>
+            <text id="scene2-gene-b2" x="450" y="300" text-anchor="middle" style="display: none;" class="scene2-gene-label">b</text>
+
+            <!-- 时期结论框（调整位置避免与按钮重叠） -->
+            <g id="scene2-period-conclusion" style="display: none;">
+                <rect x="280" y="440" width="240" height="45" class="scene2-conclusion-box"/>
+                <text x="400" y="458" text-anchor="middle" class="scene2-conclusion-text">减数第一次分裂中期</text>
+                <text x="400" y="475" text-anchor="middle" class="scene2-conclusion-subtext">判断依据：同源染色体成对排列在赤道板</text>
+            </g>
+
+            <!-- 基因型结论框（调整位置避免重叠） -->
+            <g id="scene2-genotype-conclusion" style="display: none;">
+                <rect x="520" y="440" width="180" height="45" class="scene2-conclusion-box"/>
+                <text x="610" y="458" text-anchor="middle" class="scene2-conclusion-text">个体基因型：AaBb</text>
+                <text x="610" y="475" text-anchor="middle" class="scene2-conclusion-subtext">A/a 位于一对同源染色体，B/b 位于另一对</text>
+            </g>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-next-btn" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：染色体变异与细胞分裂分析
+        // 布局坐标表（参考）：
+        // | 元素 | 位置 | 备注 |
+        // | 标题 | (400,30) | 顶部居中，向下移动 15px 避免裁切 |
+        // | 左侧标题 | (80,55) | 正常 XY 男性 |
+        // | 右侧标题 | (620,55) | XX 男性（Ⅱ4） |
+        // | 正常 X 染色体 | (120,160) | 左侧区域 |
+        // | 正常 Y 染色体 | (180,140) | 左侧区域 |
+        // | 移接箭头 | (220,135)-(380,135) | 水平向右 |
+        // | XX 男性 X1 | (500,160) | 右侧区域 |
+        // | XX 男性 X2 | (560,160) | 带移接片段 |
+        // | 移接片段 | (550,125) 20×25 | 红色高亮，向上移动 |
+        // | Y 片段标签 | (530,120) | 向左下移动避免与 X 标签重叠 |
+        // | 变异结论 | (280,215) 240×55 | 步骤 2 显示，调整文字位置 |
+        // | 细胞标题 | (400,285) | 步骤 3 显示，向下移动 |
+        // | 细胞轮廓 | (400,340) r=100 | 步骤 3 显示 |
+        // | 染色体 1-4 | (350,325),(380,325),(420,325),(450,325) | 步骤 3 显示，向上移动 |
+        // | 基因 A/a/B/b | (350,300),(380,300),(420,300),(450,300) | 步骤 5 显示，向上移动 |
+        // | 时期结论 | (280,440) 240×45 | 步骤 4 显示，调整位置 |
+        // | 基因型结论 | (520,440) 180×45 | 步骤 5 显示，调整位置 |
+
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 5,
+
+            // 步骤定义
+            steps: {
+                0: {
+                    show: ['scene2-chr-x-normal', 'scene2-chr-y-normal', 'scene2-label-x', 'scene2-label-y',
+                           'scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-text',
+                           'scene2-chr-x1-mutant', 'scene2-chr-x2-mutant', 'scene2-label-x1', 'scene2-label-x2',
+                           'scene2-transfer-fragment', 'scene2-y-fragment-label'],
+                    hide: ['scene2-variation-conclusion', 'scene2-cell-title', 'scene2-cell-outline', 'scene2-equator',
+                           'scene2-chromosome-1', 'scene2-chromosome-2', 'scene2-chromosome-3', 'scene2-chromosome-4',
+                           'scene2-homologous-highlight', 'scene2-gene-a', 'scene2-gene-a2', 'scene2-gene-b', 'scene2-gene-b2',
+                           'scene2-period-conclusion', 'scene2-genotype-conclusion']
+                },
+                1: {
+                    show: ['scene2-chr-x-normal', 'scene2-chr-y-normal', 'scene2-label-x', 'scene2-label-y',
+                           'scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-text',
+                           'scene2-chr-x1-mutant', 'scene2-chr-x2-mutant', 'scene2-label-x1', 'scene2-label-x2',
+                           'scene2-transfer-fragment', 'scene2-y-fragment-label'],
+                    hide: ['scene2-variation-conclusion', 'scene2-cell-title', 'scene2-cell-outline', 'scene2-equator',
+                           'scene2-chromosome-1', 'scene2-chromosome-2', 'scene2-chromosome-3', 'scene2-chromosome-4',
+                           'scene2-homologous-highlight', 'scene2-gene-a', 'scene2-gene-a2', 'scene2-gene-b', 'scene2-gene-b2',
+                           'scene2-period-conclusion', 'scene2-genotype-conclusion'],
+                    highlight: ['scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-fragment']
+                },
+                2: {
+                    show: ['scene2-chr-x-normal', 'scene2-chr-y-normal', 'scene2-label-x', 'scene2-label-y',
+                           'scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-text',
+                           'scene2-chr-x1-mutant', 'scene2-chr-x2-mutant', 'scene2-label-x1', 'scene2-label-x2',
+                           'scene2-transfer-fragment', 'scene2-y-fragment-label',
+                           'scene2-variation-conclusion'],
+                    hide: ['scene2-cell-title', 'scene2-cell-outline', 'scene2-equator',
+                           'scene2-chromosome-1', 'scene2-chromosome-2', 'scene2-chromosome-3', 'scene2-chromosome-4',
+                           'scene2-homologous-highlight', 'scene2-gene-a', 'scene2-gene-a2', 'scene2-gene-b', 'scene2-gene-b2',
+                           'scene2-period-conclusion', 'scene2-genotype-conclusion']
+                },
+                3: {
+                    show: ['scene2-cell-title', 'scene2-cell-outline', 'scene2-equator',
+                           'scene2-chromosome-1', 'scene2-chromosome-2', 'scene2-chromosome-3', 'scene2-chromosome-4'],
+                    hide: ['scene2-chr-x-normal', 'scene2-chr-y-normal', 'scene2-label-x', 'scene2-label-y',
+                           'scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-text',
+                           'scene2-chr-x1-mutant', 'scene2-chr-x2-mutant', 'scene2-label-x1', 'scene2-label-x2',
+                           'scene2-transfer-fragment', 'scene2-y-fragment-label',
+                           'scene2-variation-conclusion',
+                           'scene2-homologous-highlight', 'scene2-gene-a', 'scene2-gene-a2', 'scene2-gene-b', 'scene2-gene-b2',
+                           'scene2-period-conclusion', 'scene2-genotype-conclusion']
+                },
+                4: {
+                    show: ['scene2-cell-title', 'scene2-cell-outline', 'scene2-equator',
+                           'scene2-chromosome-1', 'scene2-chromosome-2', 'scene2-chromosome-3', 'scene2-chromosome-4',
+                           'scene2-homologous-highlight', 'scene2-period-conclusion'],
+                    hide: ['scene2-chr-x-normal', 'scene2-chr-y-normal', 'scene2-label-x', 'scene2-label-y',
+                           'scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-text',
+                           'scene2-chr-x1-mutant', 'scene2-chr-x2-mutant', 'scene2-label-x1', 'scene2-label-x2',
+                           'scene2-transfer-fragment', 'scene2-y-fragment-label',
+                           'scene2-variation-conclusion',
+                           'scene2-gene-a', 'scene2-gene-a2', 'scene2-gene-b', 'scene2-gene-b2',
+                           'scene2-genotype-conclusion']
+                },
+                5: {
+                    show: ['scene2-cell-title', 'scene2-cell-outline', 'scene2-equator',
+                           'scene2-chromosome-1', 'scene2-chromosome-2', 'scene2-chromosome-3', 'scene2-chromosome-4',
+                           'scene2-homologous-highlight', 'scene2-gene-a', 'scene2-gene-a2', 'scene2-gene-b', 'scene2-gene-b2',
+                           'scene2-period-conclusion', 'scene2-genotype-conclusion'],
+                    hide: ['scene2-chr-x-normal', 'scene2-chr-y-normal', 'scene2-label-x', 'scene2-label-y',
+                           'scene2-arrow', 'scene2-arrow-head', 'scene2-transfer-text',
+                           'scene2-chr-x1-mutant', 'scene2-chr-x2-mutant', 'scene2-label-x1', 'scene2-label-x2',
+                           'scene2-transfer-fragment', 'scene2-y-fragment-label',
+                           'scene2-variation-conclusion']
+                }
+            },
+
+            // 显示元素
+            showElement: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '0';
+                    setTimeout(() => { el.style.opacity = '1'; }, 50);
+                }
+            },
+
+            // 隐藏元素
+            hideElement: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.opacity = '0';
+                    setTimeout(() => { el.style.display = 'none'; }, 200);
+                }
+            },
+
+            // 高亮元素
+            highlightElement: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('scene2-arrow-highlight');
+                }
+            },
+
+            // 移除高亮
+            removeHighlight: function(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('scene2-arrow-highlight');
+                }
+            },
+
+            // 更新场景
+            updateScene: function() {
+                const step = this.steps[this.currentStep];
+
+                // 先隐藏所有可能需要的元素
+                const allElements = [];
+                for (let s = 0; s <= this.totalSteps; s++) {
+                    if (this.steps[s]) {
+                        this.steps[s].show.forEach(id => {
+                            if (!allElements.includes(id)) allElements.push(id);
+                        });
+                        this.steps[s].hide.forEach(id => {
+                            if (!allElements.includes(id)) allElements.push(id);
+                        });
+                    }
+                }
+
+                // 先全部隐藏
+                allElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.display = 'none';
+                        el.style.opacity = '1';
+                        el.classList.remove('scene2-arrow-highlight');
+                    }
+                });
+
+                // 再显示当前步骤需要的元素
+                if (step) {
+                    step.show.forEach(id => this.showElement(id));
+                    if (step.highlight) {
+                        step.highlight.forEach(id => this.highlightElement(id));
+                    }
+                }
+
+                // 更新按钮状态
+                document.getElementById('scene2-prev-btn').disabled = (this.currentStep === 0);
+                document.getElementById('scene2-next-btn').disabled = (this.currentStep === this.totalSteps);
+            },
+
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps) {
+                    this.currentStep++;
+                    this.updateScene();
+                }
+            },
+
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.updateScene();
+                }
+            },
+
+            // 初始化
+            init: function() {
+                document.getElementById('scene2-next-btn').addEventListener('click', () => this.nextStep());
+                document.getElementById('scene2-prev-btn').addEventListener('click', () => this.prevStep());
+                this.updateScene();
+            }
+        };
+
+        // 启动场景
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

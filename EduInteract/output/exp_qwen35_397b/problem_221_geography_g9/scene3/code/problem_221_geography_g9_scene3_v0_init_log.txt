@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳能电池板角度计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene3-step-indicator { padding: 8px 16px; font-size: 14px; background: #fff; border: 1px solid #ccc; border-radius: 4px; }
+        .scene3-fade { transition: opacity 0.3s ease; }
+        .scene3-hidden { opacity: 0; }
+        .scene3-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 标题 (y 从 45 改为 50，增加与公式的间距) -->
+            <text id="scene3-title" x="400" y="50" text-anchor="middle" font-size="18" font-weight="bold" class="scene3-fade scene3-visible">太阳能电池板角度计算</text>
+
+            <!-- ========== 左侧地球侧视图 ========== -->
+            <!-- 地平线 -->
+            <line id="scene3-horizon-left" x1="80" y1="300" x2="350" y2="300" stroke="#000000" stroke-width="3" class="scene3-fade scene3-visible"/>
+
+            <!-- 赤道纬线 (0°) -->
+            <line id="scene3-equator" x1="80" y1="300" x2="350" y2="300" stroke="#666666" stroke-width="2" stroke-dasharray="5,5" class="scene3-fade scene3-visible"/>
+            <text id="scene3-equator-label" x="360" y="305" font-size="14" fill="#666" class="scene3-fade scene3-visible">0°</text>
+
+            <!-- 经线 (参考竖线) -->
+            <line id="scene3-meridian" x1="200" y1="120" x2="200" y2="300" stroke="#424242" stroke-width="2" class="scene3-fade scene3-visible"/>
+
+            <!-- 晨昏线 (与经线夹角 10°的斜线) -->
+            <line id="scene3-terminator" x1="200" y1="120" x2="168" y2="300" stroke="#424242" stroke-width="3" class="scene3-fade scene3-visible"/>
+
+            <!-- 10°夹角弧线 - 调整位置，从 (200,150) 改为 (200,140)，半径从 30 改为 20 -->
+            <path id="scene3-angle-arc-left" d="M 200 140 A 20 20 0 0 0 197 138" fill="none" stroke="#c62828" stroke-width="2" class="scene3-fade scene3-visible"/>
+            <!-- 10°标签位置调整：从 (245,125) 改为 (270,115)，完全避开晨昏线 -->
+            <text id="scene3-angle-label-left" x="270" y="115" font-size="14" fill="#c62828" class="scene3-fade scene3-visible">10°</text>
+
+            <!-- 直射点纬线 10°N (步骤 1 显示) -->
+            <line id="scene3-latitude-10N" x1="80" y1="240" x2="350" y2="240" stroke="#ff6f00" stroke-width="2" stroke-dasharray="5,5" class="scene3-fade scene3-hidden"/>
+            <text id="scene3-latitude-10N-label" x="360" y="245" font-size="14" fill="#ff6f00" class="scene3-fade scene3-hidden">10°N</text>
+
+            <!-- 太阳光线 (步骤 1 显示) -->
+            <defs>
+                <marker id="scene3-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                    <path d="M 0 0 L 10 3 L 0 6 Z" fill="#1565c0"/>
+                </marker>
+            </defs>
+            <line id="scene3-sun-ray-1" x1="80" y1="120" x2="350" y2="180" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrow)" class="scene3-fade scene3-hidden"/>
+            <line id="scene3-sun-ray-2" x1="80" y1="150" x2="350" y2="210" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrow)" class="scene3-fade scene3-hidden"/>
+            <line id="scene3-sun-ray-3" x1="80" y1="180" x2="350" y2="240" stroke="#1565c0" stroke-width="2" marker-end="url(#scene3-arrow)" class="scene3-fade scene3-hidden"/>
+            <text id="scene3-sun-ray-label" x="90" y="110" font-size="14" fill="#1565c0" class="scene3-fade scene3-hidden">太阳光线</text>
+
+            <!-- ========== 右侧电池板剖面图 ========== -->
+            <!-- 地平线 -->
+            <line id="scene3-horizon-right" x1="450" y1="300" x2="720" y2="300" stroke="#000000" stroke-width="3" class="scene3-fade scene3-hidden"/>
+
+            <!-- 上海纬度标签 -->
+            <text id="scene3-shanghai-lat" x="460" y="290" font-size="14" fill="#000" class="scene3-fade scene3-hidden">31°N</text>
+
+            <!-- 建筑物墙面 -->
+            <line id="scene3-wall" x1="580" y1="150" x2="580" y2="300" stroke="#000000" stroke-width="3" class="scene3-fade scene3-hidden"/>
+
+            <!-- 墙面垂直符号 (直角) -->
+            <path id="scene3-right-angle" d="M 575 290 L 575 295 L 580 295" fill="none" stroke="#000000" stroke-width="2" class="scene3-fade scene3-hidden"/>
+
+            <!-- 太阳高度角弧线 (步骤 2 显示) -->
+            <path id="scene3-solar-altitude-arc" d="M 580 260 A 40 40 0 0 1 615 285" fill="none" stroke="#1565c0" stroke-width="2" class="scene3-fade scene3-hidden"/>
+            <text id="scene3-solar-altitude-label" x="630" y="290" font-size="14" fill="#1565c0" class="scene3-fade scene3-hidden">H = 69°</text>
+
+            <!-- 太阳高度角公式 (步骤 2 显示) - y 从 75 改为 70 -->
+            <text id="scene3-formula-h" x="450" y="70" font-size="14" fill="#000" class="scene3-fade scene3-hidden">
+                <tspan x="450" dy="0">H = 90° - |31° - 10°| = 69°</tspan>
+            </text>
+
+            <!-- 太阳能电池板 (步骤 3 显示) -->
+            <line id="scene3-solar-panel" x1="580" y1="200" x2="700" y2="260" stroke="#2e7d32" stroke-width="4" class="scene3-fade scene3-hidden"/>
+            <!-- 电池板填充区域 (半透明) -->
+            <polygon id="scene3-solar-panel-fill" points="580,200 700,260 700,270 580,210" fill="#2e7d32" fill-opacity="0.3" class="scene3-fade scene3-hidden"/>
+
+            <!-- 电池板与墙面夹角弧线 (步骤 3 显示) -->
+            <path id="scene3-panel-angle-arc" d="M 555 200 A 25 25 0 0 1 580 225" fill="none" stroke="#c62828" stroke-width="2" class="scene3-fade scene3-hidden"/>
+            <text id="scene3-panel-angle-label" x="535" y="215" font-size="14" fill="#c62828" class="scene3-fade scene3-hidden">21°</text>
+
+            <!-- 电池板角度公式 (步骤 3 显示) - y 从 95 改为 90，保持与公式 H 的间距 -->
+            <text id="scene3-formula-panel" x="450" y="90" font-size="14" fill="#000" class="scene3-fade scene3-hidden">
+                <tspan x="450" dy="0">夹角 = 90° - H = 21°</tspan>
+            </text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-prev-btn" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator" class="scene3-step-indicator">步骤 1/4</span>
+            <button id="scene3-next-btn" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3: 太阳能电池板角度计算
+        // 布局坐标表对照:
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 左侧图区 | (50,80)-(380,380) | 地球侧视图 |
+        // | 右侧图区 | (420,80)-(750,380) | 电池板剖面图 |
+        // | 地平线_左 | (80,300)-(350,300) | |
+        // | 地平线_右 | (450,300)-(720,300) | |
+        // | 直射点纬线 10°N | (80,240)-(350,240) | 橙色虚线 |
+        // | 晨昏线 | (200,120)-(168,300) | 与经线夹角 10° |
+        // | 墙面 | (580,150)-(580,300) | 垂直线 |
+        // | 电池板 | (580,200)-(700,260) | 绿色斜线 |
+
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 每步显示的元素 ID 列表
+        const stepElements = {
+            0: [
+                'scene3-title',
+                'scene3-horizon-left', 'scene3-equator', 'scene3-equator-label',
+                'scene3-meridian', 'scene3-terminator',
+                'scene3-angle-arc-left', 'scene3-angle-label-left'
+            ],
+            1: [
+                'scene3-title',
+                'scene3-horizon-left', 'scene3-equator', 'scene3-equator-label',
+                'scene3-meridian', 'scene3-terminator',
+                'scene3-angle-arc-left', 'scene3-angle-label-left',
+                'scene3-latitude-10N', 'scene3-latitude-10N-label',
+                'scene3-sun-ray-1', 'scene3-sun-ray-2', 'scene3-sun-ray-3',
+                'scene3-sun-ray-label'
+            ],
+            2: [
+                'scene3-title',
+                'scene3-horizon-left', 'scene3-equator', 'scene3-equator-label',
+                'scene3-meridian', 'scene3-terminator',
+                'scene3-angle-arc-left', 'scene3-angle-label-left',
+                'scene3-latitude-10N', 'scene3-latitude-10N-label',
+                'scene3-sun-ray-1', 'scene3-sun-ray-2', 'scene3-sun-ray-3',
+                'scene3-sun-ray-label',
+                'scene3-horizon-right', 'scene3-shanghai-lat',
+                'scene3-wall', 'scene3-right-angle',
+                'scene3-solar-altitude-arc', 'scene3-solar-altitude-label',
+                'scene3-formula-h'
+            ],
+            3: [
+                'scene3-title',
+                'scene3-horizon-left', 'scene3-equator', 'scene3-equator-label',
+                'scene3-meridian', 'scene3-terminator',
+                'scene3-angle-arc-left', 'scene3-angle-label-left',
+                'scene3-latitude-10N', 'scene3-latitude-10N-label',
+                'scene3-sun-ray-1', 'scene3-sun-ray-2', 'scene3-sun-ray-3',
+                'scene3-sun-ray-label',
+                'scene3-horizon-right', 'scene3-shanghai-lat',
+                'scene3-wall', 'scene3-right-angle',
+                'scene3-solar-altitude-arc', 'scene3-solar-altitude-label',
+                'scene3-formula-h',
+                'scene3-solar-panel', 'scene3-solar-panel-fill',
+                'scene3-panel-angle-arc', 'scene3-panel-angle-label',
+                'scene3-formula-panel'
+            ]
+        };
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene3-hidden');
+                el.classList.add('scene3-visible');
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene3-visible');
+                el.classList.add('scene3-hidden');
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 隐藏所有元素
+            for (let step = 0; step < totalSteps; step++) {
+                stepElements[step].forEach(id => hideElement(id));
+            }
+
+            // 显示当前步骤及之前步骤的所有元素
+            for (let step = 0; step <= currentStep; step++) {
+                stepElements[step].forEach(id => showElement(id));
+            }
+
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            document.getElementById('scene3-prev-btn').disabled = currentStep === 0;
+            document.getElementById('scene3-next-btn').disabled = currentStep === totalSteps - 1;
+        }
+
+        // 事件处理
+        document.getElementById('scene3-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        document.getElementById('scene3-next-btn').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

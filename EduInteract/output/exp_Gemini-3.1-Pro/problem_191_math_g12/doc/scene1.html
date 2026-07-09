@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .math-text { font-size: 16px; }
+        .step-text { opacity: 0; transition: opacity 0.3s; margin-bottom: 8px; }
+        .visible { opacity: 1; }
+        .hidden { display: none; }
+        .fade-in { opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 坐标表参考：
+            圆心(450,280) R=204
+            P(200,70) A(650,320) B(310,131) C(383,320) D(290,194) E(250,320)
+            -->
+            
+            <!-- 填充多边形 -->
+            <polygon id="scene1-poly-pca" points="200,70 383,320 650,320" fill="#fbc02d" fill-opacity="0" stroke="none" />
+            <polygon id="scene1-poly-pce" points="200,70 383,320 250,320" fill="#fbc02d" fill-opacity="0" stroke="none" />
+
+            <!-- 圆O (仅展示圆弧部分，这里画完整圆，超出部分可被裁剪或不影响) -->
+            <circle cx="450" cy="280" r="204" fill="none" stroke="#000000" stroke-width="2" />
+
+            <!-- 线段 -->
+            <line id="scene1-line-pa" x1="200" y1="70" x2="650" y2="320" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-pe" x1="200" y1="70" x2="250" y2="320" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-ae" x1="650" y1="320" x2="250" y2="320" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-be" x1="310" y1="131" x2="250" y2="320" stroke="#000000" stroke-width="2" />
+            <line id="scene1-line-pc" x1="200" y1="70" x2="383" y2="320" stroke="#000000" stroke-width="2" />
+
+            <!-- 角度弧线 (占位，后续用JS精确计算或直接写死path) -->
+            <!-- ∠AEB 40° -->
+            <path id="scene1-arc-aeb" d="M 280 320 A 30 30 0 0 0 259 291" fill="none" stroke="#000000" stroke-width="2" />
+            <text x="290" y="420" font-size="14" fill="#000000">40°</text>
+
+            <!-- ∠PEB y -->
+            <path id="scene1-arc-peb" d="M 244 290 A 35 35 0 0 0 215 320" fill="none" stroke="#1565c0" stroke-width="2" opacity="0" />
+            <text id="scene1-text-peb" x="330" y="400" font-size="14" fill="#1565c0" opacity="0">y</text>
+
+            <!-- ∠EAB y -->
+            <path id="scene1-arc-eab" d="M 615 320 A 35 35 0 0 0 620 303" fill="none" stroke="#1565c0" stroke-width="2" opacity="0" />
+            <text id="scene1-text-eab" x="620" y="280" font-size="14" fill="#1565c0" opacity="0">y</text>
+
+            <!-- ∠EPC x -->
+            <path id="scene1-arc-epc" d="M 208 110 A 40 40 0 0 0 223 102" fill="none" stroke="#2e7d32" stroke-width="2" opacity="0" />
+            <text id="scene1-text-epc" x="180" y="160" font-size="14" fill="#2e7d32" opacity="0">x</text>
+
+            <!-- ∠APC x -->
+            <path id="scene1-arc-apc" d="M 223 102 A 40 40 0 0 0 235 89" fill="none" stroke="#2e7d32" stroke-width="2" opacity="0" />
+            <text id="scene1-text-apc" x="200" y="70" font-size="14" fill="#2e7d32" opacity="0">x</text>
+
+            <!-- ∠PCE x+y -->
+            <path id="scene1-arc-pce" d="M 358 320 A 25 25 0 0 1 368 300" fill="none" stroke="#c62828" stroke-width="2" opacity="0" />
+            <text id="scene1-text-pce" x="350" y="60" font-size="14" fill="#c62828" opacity="0">x+y</text>
+
+            <!-- 点和标签 -->
+            <circle cx="200" cy="70" r="3" fill="#000" />
+            <text x="170" y="50" font-size="16">P</text>
+
+            <circle cx="650" cy="320" r="3" fill="#000" />
+            <text x="670" y="350" font-size="16">A</text>
+
+            <circle cx="310" cy="131" r="3" fill="#000" />
+            <text x="270" y="70" font-size="16">B</text>
+
+            <circle cx="383" cy="320" r="3" fill="#000" />
+            <text x="383" y="290" font-size="16" text-anchor="middle">C</text>
+
+            <circle cx="290" cy="194" r="3" fill="#000" />
+            <text x="240" y="130" font-size="16">D</text>
+
+            <circle cx="250" cy="320" r="3" fill="#000" />
+            <text x="220" y="350" font-size="16">E</text>
+
+        </svg>
+
+        <!-- 推导公式区 -->
+        <div id="scene1-formula-area" style="position: absolute; top: 80px; left: 550px; width: 230px; height: 200px;">
+            <div id="scene1-step1-text" class="step-text math-text">$\angle PEB = \angle EAB = y$</div>
+            <div id="scene1-step2-text" class="step-text math-text">$\angle EPC = \angle APC = x$</div>
+            <div id="scene1-step3-text" class="step-text math-text">$\angle PCE = \angle PAC + \angle APC = y + x$</div>
+            <div id="scene1-step4-text" class="step-text math-text">$	riangle PCE$ 内角和 $= 180^\circ$</div>
+            <div id="scene1-step5-text" class="step-text math-text">
+                $x + (y + 40^\circ) + (x + y) = 180^\circ$<br>
+                $\Rightarrow 2(x+y) = 140^\circ$<br>
+                <span style="color: #c62828; font-weight: bold;">$\Rightarrow \angle PCE = 70^\circ$</span>
+            </div>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // Helper to set opacity
+            const setOpacity = (id, opacity) => {
+                const el = document.getElementById(id);
+                if (el) el.style.opacity = opacity;
+            };
+            const setStroke = (id, color, width) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.setAttribute('stroke', color);
+                    el.setAttribute('stroke-width', width);
+                }
+            };
+            const setFillOpacity = (id, opacity) => {
+                const el = document.getElementById(id);
+                if (el) el.setAttribute('fill-opacity', opacity);
+            };
+
+            // Reset all
+            setStroke('scene1-line-pe', '#000000', 2);
+            setStroke('scene1-line-be', '#000000', 2);
+            setStroke('scene1-line-pc', '#000000', 2);
+            setFillOpacity('scene1-poly-pca', 0);
+            setFillOpacity('scene1-poly-pce', 0);
+            
+            setOpacity('scene1-arc-peb', 0); setOpacity('scene1-text-peb', 0);
+            setOpacity('scene1-arc-eab', 0); setOpacity('scene1-text-eab', 0);
+            setOpacity('scene1-arc-epc', 0); setOpacity('scene1-text-epc', 0);
+            setOpacity('scene1-arc-apc', 0); setOpacity('scene1-text-apc', 0);
+            setOpacity('scene1-arc-pce', 0); setOpacity('scene1-text-pce', 0);
+
+            for(let i=1; i<=5; i++) {
+                setOpacity(`scene1-step${i}-text`, 0);
+            }
+
+            // Apply step logic
+            if (currentStep >= 1) {
+                setStroke('scene1-line-pe', '#1565c0', 3);
+                setStroke('scene1-line-be', '#1565c0', 3);
+                setOpacity('scene1-arc-peb', 1); setOpacity('scene1-text-peb', 1);
+                setOpacity('scene1-arc-eab', 1); setOpacity('scene1-text-eab', 1);
+                setOpacity('scene1-step1-text', 1);
+            }
+            if (currentStep >= 2) {
+                setStroke('scene1-line-pe', '#000000', 2);
+                setStroke('scene1-line-be', '#000000', 2);
+                setStroke('scene1-line-pc', '#2e7d32', 3);
+                setOpacity('scene1-arc-epc', 1); setOpacity('scene1-text-epc', 1);
+                setOpacity('scene1-arc-apc', 1); setOpacity('scene1-text-apc', 1);
+                setOpacity('scene1-step2-text', 1);
+            }
+            if (currentStep >= 3) {
+                setStroke('scene1-line-pc', '#000000', 2);
+                setFillOpacity('scene1-poly-pca', 0.2);
+                setOpacity('scene1-arc-pce', 1); setOpacity('scene1-text-pce', 1);
+                setOpacity('scene1-step3-text', 1);
+            }
+            if (currentStep >= 4) {
+                setFillOpacity('scene1-poly-pca', 0);
+                setFillOpacity('scene1-poly-pce', 0.2);
+                setOpacity('scene1-step4-text', 1);
+            }
+            if (currentStep >= 5) {
+                setOpacity('scene1-step5-text', 1);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

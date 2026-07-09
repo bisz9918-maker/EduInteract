@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 滑块 A 滑上木板 B 后的受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 4px; background: #ffffff; color: #1565c0; }
+        #scene2-btn-prev:hover, #scene2-btn-next:hover { background: #e3f2fd; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { padding: 8px 16px; font-size: 14px; font-weight: bold; color: #1565c0; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        .fade-out { animation: fadeOut 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        .highlight { animation: highlightPulse 0.5s ease-in-out 2; }
+        @keyframes highlightPulse { 0%, 100% { stroke-width: 2; } 50% { stroke-width: 4; } }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 地面 -->
+            <line x1="100" y1="380" x2="700" y2="380" stroke="#888888" stroke-width="2"/>
+            <!-- 地面斜线填充 -->
+            <defs>
+                <pattern id="groundPattern" patternUnits="userSpaceOnUse" width="10" height="10">
+                    <line x1="0" y1="10" x2="10" y2="0" stroke="#888888" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect x="100" y="380" width="600" height="20" fill="url(#groundPattern)"/>
+            
+            <!-- 木板 B -->
+            <rect id="scene2-wood-B" x="200" y="320" width="400" height="60" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 滑块 A -->
+            <rect id="scene2-block-A" x="200" y="280" width="40" height="40" fill="#1565c0" opacity="0.2" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 力矢量箭头（初始隐藏） -->
+            <!-- f_AB 箭头：A 对 B 的摩擦力，水平向右，红色 - 移到木板 B 上方 -->
+            <polyline id="scene2-fAB-arrow" points="240,310 395,310 395,305 405,310 395,315 395,310" 
+                      stroke="#c62828" stroke-width="2" fill="none" opacity="0" style="display: none;"/>
+            
+            <!-- f₂箭头：地面对 B 的摩擦力，水平向左，绿色 -->
+            <polyline id="scene2-f2-arrow" points="400,380 285,380 285,385 275,380 285,375 285,380" 
+                      stroke="#2e7d32" stroke-width="2" fill="none" opacity="0" style="display: none;"/>
+            
+            <!-- N₂箭头：地面对 B 的支持力，竖直向上 -->
+            <polyline id="scene2-N2-arrow" points="400,380 400,345 395,345 400,335 405,345 400,345" 
+                      stroke="#000000" stroke-width="2" fill="none" opacity="0" style="display: none;"/>
+            
+            <!-- mg_B 箭头：B 的重力，竖直向下 -->
+            <polyline id="scene2-mgB-arrow" points="400,350 400,395 395,395 400,405 405,395 400,395" 
+                      stroke="#000000" stroke-width="2" fill="none" opacity="0" style="display: none;"/>
+            
+            <!-- mg_A 箭头：A 的重力，竖直向下 -->
+            <polyline id="scene2-mgA-arrow" points="220,300 220,345 215,345 220,355 225,345 220,345" 
+                      stroke="#000000" stroke-width="2" fill="none" opacity="0" style="display: none;"/>
+            
+            <!-- 压力箭头：A 对 B 的压力，竖直向下，虚线 -->
+            <polyline id="scene2-pressure-arrow" points="220,320 220,335 215,335 220,345 225,335 220,335" 
+                      stroke="#000000" stroke-width="2" fill="none" stroke-dasharray="5,5" opacity="0" style="display: none;"/>
+            
+            <!-- 标签 -->
+            <!-- L=3m 标签 - 移到左侧避免与 f_AB 标签重叠 -->
+            <text id="scene2-label-L" x="350" y="285" text-anchor="middle" font-size="14" fill="#000000" opacity="1">L=3m</text>
+            
+            <!-- f_AB 标签 - 移到 f_AB 箭头上方右侧 -->
+            <text id="scene2-label-fAB" x="410" y="295" text-anchor="start" font-size="14" fill="#c62828" opacity="0" style="display: none;">f<sub>AB</sub></text>
+            
+            <!-- f₂标签 -->
+            <text id="scene2-label-f2" x="270" y="390" text-anchor="middle" font-size="14" fill="#2e7d32" opacity="0" style="display: none;">f<sub>2</sub></text>
+            
+            <!-- N₂标签 -->
+            <text id="scene2-label-N2" x="420" y="350" text-anchor="start" font-size="14" fill="#000000" opacity="0" style="display: none;">N<sub>2</sub></text>
+            
+            <!-- mg_B 标签 -->
+            <text id="scene2-label-mgB" x="410" y="405" text-anchor="start" font-size="14" fill="#000000" opacity="0" style="display: none;">mg</text>
+            
+            <!-- mg_A 标签 -->
+            <text id="scene2-label-mgA" x="190" y="325" text-anchor="end" font-size="14" fill="#000000" opacity="0" style="display: none;">mg</text>
+            
+            <!-- μ₁标签 -->
+            <text id="scene2-label-mu1" x="210" y="265" text-anchor="start" font-size="14" fill="#000000" opacity="1">μ₁</text>
+            
+            <!-- μ₂标签 -->
+            <text id="scene2-label-mu2" x="410" y="425" text-anchor="start" font-size="14" fill="#000000" opacity="1">μ₂</text>
+            
+            <!-- 右侧信息框 -->
+            <rect id="scene2-info-box" x="580" y="80" width="200" height="300" fill="#ffffff" stroke="#1565c0" stroke-width="2" rx="5"/>
+            <text id="scene2-info-title" x="680" y="110" text-anchor="middle" font-size="16" font-weight="bold" fill="#1565c0">滑块 A 滑上木板 B 后的受力分析</text>
+            <text id="scene2-info-content" x="595" y="140" font-size="13" fill="#000000" opacity="0" style="display: none;"></text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表（修正后）：
+        // | 元素 | 位置/范围 | 备注 |
+        // |------|-----------|------|
+        // | 地面 | (100,380)-(700,380) | 水平地面线 |
+        // | 木板 B | (200,320)-(600,380) | 400×60 |
+        // | 滑块 A | (200,280)-(240,320) | 40×40 |
+        // | f_AB 箭头 | (240,310)-(400,310) | 红色，水平向右，在木板 B 上方 |
+        // | f₂箭头 | (400,380)-(280,380) | 绿色，水平向左 |
+        // | N₂箭头 | (400,380)-(400,340) | 竖直向上 |
+        // | mg_B 箭头 | (400,350)-(400,400) | 竖直向下 |
+        // | mg_A 箭头 | (220,300)-(220,350) | 竖直向下 |
+        // | 压力箭头 | (220,320)-(220,340) | 虚线，竖直向下 |
+        // | L=3m 标签 | (350,285) | 木板 B 上方左侧 |
+        // | f_AB 标签 | (410,295) | f_AB 箭头上方右侧 |
+        // | f₂标签 | (270,390) | f₂箭头下方 |
+        // | N₂标签 | (420,350) | N₂箭头右侧 |
+        // | mg_B 标签 | (410,405) | mg_B 箭头右侧 |
+        // | mg_A 标签 | (190,325) | mg_A 箭头左侧 |
+        // | μ₁标签 | (210,265) | 滑块 A 附近 |
+        // | μ₂标签 | (410,425) | 地面附近 |
+        
+        const currentStepMax = 4;
+        let currentStep = 0;
+        
+        // 步骤元素控制
+        const steps = [
+            // 步骤 0：初始状态
+            {
+                show: ['scene2-label-L', 'scene2-label-mu1', 'scene2-label-mu2'],
+                hide: ['scene2-fAB-arrow', 'scene2-label-fAB', 'scene2-f2-arrow', 'scene2-N2-arrow', 
+                       'scene2-mgB-arrow', 'scene2-mgA-arrow', 'scene2-pressure-arrow',
+                       'scene2-label-f2', 'scene2-label-N2', 'scene2-label-mgB', 'scene2-label-mgA',
+                       'scene2-info-content'],
+                infoTitle: '滑块 A 滑上木板 B 后的受力分析',
+                infoContent: ''
+            },
+            // 步骤 1：显示 A 对 B 的摩擦力
+            {
+                show: ['scene2-fAB-arrow', 'scene2-label-fAB'],
+                hide: ['scene2-f2-arrow', 'scene2-N2-arrow', 'scene2-mgB-arrow', 'scene2-mgA-arrow', 
+                       'scene2-pressure-arrow', 'scene2-label-f2', 'scene2-label-N2', 
+                       'scene2-label-mgB', 'scene2-label-mgA', 'scene2-info-content'],
+                infoTitle: '步骤 1：A 对 B 的摩擦力分析',
+                infoContent: 'A 相对 B 向右滑动<br/>B 受到 A 的摩擦力 f<sub>AB</sub>方向向右<br/>f<sub>AB</sub> = μ₁·mg = 0.5mg'
+            },
+            // 步骤 2：显示 B 受地面的力
+            {
+                show: ['scene2-f2-arrow', 'scene2-N2-arrow', 'scene2-mgB-arrow', 'scene2-mgA-arrow', 
+                       'scene2-pressure-arrow', 'scene2-label-f2', 'scene2-label-N2', 
+                       'scene2-label-mgB', 'scene2-label-mgA', 'scene2-info-content'],
+                hide: [],
+                infoTitle: '步骤 2：B 的受力分析',
+                infoContent: '竖直方向：N<sub>2</sub> = mg(来自 A) + mg(自身) = 2mg<br/>水平方向：f<sub>2</sub>为地面对 B 的摩擦力<br/>最大静摩擦力 f<sub>max</sub> = μ₂·N<sub>2</sub> = μ₂·2mg'
+            },
+            // 步骤 3：比较判断
+            {
+                show: ['scene2-info-content'],
+                hide: [],
+                infoTitle: '步骤 3：判断 B 是否滑动',
+                infoContent: '比较：f<sub>AB</sub> = 0.5mg  vs  f<sub>max</sub> = μ₂·2mg<br/>若 f<sub>AB</sub> > f<sub>max</sub>，则 B 滑动<br/>若 f<sub>AB</sub> ≤ f<sub>max</sub>，则 B 静止',
+                highlight: ['scene2-fAB-arrow', 'scene2-f2-arrow']
+            },
+            // 步骤 4：求解μ₂
+            {
+                show: ['scene2-info-content'],
+                hide: [],
+                infoTitle: '步骤 4：求解μ₂',
+                infoContent: '由题意，B 滑动（因 A 刚好未从 B 滑下）<br/>f<sub>AB</sub> > f<sub>max</sub><br/>0.5mg > μ₂·2mg<br/>μ₂ < 0.25<br/>故 μ₂ = 0.25（临界值）'
+            }
+        ];
+        
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                }, 10);
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        function updateStep() {
+            const step = steps[currentStep];
+            
+            // 显示元素
+            step.show.forEach(id => showElement(id));
+            
+            // 隐藏元素
+            step.hide.forEach(id => hideElement(id));
+            
+            // 更新信息框
+            const infoTitle = document.getElementById('scene2-info-title');
+            const infoContent = document.getElementById('scene2-info-content');
+            if (infoTitle) infoTitle.textContent = step.infoTitle;
+            if (infoContent) {
+                infoContent.innerHTML = step.infoContent;
+                if (step.infoContent) {
+                    infoContent.style.display = 'block';
+                    setTimeout(() => { infoContent.style.opacity = '1'; }, 10);
+                }
+            }
+            
+            // 高亮效果
+            if (step.highlight) {
+                step.highlight.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.remove('highlight');
+                        void el.offsetWidth; // 触发重绘
+                        el.classList.add('highlight');
+                    }
+                });
+            }
+            
+            // 更新步骤指示器
+            const indicator = document.getElementById('scene2-step-indicator');
+            if (indicator) {
+                indicator.textContent = `步骤 ${currentStep + 1}/${currentStepMax + 1}`;
+            }
+            
+            // 更新按钮状态
+            const btnPrev = document.getElementById('scene2-btn-prev');
+            const btnNext = document.getElementById('scene2-btn-next');
+            if (btnPrev) btnPrev.disabled = (currentStep === 0);
+            if (btnNext) btnNext.disabled = (currentStep === currentStepMax);
+        }
+        
+        // 初始化
+        function init() {
+            // 初始隐藏所有力矢量
+            ['scene2-fAB-arrow', 'scene2-label-fAB', 'scene2-f2-arrow', 'scene2-N2-arrow', 
+             'scene2-mgB-arrow', 'scene2-mgA-arrow', 'scene2-pressure-arrow',
+             'scene2-label-f2', 'scene2-label-N2', 'scene2-label-mgB', 'scene2-label-mgA',
+             'scene2-info-content'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            });
+            
+            updateStep();
+            
+            // 绑定按钮事件
+            document.getElementById('scene2-btn-prev').addEventListener('click', () => {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateStep();
+                }
+            });
+            
+            document.getElementById('scene2-btn-next').addEventListener('click', () => {
+                if (currentStep < currentStepMax) {
+                    currentStep++;
+                    updateStep();
+                }
+            });
+        }
+        
+        init();
+    })();
+    </script>
+</body>
+</html>

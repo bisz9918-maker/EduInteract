@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点的回归运动示意图</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 左侧滑块区 (20,50)-(180,380) -->
+            <!-- 滑块轨道 -->
+            <line id="scene2-slider-track" x1="100" y1="80" x2="100" y2="350" stroke="#888888" stroke-width="4"/>
+            <!-- 纬度刻度标记 -->
+            <line x1="85" y1="80" x2="115" y2="80" stroke="#888888" stroke-width="2"/>
+            <line x1="85" y1="215" x2="115" y2="215" stroke="#888888" stroke-width="2"/>
+            <line x1="85" y1="350" x2="115" y2="350" stroke="#888888" stroke-width="2"/>
+            <!-- 纬度标签 -->
+            <text id="scene2-lat-n" x="120" y="85" font-size="14" fill="#333333">23°26′N</text>
+            <text id="scene2-lat-0" x="120" y="220" font-size="14" fill="#333333">0°</text>
+            <text id="scene2-lat-s" x="120" y="355" font-size="14" fill="#333333">23°26′S</text>
+            <!-- 滑块手柄 -->
+            <circle id="scene2-slider-handle" cx="100" cy="215" r="12" fill="#c62828" style="cursor: grab;"/>
+            <!-- 当前纬度显示 -->
+            <text id="scene2-latitude-display" x="60" y="390" font-size="14" fill="#333333" text-anchor="middle">直射纬度：0°</text>
+
+            <!-- 中部地球区 (200,50)-(520,380) -->
+            <!-- 节气标签 -->
+            <text id="scene2-season-label" x="360" y="42" font-size="16" fill="#333333" text-anchor="middle">春分/秋分</text>
+            <!-- 地球轮廓 -->
+            <circle id="scene2-earth-circle" cx="360" cy="215" r="70" fill="none" stroke="#333333" stroke-width="2"/>
+            <!-- 夜半球（左半部分，动态） -->
+            <path id="scene2-night-hemisphere" d="" fill="#1565c0" opacity="0.3"/>
+            <!-- 昼半球（右半部分，动态） -->
+            <path id="scene2-day-hemisphere" d="" fill="#ffffff" opacity="0.3"/>
+            <!-- 晨昏线 -->
+            <ellipse id="scene2-terminator" cx="360" cy="215" rx="70" ry="70" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" opacity="0"/>
+            <!-- 极昼范围 -->
+            <path id="scene2-polar-day" d="" fill="#2e7d32" opacity="0.2"/>
+            <!-- 极夜范围 -->
+            <path id="scene2-polar-night" d="" fill="#1565c0" opacity="0.2"/>
+            <!-- 直射点指示 -->
+            <circle id="scene2-solar-zenith-point" cx="360" cy="145" r="4" fill="#c62828"/>
+
+            <!-- 右侧曲线区 (540,50)-(780,380) -->
+            <!-- 坐标轴 -->
+            <line x1="560" y1="360" x2="760" y2="360" stroke="#333333" stroke-width="2"/>
+            <line x1="560" y1="360" x2="560" y2="80" stroke="#333333" stroke-width="2"/>
+            <!-- 横轴标签 -->
+            <text x="660" y="375" font-size="12" fill="#333333" text-anchor="middle">纬度</text>
+            <text x="560" y="375" font-size="10" fill="#333333" text-anchor="middle">-90°</text>
+            <text x="660" y="375" font-size="10" fill="#333333" text-anchor="middle">0°</text>
+            <text x="760" y="375" font-size="10" fill="#333333" text-anchor="middle">90°</text>
+            <!-- 纵轴标签 -->
+            <text x="545" y="220" font-size="12" fill="#333333" text-anchor="end">高度角</text>
+            <text x="555" y="360" font-size="10" fill="#333333" text-anchor="end">0°</text>
+            <text x="555" y="220" font-size="10" fill="#333333" text-anchor="end">90°</text>
+            <!-- 正午太阳高度曲线 -->
+            <path id="scene2-noon-height-chart" d="" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 白城位置标记 -->
+            <line id="scene2-baicheng-marker" x1="680" y1="360" x2="680" y2="320" stroke="#c62828" stroke-width="2"/>
+            <text x="680" y="375" font-size="10" fill="#c62828" text-anchor="middle">白城 45°N</text>
+
+            <!-- 底部数据区 (20,400)-(780,480) -->
+            <!-- 昼夜比例条背景 -->
+            <rect x="200" y="420" width="400" height="30" fill="#e0e0e0"/>
+            <!-- 昼长比例条 -->
+            <rect id="scene2-daylight-bar" x="200" y="420" width="200" height="30" fill="#ffd54f"/>
+            <!-- 夜长比例条 -->
+            <rect id="scene2-nighttime-bar" x="400" y="420" width="200" height="30" fill="#1565c0"/>
+            <!-- 昼长标签 -->
+            <text id="scene2-day-length-label" x="300" y="445" font-size="14" fill="#333333" text-anchor="middle">昼长：12h</text>
+            <!-- 夜长标签 -->
+            <text id="scene2-night-length-label" x="500" y="445" font-size="14" fill="#333333" text-anchor="middle">夜长：12h</text>
+            <!-- 极昼标签 -->
+            <text id="scene2-polar-day-label" x="560" y="420" font-size="12" fill="#2e7d32">极昼范围：无</text>
+            <!-- 极夜标签 -->
+            <text id="scene2-polar-night-label" x="560" y="445" font-size="12" fill="#1565c0">极夜范围：无</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 春分</button>
+            <button id="scene2-btn-summer" class="scene2-btn">夏至</button>
+            <button id="scene2-btn-autumn" class="scene2-btn">秋分</button>
+            <button id="scene2-btn-winter" class="scene2-btn">冬至</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Scene 2 实现 - 太阳直射点的回归运动
+        // 布局坐标表参考：
+        // | 元素 | 位置/范围 | 大小 | 备注 |
+        // | 滑块轨道 | (100,80)-(100,350) | 4×270 | 纬度范围 -23°26′至 +23°26′ |
+        // | 滑块手柄 | (100,215) | 24×24 | 初始在赤道位置 |
+        // | 地球轮廓 | (360,215) | 140×140 | 圆心 (360,215)，半径 70 |
+        // | 正午太阳高度坐标系 | (560,80)-(760,360) | 200×280 | 横轴纬度，纵轴高度角 |
+        // | 昼夜比例条 | (200,420)-(600,450) | 400×30 | 昼#ffd54f/夜#1565c0 |
+
+        const TILT = 23.43; // 黄赤交角 23°26′
+        const BAICHENG_LAT = 45.6; // 白城纬度约 45°N
+
+        // 状态
+        let currentLat = 0; // 当前直射点纬度
+        let isDragging = false;
+
+        // DOM 元素
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+        const latitudeDisplay = document.getElementById('scene2-latitude-display');
+        const seasonLabel = document.getElementById('scene2-season-label');
+        const nightHemisphere = document.getElementById('scene2-night-hemisphere');
+        const dayHemisphere = document.getElementById('scene2-day-hemisphere');
+        const terminator = document.getElementById('scene2-terminator');
+        const polarDay = document.getElementById('scene2-polar-day');
+        const polarNight = document.getElementById('scene2-polar-night');
+        const solarZenithPoint = document.getElementById('scene2-solar-zenith-point');
+        const noonHeightChart = document.getElementById('scene2-noon-height-chart');
+        const daylightBar = document.getElementById('scene2-daylight-bar');
+        const nighttimeBar = document.getElementById('scene2-nighttime-bar');
+        const dayLengthLabel = document.getElementById('scene2-day-length-label');
+        const nightLengthLabel = document.getElementById('scene2-night-length-label');
+        const polarDayLabel = document.getElementById('scene2-polar-day-label');
+        const polarNightLabel = document.getElementById('scene2-polar-night-label');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnSummer = document.getElementById('scene2-btn-summer');
+        const btnAutumn = document.getElementById('scene2-btn-autumn');
+        const btnWinter = document.getElementById('scene2-btn-winter');
+
+        // 纬度转 y 坐标 (80-350 对应 +23.43 到 -23.43)
+        function latToY(lat) {
+            return 215 - (lat / TILT) * 135;
+        }
+
+        // y 坐标转纬度
+        function yToLat(y) {
+            return ((215 - y) / 135) * TILT;
+        }
+
+        // 格式化纬度显示
+        function formatLat(lat) {
+            if (Math.abs(lat) < 0.1) return '0°';
+            const absLat = Math.abs(lat);
+            const deg = Math.floor(absLat);
+            const min = Math.round((absLat - deg) * 60);
+            const dir = lat > 0 ? 'N' : 'S';
+            return `${deg}°${min}′${dir}`;
+        }
+
+        // 获取节气名称
+        function getSeason(lat) {
+            if (Math.abs(lat) < 0.5) return '春分/秋分';
+            if (lat > 20) return '夏至';
+            if (lat < -20) return '冬至';
+            if (lat > 0) return '春分→夏至';
+            return '秋分→冬至';
+        }
+
+        // 计算白城昼长（小时）
+        function calcDayLength(lat) {
+            const latRad = BAICHENG_LAT * Math.PI / 180;
+            const lat2Rad = lat * Math.PI / 180;
+            const cosHourAngle = -Math.tan(latRad) * Math.tan(lat2Rad);
+            if (cosHourAngle >= 1) return 0; // 极夜
+            if (cosHourAngle <= -1) return 24; // 极昼
+            const hourAngle = Math.acos(cosHourAngle) * 180 / Math.PI;
+            return (2 * hourAngle) / 15;
+        }
+
+        // 更新所有视觉元素
+        function updateScene(lat) {
+            currentLat = lat;
+            const y = latToY(lat);
+            
+            // 更新滑块位置
+            sliderHandle.setAttribute('cy', y);
+            latitudeDisplay.textContent = `直射纬度：${formatLat(lat)}`;
+            seasonLabel.textContent = getSeason(lat);
+
+            // 更新直射点位置（在地球表面）
+            const earthCenterX = 360, earthCenterY = 215, earthRadius = 70;
+            const zenithAngle = lat * Math.PI / 180;
+            const zenithX = earthCenterX + earthRadius * Math.sin(zenithAngle);
+            const zenithY = earthCenterY - earthRadius * Math.cos(zenithAngle);
+            solarZenithPoint.setAttribute('cx', zenithX);
+            solarZenithPoint.setAttribute('cy', zenithY);
+
+            // 更新晨昏线（椭圆，倾斜角等于直射点纬度）
+            const tiltRad = lat * Math.PI / 180;
+            const tiltDeg = lat;
+            terminator.setAttribute('opacity', '1');
+            terminator.setAttribute('transform', `rotate(${tiltDeg}, ${earthCenterX}, ${earthCenterY})`);
+
+            // 更新昼夜半球
+            // 简化：用半圆表示
+            const dayPath = `M ${earthCenterX} ${earthCenterY - earthRadius} A ${earthRadius} ${earthRadius} 0 0 1 ${earthCenterX} ${earthCenterY + earthRadius} L ${earthCenterX} ${earthCenterY} Z`;
+            const nightPath = `M ${earthCenterX} ${earthCenterY + earthRadius} A ${earthRadius} ${earthRadius} 0 0 1 ${earthCenterX} ${earthCenterY - earthRadius} L ${earthCenterX} ${earthCenterY} Z`;
+            
+            // 根据直射点调整昼夜区域
+            const tiltOffset = earthRadius * Math.sin(tiltRad);
+            const dayPath2 = `M ${earthCenterX + tiltOffset} ${earthCenterY - Math.sqrt(earthRadius*earthRadius - tiltOffset*tiltOffset)} A ${earthRadius} ${earthRadius} 0 0 1 ${earthCenterX + tiltOffset} ${earthCenterY + Math.sqrt(earthRadius*earthRadius - tiltOffset*tiltOffset)} L ${earthCenterX} ${earthCenterY} Z`;
+            const nightPath2 = `M ${earthCenterX + tiltOffset} ${earthCenterY + Math.sqrt(earthRadius*earthRadius - tiltOffset*tiltOffset)} A ${earthRadius} ${earthRadius} 0 0 1 ${earthCenterX + tiltOffset} ${earthCenterY - Math.sqrt(earthRadius*earthRadius - tiltOffset*tiltOffset)} L ${earthCenterX} ${earthCenterY} Z`;
+            
+            dayHemisphere.setAttribute('d', dayPath2);
+            nightHemisphere.setAttribute('d', nightPath2);
+
+            // 更新极昼极夜范围
+            const polarLimit = 90 - Math.abs(lat);
+            const polarAngle = polarLimit * Math.PI / 180;
+            const polarY = earthRadius * Math.cos(polarAngle);
+            
+            if (lat > 0) {
+                // 北半球夏季：北极极昼，南极极夜
+                const polarDayPath = `M ${earthCenterX - earthRadius * Math.sin(polarAngle)} ${earthCenterY - polarY} A ${earthRadius} ${earthRadius} 0 0 1 ${earthCenterX + earthRadius * Math.sin(polarAngle)} ${earthCenterY - polarY} L ${earthCenterX} ${earthCenterY - earthRadius} Z`;
+                const polarNightPath = `M ${earthCenterX - earthRadius * Math.sin(polarAngle)} ${earthCenterY + polarY} A ${earthRadius} ${earthRadius} 0 0 0 ${earthCenterX + earthRadius * Math.sin(polarAngle)} ${earthCenterY + polarY} L ${earthCenterX} ${earthCenterY + earthRadius} Z`;
+                polarDay.setAttribute('d', polarDayPath);
+                polarNight.setAttribute('d', polarNightPath);
+                polarDay.setAttribute('opacity', '0.2');
+                polarNight.setAttribute('opacity', '0.2');
+                polarDayLabel.textContent = `极昼范围：${Math.floor(polarLimit)}°N 以北`;
+                polarNightLabel.textContent = `极夜范围：${Math.floor(polarLimit)}°S 以南`;
+            } else if (lat < 0) {
+                // 北半球冬季：北极极夜，南极极昼
+                const polarDayPath = `M ${earthCenterX - earthRadius * Math.sin(polarAngle)} ${earthCenterY + polarY} A ${earthRadius} ${earthRadius} 0 0 0 ${earthCenterX + earthRadius * Math.sin(polarAngle)} ${earthCenterY + polarY} L ${earthCenterX} ${earthCenterY + earthRadius} Z`;
+                const polarNightPath = `M ${earthCenterX - earthRadius * Math.sin(polarAngle)} ${earthCenterY - polarY} A ${earthRadius} ${earthRadius} 0 0 1 ${earthCenterX + earthRadius * Math.sin(polarAngle)} ${earthCenterY - polarY} L ${earthCenterX} ${earthCenterY - earthRadius} Z`;
+                polarDay.setAttribute('d', polarDayPath);
+                polarNight.setAttribute('d', polarNightPath);
+                polarDay.setAttribute('opacity', '0.2');
+                polarNight.setAttribute('opacity', '0.2');
+                polarDayLabel.textContent = `极昼范围：${Math.floor(polarLimit)}°S 以南`;
+                polarNightLabel.textContent = `极夜范围：${Math.floor(polarLimit)}°N 以北`;
+            } else {
+                polarDay.setAttribute('d', '');
+                polarNight.setAttribute('d', '');
+                polarDay.setAttribute('opacity', '0');
+                polarNight.setAttribute('opacity', '0');
+                polarDayLabel.textContent = '极昼范围：无';
+                polarNightLabel.textContent = '极夜范围：无';
+            }
+
+            // 更新正午太阳高度曲线 H(φ) = 90° - |φ - lat|
+            let pathD = '';
+            for (let phi = -90; phi <= 90; phi += 2) {
+                const H = 90 - Math.abs(phi - lat);
+                const x = 560 + ((phi + 90) / 180) * 200;
+                const y = 360 - (H / 90) * 280;
+                if (phi === -90) {
+                    pathD += `M ${x} ${y}`;
+                } else {
+                    pathD += ` L ${x} ${y}`;
+                }
+            }
+            noonHeightChart.setAttribute('d', pathD);
+
+            // 更新昼夜比例条
+            const dayLength = calcDayLength(lat);
+            const dayRatio = dayLength / 24;
+            const dayWidth = 400 * dayRatio;
+            daylightBar.setAttribute('width', dayWidth);
+            nighttimeBar.setAttribute('x', 200 + dayWidth);
+            nighttimeBar.setAttribute('width', 400 - dayWidth);
+            dayLengthLabel.textContent = `昼长：${dayLength.toFixed(1)}h`;
+            nightLengthLabel.textContent = `夜长：${(24 - dayLength).toFixed(1)}h`;
+        }
+
+        // 拖拽事件处理
+        sliderHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            sliderHandle.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const svgRect = document.getElementById('scene2-svg').getBoundingClientRect();
+            let y = e.clientY - svgRect.top;
+            y = Math.max(80, Math.min(350, y));
+            const lat = yToLat(y);
+            updateScene(lat);
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            sliderHandle.style.cursor = 'grab';
+        });
+
+        // 触摸事件
+        sliderHandle.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const svgRect = document.getElementById('scene2-svg').getBoundingClientRect();
+            let y = e.touches[0].clientY - svgRect.top;
+            y = Math.max(80, Math.min(350, y));
+            const lat = yToLat(y);
+            updateScene(lat);
+            e.preventDefault();
+        });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // 按钮事件
+        btnPrev.addEventListener('click', () => updateScene(0));
+        btnSummer.addEventListener('click', () => updateScene(TILT));
+        btnAutumn.addEventListener('click', () => updateScene(0));
+        btnWinter.addEventListener('click', () => updateScene(-TILT));
+
+        // 初始化
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

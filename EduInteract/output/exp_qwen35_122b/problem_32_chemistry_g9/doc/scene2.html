@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 氨气溶解与酚酞变色</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; cursor: pointer; transition: all 0.2s; }
+        .scene2-btn:hover { background: #1565c0; color: #ffffff; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 16px; font-weight: bold; color: #333; }
+        svg { display: block; }
+        .scene2-text { font-size: 14px; font-family: "Microsoft YaHei", sans-serif; }
+        .scene2-text-small { font-size: 12px; }
+        .scene2-text-bold { font-weight: bold; }
+        .scene2-piston-closed { fill: #c62828; }
+        .scene2-piston-open { fill: #2e7d32; }
+        .scene2-molecule { fill: #1565c0; }
+        .scene2-liquid-initial { fill: #ffffff; stroke: #888888; stroke-width: 1; }
+        .scene2-liquid-red { fill: rgba(198, 40, 40, 0.3); }
+        .scene2-arrow { stroke: #1565c0; stroke-width: 2; fill: none; }
+        .scene2-drop { fill: #1565c0; opacity: 0; }
+        .scene2-highlight { animation: scene2-flash 0.5s ease-in-out; }
+        @keyframes scene2-flash {
+            0%, 100% { fill: #ffffff; }
+            50% { fill: #fff176; }
+        }
+        .scene2-pressure-arrow { stroke: #c62828; stroke-width: 3; fill: none; }
+        .scene2-pressure-text { fill: #c62828; font-weight: bold; }
+        .scene2-flow-arrow { stroke: #1565c0; stroke-width: 2; fill: none; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 烧杯 -->
+            <g id="scene2-beaker">
+                <line x1="360" y1="400" x2="360" y2="460" stroke="#333" stroke-width="2"/>
+                <line x1="440" y1="400" x2="440" y2="460" stroke="#333" stroke-width="2"/>
+                <line x1="360" y1="460" x2="440" y2="460" stroke="#333" stroke-width="2"/>
+                <line x1="370" y1="400" x2="430" y2="400" stroke="#333" stroke-width="1.5"/>
+                <!-- 烧杯内液体 -->
+                <rect id="scene2-beaker-liquid" x="365" y="430" width="70" height="25" class="scene2-liquid-initial"/>
+            </g>
+
+            <!-- 导管 -->
+            <g id="scene2-tube">
+                <!-- 从 B 瓶向下 -->
+                <line x1="550" y1="230" x2="550" y2="280" stroke="#333" stroke-width="3"/>
+                <!-- 水平段 -->
+                <line x1="550" y1="280" x2="400" y2="280" stroke="#333" stroke-width="3"/>
+                <!-- 向下到烧杯 -->
+                <line x1="400" y1="280" x2="400" y2="380" stroke="#333" stroke-width="3"/>
+            </g>
+
+            <!-- 水流箭头（步骤 4 显示） -->
+            <g id="scene2-flow-arrow-group" style="opacity: 0;">
+                <line id="scene2-flow-arrow-1" x1="400" y1="380" x2="400" y2="340" class="scene2-flow-arrow"/>
+                <polygon id="scene2-flow-arrow-head-1" points="400,340 395,350 405,350" fill="#1565c0" style="opacity: 0;"/>
+                <line id="scene2-flow-arrow-2" x1="400" y1="300" x2="450" y2="300" class="scene2-flow-arrow"/>
+                <line id="scene2-flow-arrow-3" x1="450" y1="300" x2="550" y2="300" class="scene2-flow-arrow"/>
+                <line id="scene2-flow-arrow-4" x1="550" y1="300" x2="550" y2="250" class="scene2-flow-arrow"/>
+                <polygon id="scene2-flow-arrow-head-2" points="550,250 545,260 555,260" fill="#1565c0" style="opacity: 0;"/>
+            </g>
+
+            <!-- 活塞 b -->
+            <g id="scene2-piston-b">
+                <rect id="scene2-piston-b-rect" x="390" y="274" width="20" height="16" class="scene2-piston-closed"/>
+            </g>
+
+            <!-- 活塞 a -->
+            <g id="scene2-piston-a">
+                <rect id="scene2-piston-a-rect" x="540" y="224" width="20" height="16" class="scene2-piston-closed"/>
+            </g>
+
+            <!-- B 瓶（圆底烧瓶） -->
+            <g id="scene2-bottle">
+                <!-- 瓶身（圆形） -->
+                <ellipse id="scene2-bottle-body" cx="550" cy="150" rx="60" ry="60" fill="none" stroke="#333" stroke-width="2"/>
+                <!-- 瓶颈 -->
+                <rect id="scene2-bottle-neck" x="540" y="190" width="20" height="40" fill="none" stroke="#333" stroke-width="2"/>
+                <!-- 瓶塞 -->
+                <rect x="538" y="228" width="24" height="8" fill="#666"/>
+            </g>
+
+            <!-- NH₃分子（12 个，步骤 2 后减少到 4 个） -->
+            <g id="scene2-molecules">
+                <circle id="scene2-molecule-1" cx="500" cy="120" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-2" cx="520" cy="140" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-3" cx="540" cy="130" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-4" cx="560" cy="150" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-5" cx="580" cy="140" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-6" cx="600" cy="160" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-7" cx="510" cy="170" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-8" cx="530" cy="180" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-9" cx="550" cy="170" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-10" cx="570" cy="180" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-11" cx="590" cy="170" r="4" class="scene2-molecule"/>
+                <circle id="scene2-molecule-12" cx="560" cy="190" r="4" class="scene2-molecule"/>
+            </g>
+
+            <!-- 胶头滴管 -->
+            <g id="scene2-dropper">
+                <!-- 玻璃管 -->
+                <rect id="scene2-dropper-tube" x="546" y="80" width="8" height="60" fill="none" stroke="#888" stroke-width="2"/>
+                <!-- 胶头 -->
+                <ellipse id="scene2-dropper-head" cx="550" cy="50" rx="15" ry="12" fill="#999" stroke="#666" stroke-width="1"/>
+                <!-- 水滴（动画用） -->
+                <circle id="scene2-drop" cx="550" cy="80" r="5" class="scene2-drop"/>
+            </g>
+
+            <!-- B 瓶内液体（步骤 5 显示） -->
+            <g id="scene2-bottle-liquid-group" style="opacity: 0;">
+                <rect id="scene2-bottle-liquid" x="510" y="200" width="80" height="15" class="scene2-liquid-red"/>
+            </g>
+
+            <!-- 压强降低标识（步骤 3 显示） -->
+            <g id="scene2-pressure-group" style="opacity: 0;">
+                <line id="scene2-pressure-arrow" x1="550" y1="150" x2="550" y2="180" class="scene2-pressure-arrow"/>
+                <polygon id="scene2-pressure-arrow-head" points="550,180 545,170 555,170" fill="#c62828"/>
+                <text id="scene2-pressure-text" x="630" y="170" class="scene2-text scene2-pressure-text">压强降低</text>
+            </g>
+
+            <!-- 标签（调整位置避免重叠） -->
+            <text id="scene2-label-b" x="625" y="140" class="scene2-text scene2-text-bold">B</text>
+            <text id="scene2-label-nh3" x="550" y="90" text-anchor="middle" class="scene2-text scene2-text-bold">NH₃</text>
+            <text id="scene2-label-a" x="565" y="205" class="scene2-text-small">a</text>
+            <text id="scene2-label-b-piston" x="400" y="335" text-anchor="middle" class="scene2-text-small">b</text>
+            <text id="scene2-label-water" x="455" y="445" class="scene2-text-small">水 + 酚酞</text>
+
+            <!-- 步骤标签（动态显示，调整位置避免重叠） -->
+            <text id="scene2-label-step1" x="510" y="70" class="scene2-text" style="opacity: 0;">挤入水滴</text>
+            <text id="scene2-label-step2" x="450" y="120" class="scene2-text" style="opacity: 0;">NH₃溶解</text>
+            <text id="scene2-label-step4" x="355" y="340" class="scene2-text" style="opacity: 0;">倒吸</text>
+            <text id="scene2-label-step5" x="620" y="210" class="scene2-text scene2-text-bold" style="opacity: 0; fill: #c62828;">碱性→红色</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/6</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现 - 氨气溶解与酚酞变色
+        // 坐标表对照：
+        // B 瓶：瓶身中心 (550,150)，瓶口 (550,210)，瓶身 120×120
+        // 胶头滴管：滴管头 (550,80)，胶头 (550,50)
+        // 烧杯：底部中心 (400,430)，上宽 80，高 60
+        // 导管：(550,230)→(550,280)→(400,280)→(400,380)
+        // 活塞 a：(550,230) 处，活塞 b：(400,280) 处
+        // NH₃分子：12 个分布在 B 瓶内
+
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+
+        // 保留的分子 ID（步骤 2 后保留）
+        const RETAINED_MOLECULES = [3, 8, 10, 12];
+
+        // DOM 元素引用
+        const els = {
+            prevBtn: document.getElementById('scene2-btn-prev'),
+            nextBtn: document.getElementById('scene2-btn-next'),
+            stepIndicator: document.getElementById('scene2-step-indicator'),
+            // 分子
+            molecules: [1,2,3,4,5,6,7,8,9,10,11,12].map(i => document.getElementById('scene2-molecule-' + i)),
+            // 活塞
+            pistonA: document.getElementById('scene2-piston-a-rect'),
+            pistonB: document.getElementById('scene2-piston-b-rect'),
+            // 标签
+            labelStep1: document.getElementById('scene2-label-step1'),
+            labelStep2: document.getElementById('scene2-label-step2'),
+            labelStep4: document.getElementById('scene2-label-step4'),
+            labelStep5: document.getElementById('scene2-label-step5'),
+            // 压强标识
+            pressureGroup: document.getElementById('scene2-pressure-group'),
+            // 水流
+            flowArrowGroup: document.getElementById('scene2-flow-arrow-group'),
+            flowArrow1: document.getElementById('scene2-flow-arrow-1'),
+            flowArrowHead1: document.getElementById('scene2-flow-arrow-head-1'),
+            flowArrow2: document.getElementById('scene2-flow-arrow-2'),
+            flowArrow3: document.getElementById('scene2-flow-arrow-3'),
+            flowArrow4: document.getElementById('scene2-flow-arrow-4'),
+            flowArrowHead2: document.getElementById('scene2-flow-arrow-head-2'),
+            // B 瓶液体
+            bottleLiquidGroup: document.getElementById('scene2-bottle-liquid-group'),
+            // 滴管
+            dropperTube: document.getElementById('scene2-dropper-tube'),
+            drop: document.getElementById('scene2-drop')
+        };
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 工具函数：设置透明度
+        function setOpacity(el, opacity) {
+            if (el) {
+                el.style.opacity = opacity;
+            }
+        }
+
+        // 更新场景状态
+        function updateScene() {
+            // 更新步骤指示器
+            els.stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + TOTAL_STEPS;
+
+            // 更新按钮状态
+            els.prevBtn.disabled = (currentStep === 0);
+            els.nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+
+            // 根据步骤更新显示
+            switch(currentStep) {
+                case 0: // 初始状态
+                    // 所有分子显示
+                    els.molecules.forEach(m => setOpacity(m, 1));
+                    // 活塞关闭（红色）
+                    els.pistonA.className = 'scene2-piston-closed';
+                    els.pistonB.className = 'scene2-piston-closed';
+                    // 隐藏所有动态元素
+                    hide(els.labelStep1);
+                    hide(els.labelStep2);
+                    hide(els.labelStep4);
+                    hide(els.labelStep5);
+                    hide(els.pressureGroup);
+                    hide(els.flowArrowGroup);
+                    hide(els.bottleLiquidGroup);
+                    hide(els.drop);
+                    break;
+
+                case 1: // 挤入水滴
+                    // 所有分子显示
+                    els.molecules.forEach(m => setOpacity(m, 1));
+                    // 活塞关闭
+                    els.pistonA.className = 'scene2-piston-closed';
+                    els.pistonB.className = 'scene2-piston-closed';
+                    // 显示步骤 1 标签
+                    show(els.labelStep1);
+                    // 隐藏其他动态元素
+                    hide(els.labelStep2);
+                    hide(els.labelStep4);
+                    hide(els.labelStep5);
+                    hide(els.pressureGroup);
+                    hide(els.flowArrowGroup);
+                    hide(els.bottleLiquidGroup);
+                    // 水滴动画
+                    animateDrop();
+                    break;
+
+                case 2: // 氨气溶解
+                    // 保留分子显示，其他隐藏
+                    els.molecules.forEach((m, i) => {
+                        if (RETAINED_MOLECULES.includes(i + 1)) {
+                            setOpacity(m, 1);
+                        } else {
+                            setOpacity(m, 0);
+                        }
+                    });
+                    // 活塞关闭
+                    els.pistonA.className = 'scene2-piston-closed';
+                    els.pistonB.className = 'scene2-piston-closed';
+                    // 显示步骤 2 标签
+                    show(els.labelStep2);
+                    hide(els.labelStep1);
+                    hide(els.labelStep4);
+                    hide(els.labelStep5);
+                    hide(els.pressureGroup);
+                    hide(els.flowArrowGroup);
+                    hide(els.bottleLiquidGroup);
+                    break;
+
+                case 3: // 压强降低
+                    // 保留分子显示
+                    els.molecules.forEach((m, i) => {
+                        if (RETAINED_MOLECULES.includes(i + 1)) {
+                            setOpacity(m, 1);
+                        } else {
+                            setOpacity(m, 0);
+                        }
+                    });
+                    // 活塞关闭
+                    els.pistonA.className = 'scene2-piston-closed';
+                    els.pistonB.className = 'scene2-piston-closed';
+                    // 显示压强标识
+                    show(els.pressureGroup);
+                    hide(els.labelStep1);
+                    hide(els.labelStep2);
+                    hide(els.labelStep4);
+                    hide(els.labelStep5);
+                    hide(els.flowArrowGroup);
+                    hide(els.bottleLiquidGroup);
+                    break;
+
+                case 4: // 水倒吸
+                    // 保留分子显示
+                    els.molecules.forEach((m, i) => {
+                        if (RETAINED_MOLECULES.includes(i + 1)) {
+                            setOpacity(m, 1);
+                        } else {
+                            setOpacity(m, 0);
+                        }
+                    });
+                    // 活塞打开（绿色）
+                    els.pistonA.className = 'scene2-piston-open';
+                    els.pistonB.className = 'scene2-piston-open';
+                    // 显示水流箭头
+                    show(els.flowArrowGroup);
+                    setOpacity(els.flowArrow1, 1);
+                    setOpacity(els.flowArrowHead1, 1);
+                    setOpacity(els.flowArrow2, 1);
+                    setOpacity(els.flowArrow3, 1);
+                    setOpacity(els.flowArrow4, 1);
+                    setOpacity(els.flowArrowHead2, 1);
+                    // 显示步骤 4 标签
+                    show(els.labelStep4);
+                    hide(els.labelStep1);
+                    hide(els.labelStep2);
+                    hide(els.labelStep5);
+                    hide(els.pressureGroup);
+                    hide(els.bottleLiquidGroup);
+                    break;
+
+                case 5: // 颜色变化
+                    // 保留分子显示
+                    els.molecules.forEach((m, i) => {
+                        if (RETAINED_MOLECULES.includes(i + 1)) {
+                            setOpacity(m, 1);
+                        } else {
+                            setOpacity(m, 0);
+                        }
+                    });
+                    // 活塞打开
+                    els.pistonA.className = 'scene2-piston-open';
+                    els.pistonB.className = 'scene2-piston-open';
+                    // 显示水流箭头
+                    show(els.flowArrowGroup);
+                    setOpacity(els.flowArrow1, 1);
+                    setOpacity(els.flowArrowHead1, 1);
+                    setOpacity(els.flowArrow2, 1);
+                    setOpacity(els.flowArrow3, 1);
+                    setOpacity(els.flowArrow4, 1);
+                    setOpacity(els.flowArrowHead2, 1);
+                    // 显示 B 瓶内红色液体
+                    show(els.bottleLiquidGroup);
+                    // 显示步骤 5 标签
+                    show(els.labelStep5);
+                    hide(els.labelStep1);
+                    hide(els.labelStep2);
+                    hide(els.labelStep4);
+                    hide(els.pressureGroup);
+                    break;
+            }
+        }
+
+        // 水滴下落动画
+        function animateDrop() {
+            let startY = 80;
+            let endY = 150;
+            let progress = 0;
+            const duration = 500;
+            const startTime = performance.now();
+
+            function animate(currentTime) {
+                progress = Math.min((currentTime - startTime) / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const y = startY + (endY - startY) * easeOut;
+
+                els.drop.setAttribute('cy', y);
+                setOpacity(els.drop, 1);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // 动画结束后隐藏水滴
+                    setTimeout(() => {
+                        setOpacity(els.drop, 0);
+                    }, 200);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 事件绑定
+        els.prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        els.nextBtn.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

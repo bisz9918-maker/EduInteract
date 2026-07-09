@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导体棒在倾斜 U 形框架上的电磁感应</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        #scene1-step-indicator { font-size: 16px; font-weight: bold; color: #333; }
+        #scene1-btn-prev, #scene1-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 4px; background: #fff; }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover { background: #f0f0f0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* 平衡状态高亮动画 */
+        @keyframes highlight-pulse {
+            0%, 100% { stroke-width: 4; opacity: 1; }
+            50% { stroke-width: 6; opacity: 0.7; }
+        }
+        .highlight { animation: highlight-pulse 1s ease-in-out infinite; }
+        
+        /* 箭头样式 */
+        .arrow-field { stroke: #1565c0; stroke-width: 2; fill: none; }
+        .arrow-velocity { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .arrow-force { stroke: #c62828; stroke-width: 2; fill: none; }
+        .arrow-current { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        
+        /* 元素显示控制 */
+        .step-element { display: none; }
+        .step-element.visible { display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 水平参考线 -->
+            <line x1="100" y1="380" x2="700" y2="380" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" id="scene1-horiz-line"/>
+            
+            <!-- U 形框架左轨 -->
+            <line x1="150" y1="350" x2="650" y2="150" stroke="#000000" stroke-width="2" id="scene1-frame-left"/>
+            <!-- U 形框架右轨 -->
+            <line x1="150" y1="370" x2="650" y2="170" stroke="#000000" stroke-width="2" id="scene1-frame-right"/>
+            
+            <!-- 导体棒 MN -->
+            <rect x="320" y="265" width="160" height="30" fill="#d3d3d3" fill-opacity="0.3" stroke="#000000" stroke-width="2" id="scene1-rod"/>
+            
+            <!-- 角度θ弧线 -->
+            <path d="M 180 380 A 40 40 0 0 1 210 350" stroke="#888888" stroke-width="1" fill="none" id="scene1-angle-arc"/>
+            
+            <!-- 标签：水平参考线相关 -->
+            <text x="200" y="390" font-size="14" fill="#000000" id="scene1-label-theta">θ=30°</text>
+            <text x="660" y="250" font-size="14" fill="#000000" id="scene1-label-L">L=1m</text>
+            <text x="660" y="280" font-size="14" fill="#000000" id="scene1-label-m">m=0.2kg</text>
+            <text x="660" y="310" font-size="14" fill="#000000" id="scene1-label-R">R=0.2Ω</text>
+            <!-- 调整 M 标签位置：移到导体棒左端左侧更远位置，远离导轨 -->
+            <text x="215" y="230" font-size="14" fill="#000000" font-weight="bold" id="scene1-label-M">M</text>
+            <!-- 调整 N 标签位置：移到导体棒右端右侧更远位置，远离导轨 -->
+            <text x="560" y="250" font-size="14" fill="#000000" font-weight="bold" id="scene1-label-N">N</text>
+            
+            <!-- 步骤 1：磁场 B -->
+            <g id="scene1-step1" class="step-element">
+                <defs>
+                    <marker id="scene1-arrow-field" markerWidth="15" markerHeight="15" refX="12" refY="7.5" orient="auto">
+                        <polygon points="0,0 15,7.5 0,15" fill="#1565c0"/>
+                    </marker>
+                </defs>
+                <line x1="400" y1="250" x2="400" y2="120" class="arrow-field" id="scene1-arrow-B" marker-end="url(#scene1-arrow-field)"/>
+                <text x="380" y="100" font-size="14" fill="#000000" id="scene1-label-B">B=0.2Wb/m²</text>
+            </g>
+            
+            <!-- 步骤 2：速度 v -->
+            <g id="scene1-step2" class="step-element">
+                <defs>
+                    <marker id="scene1-arrow-velocity" markerWidth="15" markerHeight="15" refX="12" refY="7.5" orient="auto">
+                        <polygon points="0,0 15,7.5 0,15" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <line x1="400" y1="250" x2="480" y2="280" class="arrow-velocity" id="scene1-arrow-v" marker-end="url(#scene1-arrow-velocity)"/>
+                <!-- 调整 v 标签位置：移到箭头右侧更远位置，与 N 错开 -->
+                <text x="570" y="245" font-size="14" fill="#2e7d32" font-weight="bold" id="scene1-label-v">v</text>
+            </g>
+            
+            <!-- 步骤 3：感应电流 I -->
+            <g id="scene1-step3" class="step-element">
+                <defs>
+                    <marker id="scene1-arrow-current" markerWidth="15" markerHeight="15" refX="12" refY="7.5" orient="auto">
+                        <polygon points="0,0 15,7.5 0,15" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <line x1="360" y1="250" x2="440" y2="250" class="arrow-current" id="scene1-arrow-I" marker-end="url(#scene1-arrow-current)"/>
+                <!-- 调整 I 标签位置：移到箭头上方更远位置 -->
+                <text x="400" y="205" font-size="14" fill="#2e7d32" font-weight="bold" id="scene1-label-I">I</text>
+            </g>
+            
+            <!-- 步骤 4：安培力 F_安 -->
+            <g id="scene1-step4" class="step-element">
+                <defs>
+                    <marker id="scene1-arrow-force1" markerWidth="15" markerHeight="15" refX="12" refY="7.5" orient="auto">
+                        <polygon points="0,0 15,7.5 0,15" fill="#c62828"/>
+                    </marker>
+                </defs>
+                <line x1="400" y1="250" x2="320" y2="220" class="arrow-force" id="scene1-arrow-F-amp" marker-end="url(#scene1-arrow-force1)"/>
+                <!-- 调整 F_安标签位置：移到箭头左上方更远位置 -->
+                <text x="200" y="175" font-size="14" fill="#c62828" font-weight="bold" id="scene1-label-F-amp">F_安</text>
+            </g>
+            
+            <!-- 步骤 5：重力分力 mg sinθ -->
+            <g id="scene1-step5" class="step-element">
+                <defs>
+                    <marker id="scene1-arrow-force2" markerWidth="15" markerHeight="15" refX="12" refY="7.5" orient="auto">
+                        <polygon points="0,0 15,7.5 0,15" fill="#c62828"/>
+                    </marker>
+                </defs>
+                <line x1="400" y1="250" x2="480" y2="280" class="arrow-force" id="scene1-arrow-mg-sin" marker-end="url(#scene1-arrow-force2)"/>
+                <!-- 调整 mg sinθ标签位置：移到箭头右下方更远位置 -->
+                <text x="570" y="280" font-size="14" fill="#c62828" font-weight="bold" id="scene1-label-mg-sin">mg sinθ</text>
+            </g>
+            
+            <!-- 步骤 6：平衡状态高亮 -->
+            <g id="scene1-step6" class="step-element">
+                <!-- 调整平衡状态文字位置：移到画布上方空白区域，增加行间距 -->
+                <text x="50" y="75" font-size="16" fill="#c62828" font-weight="bold" id="scene1-label-balance">mg sinθ = F_安</text>
+                <text x="50" y="105" font-size="16" fill="#2e7d32" font-weight="bold" id="scene1-label-vm">速度达到最大 v_m</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene1-controls">
+            <span id="scene1-step-indicator">步骤 0/6</span>
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 水平参考线 | 虚线 | (100,380)-(700,380) | 600×1 | - | 底部水平参考 |
+        // | U 形框架左轨 | 线段 | (150,350)-(650,150) | - | - | 倾斜 30° |
+        // | U 形框架右轨 | 线段 | (150,370)-(650,170) | - | - | 与左轨平行，间距 20px 表示宽度 |
+        // | 导体棒 MN | 矩形 | (320,265)-(480,235) | 160×30 | - | 横跨导轨，浅灰填充 |
+        // | 磁场 B 箭头 | 箭头 | (400,250)-(400,120) | - | 左上方 | 垂直框架平面向上 |
+        // | 速度 v 箭头 | 箭头 | (400,250)-(480,280) | - | 右下方 | 沿斜面向下 |
+        // | 安培力 F_安箭头 | 箭头 | (400,250)-(320,220) | - | 左上方 | 沿斜面向上 |
+        // | 重力分力箭头 | 箭头 | (400,250)-(480,280) | - | 右下方 | 沿斜面向下，与 v 同向 |
+        // | 角度θ弧线 | 圆弧 | (180,360) 半径 40 | - | 下方 | 框架与水平线夹角 |
+        // | 标签 L=1m | text | (660,250) | ~50×16 | 右侧 | 框架宽度标注 |
+        // | 标签 θ=30° | text | (200,390) | ~50×16 | 下方 | 角度标注 |
+        // | 标签 B=0.2 | text | (380,100) | ~70×16 | 上方 | 磁场强度 |
+        // | 标签 M | text | (215,230) | ~16×16 | 左侧 | 导体棒左端（调整：远离导轨） |
+        // | 标签 N | text | (560,250) | ~16×16 | 右侧 | 导体棒右端（调整：远离导轨） |
+        // | 标签 v | text | (570,245) | ~16×16 | 右侧 | 速度（调整：远离箭头和 N） |
+        // | 标签 I | text | (400,205) | ~16×16 | 上方 | 电流方向（调整：远离箭头） |
+        // | 标签 F_安 | text | (200,175) | ~50×16 | 左上方 | 安培力（调整：远离箭头） |
+        // | 标签 mg sinθ | text | (570,280) | ~70×16 | 右下方 | 重力分力（调整：远离箭头） |
+        // | 标签 m=0.2kg | text | (660,280) | ~70×16 | 右侧 | 质量 |
+        // | 标签 R=0.2Ω | text | (660,310) | ~70×16 | 右侧 | 电阻 |
+        // | 电流方向箭头 | 箭头 | (360,250)-(440,250) | - | 向右 | 导体棒上 N→M |
+        
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新当前步骤显示
+        function updateStep() {
+            // 隐藏所有步骤元素
+            for (let i = 1; i <= TOTAL_STEPS; i++) {
+                const stepGroup = document.getElementById('scene1-step' + i);
+                if (stepGroup) {
+                    hide(stepGroup);
+                }
+            }
+            
+            // 移除高亮
+            const highlightElements = document.querySelectorAll('.highlight');
+            highlightElements.forEach(el => el.classList.remove('highlight'));
+            
+            // 显示当前步骤及之前的所有元素
+            for (let i = 1; i <= currentStep; i++) {
+                const stepGroup = document.getElementById('scene1-step' + i);
+                if (stepGroup) {
+                    show(stepGroup);
+                }
+            }
+            
+            // 步骤 6 特殊处理：添加高亮
+            if (currentStep === TOTAL_STEPS) {
+                const arrowFAmp = document.getElementById('scene1-arrow-F-amp');
+                const arrowMgSin = document.getElementById('scene1-arrow-mg-sin');
+                if (arrowFAmp) arrowFAmp.classList.add('highlight');
+                if (arrowMgSin) arrowMgSin.classList.add('highlight');
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = '步骤 ' + currentStep + '/' + TOTAL_STEPS;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === TOTAL_STEPS);
+        }
+        
+        // 初始化
+        function init() {
+            // 绑定按钮事件
+            document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateStep();
+                }
+            });
+            
+            document.getElementById('scene1-btn-next').addEventListener('click', function() {
+                if (currentStep < TOTAL_STEPS) {
+                    currentStep++;
+                    updateStep();
+                }
+            });
+            
+            // 初始显示步骤 0
+            updateStep();
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运动学分析 - v-t 图像</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-axis {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        .scene3-tick {
+            stroke: #000000;
+            stroke-width: 1;
+        }
+        .scene3-line-a {
+            stroke: #1565c0;
+            stroke-width: 3;
+            fill: none;
+        }
+        .scene3-line-b {
+            stroke: #2e7d32;
+            stroke-width: 3;
+            fill: none;
+        }
+        .scene3-area-a {
+            fill: #1565c0;
+            fill-opacity: 0.2;
+        }
+        .scene3-area-b {
+            fill: #2e7d32;
+            fill-opacity: 0.2;
+        }
+        .scene3-area-rel {
+            fill: #c62828;
+            fill-opacity: 0.3;
+        }
+        .scene3-point {
+            fill: #c62828;
+        }
+        .scene3-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene3-legend-box {
+            fill: #ffffff;
+            stroke: #000000;
+            stroke-width: 1;
+        }
+        .scene3-equation-bg {
+            fill: #f5f5f5;
+            stroke: #e0e0e0;
+            stroke-width: 1;
+        }
+        .scene3-equation-text {
+            font-size: 13px;
+            fill: #000000;
+            font-family: 'Courier New', monospace;
+        }
+        #scene3-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene3-btn {
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        .scene3-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene3-btn:disabled {
+            background: #d0d0d0;
+            cursor: not-allowed;
+        }
+        #scene3-step-indicator {
+            font-size: 14px;
+            color: #666;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 坐标轴 -->
+            <line id="scene3-axis-v" class="scene3-axis" x1="100" y1="80" x2="100" y2="380" marker-end="url(#scene3-arrow-v)"/>
+            <line id="scene3-axis-t" class="scene3-axis" x1="100" y1="380" x2="650" y2="380" marker-end="url(#scene3-arrow-t)"/>
+            
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene3-arrow-v" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+                <marker id="scene3-arrow-t" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+            </defs>
+            
+            <!-- v 轴刻度线和标签 -->
+            <g id="scene3-v-ticks">
+                <line class="scene3-tick" x1="95" y1="80" x2="105" y2="80"/>
+                <text class="scene3-label" x="85" y="75" text-anchor="end">6</text>
+                <line class="scene3-tick" x1="95" y1="140" x2="105" y2="140"/>
+                <text class="scene3-label" x="85" y="145" text-anchor="end">5</text>
+                <line class="scene3-tick" x1="95" y1="200" x2="105" y2="200"/>
+                <text class="scene3-label" x="85" y="205" text-anchor="end">4</text>
+                <line class="scene3-tick" x1="95" y1="260" x2="105" y2="260"/>
+                <text class="scene3-label" x="85" y="265" text-anchor="end">3</text>
+                <line class="scene3-tick" x1="95" y1="320" x2="105" y2="320"/>
+                <text class="scene3-label" x="85" y="325" text-anchor="end">2</text>
+                <line class="scene3-tick" x1="95" y1="380" x2="105" y2="380"/>
+                <text class="scene3-label" x="85" y="385" text-anchor="end">0</text>
+            </g>
+            
+            <!-- t 轴刻度线和标签 -->
+            <g id="scene3-t-ticks">
+                <line class="scene3-tick" x1="100" y1="375" x2="100" y2="385"/>
+                <text class="scene3-label" x="100" y="400" text-anchor="middle">0</text>
+                <line class="scene3-tick" x1="200" y1="375" x2="200" y2="385"/>
+                <text class="scene3-label" x="200" y="400" text-anchor="middle">0.2</text>
+                <line class="scene3-tick" x1="300" y1="375" x2="300" y2="385"/>
+                <text class="scene3-label" x="300" y="400" text-anchor="middle">0.4</text>
+                <line class="scene3-tick" x1="400" y1="375" x2="400" y2="385"/>
+                <text class="scene3-label" x="400" y="400" text-anchor="middle">0.6</text>
+                <line class="scene3-tick" x1="500" y1="375" x2="500" y2="385"/>
+                <text class="scene3-label" x="500" y="400" text-anchor="middle">0.8</text>
+            </g>
+            
+            <!-- 轴标签 -->
+            <text id="scene3-label-v-axis" class="scene3-label" x="85" y="60">v(m/s)</text>
+            <text id="scene3-label-t-axis" class="scene3-label" x="660" y="395">t(s)</text>
+            
+            <!-- 面积填充区域（初始隐藏） -->
+            <polygon id="scene3-area-a" class="scene3-area-a" points="100,380 100,140 400,380" opacity="0"/>
+            <polygon id="scene3-area-b" class="scene3-area-b" points="100,380 400,380 400,260" opacity="0"/>
+            <polygon id="scene3-area-rel" class="scene3-area-rel" points="100,140 100,380 400,260" opacity="0"/>
+            
+            <!-- A 的 v-t 图线（初始隐藏） -->
+            <line id="scene3-line-a" class="scene3-line-a" x1="100" y1="140" x2="400" y2="380" opacity="0"/>
+            
+            <!-- B 的 v-t 图线（初始隐藏） -->
+            <line id="scene3-line-b" class="scene3-line-b" x1="100" y1="380" x2="400" y2="260" opacity="0"/>
+            
+            <!-- 交点标记（初始隐藏） -->
+            <circle id="scene3-point-intersect" class="scene3-point" cx="400" cy="260" r="6" opacity="0"/>
+            
+            <!-- 标签（初始隐藏） -->
+            <text id="scene3-label-v0" class="scene3-label" x="110" y="125" opacity="0">v₀=6m/s</text>
+            <text id="scene3-label-t-common" class="scene3-label" x="400" y="415" text-anchor="middle" opacity="0">t=0.6s</text>
+            <text id="scene3-label-v-common" class="scene3-label" x="415" y="250" opacity="0">v_共</text>
+            <text id="scene3-label-sa" class="scene3-label" x="220" y="300" opacity="0">S_A</text>
+            <text id="scene3-label-sb" class="scene3-label" x="280" y="350" opacity="0">S_B</text>
+            <text id="scene3-label-rel" class="scene3-label" x="200" y="200" opacity="0">S_A-S_B=L</text>
+            
+            <!-- 图例框 -->
+            <rect id="scene3-legend-box" class="scene3-legend-box" x="520" y="80" width="120" height="80"/>
+            <text class="scene3-label" x="560" y="100" text-anchor="middle" font-weight="bold">图例</text>
+            <line id="scene3-legend-a" x1="530" y1="115" x2="560" y2="115" stroke="#1565c0" stroke-width="3"/>
+            <text class="scene3-label" x="570" y="120">A</text>
+            <line id="scene3-legend-b" x1="530" y1="135" x2="560" y2="135" stroke="#2e7d32" stroke-width="3"/>
+            <text class="scene3-label" x="570" y="140">B</text>
+            <rect id="scene3-legend-rel" x="530" y="150" width="20" height="15" fill="#c62828" fill-opacity="0.3"/>
+            <text class="scene3-label" x="560" y="162">相对位移</text>
+            
+            <!-- 方程区背景 -->
+            <rect id="scene3-equation-bg" class="scene3-equation-bg" x="80" y="420" width="640" height="60"/>
+            
+            <!-- 方程文本（初始隐藏） -->
+            <text id="scene3-equation" class="scene3-equation-text" x="100" y="440" opacity="0">
+                <tspan x="100" dy="0">对 A：a_A = -μ₁g = -5 m/s²</tspan>
+                <tspan x="100" dy="18">对 B：a_B = (μ₁mg - μ₂·2mg)/m</tspan>
+                <tspan x="100" dy="18">共速时：v₀ + a_A·t = a_B·t</tspan>
+                <tspan x="100" dy="18">相对位移：S_A - S_B = L = 3m</tspan>
+                <tspan x="100" dy="18" font-weight="bold">解得：μ₂ = 0.2</tspan>
+            </text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1/5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现 - v-t 图像分析
+        
+        const currentState = { step: 0 };
+        const totalSteps = 5;
+        
+        // 每步可见元素配置
+        const stepConfig = {
+            0: { // 初始状态：仅坐标系和图例
+                lines: [],
+                areas: [],
+                points: [],
+                labels: [],
+                equation: false
+            },
+            1: { // A 的 v-t 图线
+                lines: ['scene3-line-a'],
+                areas: ['scene3-area-a'],
+                points: [],
+                labels: ['scene3-label-v0', 'scene3-label-sa'],
+                equation: false
+            },
+            2: { // B 的 v-t 图线
+                lines: ['scene3-line-a', 'scene3-line-b'],
+                areas: ['scene3-area-a', 'scene3-area-b'],
+                points: [],
+                labels: ['scene3-label-v0', 'scene3-label-sa', 'scene3-label-sb'],
+                equation: false
+            },
+            3: { // 交点和相对位移
+                lines: ['scene3-line-a', 'scene3-line-b'],
+                areas: ['scene3-area-a', 'scene3-area-b', 'scene3-area-rel'],
+                points: ['scene3-point-intersect'],
+                labels: ['scene3-label-v0', 'scene3-label-sa', 'scene3-label-sb', 'scene3-label-t-common', 'scene3-label-v-common', 'scene3-label-rel'],
+                equation: false
+            },
+            4: { // 完整方程
+                lines: ['scene3-line-a', 'scene3-line-b'],
+                areas: ['scene3-area-a', 'scene3-area-b', 'scene3-area-rel'],
+                points: ['scene3-point-intersect'],
+                labels: ['scene3-label-v0', 'scene3-label-sa', 'scene3-label-sb', 'scene3-label-t-common', 'scene3-label-v-common', 'scene3-label-rel'],
+                equation: true
+            }
+        };
+        
+        // 显示/隐藏元素工具函数
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = '';
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = '';
+            }
+        }
+        
+        // 更新步骤状态
+        function updateStep(step) {
+            currentState.step = step;
+            
+            const config = stepConfig[step];
+            
+            // 更新所有线条
+            ['scene3-line-a', 'scene3-line-b'].forEach(id => {
+                if (config.lines.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+            
+            // 更新所有面积
+            ['scene3-area-a', 'scene3-area-b', 'scene3-area-rel'].forEach(id => {
+                if (config.areas.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+            
+            // 更新所有点
+            ['scene3-point-intersect'].forEach(id => {
+                if (config.points.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+            
+            // 更新所有标签
+            ['scene3-label-v0', 'scene3-label-t-common', 'scene3-label-v-common', 'scene3-label-sa', 'scene3-label-sb', 'scene3-label-rel'].forEach(id => {
+                if (config.labels.includes(id)) {
+                    showElement(id);
+                } else {
+                    hideElement(id);
+                }
+            });
+            
+            // 更新方程
+            if (config.equation) {
+                showElement('scene3-equation');
+            } else {
+                hideElement('scene3-equation');
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = `步骤 ${step + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = (step === 0);
+            document.getElementById('scene3-btn-next').disabled = (step === totalSteps - 1);
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentState.step > 0) {
+                updateStep(currentState.step - 1);
+            }
+        });
+        
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentState.step < totalSteps - 1) {
+                updateStep(currentState.step + 1);
+            }
+        });
+        
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

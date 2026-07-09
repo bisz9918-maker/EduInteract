@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台球反射路径 - 角度计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 20px; right: 20px; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; flex-wrap: wrap; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+        .scene1-btn-prev { background: #9e9e9e; color: #ffffff; }
+        .scene1-btn-prev:disabled { background: #bdbdbd; cursor: not-allowed; }
+        .scene1-btn-next { background: #1565c0; color: #ffffff; }
+        .scene1-btn-next:disabled { background: #64b5f6; cursor: not-allowed; }
+        #scene1-hint-box { background: #e3f2fd; border: 1px solid #1565c0; border-radius: 4px; padding: 6px 12px; font-size: 13px; color: #1565c0; max-width: 400px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="460" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头 -->
+            <defs>
+                <marker id="scene1-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- 台球桌边框 -->
+            <rect id="scene1-table" x="80" y="40" width="640" height="320" fill="none" stroke="#000000" stroke-width="3" />
+
+            <!-- 六个袋口 -->
+            <circle id="scene1-pocket-tl" cx="80" cy="40" r="15" fill="none" stroke="#000000" stroke-width="2" />
+            <circle id="scene1-pocket-tm" cx="400" cy="40" r="15" fill="none" stroke="#000000" stroke-width="2" />
+            <circle id="scene1-pocket-tr" cx="720" cy="40" r="15" fill="none" stroke="#000000" stroke-width="2" />
+            <circle id="scene1-pocket-bl" cx="80" cy="360" r="15" fill="none" stroke="#000000" stroke-width="2" />
+            <circle id="scene1-pocket-bm" cx="400" cy="360" r="15" fill="none" stroke="#000000" stroke-width="2" />
+            <circle id="scene1-pocket-br" cx="720" cy="360" r="15" fill="none" stroke="#000000" stroke-width="2" />
+
+            <!-- 白球 -->
+            <circle id="scene1-white-ball" cx="300" cy="230" r="12" fill="#ffffff" stroke="#000000" stroke-width="2" />
+
+            <!-- 黑球 -->
+            <circle id="scene1-black-ball" cx="550" cy="230" r="12" fill="#000000" />
+
+            <!-- 碰撞点 -->
+            <circle id="scene1-collision-point" cx="450" cy="40" r="3" fill="#000000" />
+
+            <!-- 入射路径 -->
+            <line id="scene1-incident-path" x1="300" y1="230" x2="450" y2="40" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow)" />
+
+            <!-- 反射路径 -->
+            <line id="scene1-reflection-path" x1="450" y1="40" x2="550" y2="230" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow)" />
+
+            <!-- 法线 -->
+            <line id="scene1-normal" x1="450" y1="40" x2="450" y2="200" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+
+            <!-- 法线标签（调整位置到法线右侧更远处，避开边框） -->
+            <text id="scene1-label-normal" x="480" y="150" fill="#888888" font-size="14">法线</text>
+
+            <!-- ∠1 弧线（初始隐藏）- 调整弧线位置避开路径 -->
+            <path id="scene1-angle1-arc" d="M405,55 A40,40 0 0,1 430,10" fill="none" stroke="#c62828" stroke-width="2" style="display: none;" />
+            <text id="scene1-label-angle1" x="415" y="70" fill="#c62828" font-size="14" style="display: none;">∠1</text>
+
+            <!-- ∠2 弧线（初始隐藏）- 调整弧线位置避开路径 -->
+            <path id="scene1-angle2-arc" d="M495,10 A40,40 0 0,1 475,55" fill="none" stroke="#c62828" stroke-width="2" style="display: none;" />
+            <text id="scene1-label-angle2" x="475" y="70" fill="#c62828" font-size="14" style="display: none;">∠2</text>
+
+            <!-- ∠3 弧线 - 调整位置到边框内部，远离边框 -->
+            <path id="scene1-angle3-arc" d="M705,345 A30,30 0 0,0 690,325" fill="none" stroke="#2e7d32" stroke-width="2" />
+            <text id="scene1-label-angle3" x="670" y="335" fill="#2e7d32" font-size="14">∠3=30°</text>
+
+            <!-- 互余关系文字（步骤 3 显示）- 调整位置，远离边框 -->
+            <text id="scene1-text-complement" x="530" y="190" fill="#000000" font-size="14" style="display: none;">∠2 + ∠3 = 90°</text>
+            <text id="scene1-text-calc" x="530" y="215" fill="#000000" font-size="14" style="display: none;">∠2 = 90° - 30° = 60°</text>
+
+            <!-- ∠1 = ∠2 = 60° 文字（步骤 4 显示）- 调整位置，远离法线标签 -->
+            <text id="scene1-text-conclusion" x="415" y="140" fill="#c62828" font-size="16" font-weight="bold" style="display: none;">∠1 = ∠2 = 60°</text>
+
+            <!-- 答案显示框（步骤 4 显示）- 在 SVG 内部上方，远离边缘 -->
+            <rect id="scene1-answer-box" x="250" y="15" width="300" height="28" fill="#fff9c4" stroke="#f57f17" stroke-width="2" style="display: none;" />
+            <text id="scene1-answer-text" x="400" y="34" fill="#f57f17" font-size="15" font-weight="bold" text-anchor="middle" style="display: none;">答案：B. 60°</text>
+        </svg>
+
+        <!-- 控件栏（包含提示框和按钮） -->
+        <div id="scene1-controls">
+            <div id="scene1-hint-box">如图，∠3=30°，白球经上边框反弹后撞入黑球</div>
+            <button id="scene1-btn-prev" class="scene1-btn scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 台球反射路径 - 角度计算
+        // 布局坐标表对照：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 台球桌边框 | (80,40)-(720,360) | 640×320 |
+        // | 白球 | (300,230) | r=12 |
+        // | 黑球 | (550,230) | r=12 |
+        // | 碰撞点 | (450,40) | 上边框 |
+        // | 法线 | (450,40)-(450,200) | 垂直向下 |
+        // | ∠1 标签 | (415,70) | 红色，调整避开路径 |
+        // | ∠2 标签 | (475,70) | 红色，调整避开路径 |
+        // | ∠3 标签 | (670,335) | 绿色，调整到边框内部 |
+
+        const currentStepMax = 4;
+        let currentStep = 0;
+
+        // 工具函数：显示/隐藏元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            const btnPrev = document.getElementById('scene1-btn-prev');
+            const btnNext = document.getElementById('scene1-btn-next');
+            const hintText = document.getElementById('scene1-hint-box');
+            const answerBox = document.getElementById('scene1-answer-box');
+            const answerText = document.getElementById('scene1-answer-text');
+            const textConclusion = document.getElementById('scene1-text-conclusion');
+
+            // 按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            if (currentStep === currentStepMax) {
+                btnNext.textContent = '完成';
+                btnNext.disabled = true;
+            } else {
+                btnNext.textContent = '下一步 ▶';
+                btnNext.disabled = false;
+            }
+
+            // 步骤 0：初始状态
+            if (currentStep === 0) {
+                hintText.textContent = '如图，∠3=30°，白球经上边框反弹后撞入黑球';
+                hide(document.getElementById('scene1-label-angle1'));
+                hide(document.getElementById('scene1-label-angle2'));
+                hide(document.getElementById('scene1-angle1-arc'));
+                hide(document.getElementById('scene1-angle2-arc'));
+                hide(document.getElementById('scene1-text-complement'));
+                hide(document.getElementById('scene1-text-calc'));
+                hide(answerBox);
+                hide(answerText);
+                hide(textConclusion);
+                document.getElementById('scene1-normal').style.strokeWidth = '2';
+                document.getElementById('scene1-normal').style.stroke = '#888888';
+            }
+
+            // 步骤 1：强调法线
+            if (currentStep >= 1) {
+                show(document.getElementById('scene1-label-normal'));
+                document.getElementById('scene1-normal').style.strokeWidth = '3';
+                document.getElementById('scene1-normal').style.stroke = '#666666';
+            } else {
+                hide(document.getElementById('scene1-label-normal'));
+            }
+
+            if (currentStep === 1) {
+                hintText.textContent = '法线垂直于台球桌边框（法线⊥边框）';
+            }
+
+            // 步骤 2：显示∠1 和∠2
+            if (currentStep >= 2) {
+                show(document.getElementById('scene1-label-angle1'));
+                show(document.getElementById('scene1-label-angle2'));
+                show(document.getElementById('scene1-angle1-arc'));
+                show(document.getElementById('scene1-angle2-arc'));
+            }
+
+            if (currentStep === 2) {
+                hintText.textContent = '反射定律：入射角 = 反射角（∠1 = ∠2）';
+            }
+
+            // 步骤 3：显示互余关系和计算
+            if (currentStep >= 3) {
+                show(document.getElementById('scene1-text-complement'));
+                show(document.getElementById('scene1-text-calc'));
+            }
+
+            if (currentStep === 3) {
+                hintText.textContent = '法线⊥边框，故∠2 与∠3 互余：∠2 = 90° - ∠3 = 60°';
+            }
+
+            // 步骤 4：结论
+            if (currentStep >= 4) {
+                show(answerBox);
+                show(answerText);
+                show(textConclusion);
+                document.getElementById('scene1-angle1-arc').style.strokeWidth = '3';
+                document.getElementById('scene1-label-angle1').style.fontWeight = 'bold';
+                document.getElementById('scene1-label-angle1').style.fontSize = '16';
+            }
+
+            if (currentStep === 4) {
+                hintText.textContent = '根据反射定律，∠1 = ∠2 = 60°';
+            }
+        }
+
+        // 事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

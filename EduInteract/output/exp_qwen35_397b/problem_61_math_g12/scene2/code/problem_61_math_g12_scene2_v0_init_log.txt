@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球心角与球面距离计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene2-formula {
+            font-size: 16px;
+            fill: #000000;
+        }
+        .scene2-btn {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+            cursor: pointer;
+        }
+        .scene2-btn:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 球体轮廓 -->
+            <circle id="scene2-sphere" cx="380" cy="200" r="140" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 截面圆（ABC 所在平面）- 虚线椭圆 -->
+            <ellipse id="scene2-section-circle" cx="380" cy="260" rx="120" ry="40" fill="none" stroke="#000000" stroke-width="1.5" stroke-dasharray="5,5"/>
+            
+            <!-- △ABC 三边（绿色） -->
+            <line id="scene2-tri-abc-ab" x1="340" y1="230" x2="290" y2="280" stroke="#2e7d32" stroke-width="2" opacity="0.5"/>
+            <line id="scene2-tri-abc-bc" x1="290" y1="280" x2="470" y2="280" stroke="#2e7d32" stroke-width="2" opacity="0.5"/>
+            <line id="scene2-tri-abc-ac" x1="340" y1="230" x2="470" y2="280" stroke="#2e7d32" stroke-width="2" opacity="0.5"/>
+            
+            <!-- △OBC 三边（蓝色） -->
+            <line id="scene2-tri-obc-ob" x1="380" y1="200" x2="290" y2="280" stroke="#1565c0" stroke-width="2" opacity="0.5"/>
+            <line id="scene2-tri-obc-oc" x1="380" y1="200" x2="470" y2="280" stroke="#1565c0" stroke-width="2" opacity="0.5"/>
+            <line id="scene2-tri-obc-bc" x1="290" y1="280" x2="470" y2="280" stroke="#1565c0" stroke-width="2" opacity="0.5"/>
+            
+            <!-- 大圆弧 BC（红色粗线，初始隐藏） -->
+            <path id="scene2-arc-bc" d="M 290 280 A 140 140 0 0 1 470 280" fill="none" stroke="#c62828" stroke-width="3" opacity="0"/>
+            
+            <!-- ∠BOC 角标记（红色弧线，初始隐藏） -->
+            <path id="scene2-angle-boc" d="M 398 182 A 25 25 0 0 1 405 218" fill="none" stroke="#c62828" stroke-width="1.5" opacity="0"/>
+            
+            <!-- 点 O（球心） -->
+            <circle id="scene2-point-o" cx="380" cy="200" r="4" fill="#000000"/>
+            <text id="scene2-label-o" x="390" y="190" class="scene2-label">O</text>
+            
+            <!-- 点 A -->
+            <circle id="scene2-point-a" cx="340" cy="230" r="3" fill="#000000"/>
+            <text id="scene2-label-a" x="330" y="220" class="scene2-label">A</text>
+            
+            <!-- 点 B -->
+            <circle id="scene2-point-b" cx="290" cy="280" r="3" fill="#000000"/>
+            <text id="scene2-label-b" x="280" y="290" class="scene2-label">B</text>
+            
+            <!-- 点 C -->
+            <circle id="scene2-point-c" cx="470" cy="280" r="3" fill="#000000"/>
+            <text id="scene2-label-c" x="480" y="290" class="scene2-label">C</text>
+            
+            <!-- BC 长度标签（初始隐藏） -->
+            <text id="scene2-label-bc-len" x="380" y="295" class="scene2-label" text-anchor="middle" opacity="0">BC=3</text>
+            
+            <!-- OB 长度标签（初始隐藏） -->
+            <text id="scene2-label-ob-len" x="330" y="245" class="scene2-label" opacity="0">OB=3</text>
+            
+            <!-- OC 长度标签（初始隐藏） -->
+            <text id="scene2-label-oc-len" x="430" y="245" class="scene2-label" opacity="0">OC=3</text>
+            
+            <!-- ∠BOC 角度标签（初始隐藏） -->
+            <text id="scene2-label-angle-boc" x="395" y="215" class="scene2-label" opacity="0">60°=π/3</text>
+            
+            <!-- △OBC 展开图（右侧，初始隐藏） -->
+            <g id="scene2-unfolded-tri" opacity="0">
+                <polygon points="620,180 570,270 670,270" fill="rgba(21,101,192,0.15)" stroke="#1565c0" stroke-width="2"/>
+                <text x="590" y="220" class="scene2-label" text-anchor="end">OB=3</text>
+                <text x="650" y="220" class="scene2-label" text-anchor="start">OC=3</text>
+                <text x="620" y="285" class="scene2-label" text-anchor="middle">BC=3</text>
+                <text x="620" y="165" class="scene2-label" text-anchor="middle" font-weight="bold">△OBC 展开图</text>
+                <text x="620" y="305" class="scene2-label" text-anchor="middle" fill="#c62828">等边三角形</text>
+            </g>
+            
+            <!-- 公式区背景（初始隐藏） -->
+            <rect id="scene2-formula-bg" x="50" y="420" width="700" height="60" fill="#f5f5f5" opacity="0"/>
+            
+            <!-- 公式文本（初始隐藏） -->
+            <text id="scene2-formula-text" x="400" y="445" class="scene2-formula" text-anchor="middle" opacity="0">s = R·θ</text>
+            
+            <!-- 计算过程文本（初始隐藏） -->
+            <text id="scene2-calc-text" x="400" y="465" class="scene2-formula" text-anchor="middle" opacity="0">s = 3·π/3 = π</text>
+            
+            <!-- 推导文字（初始隐藏） -->
+            <text id="scene2-derive-text" x="620" y="100" class="scene2-label" text-anchor="middle" opacity="0">等腰 Rt△ABC → BC=3</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls" class="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator" class="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 球心角与球面距离计算
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 元素引用
+        const elements = {
+            triAbc: ['scene2-tri-abc-ab', 'scene2-tri-abc-bc', 'scene2-tri-abc-ac'],
+            triObc: ['scene2-tri-obc-ob', 'scene2-tri-obc-oc', 'scene2-tri-obc-bc'],
+            labels: {
+                bcLen: 'scene2-label-bc-len',
+                obLen: 'scene2-label-ob-len',
+                ocLen: 'scene2-label-oc-len',
+                angleBoc: 'scene2-label-angle-boc'
+            },
+            arcBc: 'scene2-arc-bc',
+            angleBoc: 'scene2-angle-boc',
+            unfoldedTri: 'scene2-unfolded-tri',
+            formulaBg: 'scene2-formula-bg',
+            formulaText: 'scene2-formula-text',
+            calcText: 'scene2-calc-text',
+            deriveText: 'scene2-derive-text'
+        };
+        
+        // 辅助函数：设置元素透明度
+        function setOpacity(id, opacity, duration = 400) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.transition = `opacity ${duration}ms ease`;
+                el.style.opacity = opacity;
+            }
+        }
+        
+        // 辅助函数：设置线段粗细
+        function setStrokeWidth(ids, width, duration = 400) {
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.transition = `stroke-width ${duration}ms ease, opacity ${duration}ms ease`;
+                    el.style.strokeWidth = width;
+                }
+            });
+        }
+        
+        // 更新步骤显示
+        function updateStepDisplay() {
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 重置所有元素状态
+            elements.triAbc.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.strokeWidth = 2;
+                    el.style.opacity = 0.5;
+                }
+            });
+            elements.triObc.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.strokeWidth = 2;
+                    el.style.opacity = 0.5;
+                }
+            });
+            setOpacity(elements.labels.bcLen, 0);
+            setOpacity(elements.labels.obLen, 0);
+            setOpacity(elements.labels.ocLen, 0);
+            setOpacity(elements.labels.angleBoc, 0);
+            setOpacity(elements.arcBc, 0);
+            setOpacity(elements.angleBoc, 0);
+            setOpacity(elements.unfoldedTri, 0);
+            setOpacity(elements.formulaBg, 0);
+            setOpacity(elements.formulaText, 0);
+            setOpacity(elements.calcText, 0);
+            setOpacity(elements.deriveText, 0);
+            
+            // 根据当前步骤设置状态
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：显示基础图形
+                    break;
+                    
+                case 1:
+                    // 高亮△ABC，显示 BC 长度
+                    setStrokeWidth(elements.triAbc, 3);
+                    setOpacity(elements.labels.bcLen, 1);
+                    setOpacity(elements.deriveText, 1);
+                    break;
+                    
+                case 2:
+                    // 高亮△OBC，显示 OB、OC 长度，显示展开图
+                    setStrokeWidth(elements.triAbc, 2);
+                    elements.triAbc.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.opacity = 0.3;
+                    });
+                    setStrokeWidth(elements.triObc, 3);
+                    setOpacity(elements.triObc, 1);
+                    setOpacity(elements.labels.obLen, 1);
+                    setOpacity(elements.labels.ocLen, 1);
+                    setOpacity(elements.labels.bcLen, 1);
+                    setOpacity(elements.unfoldedTri, 1);
+                    break;
+                    
+                case 3:
+                    // 显示∠BOC 角标记
+                    setStrokeWidth(elements.triAbc, 2);
+                    elements.triAbc.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.opacity = 0.3;
+                    });
+                    setStrokeWidth(elements.triObc, 3);
+                    setOpacity(elements.triObc, 1);
+                    setOpacity(elements.labels.obLen, 1);
+                    setOpacity(elements.labels.ocLen, 1);
+                    setOpacity(elements.labels.bcLen, 1);
+                    setOpacity(elements.unfoldedTri, 1);
+                    setOpacity(elements.angleBoc, 1);
+                    setOpacity(elements.labels.angleBoc, 1);
+                    break;
+                    
+                case 4:
+                    // 显示公式
+                    setStrokeWidth(elements.triAbc, 2);
+                    elements.triAbc.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.opacity = 0.3;
+                    });
+                    setStrokeWidth(elements.triObc, 3);
+                    setOpacity(elements.triObc, 1);
+                    setOpacity(elements.labels.obLen, 1);
+                    setOpacity(elements.labels.ocLen, 1);
+                    setOpacity(elements.labels.bcLen, 1);
+                    setOpacity(elements.unfoldedTri, 1);
+                    setOpacity(elements.angleBoc, 1);
+                    setOpacity(elements.labels.angleBoc, 1);
+                    setOpacity(elements.formulaBg, 1);
+                    setOpacity(elements.formulaText, 1);
+                    setOpacity(elements.calcText, 1);
+                    break;
+                    
+                case 5:
+                    // 显示大圆弧 BC，降低其他元素透明度
+                    setStrokeWidth(elements.triAbc, 2);
+                    elements.triAbc.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.opacity = 0.3;
+                    });
+                    setStrokeWidth(elements.triObc, 2);
+                    elements.triObc.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.opacity = 0.3;
+                    });
+                    setOpacity(elements.labels.obLen, 0.5);
+                    setOpacity(elements.labels.ocLen, 0.5);
+                    setOpacity(elements.labels.bcLen, 0.5);
+                    setOpacity(elements.unfoldedTri, 0.5);
+                    setOpacity(elements.angleBoc, 1);
+                    setOpacity(elements.labels.angleBoc, 1);
+                    setOpacity(elements.formulaBg, 1);
+                    setOpacity(elements.formulaText, 1);
+                    setOpacity(elements.calcText, 1);
+                    setOpacity(elements.arcBc, 1);
+                    break;
+            }
+            
+            updateStepDisplay();
+        }
+        
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateStepDisplay();
+    })();
+    </script>
+</body>
+</html>

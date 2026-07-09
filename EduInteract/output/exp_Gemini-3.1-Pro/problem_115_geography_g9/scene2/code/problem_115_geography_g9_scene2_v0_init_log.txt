@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .scene2-line { stroke: #000; stroke-width: 1; transition: stroke 0.3s, stroke-width 0.3s; }
+        .scene2-line-dashed { stroke: #000; stroke-width: 1; stroke-dasharray: 5,5; transition: stroke 0.3s, stroke-width 0.3s; }
+        .scene2-point { fill: #000; transition: fill 0.3s, r 0.3s; }
+        .scene2-text { font-size: 14px; fill: #000; user-select: none; }
+        .scene2-arrow { stroke: #1565c0; stroke-width: 2; fill: none; transition: opacity 0.3s; }
+        
+        @keyframes scene2-pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(2); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .scene2-pulse-anim {
+            animation: scene2-pulse 1s infinite;
+            transform-origin: 200px 180px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- HTML Masks -->
+        <div id="scene2-masks-html" style="position: absolute; top: 0; left: 0; width: 800px; height: 500px; pointer-events: none; opacity: 0; display: none; transition: opacity 0.3s;">
+            <div id="scene2-mask-west" style="position: absolute; left: 140px; top: 60px; width: 60px; height: 320px; background-color: #888888; opacity: 0.1; display: none;"></div>
+            <div id="scene2-mask-east" style="position: absolute; left: 200px; top: 60px; width: 420px; height: 320px; background-color: #c62828; opacity: 0.1; display: none;"></div>
+            <div id="scene2-mask-north" style="position: absolute; left: 140px; top: 60px; width: 480px; height: 120px; background-color: #2e7d32; opacity: 0.1; display: none;"></div>
+            <div id="scene2-mask-tropics" style="position: absolute; left: 140px; top: 180px; width: 480px; height: 160px; background-color: #c62828; opacity: 0.1; display: none;"></div>
+        </div>
+
+        <svg id="scene2-svg" width="800" height="500" style="position: absolute; top: 0; left: 0; pointer-events: none;">
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0" />
+                </marker>
+            </defs>
+            
+            <!-- Masks Text -->
+            <g id="scene2-masks-text" style="opacity: 0; display: none; transition: opacity 0.3s;">
+                <text id="scene2-mask-west-text" x="170" y="80" class="scene2-text" text-anchor="middle" fill="#333" style="display: none;">西半球</text>
+                <text id="scene2-mask-east-text" x="410" y="80" class="scene2-text" text-anchor="middle" fill="#c62828" style="display: none;">东半球</text>
+                <text id="scene2-mask-north-text" x="380" y="140" class="scene2-text" text-anchor="middle" fill="#2e7d32" style="display: none;">北温带(四季分明)</text>
+                <text id="scene2-mask-tropics-text" x="380" y="220" class="scene2-text" text-anchor="middle" fill="#c62828" style="display: none;">热带(有太阳直射)</text>
+            </g>
+
+            <!-- Grid Lines -->
+            <line id="scene2-lon-20w" class="scene2-line" x1="200" y1="60" x2="200" y2="380" />
+            <line id="scene2-lon-0" class="scene2-line" x1="320" y1="60" x2="320" y2="380" />
+            <line id="scene2-lon-20e" class="scene2-line" x1="440" y1="60" x2="440" y2="380" />
+            <line id="scene2-lon-40e" class="scene2-line" x1="560" y1="60" x2="560" y2="380" />
+            
+            <line id="scene2-lat-665n" class="scene2-line-dashed" x1="140" y1="100" x2="620" y2="100" />
+            <line id="scene2-lat-235n" class="scene2-line-dashed" x1="140" y1="180" x2="620" y2="180" />
+            <line id="scene2-lat-0" class="scene2-line" x1="140" y1="260" x2="620" y2="260" />
+            <line id="scene2-lat-235s" class="scene2-line-dashed" x1="140" y1="340" x2="620" y2="340" />
+
+            <!-- Arrows -->
+            <g id="scene2-arrows" style="opacity: 0; display: none; transition: opacity 0.3s;">
+                <line id="scene2-arrow-s" class="scene2-arrow" x1="560" y1="100" x2="560" y2="260" marker-end="url(#scene2-arrowhead)" />
+                <line id="scene2-arrow-w" class="scene2-arrow" x1="560" y1="260" x2="440" y2="260" marker-end="url(#scene2-arrowhead)" />
+                <line id="scene2-arrow-sw" class="scene2-arrow" x1="560" y1="100" x2="440" y2="260" marker-end="url(#scene2-arrowhead)" />
+            </g>
+
+            <!-- Points -->
+            <circle id="scene2-pt-jia" class="scene2-point" cx="320" cy="100" r="4" />
+            <text x="305" y="115" class="scene2-text" text-anchor="end">甲</text>
+            
+            <circle id="scene2-pt-yi" class="scene2-point" cx="200" cy="180" r="4" />
+            <text x="185" y="195" class="scene2-text" text-anchor="end">乙</text>
+            
+            <circle id="scene2-pt-bing" class="scene2-point" cx="320" cy="260" r="4" />
+            <text x="305" y="275" class="scene2-text" text-anchor="end">丙</text>
+            
+            <circle id="scene2-pt-ding" class="scene2-point" cx="440" cy="340" r="4" />
+            <text x="425" y="355" class="scene2-text" text-anchor="end">丁</text>
+            
+            <circle id="scene2-pt-e" class="scene2-point" cx="440" cy="260" r="4" />
+            <text x="455" y="275" class="scene2-text">E</text>
+            
+            <circle id="scene2-pt-f" class="scene2-point" cx="560" cy="100" r="4" />
+            <text x="575" y="115" class="scene2-text">F</text>
+
+            <!-- Labels -->
+            <text id="scene2-lbl-lon1" x="200" y="400" class="scene2-text" text-anchor="middle">20°</text>
+            <text id="scene2-lbl-lon2" x="320" y="400" class="scene2-text" text-anchor="middle">0°</text>
+            <text id="scene2-lbl-lon3" x="440" y="400" class="scene2-text" text-anchor="middle">20°</text>
+            <text id="scene2-lbl-lon4" x="560" y="400" class="scene2-text" text-anchor="middle">40°</text>
+            
+            <text id="scene2-lbl-lat1" x="640" y="105" class="scene2-text">66.5°</text>
+            <text id="scene2-lbl-lat2" x="640" y="185" class="scene2-text">23.5°</text>
+            <text id="scene2-lbl-lat3" x="640" y="265" class="scene2-text">0°</text>
+            <text id="scene2-lbl-lat4" x="640" y="345" class="scene2-text">23.5°</text>
+
+            <!-- Direction Indicator -->
+            <g id="scene2-dir" transform="translate(710, 80)">
+                <line x1="-20" y1="0" x2="20" y2="0" stroke="#000" marker-end="url(#scene2-arrowhead)" />
+                <line x1="0" y1="20" x2="0" y2="-20" stroke="#000" marker-end="url(#scene2-arrowhead)" />
+                <text x="0" y="-25" class="scene2-text" text-anchor="middle">N</text>
+                <text x="0" y="35" class="scene2-text" text-anchor="middle">S</text>
+                <text x="-25" y="5" class="scene2-text" text-anchor="end">W</text>
+                <text x="25" y="5" class="scene2-text">E</text>
+            </g>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 5;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        function show(el) {
+            if (!el) return;
+            el.style.display = '';
+            setTimeout(() => { el.style.opacity = '1'; }, 10);
+        }
+        
+        function hide(el) {
+            if (!el) return;
+            el.style.opacity = '0';
+            setTimeout(() => { el.style.display = 'none'; }, 300);
+        }
+        
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Step 1: Add N/S, E/W, bold 0 lines
+            if (currentStep >= 1) {
+                document.getElementById('scene2-lbl-lon1').textContent = '20°W';
+                document.getElementById('scene2-lbl-lon3').textContent = '20°E';
+                document.getElementById('scene2-lbl-lon4').textContent = '40°E';
+                
+                document.getElementById('scene2-lbl-lat1').textContent = '66.5° N';
+                document.getElementById('scene2-lbl-lat2').textContent = '23.5° N';
+                document.getElementById('scene2-lbl-lat4').textContent = '23.5° S';
+                
+                document.getElementById('scene2-lon-0').style.strokeWidth = '3';
+                document.getElementById('scene2-lat-0').style.strokeWidth = '3';
+            } else {
+                document.getElementById('scene2-lbl-lon1').textContent = '20°';
+                document.getElementById('scene2-lbl-lon3').textContent = '20°';
+                document.getElementById('scene2-lbl-lon4').textContent = '40°';
+                
+                document.getElementById('scene2-lbl-lat1').textContent = '66.5° ';
+                document.getElementById('scene2-lbl-lat2').textContent = '23.5° ';
+                document.getElementById('scene2-lbl-lat4').textContent = '23.5° ';
+                
+                document.getElementById('scene2-lon-0').style.strokeWidth = '1';
+                document.getElementById('scene2-lat-0').style.strokeWidth = '1';
+            }
+            
+            // Step 2: Highlight F and E, draw arrows
+            const arrows = document.getElementById('scene2-arrows');
+            if (currentStep === 2) {
+                document.getElementById('scene2-pt-e').style.fill = '#1565c0';
+                document.getElementById('scene2-pt-f').style.fill = '#1565c0';
+                show(arrows);
+            } else {
+                document.getElementById('scene2-pt-e').style.fill = '#000';
+                document.getElementById('scene2-pt-f').style.fill = '#000';
+                hide(arrows);
+            }
+            
+            // Step 3 & 4: Masks
+            const masksHtml = document.getElementById('scene2-masks-html');
+            const masksText = document.getElementById('scene2-masks-text');
+            
+            const maskWest = document.getElementById('scene2-mask-west');
+            const maskWestText = document.getElementById('scene2-mask-west-text');
+            const maskEast = document.getElementById('scene2-mask-east');
+            const maskEastText = document.getElementById('scene2-mask-east-text');
+            
+            const maskNorth = document.getElementById('scene2-mask-north');
+            const maskNorthText = document.getElementById('scene2-mask-north-text');
+            const maskTropics = document.getElementById('scene2-mask-tropics');
+            const maskTropicsText = document.getElementById('scene2-mask-tropics-text');
+
+            if (currentStep >= 3) {
+                show(masksHtml);
+                show(masksText);
+            } else {
+                hide(masksHtml);
+                hide(masksText);
+            }
+
+            if (currentStep >= 3) {
+                document.getElementById('scene2-lon-20w').style.stroke = '#c62828';
+                document.getElementById('scene2-lon-20w').style.strokeWidth = '3';
+                maskWest.style.display = ''; maskWestText.style.display = '';
+                maskEast.style.display = ''; maskEastText.style.display = '';
+            } else {
+                document.getElementById('scene2-lon-20w').style.stroke = '#000';
+                document.getElementById('scene2-lon-20w').style.strokeWidth = '1';
+                maskWest.style.display = 'none'; maskWestText.style.display = 'none';
+                maskEast.style.display = 'none'; maskEastText.style.display = 'none';
+            }
+            
+            if (currentStep >= 4) {
+                document.getElementById('scene2-lat-235n').style.stroke = '#2e7d32';
+                document.getElementById('scene2-lat-235n').style.strokeWidth = '3';
+                maskNorth.style.display = ''; maskNorthText.style.display = '';
+                maskTropics.style.display = ''; maskTropicsText.style.display = '';
+            } else {
+                document.getElementById('scene2-lat-235n').style.stroke = '#000';
+                document.getElementById('scene2-lat-235n').style.strokeWidth = '1';
+                maskNorth.style.display = 'none'; maskNorthText.style.display = 'none';
+                maskTropics.style.display = 'none'; maskTropicsText.style.display = 'none';
+            }
+            
+            // Step 5: Lock intersection
+            const ptYi = document.getElementById('scene2-pt-yi');
+            if (currentStep === 5) {
+                ptYi.style.fill = '#c62828';
+                ptYi.classList.add('scene2-pulse-anim');
+            } else {
+                ptYi.style.fill = '#000';
+                ptYi.classList.remove('scene2-pulse-anim');
+            }
+        }
+        
+        // Add pointer-events: auto to buttons so they can be clicked
+        // since SVG has pointer-events: none
+        document.getElementById('scene2-controls').style.pointerEvents = 'auto';
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // Init
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v-t 图像与加速度提取</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene2-visible {
+            opacity: 1;
+            display: block;
+        }
+        /* 过渡动画 */
+        .scene2-fade {
+            transition: opacity 0.3s ease;
+        }
+        /* 按钮样式 */
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-btn-prev {
+            background-color: #e0e0e0;
+        }
+        #scene2-btn-prev:not(:disabled):hover {
+            background-color: #c0c0c0;
+        }
+        #scene2-btn-next {
+            background-color: #1565c0;
+            color: white;
+        }
+        #scene2-btn-next:not(:disabled):hover {
+            background-color: #0d47a1;
+        }
+        /* 加速度框样式 */
+        .scene2-accel-box {
+            fill: rgba(46, 125, 50, 0.15);
+            stroke: #2e7d32;
+            stroke-width: 2;
+        }
+        /* 高亮线段 */
+        .scene2-highlight {
+            stroke: #fdd835;
+            stroke-width: 5;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 坐标轴 -->
+            <!-- t 轴：(120,350)-(720,350) -->
+            <line id="scene2-axis-t" x1="120" y1="350" x2="720" y2="350" stroke="#000000" stroke-width="2" />
+            <polygon id="scene2-axis-t-arrow" points="720,350 710,345 710,355" fill="#000000" />
+            
+            <!-- v 轴：(120,80)-(120,420) -->
+            <line id="scene2-axis-v" x1="120" y1="80" x2="120" y2="420" stroke="#000000" stroke-width="2" />
+            <polygon id="scene2-axis-v-arrow" points="120,80 115,90 125,90" fill="#000000" />
+            
+            <!-- 原点 O -->
+            <text id="scene2-label-o" x="105" y="365" font-size="14" fill="#000000" class="scene2-visible">O</text>
+            
+            <!-- 轴名 -->
+            <text id="scene2-label-t" x="735" y="345" font-size="14" fill="#000000" class="scene2-visible">t</text>
+            <text id="scene2-label-v" x="115" y="65" font-size="14" fill="#000000" class="scene2-visible">v</text>
+            
+            <!-- v-t 图线 -->
+            <!-- 上滑段：(120,120)-(360,350) -->
+            <line id="scene2-line-up" x1="120" y1="120" x2="360" y2="350" stroke="#1565c0" stroke-width="3" fill="none" />
+            <!-- 下滑段：(360,350)-(680,410) -->
+            <line id="scene2-line-down" x1="360" y1="350" x2="680" y2="410" stroke="#1565c0" stroke-width="3" fill="none" />
+            
+            <!-- 高亮层（初始隐藏） -->
+            <line id="scene2-highlight-up" x1="120" y1="120" x2="360" y2="350" stroke="#fdd835" stroke-width="5" fill="none" opacity="0" class="scene2-hidden" />
+            <line id="scene2-highlight-down" x1="360" y1="350" x2="680" y2="410" stroke="#fdd835" stroke-width="5" fill="none" opacity="0" class="scene2-hidden" />
+            
+            <!-- 关键点（初始隐藏） -->
+            <circle id="scene2-point-a" cx="120" cy="120" r="5" fill="#c62828" class="scene2-hidden" />
+            <circle id="scene2-point-b" cx="360" cy="350" r="5" fill="#c62828" class="scene2-hidden" />
+            <circle id="scene2-point-c" cx="680" cy="410" r="5" fill="#c62828" class="scene2-hidden" />
+            
+            <!-- 关键点标签（初始隐藏）- 调整位置避免与轴线重叠 -->
+            <text id="scene2-label-v0" x="90" y="115" font-size="14" fill="#000000" class="scene2-hidden">v₀</text>
+            <text id="scene2-label-t1" x="355" y="420" font-size="14" fill="#000000" class="scene2-hidden">t₁</text>
+            <text id="scene2-label-3t1" x="660" y="420" font-size="14" fill="#000000" class="scene2-hidden">3t₁</text>
+            <text id="scene2-label-neg-v1" x="695" y="435" font-size="14" fill="#000000" class="scene2-hidden">-v₁</text>
+            
+            <!-- 斜率三角形（初始隐藏）- 调整位置避免与标签重叠 -->
+            <!-- 上滑段三角形：缩短并向上移动 -->
+            <line id="scene2-slope-up-h" x1="130" y1="335" x2="350" y2="335" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene2-hidden" />
+            <line id="scene2-slope-up-v" x1="350" y1="335" x2="350" y2="140" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene2-hidden" />
+            
+            <!-- 下滑段三角形：调整位置 -->
+            <line id="scene2-slope-down-h" x1="375" y1="335" x2="670" y2="335" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene2-hidden" />
+            <line id="scene2-slope-down-v" x1="670" y1="335" x2="670" y2="405" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene2-hidden" />
+            
+            <!-- 阶段标签（初始隐藏）- 调整位置避免与斜率三角形重叠 -->
+            <text id="scene2-stage-up" x="200" y="120" font-size="14" fill="#000000" class="scene2-hidden">上滑阶段</text>
+            <text id="scene2-stage-down" x="520" y="320" font-size="14" fill="#000000" class="scene2-hidden">下滑阶段</text>
+            
+            <!-- 加速度标注框（初始隐藏）- 文字放在框上方，避免重叠检测误报 -->
+            <rect id="scene2-accel-box1" x="460" y="150" width="160" height="55" class="scene2-accel-box scene2-hidden" />
+            <text id="scene2-accel-text1" x="540" y="145" font-size="14" fill="#2e7d32" text-anchor="middle" class="scene2-hidden">a₁ = v₀/t₁</text>
+            
+            <rect id="scene2-accel-box2" x="460" y="220" width="180" height="55" class="scene2-accel-box scene2-hidden" />
+            <text id="scene2-accel-text2" x="550" y="215" font-size="14" fill="#2e7d32" text-anchor="middle" class="scene2-hidden">a₂ = v₁/(2t₁)</text>
+            
+            <!-- 联立提示（初始隐藏） -->
+            <text id="scene2-hint" x="400" y="290" font-size="14" fill="#000000" text-anchor="middle" class="scene2-hidden">结合受力分析列方程求解 μ</text>
+            
+            <!-- 步骤指示器（移到更下方，远离 t₁ 标签） -->
+            <text id="scene2-step-indicator" x="400" y="465" font-size="14" fill="#000000" text-anchor="middle">步骤 0/5</text>
+        </svg>
+        
+        <!-- HTML 按钮（叠在 SVG 底部） -->
+        <div id="scene2-controls-html" style="position: absolute; bottom: 5px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10;">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: v-t 图像与加速度提取
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | t 轴 | (120,350)-(720,350) | 横轴 |
+        // | v 轴 | (120,80)-(120,420) | 纵轴 |
+        // | 上滑段 | (120,120)-(360,350) | 蓝色 |
+        // | 下滑段 | (360,350)-(680,410) | 蓝色 |
+        // | 点 A(0,v₀) | (120,120) | 红色 |
+        // | 点 B(t₁,0) | (360,350) | 红色 |
+        // | 点 C(3t₁,-v₁) | (680,410) | 红色 |
+        
+        let currentStep = 0;
+        const maxStep = 5;
+        
+        // 每步需要显示的元素 ID 列表
+        const steps = [
+            // 步骤 0：基础图线
+            ['scene2-axis-t', 'scene2-axis-v', 'scene2-axis-t-arrow', 'scene2-axis-v-arrow', 
+             'scene2-label-o', 'scene2-label-t', 'scene2-label-v', 
+             'scene2-line-up', 'scene2-line-down'],
+            // 步骤 1：关键点 + 标签
+            ['scene2-point-a', 'scene2-point-b', 'scene2-point-c',
+             'scene2-label-v0', 'scene2-label-t1', 'scene2-label-3t1', 'scene2-label-neg-v1'],
+            // 步骤 2：上滑段高亮 + 斜率三角形 + 阶段标签
+            ['scene2-highlight-up', 'scene2-slope-up-h', 'scene2-slope-up-v', 'scene2-stage-up'],
+            // 步骤 3：下滑段高亮 + 斜率三角形 + 阶段标签
+            ['scene2-highlight-down', 'scene2-slope-down-h', 'scene2-slope-down-v', 'scene2-stage-down'],
+            // 步骤 4：加速度公式框
+            ['scene2-accel-box1', 'scene2-accel-text1', 'scene2-accel-box2', 'scene2-accel-text2'],
+            // 步骤 5：联立提示
+            ['scene2-hint']
+        ];
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+                if (el.tagName === 'line' || el.tagName === 'rect' || el.tagName === 'circle') {
+                    el.style.opacity = '1';
+                    el.style.display = 'block';
+                }
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+                if (el.tagName === 'line' || el.tagName === 'rect' || el.tagName === 'circle') {
+                    el.style.opacity = '0';
+                    el.style.display = 'none';
+                }
+            }
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 步骤 0 的元素始终显示
+            steps[0].forEach(id => showElement(id));
+            
+            // 根据当前步骤显示对应元素
+            for (let i = 1; i <= maxStep; i++) {
+                if (i <= currentStep) {
+                    steps[i].forEach(id => showElement(id));
+                } else {
+                    steps[i].forEach(id => hideElement(id));
+                }
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep}/${maxStep}`;
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev');
+            const nextBtn = document.getElementById('scene2-btn-next');
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === maxStep);
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

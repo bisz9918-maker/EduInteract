@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平行板带电粒子运动分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f0f0f0;
+        }
+        #scene1-controls button:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- 箭头标记定义 -->
+                <marker id="scene1-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- 上金属板 (150,70)-(450,88) -->
+            <rect id="scene1-plate-top" x="150" y="70" width="300" height="18" fill="#f5f5f5" stroke="#000000" stroke-width="1.5"/>
+            <!-- 下金属板 (150,162)-(450,180) -->
+            <rect id="scene1-plate-bottom" x="150" y="162" width="300" height="18" fill="#f5f5f5" stroke="#000000" stroke-width="1.5"/>
+
+            <!-- 电场线 -->
+            <line id="scene1-efield1" x1="200" y1="88" x2="200" y2="162" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#scene1-arrow-blue)"/>
+            <line id="scene1-efield2" x1="300" y1="88" x2="300" y2="162" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#scene1-arrow-blue)"/>
+            <line id="scene1-efield3" x1="400" y1="88" x2="400" y2="162" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#scene1-arrow-blue)"/>
+
+            <!-- 入射参考虚线 -->
+            <line id="scene1-incident-line" x1="120" y1="125" x2="450" y2="125" stroke="#888888" stroke-width="1" stroke-dasharray="6,4"/>
+
+            <!-- 磁场区域外框 (450,180)-(700,380) -->
+            <rect id="scene1-mag-region" x="450" y="180" width="250" height="200" fill="#e3f2fd" fill-opacity="0.2" stroke="#000000" stroke-width="1" stroke-dasharray="5,3"/>
+
+            <!-- 磁场边界线（与区域框重合，但单独标注） -->
+            <line id="scene1-boundary-mn" x1="450" y1="180" x2="700" y2="180" stroke="#000000" stroke-width="1" stroke-dasharray="5,3"/>
+            <line id="scene1-boundary-mp" x1="450" y1="180" x2="450" y2="380" stroke="#000000" stroke-width="1" stroke-dasharray="5,3"/>
+            <line id="scene1-boundary-pq" x1="450" y1="380" x2="700" y2="380" stroke="#000000" stroke-width="1" stroke-dasharray="5,3"/>
+            <line id="scene1-boundary-nq" x1="700" y1="180" x2="700" y2="380" stroke="#000000" stroke-width="1" stroke-dasharray="5,3"/>
+
+            <!-- 磁场点阵 -->
+            <g id="scene1-dots"></g>
+
+            <!-- 步骤1：匀速轨迹 (绿色水平实线) -->
+            <line id="scene1-trajectory-line" x1="120" y1="125" x2="450" y2="125" stroke="#2e7d32" stroke-width="2" style="display:none"/>
+
+            <!-- 步骤2：类平抛轨迹 (绿色抛物线) -->
+            <path id="scene1-trajectory-parabola" d="M 120 125 Q 285 220 450 180" stroke="#2e7d32" stroke-width="2" fill="none" style="display:none"/>
+
+            <!-- 步骤1：受力箭头 -->
+            <line id="scene1-force-fe" x1="320" y1="125" x2="320" y2="155" stroke="#1565c0" stroke-width="1.5" marker-end="url(#scene1-arrow-blue)" style="display:none"/>
+            <line id="scene1-force-fb" x1="320" y1="125" x2="320" y2="95" stroke="#c62828" stroke-width="1.5" marker-end="url(#scene1-arrow-red)" style="display:none"/>
+
+            <!-- 步骤2：竖直偏转虚线 -->
+            <line id="scene1-deflection-line" x1="450" y1="125" x2="450" y2="180" stroke="#888888" stroke-width="1" stroke-dasharray="4,3" style="display:none"/>
+
+            <!-- 步骤3：速度箭头 -->
+            <line id="scene1-vel-v0" x1="450" y1="180" x2="502" y2="180" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)" style="display:none"/>
+            <line id="scene1-vel-vy" x1="502" y1="180" x2="502" y2="210" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)" style="display:none"/>
+            <line id="scene1-vel-v" x1="450" y1="180" x2="502" y2="210" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow-black)" style="display:none"/>
+
+            <!-- 步骤3：角度弧 -->
+            <path id="scene1-angle-arc" d="M 470 180 A 20 20 0 0 1 467.32 190" stroke="#1565c0" stroke-width="1.5" fill="none" style="display:none"/>
+
+            <!-- 标签：极板 -->
+            <text id="scene1-label-plus" x="300" y="60" font-size="14" fill="#000000" text-anchor="middle">+</text>
+            <text id="scene1-label-minus" x="300" y="235" font-size="14" fill="#000000" text-anchor="middle">−</text>
+
+            <!-- 标签：电场 -->
+            <text id="scene1-label-E" x="435" y="115" font-size="14" fill="#000000">E</text>
+
+            <!-- 标签：入射速度 -->
+            <text id="scene1-label-v0-incident" x="110" y="118" font-size="14" fill="#000000">v₀</text>
+
+            <!-- 标签：边界点 M（步骤0/1使用） -->
+            <text id="scene1-label-M" x="435" y="192" font-size="14" fill="#000000">M</text>
+            <!-- 标签：边界点 M（步骤2/3使用，避免与抛物线/磁场重叠） -->
+            <text id="scene1-label-M2" x="420" y="120" font-size="14" fill="#000000" style="display:none">M</text>
+
+            <text id="scene1-label-N" x="710" y="175" font-size="14" fill="#000000">N</text>
+            <text id="scene1-label-P" x="435" y="392" font-size="14" fill="#000000">P</text>
+            <text id="scene1-label-Q" x="710" y="392" font-size="14" fill="#000000">Q</text>
+
+            <!-- 标签：磁场宽度 -->
+            <text id="scene1-label-d" x="730" y="280" font-size="14" fill="#000000">d</text>
+
+            <!-- 步骤1标签：B₀ -->
+            <text id="scene1-label-B0" x="440" y="55" font-size="14" fill="#000000" style="display:none">B₀</text>
+
+            <!-- 步骤1标签：受力 -->
+            <text id="scene1-label-FE" x="325" y="160" font-size="14" fill="#000000" style="display:none">F_E</text>
+            <text id="scene1-label-FB" x="340" y="55" font-size="14" fill="#000000" style="display:none">F_B</text>
+
+            <!-- 步骤1公式 -->
+            <text id="scene1-formula1" x="520" y="125" font-size="13" fill="#000000" style="display:none">qE = qv₀B₀</text>
+
+            <!-- 步骤2标签：Δy -->
+            <text id="scene1-label-delta-y" x="460" y="140" font-size="14" fill="#000000" style="display:none">Δy</text>
+
+            <!-- 步骤3标签：速度分量 -->
+            <text id="scene1-label-v0-m" x="500" y="172" font-size="14" fill="#000000" style="display:none">v₀</text>
+            <text id="scene1-label-vy" x="520" y="178" font-size="14" fill="#000000" style="display:none">v_y</text>
+            <text id="scene1-label-v" x="485" y="165" font-size="14" fill="#000000" style="display:none">v</text>
+            <text id="scene1-label-30deg" x="455" y="175" font-size="14" fill="#000000" style="display:none">30°</text>
+
+            <!-- 步骤3公式 -->
+            <text id="scene1-formula2" x="520" y="128" font-size="13" fill="#000000" style="display:none">tan30° = v_y/v₀</text>
+            <text id="scene1-formula3" x="520" y="162" font-size="13" fill="#000000" style="display:none">v = v₀/cos30°</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" onclick="scene1_prev()">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next" onclick="scene1_next()">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let scene1_step = 0;
+
+        // 生成磁场点阵
+        const dotsGroup = document.getElementById('scene1-dots');
+        for (let x = 465; x <= 685; x += 30) {
+            for (let y = 195; y <= 375; y += 30) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', 2);
+                circle.setAttribute('fill', '#1565c0');
+                circle.setAttribute('stroke', '#1565c0');
+                dotsGroup.appendChild(circle);
+            }
+        }
+
+        // 元素引用
+        const efield1 = document.getElementById('scene1-efield1');
+        const efield2 = document.getElementById('scene1-efield2');
+        const efield3 = document.getElementById('scene1-efield3');
+
+        const trajLine = document.getElementById('scene1-trajectory-line');
+        const trajParabola = document.getElementById('scene1-trajectory-parabola');
+        const forceFe = document.getElementById('scene1-force-fe');
+        const forceFb = document.getElementById('scene1-force-fb');
+        const deflectionLine = document.getElementById('scene1-deflection-line');
+        const velV0 = document.getElementById('scene1-vel-v0');
+        const velVy = document.getElementById('scene1-vel-vy');
+        const velV = document.getElementById('scene1-vel-v');
+        const angleArc = document.getElementById('scene1-angle-arc');
+
+        const labelB0 = document.getElementById('scene1-label-B0');
+        const labelFe = document.getElementById('scene1-label-FE');
+        const labelFb = document.getElementById('scene1-label-FB');
+        const formula1 = document.getElementById('scene1-formula1');
+        const labelDeltaY = document.getElementById('scene1-label-delta-y');
+        const labelV0m = document.getElementById('scene1-label-v0-m');
+        const labelVy = document.getElementById('scene1-label-vy');
+        const labelV = document.getElementById('scene1-label-v');
+        const label30deg = document.getElementById('scene1-label-30deg');
+        const formula2 = document.getElementById('scene1-formula2');
+        const formula3 = document.getElementById('scene1-formula3');
+        const labelM = document.getElementById('scene1-label-M');
+        const labelM2 = document.getElementById('scene1-label-M2');
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        function setDisplay(el, val) {
+            if (el) el.style.display = val;
+        }
+
+        function scene1_render() {
+            // 更新指示器
+            stepIndicator.textContent = '步骤 ' + (scene1_step + 1) + '/4';
+            btnPrev.disabled = (scene1_step === 0);
+            btnNext.disabled = (scene1_step === 3);
+
+            // 重置所有动态元素
+            setDisplay(trajLine, 'none');
+            setDisplay(trajParabola, 'none');
+            setDisplay(forceFe, 'none');
+            setDisplay(forceFb, 'none');
+            setDisplay(deflectionLine, 'none');
+            setDisplay(velV0, 'none');
+            setDisplay(velVy, 'none');
+            setDisplay(velV, 'none');
+            setDisplay(angleArc, 'none');
+            setDisplay(labelB0, 'none');
+            setDisplay(labelFe, 'none');
+            setDisplay(labelFb, 'none');
+            setDisplay(formula1, 'none');
+            setDisplay(labelDeltaY, 'none');
+            setDisplay(labelV0m, 'none');
+            setDisplay(labelVy, 'none');
+            setDisplay(labelV, 'none');
+            setDisplay(label30deg, 'none');
+            setDisplay(formula2, 'none');
+            setDisplay(formula3, 'none');
+            setDisplay(labelM2, 'none');
+
+            // 默认显示原始 M 标签
+            setDisplay(labelM, 'block');
+
+            // 电场线默认宽度
+            efield1.setAttribute('stroke-width', '1');
+            efield2.setAttribute('stroke-width', '1');
+            efield3.setAttribute('stroke-width', '1');
+
+            if (scene1_step === 0) {
+                // 步骤0：装置总览，只显示基础元素
+            } else if (scene1_step === 1) {
+                // 步骤1：匀速直线运动
+                setDisplay(trajLine, 'block');
+                setDisplay(labelB0, 'block');
+                setDisplay(forceFe, 'block');
+                setDisplay(forceFb, 'block');
+                setDisplay(labelFe, 'block');
+                setDisplay(labelFb, 'block');
+                setDisplay(formula1, 'block');
+                efield1.setAttribute('stroke-width', '2');
+                efield2.setAttribute('stroke-width', '2');
+                efield3.setAttribute('stroke-width', '2');
+            } else if (scene1_step === 2) {
+                // 步骤2：类平抛运动
+                setDisplay(trajParabola, 'block');
+                setDisplay(deflectionLine, 'block');
+                setDisplay(labelDeltaY, 'block');
+                // 步骤2/3 使用 M2 标签避免与抛物线重叠
+                setDisplay(labelM, 'none');
+                setDisplay(labelM2, 'block');
+            } else if (scene1_step === 3) {
+                // 步骤3：速度分解
+                setDisplay(trajParabola, 'block');
+                setDisplay(deflectionLine, 'block');
+                setDisplay(labelDeltaY, 'block');
+                setDisplay(velV0, 'block');
+                setDisplay(velVy, 'block');
+                setDisplay(velV, 'block');
+                setDisplay(angleArc, 'block');
+                setDisplay(labelV0m, 'block');
+                setDisplay(labelVy, 'block');
+                setDisplay(labelV, 'block');
+                setDisplay(label30deg, 'block');
+                setDisplay(formula2, 'block');
+                setDisplay(formula3, 'block');
+                // 步骤2/3 使用 M2 标签
+                setDisplay(labelM, 'none');
+                setDisplay(labelM2, 'block');
+            }
+        }
+
+        window.scene1_prev = function() {
+            if (scene1_step > 0) {
+                scene1_step--;
+                scene1_render();
+            }
+        };
+
+        window.scene1_next = function() {
+            if (scene1_step < 3) {
+                scene1_step++;
+                scene1_render();
+            }
+        };
+
+        // 初始渲染
+        scene1_render();
+    })();
+    </script>
+</body>
+</html>

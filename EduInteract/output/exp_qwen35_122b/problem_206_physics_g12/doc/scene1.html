@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匀强电场中两球多次碰撞过程</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-prev-btn, #scene1-next-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #1565c0;
+            border-radius: 4px;
+            background: #ffffff;
+            color: #1565c0;
+            transition: all 0.2s;
+        }
+        #scene1-prev-btn:hover, #scene1-next-btn:hover {
+            background: #e3f2fd;
+        }
+        #scene1-prev-btn:disabled, #scene1-next-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene1-element { transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; }
+        .scene1-highlight { filter: drop-shadow(0 0 4px currentColor); }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 电场线 1：上边界 -->
+            <line id="scene1-field-line-1" x1="100" y1="80" x2="700" y2="80" stroke="#000000" stroke-width="2" class="scene1-element"/>
+            <polygon id="scene1-field-arrow-1" points="690,75 700,80 690,85" fill="#000000" class="scene1-element"/>
+            <text id="scene1-label-E" x="710" y="75" font-size="16" fill="#000000" class="scene1-element">E</text>
+
+            <!-- 电场线 2：下边界 -->
+            <line id="scene1-field-line-2" x1="100" y1="420" x2="700" y2="420" stroke="#000000" stroke-width="2" class="scene1-element"/>
+            <polygon id="scene1-field-arrow-2" points="690,415 700,420 690,425" fill="#000000" class="scene1-element"/>
+
+            <!-- 运动轨迹线：水平虚线 -->
+            <line id="scene1-trajectory" x1="100" y1="250" x2="700" y2="250" stroke="#666666" stroke-width="1" stroke-dasharray="5,5" class="scene1-element"/>
+
+            <!-- 小球 A（初始位置 150,250） -->
+            <circle id="scene1-ball-a" cx="150" cy="250" r="15" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2" class="scene1-element"/>
+            <!-- 小球 B（初始位置 450,250） -->
+            <circle id="scene1-ball-b" cx="450" cy="250" r="15" fill="#c62828" fill-opacity="0.2" stroke="#c62828" stroke-width="2" class="scene1-element"/>
+
+            <!-- 标签 A -->
+            <text id="scene1-label-a" x="135" y="285" font-size="14" fill="#1565c0" class="scene1-element">A</text>
+            <!-- 标签 B -->
+            <text id="scene1-label-b" x="435" y="285" font-size="14" fill="#c62828" class="scene1-element">B</text>
+
+            <!-- 标签 m(A) -->
+            <text id="scene1-label-m-a" x="130" y="235" font-size="14" fill="#000000" class="scene1-element">m</text>
+            <!-- 标签 m(B) -->
+            <text id="scene1-label-m-b" x="430" y="235" font-size="14" fill="#000000" class="scene1-element">m</text>
+
+            <!-- 标签 +q -->
+            <text id="scene1-label-q" x="120" y="215" font-size="14" fill="#1565c0" class="scene1-element">+q</text>
+            <!-- 标签 不带电 -->
+            <text id="scene1-label-neutral" x="410" y="215" font-size="14" fill="#000000" class="scene1-element">不带电</text>
+
+            <!-- 距离标注 L：虚线 + 双向箭头 -->
+            <line id="scene1-l-line" x1="150" y1="270" x2="450" y2="270" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" class="scene1-element"/>
+            <line id="scene1-l-arrow-left" x1="150" y1="265" x2="150" y2="275" stroke="#000000" stroke-width="1" class="scene1-element"/>
+            <line id="scene1-l-arrow-right" x1="450" y1="265" x2="450" y2="275" stroke="#000000" stroke-width="1" class="scene1-element"/>
+            <polygon id="scene1-l-arrow-head-left" points="145,268 150,270 145,272" fill="#000000" class="scene1-element"/>
+            <polygon id="scene1-l-arrow-head-right" points="445,268 450,270 445,272" fill="#000000" class="scene1-element"/>
+            <!-- 标签 L -->
+            <text id="scene1-label-l" x="300" y="285" font-size="14" fill="#000000" text-anchor="middle" class="scene1-element">L</text>
+
+            <!-- 步骤 1：A 球速度矢量 v₁（蓝色箭头） -->
+            <line id="scene1-v1-arrow-a" x1="150" y1="250" x2="280" y2="250" stroke="#1565c0" stroke-width="2" opacity="0" class="scene1-element"/>
+            <polygon id="scene1-v1-arrowhead-a" points="270,245 280,250 270,255" fill="#1565c0" opacity="0" class="scene1-element"/>
+            <text id="scene1-label-v1" x="285" y="245" font-size="14" fill="#1565c0" opacity="0" class="scene1-element">v₁</text>
+
+            <!-- 步骤 1：位移 S₁标注（绿色线段 + 箭头） - 调整位置到 y=320 避免与 L 标签拥挤 -->
+            <line id="scene1-s1-line" x1="150" y1="320" x2="450" y2="320" stroke="#2e7d32" stroke-width="2" opacity="0" class="scene1-element"/>
+            <polygon id="scene1-s1-arrowhead" points="440,315 450,320 440,325" fill="#2e7d32" opacity="0" class="scene1-element"/>
+            <text id="scene1-label-s1" x="300" y="335" font-size="14" fill="#2e7d32" text-anchor="middle" opacity="0" class="scene1-element">S₁</text>
+
+            <!-- 步骤 2：碰撞后 A 静止（灰色） -->
+            <circle id="scene1-ball-a-stopped" cx="450" cy="250" r="15" fill="#9e9e9e" fill-opacity="0.3" stroke="#9e9e9e" stroke-width="2" opacity="0" class="scene1-element"/>
+
+            <!-- 步骤 2：B 球速度矢量 v₁（红色箭头） -->
+            <line id="scene1-v1-arrow-b" x1="450" y1="250" x2="580" y2="250" stroke="#c62828" stroke-width="2" opacity="0" class="scene1-element"/>
+            <polygon id="scene1-v1-arrowhead-b" points="570,245 580,250 570,255" fill="#c62828" opacity="0" class="scene1-element"/>
+
+            <!-- 步骤 3：A 再次加速位移线（虚线） -->
+            <line id="scene1-a-accel-line" x1="450" y1="270" x2="650" y2="270" stroke="#1565c0" stroke-width="1" stroke-dasharray="3,3" opacity="0" class="scene1-element"/>
+
+            <!-- 步骤 3-4：第二次碰撞点 -->
+            <circle id="scene1-collision-2" cx="650" cy="250" r="15" fill="#ff9800" fill-opacity="0.3" stroke="#ff9800" stroke-width="2" opacity="0" class="scene1-element"/>
+
+            <!-- 步骤 5：规律总结 - 调整垂直间距到 20px -->
+            <text id="scene1-formula-title" x="200" y="380" font-size="14" fill="#000000" text-anchor="middle" opacity="0" class="scene1-element">第 n 次碰撞规律</text>
+            <text id="scene1-formula-eq" x="200" y="405" font-size="20" fill="#1565c0" text-anchor="middle" font-weight="bold" opacity="0" class="scene1-element">Sₙ = n²L</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn">◀ 上一步</button>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 匀强电场中两球多次碰撞过程
+        // 布局坐标表对照：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 电场线 1 | (100,80)-(700,80) | 上边界 |
+        // | 电场线 2 | (100,420)-(700,420) | 下边界 |
+        // | 运动轨迹线 | (100,250)-(700,250) | 水平中心虚线 |
+        // | 小球 A | (150,250) 初始 | 半径 15 |
+        // | 小球 B | (450,250) 初始 | 半径 15 |
+        // | 标签 A | (135,285) | 下方 |
+        // | 标签 B | (435,285) | 下方 |
+        // | 标签 m(A) | (130,235) | 左上方 |
+        // | 标签 m(B) | (430,235) | 左上方 |
+        // | 标签 +q | (120,215) | 左上方 |
+        // | 标签 不带电 | (410,215) | 左上方 |
+        // | 距离 L | (300,285) | 下方 |
+        // | 速度 v₁ | (285,245) | 上方 |
+        // | 位移 S₁ | (300,335) | 下方 - 调整位置避免拥挤 |
+        // | 规律公式 | (200,380)/(200,405) | 步骤 5 - 调整垂直间距到 20px |
+
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+
+        // 步骤状态定义
+        const stepStates = [
+            // 步骤 0：初始状态
+            {
+                name: "初始状态",
+                show: [
+                    'scene1-field-line-1', 'scene1-field-arrow-1', 'scene1-label-E',
+                    'scene1-field-line-2', 'scene1-field-arrow-2',
+                    'scene1-trajectory',
+                    'scene1-ball-a', 'scene1-ball-b',
+                    'scene1-label-a', 'scene1-label-b',
+                    'scene1-label-m-a', 'scene1-label-m-b',
+                    'scene1-label-q', 'scene1-label-neutral',
+                    'scene1-l-line', 'scene1-l-arrow-left', 'scene1-l-arrow-right',
+                    'scene1-l-arrow-head-left', 'scene1-l-arrow-head-right',
+                    'scene1-label-l'
+                ],
+                hide: [
+                    'scene1-v1-arrow-a', 'scene1-v1-arrowhead-a', 'scene1-label-v1',
+                    'scene1-s1-line', 'scene1-s1-arrowhead', 'scene1-label-s1',
+                    'scene1-ball-a-stopped', 'scene1-v1-arrow-b', 'scene1-v1-arrowhead-b',
+                    'scene1-a-accel-line', 'scene1-collision-2',
+                    'scene1-formula-title', 'scene1-formula-eq'
+                ]
+            },
+            // 步骤 1：第一次碰撞前
+            {
+                name: "第一次碰撞前",
+                show: [
+                    'scene1-field-line-1', 'scene1-field-arrow-1', 'scene1-label-E',
+                    'scene1-field-line-2', 'scene1-field-arrow-2',
+                    'scene1-trajectory',
+                    'scene1-ball-a', 'scene1-ball-b',
+                    'scene1-label-a', 'scene1-label-b',
+                    'scene1-label-m-a', 'scene1-label-m-b',
+                    'scene1-label-q', 'scene1-label-neutral',
+                    'scene1-l-line', 'scene1-l-arrow-left', 'scene1-l-arrow-right',
+                    'scene1-l-arrow-head-left', 'scene1-l-arrow-head-right',
+                    'scene1-label-l',
+                    'scene1-v1-arrow-a', 'scene1-v1-arrowhead-a', 'scene1-label-v1',
+                    'scene1-s1-line', 'scene1-s1-arrowhead', 'scene1-label-s1'
+                ],
+                hide: [
+                    'scene1-ball-a-stopped', 'scene1-v1-arrow-b', 'scene1-v1-arrowhead-b',
+                    'scene1-a-accel-line', 'scene1-collision-2',
+                    'scene1-formula-title', 'scene1-formula-eq'
+                ]
+            },
+            // 步骤 2：第一次碰撞后
+            {
+                name: "第一次碰撞后",
+                show: [
+                    'scene1-field-line-1', 'scene1-field-arrow-1', 'scene1-label-E',
+                    'scene1-field-line-2', 'scene1-field-arrow-2',
+                    'scene1-trajectory',
+                    'scene1-ball-a', 'scene1-ball-b', 'scene1-ball-a-stopped',
+                    'scene1-label-a', 'scene1-label-b',
+                    'scene1-label-m-a', 'scene1-label-m-b',
+                    'scene1-label-q', 'scene1-label-neutral',
+                    'scene1-l-line', 'scene1-l-arrow-left', 'scene1-l-arrow-right',
+                    'scene1-l-arrow-head-left', 'scene1-l-arrow-head-right',
+                    'scene1-label-l',
+                    'scene1-v1-arrow-b', 'scene1-v1-arrowhead-b'
+                ],
+                hide: [
+                    'scene1-v1-arrow-a', 'scene1-v1-arrowhead-a', 'scene1-label-v1',
+                    'scene1-s1-line', 'scene1-s1-arrowhead', 'scene1-label-s1',
+                    'scene1-a-accel-line', 'scene1-collision-2',
+                    'scene1-formula-title', 'scene1-formula-eq'
+                ]
+            },
+            // 步骤 3：第二次碰撞前
+            {
+                name: "第二次碰撞前",
+                show: [
+                    'scene1-field-line-1', 'scene1-field-arrow-1', 'scene1-label-E',
+                    'scene1-field-line-2', 'scene1-field-arrow-2',
+                    'scene1-trajectory',
+                    'scene1-ball-a', 'scene1-ball-b', 'scene1-ball-a-stopped',
+                    'scene1-label-a', 'scene1-label-b',
+                    'scene1-label-m-a', 'scene1-label-m-b',
+                    'scene1-label-q', 'scene1-label-neutral',
+                    'scene1-l-line', 'scene1-l-arrow-left', 'scene1-l-arrow-right',
+                    'scene1-l-arrow-head-left', 'scene1-l-arrow-head-right',
+                    'scene1-label-l',
+                    'scene1-v1-arrow-b', 'scene1-v1-arrowhead-b',
+                    'scene1-a-accel-line'
+                ],
+                hide: [
+                    'scene1-v1-arrow-a', 'scene1-v1-arrowhead-a', 'scene1-label-v1',
+                    'scene1-s1-line', 'scene1-s1-arrowhead', 'scene1-label-s1',
+                    'scene1-collision-2',
+                    'scene1-formula-title', 'scene1-formula-eq'
+                ]
+            },
+            // 步骤 4：第二次碰撞后
+            {
+                name: "第二次碰撞后",
+                show: [
+                    'scene1-field-line-1', 'scene1-field-arrow-1', 'scene1-label-E',
+                    'scene1-field-line-2', 'scene1-field-arrow-2',
+                    'scene1-trajectory',
+                    'scene1-ball-a', 'scene1-ball-b', 'scene1-ball-a-stopped', 'scene1-collision-2',
+                    'scene1-label-a', 'scene1-label-b',
+                    'scene1-label-m-a', 'scene1-label-m-b',
+                    'scene1-label-q', 'scene1-label-neutral',
+                    'scene1-l-line', 'scene1-l-arrow-left', 'scene1-l-arrow-right',
+                    'scene1-l-arrow-head-left', 'scene1-l-arrow-head-right',
+                    'scene1-label-l',
+                    'scene1-v1-arrow-b', 'scene1-v1-arrowhead-b',
+                    'scene1-a-accel-line'
+                ],
+                hide: [
+                    'scene1-v1-arrow-a', 'scene1-v1-arrowhead-a', 'scene1-label-v1',
+                    'scene1-s1-line', 'scene1-s1-arrowhead', 'scene1-label-s1',
+                    'scene1-formula-title', 'scene1-formula-eq'
+                ]
+            },
+            // 步骤 5：规律总结
+            {
+                name: "规律总结",
+                show: [
+                    'scene1-field-line-1', 'scene1-field-arrow-1', 'scene1-label-E',
+                    'scene1-field-line-2', 'scene1-field-arrow-2',
+                    'scene1-trajectory',
+                    'scene1-ball-a', 'scene1-ball-b', 'scene1-ball-a-stopped', 'scene1-collision-2',
+                    'scene1-label-a', 'scene1-label-b',
+                    'scene1-label-m-a', 'scene1-label-m-b',
+                    'scene1-label-q', 'scene1-label-neutral',
+                    'scene1-l-line', 'scene1-l-arrow-left', 'scene1-l-arrow-right',
+                    'scene1-l-arrow-head-left', 'scene1-l-arrow-head-right',
+                    'scene1-label-l',
+                    'scene1-v1-arrow-b', 'scene1-v1-arrowhead-b',
+                    'scene1-a-accel-line',
+                    'scene1-formula-title', 'scene1-formula-eq'
+                ],
+                hide: [
+                    'scene1-v1-arrow-a', 'scene1-v1-arrowhead-a', 'scene1-label-v1',
+                    'scene1-s1-line', 'scene1-s1-arrowhead', 'scene1-label-s1'
+                ]
+            }
+        ];
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+            }
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            const state = stepStates[currentStep];
+
+            // 先隐藏所有元素
+            const allElements = document.querySelectorAll('.scene1-element');
+            allElements.forEach(el => {
+                el.style.opacity = '0';
+            });
+
+            // 显示当前步骤需要的元素
+            state.show.forEach(id => showElement(id));
+
+            // 更新按钮状态
+            document.getElementById('scene1-prev-btn').disabled = (currentStep === 0);
+            document.getElementById('scene1-next-btn').disabled = (currentStep === TOTAL_STEPS - 1);
+        }
+
+        // 下一步
+        function nextStep() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                renderStep();
+            }
+        }
+
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        }
+
+        // 初始化
+        function init() {
+            document.getElementById('scene1-prev-btn').addEventListener('click', prevStep);
+            document.getElementById('scene1-next-btn').addEventListener('click', nextStep);
+            renderStep();
+        }
+
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图形 C 的周长计算与凹槽分析</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-btn {
+            position: absolute;
+            bottom: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #1565c0;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .scene3-btn:hover {
+            background: #0d47a1;
+        }
+        .scene3-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene3-btn-prev {
+            left: 320px;
+        }
+        #scene3-btn-next {
+            left: 420px;
+        }
+        #scene3-step-indicator {
+            position: absolute;
+            bottom: 15px;
+            left: 500px;
+            font-size: 14px;
+            color: #666;
+        }
+        /* 元素显隐控制 */
+        .scene3-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene3-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* SVG 元素样式 */
+        .scene3-graph-c {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        .scene3-top-segment {
+            stroke: #000000;
+            stroke-width: 2;
+            transition: stroke 0.5s ease-in-out, stroke-width 0.5s ease-in-out;
+        }
+        .scene3-top-segment.highlight {
+            stroke: #1565c0;
+            stroke-width: 3;
+        }
+        .scene3-groove-side {
+            stroke: #000000;
+            stroke-width: 2;
+            transition: stroke 0.5s ease-in-out, stroke-width 0.5s ease-in-out;
+        }
+        .scene3-groove-side.highlight {
+            stroke: #c62828;
+            stroke-width: 3;
+        }
+        .scene3-equiv-rect {
+            fill: none;
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 5,5;
+        }
+        .scene3-label {
+            font-size: 16px;
+            fill: #000000;
+        }
+        .scene3-formula {
+            font-size: 14px;
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 等效长方形轮廓（步骤 1 出现） -->
+            <rect id="scene3-equiv-rect" class="scene3-equiv-rect scene3-hidden" x="150" y="150" width="400" height="150"/>
+            
+            <!-- 图形 C 原始轮廓 -->
+            <!-- 路径：从 (150,180) 开始，到 (200,180)，下凹到 (200,210)，右移到 (500,210)，上移到 (500,180)，右移到 (550,180)，下到 (550,300)，左到 (150,300)，闭合 -->
+            <path id="scene3-graph-c" class="scene3-graph-c" d="M 150 180 L 200 180 L 200 210 L 500 210 L 500 180 L 550 180 L 550 300 L 150 300 Z"/>
+            
+            <!-- 顶部可平移线段（步骤 1 高亮） -->
+            <line id="scene3-top-segment" class="scene3-top-segment" x1="200" y1="180" x2="500" y2="180"/>
+            
+            <!-- 凹槽左竖边（步骤 2 高亮） -->
+            <line id="scene3-groove-left" class="scene3-groove-side" x1="200" y1="180" x2="200" y2="210"/>
+            
+            <!-- 凹槽右竖边（步骤 2 高亮） -->
+            <line id="scene3-groove-right" class="scene3-groove-side" x1="500" y1="180" x2="500" y2="210"/>
+            
+            <!-- 凹槽深度箭头 -->
+            <line id="scene3-h-arrow" x1="515" y1="180" x2="515" y2="210" stroke="#000000" stroke-width="1"/>
+            <polygon points="515,175 512,185 518,185" fill="#000000"/>
+            <polygon points="515,215 512,205 518,205" fill="#000000"/>
+            
+            <!-- 标注 -->
+            <text id="scene3-label-10" class="scene3-label" x="350" y="320" text-anchor="middle">10</text>
+            <text id="scene3-label-6" class="scene3-label" x="565" y="240" text-anchor="start">6</text>
+            <text id="scene3-label-h" class="scene3-label" x="520" y="195" text-anchor="start">h</text>
+            
+            <!-- 公式区 -->
+            <text id="scene3-formula-initial" class="scene3-formula" x="620" y="200">图形 C 周长 = ?</text>
+            <text id="scene3-formula-step1" class="scene3-formula scene3-hidden" x="620" y="200">平移后等效长方形周长</text>
+            <text id="scene3-formula-step1-result" class="scene3-formula scene3-hidden" x="620" y="220">= (10+6)×2 = 32</text>
+            <text id="scene3-formula-step2" class="scene3-formula scene3-hidden" x="620" y="250">凹槽额外边长 = 2×h</text>
+            <text id="scene3-formula-step3" class="scene3-formula scene3-hidden" x="620" y="280">周长 = 32 + 2h &gt; 32</text>
+            <text id="scene3-conclusion" class="scene3-formula scene3-hidden" x="620" y="310" style="font-weight: bold; fill: #c62828;">图形 C 周长最长</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <button id="scene3-btn-prev" class="scene3-btn" disabled>◀ 上一步</button>
+        <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        <div id="scene3-step-indicator">步骤 1/4</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现：图形 C 的周长计算与凹槽分析
+        
+        // 状态变量
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepIndicator = document.getElementById('scene3-step-indicator');
+        
+        // 图形元素
+        const equivRect = document.getElementById('scene3-equiv-rect');
+        const topSegment = document.getElementById('scene3-top-segment');
+        const grooveLeft = document.getElementById('scene3-groove-left');
+        const grooveRight = document.getElementById('scene3-groove-right');
+        
+        // 公式元素
+        const formulaInitial = document.getElementById('scene3-formula-initial');
+        const formulaStep1 = document.getElementById('scene3-formula-step1');
+        const formulaStep1Result = document.getElementById('scene3-formula-step1-result');
+        const formulaStep2 = document.getElementById('scene3-formula-step2');
+        const formulaStep3 = document.getElementById('scene3-formula-step3');
+        const conclusion = document.getElementById('scene3-conclusion');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.classList.remove('scene3-hidden');
+            el.classList.add('scene3-visible');
+            if (el.tagName === 'text' || el.tagName === 'rect' || el.tagName === 'line' || el.tagName === 'path') {
+                el.style.opacity = '1';
+            } else {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.classList.remove('scene3-visible');
+            el.classList.add('scene3-hidden');
+            if (el.tagName === 'text' || el.tagName === 'rect' || el.tagName === 'line' || el.tagName === 'path') {
+                el.style.opacity = '0';
+            } else {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新状态显示
+        function updateState() {
+            // 重置所有高亮
+            topSegment.classList.remove('highlight');
+            grooveLeft.classList.remove('highlight');
+            grooveRight.classList.remove('highlight');
+            
+            // 隐藏所有公式
+            hide(formulaInitial);
+            hide(formulaStep1);
+            hide(formulaStep1Result);
+            hide(formulaStep2);
+            hide(formulaStep3);
+            hide(conclusion);
+            
+            // 根据状态显示对应元素
+            switch (currentState) {
+                case 0:
+                    // 初始状态：只显示原始图形
+                    hide(equivRect);
+                    show(formulaInitial);
+                    break;
+                    
+                case 1:
+                    // 步骤 1：显示等效长方形，高亮顶部线段
+                    show(equivRect);
+                    topSegment.classList.add('highlight');
+                    show(formulaStep1);
+                    show(formulaStep1Result);
+                    break;
+                    
+                case 2:
+                    // 步骤 2：高亮凹槽竖边
+                    show(equivRect);
+                    topSegment.classList.add('highlight');
+                    grooveLeft.classList.add('highlight');
+                    grooveRight.classList.add('highlight');
+                    show(formulaStep1);
+                    show(formulaStep1Result);
+                    show(formulaStep2);
+                    break;
+                    
+                case 3:
+                    // 步骤 3：显示完整公式和结论
+                    show(equivRect);
+                    topSegment.classList.add('highlight');
+                    grooveLeft.classList.add('highlight');
+                    grooveRight.classList.add('highlight');
+                    show(formulaStep1);
+                    show(formulaStep1Result);
+                    show(formulaStep2);
+                    show(formulaStep3);
+                    show(conclusion);
+                    break;
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps - 1);
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${totalSteps}`;
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                updateState();
+            }
+        });
+        
+        // 初始化
+        updateState();
+    })();
+    </script>
+</body>
+</html>

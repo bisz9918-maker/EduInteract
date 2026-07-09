@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>细胞分裂图像分析——精原细胞有丝分裂中期</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene4-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene4-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 染色体样式 */
+        .chromosome {
+            fill: #1565c0;
+            fill-opacity: 0.5;
+            stroke: #1565c0;
+            stroke-width: 2px;
+            transition: all 0.4s ease;
+        }
+        .chromosome.highlight {
+            fill-opacity: 1;
+            stroke-width: 3px;
+        }
+        /* 姐妹染色单体特殊样式 */
+        .chromatid-left {
+            fill: #1565c0;
+            fill-opacity: 0.5;
+            stroke: #2e7d32;
+            stroke-width: 2px;
+        }
+        .chromatid-right {
+            fill: #1565c0;
+            fill-opacity: 0.5;
+            stroke: #1565c0;
+            stroke-width: 2px;
+        }
+        /* 着丝点样式 */
+        .centromere {
+            fill: #c62828;
+            transition: all 0.3s ease;
+        }
+        .centromere.flash {
+            animation: centromereFlash 0.5s ease 3;
+        }
+        @keyframes centromereFlash {
+            0%, 100% { fill: #c62828; opacity: 1; }
+            50% { fill: #ff5252; opacity: 0.5; }
+        }
+        /* 赤道板样式 */
+        .equatorial-plate {
+            stroke: #888888;
+            stroke-width: 2px;
+            stroke-dasharray: 8,4;
+            fill: none;
+            transition: stroke 0.4s ease;
+        }
+        .equatorial-plate.highlight {
+            stroke: #c62828;
+        }
+        /* 纺锤丝样式 */
+        .spindle-fiber {
+            stroke: #888888;
+            stroke-width: 1px;
+            opacity: 0.5;
+        }
+        /* 标签文本样式 */
+        .label-text {
+            font-size: 14px;
+            fill: #333333;
+        }
+        .label-title {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #333333;
+        }
+        .gene-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .gene-A {
+            fill: #2e7d32;
+        }
+        .gene-a {
+            fill: #c62828;
+        }
+        /* 结论区样式 */
+        .conclusion-text {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #1a237e;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .conclusion-text.show {
+            opacity: 1;
+        }
+        /* 引线样式 */
+        .leader-line {
+            stroke: #666666;
+            stroke-width: 1px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .leader-line.show {
+            opacity: 1;
+        }
+        /* 控件按钮样式 */
+        .control-btn {
+            cursor: pointer;
+            fill: #1976d2;
+            stroke: #1565c0;
+            stroke-width: 1px;
+            rx: 4;
+            transition: fill 0.2s ease;
+        }
+        .control-btn:hover {
+            fill: #1565c0;
+        }
+        .control-btn:active {
+            fill: #0d47a1;
+        }
+        .control-btn.disabled {
+            fill: #bdbdbd;
+            stroke: #9e9e9e;
+            cursor: not-allowed;
+        }
+        .control-text {
+            font-size: 14px;
+            fill: #ffffff;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+        }
+        /* 状态指示器 */
+        .step-indicator {
+            font-size: 14px;
+            fill: #666666;
+            text-anchor: middle;
+        }
+        /* 元素显隐控制 */
+        .hidden {
+            opacity: 0;
+            display: none;
+        }
+        .visible {
+            opacity: 1;
+            display: block;
+        }
+        /* 按钮文本特殊处理 */
+        .btn-text {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene4-container">
+        <svg id="scene4-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 细胞轮廓 -->
+            <circle id="scene4-cell" cx="400" cy="250" r="160" fill="#ffffff" stroke="#000000" stroke-width="2px"/>
+            
+            <!-- 赤道板 -->
+            <line id="scene4-equatorial-plate" class="equatorial-plate" x1="240" y1="250" x2="560" y2="250"/>
+            
+            <!-- 两极 -->
+            <circle id="scene4-pole-top" cx="400" cy="90" r="4" fill="#666666"/>
+            <circle id="scene4-pole-bottom" cx="400" cy="410" r="4" fill="#666666"/>
+            
+            <!-- 纺锤丝（上极到着丝点） -->
+            <line id="scene4-spindle-top-1" class="spindle-fiber" x1="400" y1="90" x2="320" y2="250"/>
+            <line id="scene4-spindle-top-2" class="spindle-fiber" x1="400" y1="90" x2="370" y2="250"/>
+            <line id="scene4-spindle-top-3" class="spindle-fiber" x1="400" y1="90" x2="430" y2="250"/>
+            <line id="scene4-spindle-top-4" class="spindle-fiber" x1="400" y1="90" x2="480" y2="250"/>
+            
+            <!-- 纺锤丝（下极到着丝点） -->
+            <line id="scene4-spindle-bottom-1" class="spindle-fiber" x1="400" y1="410" x2="320" y2="250"/>
+            <line id="scene4-spindle-bottom-2" class="spindle-fiber" x1="400" y1="410" x2="370" y2="250"/>
+            <line id="scene4-spindle-bottom-3" class="spindle-fiber" x1="400" y1="410" x2="430" y2="250"/>
+            <line id="scene4-spindle-bottom-4" class="spindle-fiber" x1="400" y1="410" x2="480" y2="250"/>
+            
+            <!-- 染色体1（最左侧） -->
+            <g id="scene4-chromosome-1">
+                <path class="chromosome" d="M 302.5 227.5 Q 302.5 250 320 250 Q 337.5 250 337.5 227.5 Q 337.5 205 320 205 Q 302.5 205 302.5 227.5 M 302.5 272.5 Q 302.5 250 320 250 Q 337.5 250 337.5 272.5 Q 337.5 295 320 295 Q 302.5 295 302.5 272.5"/>
+            </g>
+            
+            <!-- 染色体2（中左侧） -->
+            <g id="scene4-chromosome-2">
+                <path class="chromosome" d="M 352.5 227.5 Q 352.5 250 370 250 Q 387.5 250 387.5 227.5 Q 387.5 205 370 205 Q 352.5 205 352.5 227.5 M 352.5 272.5 Q 352.5 250 370 250 Q 387.5 250 387.5 272.5 Q 387.5 295 370 295 Q 352.5 295 352.5 272.5"/>
+            </g>
+            
+            <!-- 染色体3（中右侧） -->
+            <g id="scene4-chromosome-3">
+                <path class="chromosome" d="M 412.5 227.5 Q 412.5 250 430 250 Q 447.5 250 447.5 227.5 Q 447.5 205 430 205 Q 412.5 205 412.5 227.5 M 412.5 272.5 Q 412.5 250 430 250 Q 447.5 250 447.5 272.5 Q 447.5 295 430 295 Q 412.5 295 412.5 272.5"/>
+            </g>
+            
+            <!-- 染色体4（最右侧，带基因标注） -->
+            <g id="scene4-chromosome-4">
+                <path class="chromosome" d="M 462.5 227.5 Q 462.5 250 480 250 Q 497.5 250 497.5 227.5 Q 497.5 205 480 205 Q 462.5 205 462.5 227.5 M 462.5 272.5 Q 462.5 250 480 250 Q 497.5 250 497.5 272.5 Q 497.5 295 480 295 Q 462.5 295 462.5 272.5"/>
+            </g>
+            
+            <!-- 着丝点 -->
+            <circle id="scene4-centromere-1" class="centromere" cx="320" cy="250" r="3"/>
+            <circle id="scene4-centromere-2" class="centromere" cx="370" cy="250" r="3"/>
+            <circle id="scene4-centromere-3" class="centromere" cx="430" cy="250" r="3"/>
+            <circle id="scene4-centromere-4" class="centromere" cx="480" cy="250" r="3"/>
+            
+            <!-- 基因标注（初始隐藏）- 调整位置远离染色体 -->
+            <text id="scene4-gene-A" class="gene-label gene-A hidden" x="520" y="225">A</text>
+            <text id="scene4-gene-a" class="gene-label gene-a hidden" x="520" y="285">a</text>
+            
+            <!-- 标签：4 条染色体（初始隐藏） -->
+            <text id="scene4-label-chromosome-count" class="label-title hidden" x="650" y="180">4 条染色体</text>
+            
+            <!-- 标签：赤道板（初始隐藏） -->
+            <text id="scene4-label-equatorial" class="label-text hidden" x="580" y="255">赤道板</text>
+            
+            <!-- 标签：着丝点（初始隐藏）- 调整位置 -->
+            <text id="scene4-label-centromere" class="label-text hidden" x="180" y="180">着丝点</text>
+            <line id="scene4-leader-centromere" class="leader-line" x1="220" y1="190" x2="370" y2="250"/>
+            
+            <!-- 标签：姐妹染色单体（初始隐藏）- 调整位置远离细胞 -->
+            <text id="scene4-label-chromatid" class="label-text hidden" x="150" y="350">姐妹染色单体</text>
+            <line id="scene4-leader-chromatid" class="leader-line" x1="240" y1="340" x2="320" y2="290"/>
+            
+            <!-- 结论区（初始隐藏）- 上移避免与控件重叠 -->
+            <text id="scene4-conclusion" class="conclusion-text" x="400" y="390">有丝分裂中期  基因型：Aa</text>
+            
+            <!-- 状态指示器 - 上移 -->
+            <text id="scene4-step-indicator" class="step-indicator" x="400" y="425">步骤 0/5</text>
+            
+            <!-- 控制按钮背景 - 上移 -->
+            <rect id="scene4-btn-prev-bg" class="control-btn" x="350" y="440" width="80" height="30"/>
+            <text id="scene4-btn-prev-text" class="control-text btn-text" x="390" y="455">◀ 上一步</text>
+            
+            <rect id="scene4-btn-next-bg" class="control-btn" x="450" y="440" width="80" height="30"/>
+            <text id="scene4-btn-next-text" class="control-text btn-text" x="490" y="455">下一步 ▶</text>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 4 实现：细胞分裂图像分析——精原细胞有丝分裂中期
+        
+        // 状态变量
+        let currentState = 0;
+        const maxState = 5;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene4-btn-prev-bg');
+        const btnPrevText = document.getElementById('scene4-btn-prev-text');
+        const btnNext = document.getElementById('scene4-btn-next-bg');
+        const btnNextText = document.getElementById('scene4-btn-next-text');
+        const stepIndicator = document.getElementById('scene4-step-indicator');
+        
+        // 染色体元素
+        const chromosomes = [
+            document.getElementById('scene4-chromosome-1'),
+            document.getElementById('scene4-chromosome-2'),
+            document.getElementById('scene4-chromosome-3'),
+            document.getElementById('scene4-chromosome-4')
+        ];
+        
+        // 着丝点元素
+        const centromeres = [
+            document.getElementById('scene4-centromere-1'),
+            document.getElementById('scene4-centromere-2'),
+            document.getElementById('scene4-centromere-3'),
+            document.getElementById('scene4-centromere-4')
+        ];
+        
+        // 其他元素
+        const equatorialPlate = document.getElementById('scene4-equatorial-plate');
+        const geneA = document.getElementById('scene4-gene-A');
+        const geneA_label = document.getElementById('scene4-gene-a');
+        const labelChromosomeCount = document.getElementById('scene4-label-chromosome-count');
+        const labelEquatorial = document.getElementById('scene4-label-equatorial');
+        const labelCentromere = document.getElementById('scene4-label-centromere');
+        const leaderCentromere = document.getElementById('scene4-leader-centromere');
+        const labelChromatid = document.getElementById('scene4-label-chromatid');
+        const leaderChromatid = document.getElementById('scene4-leader-chromatid');
+        const conclusion = document.getElementById('scene4-conclusion');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('hidden');
+                el.classList.add('visible');
+                if (el.tagName === 'text') {
+                    el.style.opacity = '1';
+                    el.style.display = 'block';
+                } else if (el.tagName === 'line') {
+                    el.style.opacity = '1';
+                    el.style.display = 'block';
+                }
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.remove('visible');
+                el.classList.add('hidden');
+                if (el.tagName === 'text') {
+                    el.style.opacity = '0';
+                    el.style.display = 'none';
+                } else if (el.tagName === 'line') {
+                    el.style.opacity = '0';
+                    el.style.display = 'none';
+                }
+            }
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            if (currentState === 0) {
+                btnPrev.classList.add('disabled');
+                btnPrevText.style.fill = '#9e9e9e';
+            } else {
+                btnPrev.classList.remove('disabled');
+                btnPrevText.style.fill = '#ffffff';
+            }
+            
+            if (currentState === maxState) {
+                btnNext.classList.add('disabled');
+                btnNextText.style.fill = '#9e9e9e';
+            } else {
+                btnNext.classList.remove('disabled');
+                btnNextText.style.fill = '#ffffff';
+            }
+            
+            stepIndicator.textContent = '步骤 ' + currentState + '/' + maxState;
+        }
+        
+        // 更新显示状态
+        function updateDisplay() {
+            // 重置所有高亮
+            chromosomes.forEach(chr => {
+                const path = chr.querySelector('.chromosome');
+                if (path) {
+                    path.classList.remove('highlight');
+                    path.classList.remove('chromatid-left');
+                    path.classList.add('chromosome');
+                }
+            });
+            centromeres.forEach(cen => cen.classList.remove('flash'));
+            equatorialPlate.classList.remove('highlight');
+            hide(labelChromosomeCount);
+            hide(labelEquatorial);
+            hide(labelCentromere);
+            hide(leaderCentromere);
+            hide(labelChromatid);
+            hide(leaderChromatid);
+            hide(geneA);
+            hide(geneA_label);
+            hide(conclusion);
+            
+            // 根据当前状态显示相应元素
+            if (currentState >= 1) {
+                // 步骤 1：染色体高亮
+                chromosomes.forEach(chr => {
+                    const path = chr.querySelector('.chromosome');
+                    if (path) path.classList.add('highlight');
+                });
+                show(labelChromosomeCount);
+            }
+            
+            if (currentState >= 2) {
+                // 步骤 2：赤道板高亮，着丝点闪烁
+                equatorialPlate.classList.add('highlight');
+                centromeres.forEach(cen => cen.classList.add('flash'));
+                show(labelEquatorial);
+            }
+            
+            if (currentState >= 3) {
+                // 步骤 3：姐妹染色单体特殊样式
+                const chr1 = chromosomes[0];
+                const path = chr1.querySelector('.chromosome');
+                if (path) {
+                    path.classList.remove('chromosome');
+                    path.classList.remove('highlight');
+                    path.classList.add('chromatid-left');
+                }
+                show(labelChromatid);
+                show(leaderChromatid);
+            }
+            
+            if (currentState >= 4) {
+                // 步骤 4：基因标注，着丝点标签
+                show(geneA);
+                show(geneA_label);
+                show(labelCentromere);
+                show(leaderCentromere);
+            }
+            
+            if (currentState >= 5) {
+                // 步骤 5：显示结论
+                show(conclusion);
+            }
+            
+            updateButtons();
+        }
+        
+        // 按钮点击事件
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < maxState) {
+                currentState++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化
+        updateButtons();
+    })();
+    </script>
+</body>
+</html>

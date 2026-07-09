@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>晨昏线切点与太阳直射点纬度的互余关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        #scene2-btn-prev:hover, #scene2-btn-next:hover { background: #e0e0e0; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        .scene2-element { transition: opacity 0.3s ease; }
+        .scene2-hidden { opacity: 0; }
+        .scene2-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- 俯视图外圆：圆心 (180,320) 半径 140px -->
+            <circle id="scene2-outer-circle" cx="180" cy="320" r="140" fill="none" stroke="#000000" stroke-width="1.5" class="scene2-element scene2-visible"/>
+            
+            <!-- 70°纬线圈：圆心 (180,320) 半径 48px -->
+            <circle id="scene2-lat70-circle" cx="180" cy="320" r="48" fill="none" stroke="#000000" stroke-width="1" class="scene2-element scene2-visible"/>
+            
+            <!-- 极夜区域：70°纬线以内，透明度 20% -->
+            <circle id="scene2-polar-night" cx="180" cy="320" r="48" fill="#1565c0" fill-opacity="0.2" class="scene2-element scene2-hidden"/>
+            
+            <!-- 极点 O：直径 4px -->
+            <circle id="scene2-point-o" cx="180" cy="320" r="2" fill="#000000" class="scene2-element scene2-visible"/>
+            
+            <!-- 切点 M：直径 8px -->
+            <circle id="scene2-point-m" cx="180" cy="272" r="4" fill="#c62828" class="scene2-element scene2-visible"/>
+            
+            <!-- 辅助线 OM：虚线 -->
+            <line id="scene2-line-om" x1="180" y1="320" x2="180" y2="272" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" class="scene2-element scene2-hidden"/>
+            
+            <!-- 晨昏线 MA：从 M(180,272) 到 A(300,200) -->
+            <line id="scene2-line-ma" x1="180" y1="272" x2="300" y2="200" stroke="#000000" stroke-width="1.5" class="scene2-element scene2-hidden"/>
+            
+            <!-- 角度弧：圆心 (180,320) 半径 25px，从 -90° 到 -70°（即 270° 到 290°） -->
+            <path id="scene2-angle-arc" d="M 180 295 A 25 25 0 0 1 188.55 293.5" fill="none" stroke="#2e7d32" stroke-width="1" class="scene2-element scene2-hidden"/>
+            
+            <!-- 角度值 20° -->
+            <text id="scene2-angle-value" x="195" y="305" fill="#2e7d32" font-weight="bold" font-size="14px" class="scene2-element scene2-hidden">20°</text>
+            
+            <!-- 90°-70°= 文字 -->
+            <text id="scene2-calc-text" x="150" y="290" fill="#666666" font-size="12px" class="scene2-element scene2-hidden">90°-70°=</text>
+            
+            <!-- 70°标签 -->
+            <text id="scene2-lat70-label" x="180" y="265" fill="#000000" font-size="12px" text-anchor="middle" class="scene2-element scene2-visible">70°</text>
+            
+            <!-- O 标签 -->
+            <text id="scene2-label-o" x="180" y="335" fill="#000000" font-size="12px" text-anchor="middle" class="scene2-element scene2-visible">O</text>
+            
+            <!-- M 标签：修正坐标 (195,265) -->
+            <text id="scene2-label-m" x="195" y="265" fill="#000000" font-size="12px" class="scene2-element scene2-visible">M</text>
+            
+            <!-- 推导箭头：从 (340,320) 到 (380,320) -->
+            <defs>
+                <marker id="scene2-arrow-head" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+            <line id="scene2-derive-arrow" x1="340" y1="320" x2="380" y2="320" stroke="#000000" stroke-width="1.5" marker-end="url(#scene2-arrow-head)" class="scene2-element scene2-hidden"/>
+            
+            <!-- 侧视图地球：圆心 (520,320) 半径 70px -->
+            <circle id="scene2-side-earth" cx="520" cy="320" r="70" fill="none" stroke="#000000" stroke-width="1.5" class="scene2-element scene2-hidden"/>
+            
+            <!-- 赤道线：水平穿过地心 -->
+            <line id="scene2-equator" x1="450" y1="320" x2="590" y2="320" stroke="#000000" stroke-width="1" class="scene2-element scene2-hidden"/>
+            
+            <!-- 直射点：20°N 位置 (520,265) -->
+            <circle id="scene2-subsolar-point" cx="520" cy="265" r="3" fill="#2e7d32" class="scene2-element scene2-hidden"/>
+            
+            <!-- 太阳光线箭头：从 (620,265) 到 (540,265) -->
+            <line id="scene2-sun-ray" x1="620" y1="265" x2="540" y2="265" stroke="#ff9800" stroke-width="1.5" marker-end="url(#scene2-arrow-head)" class="scene2-element scene2-hidden"/>
+            
+            <!-- 20°N 标签 -->
+            <text id="scene2-subsolar-label" x="535" y="260" fill="#2e7d32" font-weight="bold" font-size="14px" class="scene2-element scene2-hidden">20°N</text>
+            
+            <!-- 控件栏 -->
+            <g id="scene2-controls">
+                <rect x="280" y="455" width="240" height="35" fill="#ffffff" stroke="#ddd" stroke-width="1"/>
+                <text id="scene2-step-indicator" x="400" y="478" fill="#333" font-size="14px" text-anchor="middle">步骤 1/6</text>
+                <rect id="scene2-btn-prev-bg" x="300" y="460" width="70" height="25" fill="#f5f5f5" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene2-btn-prev-text" x="335" y="477" fill="#333" font-size="13px" text-anchor="middle">◀上一步</text>
+                <rect id="scene2-btn-next-bg" x="430" y="460" width="70" height="25" fill="#f5f5f5" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene2-btn-next-text" x="465" y="477" fill="#333" font-size="13px" text-anchor="middle">下一步▶</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 晨昏线切点与太阳直射点纬度的互余关系
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 俯视图外圆 | 圆弧 | 圆心 (180,320) | 半径 140px | - | 南极俯视图边界 |
+        // | 70°纬线圈 | 圆 | 圆心 (180,320) | 半径 48px | - | 70°纬线 |
+        // | 切点 M | 实心圆 | (180,272) | 直径 8px | 右上 | 晨昏线与 70°纬线切点 |
+        // | 极点 O | 点 | (180,320) | 直径 4px | 下方 | 南极点 |
+        // | 极夜区域 | 扇形填充 | 70°纬线以内 | 半径 48px | - | 透明度 20% |
+        // | 辅助线 OM | 虚线 | (180,320)-(180,272) | 48px 长 | - | 地心到切点半径 |
+        // | 晨昏线 MA | 线段 | (180,272)-(300,200) | - | - | 切线方向 |
+        // | 角度弧 | 圆弧 | (180,320) 附近 | 半径 25px | - | 标注 20°角 |
+        // | 角度值 20° | text | (195,305) | ~24×16 | - | 绿色加粗 |
+        // | 90°-70°= | text | (150,290) | ~45×16 | - | 灰色小字 |
+        // | 推导箭头 | 箭头 | (340,320)-(380,320) | 40px 长 | - | 从左到右 |
+        // | 侧视图地球 | 圆 | 圆心 (520,320) | 半径 70px | - | 地球侧视 |
+        // | 赤道线 | 线段 | (450,320)-(590,320) | 140px | - | 水平穿过地心 |
+        // | 直射点 | 实心圆 | (520,265) | 直径 6px | 右侧 | 20°N 位置 |
+        // | 太阳光线 | 箭头 | (620,265)-(540,265) | - | 上方 | 平行光线 |
+        // | 20°N 标签 | text | (535,260) | ~35×16 | 右侧 | 绿色加粗 |
+        // | 70°标签 | text | (180,265) | ~20×16 | 上方 | 70°纬线标注 |
+        // | O 标签 | text | (180,335) | ~12×16 | 下方 | 极点标识 |
+        // | M 标签 | text | (195,265) | ~12×16 | 右上 | 切点标识（修正后） |
+
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 每步显示的元素 ID 列表
+        const steps = [
+            // 步骤 0：基础图形
+            ['scene2-outer-circle', 'scene2-lat70-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-lat70-label', 'scene2-label-o', 'scene2-label-m'],
+            // 步骤 1：极夜区域
+            ['scene2-outer-circle', 'scene2-lat70-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-lat70-label', 'scene2-label-o', 'scene2-label-m', 'scene2-polar-night'],
+            // 步骤 2：辅助线 OM + 晨昏线 MA
+            ['scene2-outer-circle', 'scene2-lat70-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-lat70-label', 'scene2-label-o', 'scene2-label-m', 'scene2-polar-night', 'scene2-line-om', 'scene2-line-ma'],
+            // 步骤 3：角度弧 + 计算文字
+            ['scene2-outer-circle', 'scene2-lat70-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-lat70-label', 'scene2-label-o', 'scene2-label-m', 'scene2-polar-night', 'scene2-line-om', 'scene2-line-ma', 'scene2-angle-arc', 'scene2-calc-text'],
+            // 步骤 4：角度值 20° + 推导箭头
+            ['scene2-outer-circle', 'scene2-lat70-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-lat70-label', 'scene2-label-o', 'scene2-label-m', 'scene2-polar-night', 'scene2-line-om', 'scene2-line-ma', 'scene2-angle-arc', 'scene2-calc-text', 'scene2-angle-value', 'scene2-derive-arrow'],
+            // 步骤 5：侧视图 + 直射点 + 太阳光线
+            ['scene2-outer-circle', 'scene2-lat70-circle', 'scene2-point-o', 'scene2-point-m', 'scene2-lat70-label', 'scene2-label-o', 'scene2-label-m', 'scene2-polar-night', 'scene2-line-om', 'scene2-line-ma', 'scene2-angle-arc', 'scene2-calc-text', 'scene2-angle-value', 'scene2-derive-arrow', 'scene2-side-earth', 'scene2-equator', 'scene2-subsolar-point', 'scene2-sun-ray', 'scene2-subsolar-label']
+        ];
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+            }
+        }
+
+        // 渲染指定步骤
+        function renderStep(stepIndex) {
+            const currentIds = steps[stepIndex];
+            const allIds = steps[totalSteps - 1]; // 所有可能的元素 ID
+
+            // 隐藏所有元素
+            allIds.forEach(id => hideElement(id));
+
+            // 显示当前步骤的元素
+            currentIds.forEach(id => showElement(id));
+
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${stepIndex + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene2-btn-prev-bg');
+            const nextBtn = document.getElementById('scene2-btn-next-bg');
+            const prevText = document.getElementById('scene2-btn-prev-text');
+            const nextText = document.getElementById('scene2-btn-next-text');
+
+            if (stepIndex === 0) {
+                prevBtn.style.opacity = '0.5';
+                prevText.style.opacity = '0.5';
+            } else {
+                prevBtn.style.opacity = '1';
+                prevText.style.opacity = '1';
+            }
+
+            if (stepIndex === totalSteps - 1) {
+                nextBtn.style.opacity = '0.5';
+                nextText.style.opacity = '0.5';
+            } else {
+                nextBtn.style.opacity = '1';
+                nextText.style.opacity = '1';
+            }
+        }
+
+        // 按钮点击事件
+        document.getElementById('scene2-btn-prev-bg').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        document.getElementById('scene2-btn-next-bg').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 添加点击反馈效果
+        document.getElementById('scene2-btn-prev-bg').style.cursor = 'pointer';
+        document.getElementById('scene2-btn-next-bg').style.cursor = 'pointer';
+        document.getElementById('scene2-btn-prev-text').style.cursor = 'pointer';
+        document.getElementById('scene2-btn-next-text').style.cursor = 'pointer';
+
+        // 初始化
+        renderStep(currentStep);
+    })();
+    </script>
+</body>
+</html>

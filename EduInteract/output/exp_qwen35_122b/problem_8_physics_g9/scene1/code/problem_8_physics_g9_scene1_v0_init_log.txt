@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 串联电路结构识别与电压表测量对象分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+            transition: all 0.2s;
+        }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* 高亮样式 */
+        .highlight-blue { fill: #1565c0 !important; opacity: 0.3 !important; }
+        .highlight-green { stroke: #2e7d32 !important; stroke-width: 3 !important; }
+        .highlight-red { stroke: #c62828 !important; stroke-dasharray: 5,3 !important; fill: rgba(198, 40, 40, 0.2) !important; }
+        
+        /* 元素过渡动画 */
+        #scene1-svg * { transition: all 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <!-- 
+        布局坐标表（实现对照依据）：
+        | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        |------|------|-----------|------|-------------|------|
+        | 电源 | 电池符号 | (550,380)-(650,420) | 100×40 | 下方 | 两节电池串联，正极在右 |
+        | 开关 | 开关符号 | (120,80)-(220,140) | 100×60 | 上方 | 单刀单掷，闭合状态 |
+        | 灯泡 L₁ | 灯泡符号 | (580,80)-(640,140) | 60×60 | 右方 | 圆形带叉 |
+        | 灯泡 L₂ | 灯泡符号 | (120,320)-(180,380) | 60×60 | 左方 | 圆形带叉 |
+        | 电压表 V | 电压表符号 | (320,220)-(420,300) | 100×80 | 上方 | 圆形带 V，并联在 L₂两端 |
+        | 导线 电源-L₁ | 线段 | (650,400)-(610,140) | - | - | 右侧竖线 |
+        | 导线 L₁-开关 | 线段 | (580,110)-(220,110) | - | - | 顶部横线 |
+        | 导线 开关-L₂ | 线段 | (120,110)-(150,320) | - | - | 左侧竖线 |
+        | 导线 L₂-电源 | 线段 | (180,350)-(550,350) | - | - | 底部横线 |
+        | 电压表接线 1 | 线段 | (320,260)-(180,350) | - | - | 并联 L₂上端 |
+        | 电压表接线 2 | 线段 | (420,260)-(180,380) | - | - | 并联 L₂下端 |
+        | 标签 电源+ | text | (660,395) | 20×16 | 右方 | 正极标识 |
+        | 标签 电源- | text | (540,395) | 20×16 | 左方 | 负极标识 |
+        | 标签 开关 S | text | (140,60) | 40×16 | 上方 | 开关名称 |
+        | 标签 L₁ | text | (650,100) | 30×16 | 右方 | 灯泡 L₁名称 |
+        | 标签 L₂ | text | (80,350) | 30×16 | 左方 | 灯泡 L₂名称 |
+        | 标签 V | text | (370,200) | 25×20 | 上方 | 电压表标识 |
+        | 标签 I 箭头 | 箭头 | (610,270) | 40×12 | - | 电流方向，顺时针 |
+        -->
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 导线层（底层） -->
+            <g id="scene1-wires">
+                <!-- 导线 电源-L₁ -->
+                <line id="scene1-wire1" x1="650" y1="400" x2="610" y2="140" stroke="#000000" stroke-width="2"/>
+                <!-- 导线 L₁-开关 -->
+                <line id="scene1-wire2" x1="580" y1="110" x2="220" y2="110" stroke="#000000" stroke-width="2"/>
+                <!-- 导线 开关-L₂ -->
+                <line id="scene1-wire3" x1="120" y1="110" x2="150" y2="320" stroke="#000000" stroke-width="2"/>
+                <!-- 导线 L₂-电源 -->
+                <line id="scene1-wire4" x1="180" y1="350" x2="550" y2="350" stroke="#000000" stroke-width="2"/>
+                <!-- 电压表接线 1 -->
+                <line id="scene1-wire5" x1="320" y1="260" x2="180" y2="350" stroke="#000000" stroke-width="2"/>
+                <!-- 电压表接线 2 -->
+                <line id="scene1-wire6" x1="420" y1="260" x2="180" y2="380" stroke="#000000" stroke-width="2"/>
+            </g>
+            
+            <!-- 元件层 -->
+            <g id="scene1-components">
+                <!-- 电源（电池组） -->
+                <g id="scene1-battery">
+                    <!-- 电池符号：两节串联 -->
+                    <line x1="560" y1="390" x2="640" y2="390" stroke="#000000" stroke-width="3"/>
+                    <line x1="560" y1="410" x2="640" y2="410" stroke="#000000" stroke-width="3"/>
+                    <line x1="580" y1="385" x2="580" y2="415" stroke="#000000" stroke-width="2"/>
+                    <line x1="620" y1="385" x2="620" y2="415" stroke="#000000" stroke-width="2"/>
+                    <text x="540" y="395" font-size="16" fill="#000000" id="scene1-label-battery-minus">-</text>
+                    <text x="660" y="395" font-size="16" fill="#000000" id="scene1-label-battery-plus">+</text>
+                </g>
+                
+                <!-- 开关 S -->
+                <g id="scene1-switch">
+                    <!-- 开关符号：闭合状态 -->
+                    <line x1="120" y1="110" x2="170" y2="110" stroke="#000000" stroke-width="2"/>
+                    <line x1="170" y1="110" x2="220" y2="110" stroke="#000000" stroke-width="2"/>
+                    <circle cx="170" cy="110" r="5" fill="#000000"/>
+                    <text x="140" y="60" font-size="14" fill="#000000" id="scene1-label-switch">开关 S</text>
+                </g>
+                
+                <!-- 灯泡 L₁ -->
+                <g id="scene1-lamp1">
+                    <circle cx="610" cy="110" r="30" fill="none" stroke="#000000" stroke-width="2"/>
+                    <line x1="590" y1="90" x2="630" y2="130" stroke="#000000" stroke-width="2"/>
+                    <line x1="630" y1="90" x2="590" y2="130" stroke="#000000" stroke-width="2"/>
+                    <text x="650" y="100" font-size="14" fill="#000000" id="scene1-label-lamp1">L₁</text>
+                </g>
+                
+                <!-- 灯泡 L₂ -->
+                <g id="scene1-lamp2">
+                    <circle cx="150" cy="350" r="30" fill="none" stroke="#000000" stroke-width="2"/>
+                    <line x1="130" y1="330" x2="170" y2="370" stroke="#000000" stroke-width="2"/>
+                    <line x1="170" y1="330" x2="130" y2="370" stroke="#000000" stroke-width="2"/>
+                    <text x="80" y="350" font-size="14" fill="#000000" id="scene1-label-lamp2">L₂</text>
+                </g>
+                
+                <!-- 电压表 V -->
+                <g id="scene1-voltmeter">
+                    <circle cx="370" cy="260" r="40" fill="none" stroke="#000000" stroke-width="2"/>
+                    <!-- 电压表内部文字 V，居中显示，使用 text-anchor="middle" 和 dominant-baseline="middle" -->
+                    <text x="370" y="260" font-size="28" fill="#000000" font-weight="bold" text-anchor="middle" dominant-baseline="middle">V</text>
+                    <text x="370" y="200" font-size="14" fill="#000000" id="scene1-label-voltmeter">V</text>
+                </g>
+            </g>
+            
+            <!-- 电流箭头层（步骤 3 显示） -->
+            <g id="scene1-current-arrow" style="opacity: 0;">
+                <!-- 顺时针电流方向箭头 -->
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <!-- 电源+ → L₁ -->
+                <path d="M 640 390 L 640 200" stroke="#2e7d32" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                <!-- L₁ → 开关 -->
+                <path d="M 610 140 L 400 140 L 400 110 L 220 110" stroke="#2e7d32" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                <!-- 开关 → L₂ -->
+                <path d="M 120 110 L 120 200 L 150 320" stroke="#2e7d32" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                <!-- L₂ → 电源- -->
+                <path d="M 180 350 L 300 350 L 550 350" stroke="#2e7d32" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+            </g>
+            
+            <!-- 电压表测量范围框（步骤 4 显示） -->
+            <rect id="scene1-measure-box" x="100" y="310" width="100" height="80" fill="rgba(198, 40, 40, 0.2)" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" style="opacity: 0;"/>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 状态机：currentStep (0-4)
+        let currentStep = 0;
+        
+        // DOM 元素引用
+        const elements = {
+            battery: document.getElementById('scene1-battery'),
+            switch: document.getElementById('scene1-switch'),
+            lamp1: document.getElementById('scene1-lamp1'),
+            lamp2: document.getElementById('scene1-lamp2'),
+            voltmeter: document.getElementById('scene1-voltmeter'),
+            wires: document.getElementById('scene1-wires'),
+            currentArrow: document.getElementById('scene1-current-arrow'),
+            measureBox: document.getElementById('scene1-measure-box'),
+            labels: {
+                batteryPlus: document.getElementById('scene1-label-battery-plus'),
+                batteryMinus: document.getElementById('scene1-label-battery-minus'),
+                switch: document.getElementById('scene1-label-switch'),
+                lamp1: document.getElementById('scene1-label-lamp1'),
+                lamp2: document.getElementById('scene1-label-lamp2'),
+                voltmeter: document.getElementById('scene1-label-voltmeter')
+            },
+            btnPrev: document.getElementById('scene1-btn-prev'),
+            btnNext: document.getElementById('scene1-btn-next')
+        };
+        
+        // 步骤效果配置
+        const stepEffects = {
+            0: { 
+                highlight: [], 
+                showLabels: [],
+                showArrow: false,
+                showMeasureBox: false
+            },
+            1: { 
+                highlight: ['battery', 'switch'], 
+                showLabels: ['batteryPlus', 'batteryMinus', 'switch'],
+                showArrow: false,
+                showMeasureBox: false
+            },
+            2: { 
+                highlight: ['lamp1', 'lamp2'], 
+                showLabels: ['lamp1', 'lamp2'],
+                showArrow: false,
+                showMeasureBox: false
+            },
+            3: { 
+                highlight: [], 
+                showLabels: [],
+                showArrow: true,
+                showMeasureBox: false
+            },
+            4: { 
+                highlight: ['voltmeter'], 
+                showLabels: ['voltmeter'],
+                showArrow: true,
+                showMeasureBox: true
+            }
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 工具函数：移除高亮
+        function removeHighlight(el) {
+            if (el) {
+                el.classList.remove('highlight-blue');
+                // 恢复默认样式
+                const children = el.querySelectorAll('*');
+                children.forEach(child => {
+                    child.classList.remove('highlight-blue');
+                });
+            }
+        }
+        
+        // 工具函数：添加蓝色高亮
+        function addHighlight(el) {
+            if (el) {
+                el.classList.add('highlight-blue');
+            }
+        }
+        
+        // 更新步骤
+        function updateStep() {
+            const effect = stepEffects[currentStep];
+            
+            // 清除所有高亮
+            ['battery', 'switch', 'lamp1', 'lamp2', 'voltmeter'].forEach(key => {
+                removeHighlight(elements[key]);
+            });
+            
+            // 隐藏所有标签
+            Object.values(elements.labels).forEach(label => {
+                hide(label);
+            });
+            
+            // 隐藏电流箭头和测量框
+            hide(elements.currentArrow);
+            hide(elements.measureBox);
+            
+            // 应用当前步骤效果
+            effect.highlight.forEach(key => {
+                addHighlight(elements[key]);
+            });
+            
+            effect.showLabels.forEach(key => {
+                show(elements.labels[key]);
+            });
+            
+            if (effect.showArrow) {
+                show(elements.currentArrow);
+            }
+            
+            if (effect.showMeasureBox) {
+                show(elements.measureBox);
+            }
+            
+            // 更新按钮状态
+            elements.btnPrev.disabled = (currentStep === 0);
+            elements.btnNext.disabled = (currentStep === 4);
+        }
+        
+        // 事件绑定
+        elements.btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        elements.btnNext.addEventListener('click', () => {
+            if (currentStep < 4) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

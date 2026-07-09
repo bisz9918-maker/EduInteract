@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 滑片右移的电路-磁学-力学连锁变化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { position: absolute; top: 0; left: 0; }
+
+        /* 选项卡片 */
+        .scene2-option-card {
+            position: absolute;
+            width: 170px;
+            height: 40px;
+            border-radius: 6px;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 12px;
+            color: #333;
+            box-sizing: border-box;
+            transition: all 0.4s;
+            z-index: 5;
+        }
+        .scene2-option-icon {
+            margin-left: auto;
+            margin-right: 8px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.4s;
+            flex-shrink: 0;
+        }
+        .scene2-option-wrong {
+            background: #ffcdd2;
+            border-color: #c62828;
+        }
+        .scene2-option-wrong .scene2-option-icon {
+            opacity: 1;
+            background: #c62828;
+        }
+        .scene2-option-correct {
+            background: #c8e6c9;
+            border-color: #2e7d32;
+        }
+        .scene2-option-correct .scene2-option-icon {
+            opacity: 1;
+            background: #2e7d32;
+        }
+
+        /* 控件 */
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            width: 80px;
+            height: 30px;
+            border: 1px solid #bdbdbd;
+            border-radius: 4px;
+            background: #fafafa;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene2-btn:hover:not(.scene2-btn-disabled) {
+            background: #eeeeee;
+            border-color: #9e9e9e;
+        }
+        .scene2-btn-disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #757575;
+            min-width: 70px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <defs>
+                <marker id="scene2-arrow-black" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+                </marker>
+                <marker id="scene2-arrow-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="scene2-arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- 导线网络：拆分为独立线段，避免bounding box过大导致误报 -->
+            <!-- 电流表上端→(100,140)→(100,120) -->
+            <line x1="100" y1="140" x2="100" y2="120" stroke="black" stroke-width="2"/>
+            <!-- (100,120)→(220,120) -->
+            <line x1="100" y1="120" x2="220" y2="120" stroke="black" stroke-width="2"/>
+            <!-- (220,120)→定值电阻左端(220,152) -->
+            <line x1="220" y1="120" x2="220" y2="152" stroke="black" stroke-width="2"/>
+            <!-- 定值电阻右端(230,160)→(340,160) -->
+            <line x1="230" y1="160" x2="340" y2="160" stroke="black" stroke-width="2"/>
+            <!-- (340,160)→(420,160) -->
+            <line x1="340" y1="160" x2="420" y2="160" stroke="black" stroke-width="2"/>
+            <!-- (420,160)→电磁铁上端(420,200) -->
+            <line x1="420" y1="160" x2="420" y2="200" stroke="black" stroke-width="2"/>
+            <!-- 电磁铁下端(420,300)→(420,320) -->
+            <line x1="420" y1="300" x2="420" y2="320" stroke="black" stroke-width="2"/>
+            <!-- (420,320)→(300,320) -->
+            <line x1="420" y1="320" x2="300" y2="320" stroke="black" stroke-width="2"/>
+            <!-- (300,320)→电源正极(300,290) -->
+            <line x1="300" y1="320" x2="300" y2="290" stroke="black" stroke-width="2"/>
+            <!-- 电源负极(310,280)→(270,280) -->
+            <line x1="310" y1="280" x2="270" y2="280" stroke="black" stroke-width="2"/>
+            <!-- (270,280)→开关(250,280) -->
+            <line x1="270" y1="280" x2="250" y2="280" stroke="black" stroke-width="2"/>
+            <!-- 开关(250,280)→滑动变阻器右端(230,268) -->
+            <line x1="250" y1="280" x2="230" y2="268" stroke="black" stroke-width="2"/>
+            <!-- 滑动变阻器左端(130,260)→(100,260) -->
+            <line x1="130" y1="260" x2="100" y2="260" stroke="black" stroke-width="2"/>
+            <!-- (100,260)→电流表下端(100,180) -->
+            <line x1="100" y1="260" x2="100" y2="180" stroke="black" stroke-width="2"/>
+
+            <!-- 电流表 -->
+            <circle cx="100" cy="160" r="20" fill="white" stroke="black" stroke-width="2"/>
+            <text x="70" y="165" text-anchor="middle" font-size="14" font-weight="bold" fill="black">A</text>
+            <line id="scene2-ammeter-pointer" x1="100" y1="160" x2="116" y2="160" stroke="black" stroke-width="2"
+                  style="transition: transform 0.4s ease-in-out; transform-origin: 100px 160px; transform: rotate(15deg);"/>
+            <text id="scene2-ammeter-reading" x="70" y="195" text-anchor="middle" font-size="12" fill="black">0.4A</text>
+
+            <!-- 定值电阻 -->
+            <rect x="170" y="152" width="60" height="16" fill="white" stroke="black" stroke-width="2"/>
+            <text x="200" y="110" text-anchor="middle" font-size="12" fill="black">R</text>
+
+            <!-- 滑动变阻器 -->
+            <rect x="130" y="252" width="100" height="16" fill="white" stroke="black" stroke-width="2"/>
+            <g id="scene2-slider-group" style="transition: transform 0.5s ease-out; transform: translateX(0px);">
+                <line x1="150" y1="244" x2="150" y2="276" stroke="black" stroke-width="4"/>
+                <polygon points="150,244 146,252 154,252" fill="black"/>
+            </g>
+            <rect id="scene2-rheostat-highlight" x="150" y="252" width="80" height="16"
+                  fill="rgba(198,40,40,0.15)" stroke="#c62828" stroke-width="3"
+                  style="opacity: 0; transition: all 0.5s ease-out; pointer-events: none;"/>
+
+            <!-- 电源 -->
+            <line x1="300" y1="270" x2="300" y2="290" stroke="black" stroke-width="2"/>
+            <line x1="310" y1="275" x2="310" y2="285" stroke="black" stroke-width="2"/>
+
+            <!-- 开关 -->
+            <line x1="270" y1="280" x2="250" y2="280" stroke="black" stroke-width="2"/>
+            <line x1="260" y1="280" x2="270" y2="272" stroke="black" stroke-width="2"/>
+
+            <!-- 电磁铁线圈 -->
+            <rect x="400" y="200" width="40" height="100" fill="white" stroke="black" stroke-width="2"/>
+            <line x1="400" y1="220" x2="440" y2="200" stroke="black" stroke-width="1.5"/>
+            <line x1="400" y1="240" x2="440" y2="220" stroke="black" stroke-width="1.5"/>
+            <line x1="400" y1="260" x2="440" y2="240" stroke="black" stroke-width="1.5"/>
+            <line x1="400" y1="280" x2="440" y2="260" stroke="black" stroke-width="1.5"/>
+            <line x1="400" y1="300" x2="440" y2="280" stroke="black" stroke-width="1.5"/>
+
+            <!-- 铁芯 -->
+            <rect x="415" y="200" width="10" height="100" fill="#8d6e63" stroke="none"/>
+            <rect id="scene2-core-glow" x="410" y="195" width="20" height="110" fill="#ffeb3b" opacity="0.3"
+                  style="transition: opacity 0.4s; pointer-events: none;"/>
+
+            <!-- 铁球与阴影 -->
+            <ellipse id="scene2-iron-ball-shadow" cx="420" cy="188" rx="12" ry="4" fill="black" opacity="0.2"
+                     style="transition: all 0.4s; transform-origin: 420px 188px;"/>
+            <g id="scene2-iron-ball-group" style="transition: transform 0.4s;">
+                <circle cx="420" cy="170" r="15" fill="#424242" stroke="black" stroke-width="2"/>
+            </g>
+
+            <!-- 弹簧测力计 -->
+            <rect x="405" y="40" width="30" height="90" fill="white" stroke="black" stroke-width="2"/>
+            <!-- 刻度线 -->
+            <line x1="410" y1="50" x2="420" y2="50" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="60" x2="420" y2="60" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="70" x2="420" y2="70" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="80" x2="420" y2="80" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="90" x2="420" y2="90" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="100" x2="420" y2="100" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="110" x2="420" y2="110" stroke="black" stroke-width="1"/>
+            <line x1="410" y1="120" x2="420" y2="120" stroke="black" stroke-width="1"/>
+            <!-- 指针 -->
+            <g id="scene2-spring-pointer-group" style="transition: transform 0.4s;">
+                <line x1="408" y1="90" x2="432" y2="90" stroke="#1565c0" stroke-width="3"/>
+            </g>
+            <!-- 挂钩细线 -->
+            <line id="scene2-hook-line" x1="420" y1="130" x2="420" y2="155" stroke="black" stroke-width="1.5"
+                  style="transition: transform 0.4s; transform-origin: 420px 130px;"/>
+
+            <!-- 磁场线 -->
+            <path id="scene2-field-1" d="M 420,205 A 45,45 0 0,1 420,295" fill="none" stroke="#2e7d32"
+                  stroke-width="1.5" stroke-dasharray="6,4" style="transition: all 0.4s;"/>
+            <path id="scene2-field-2" d="M 420,185 A 65,65 0 0,1 420,315" fill="none" stroke="#2e7d32"
+                  stroke-width="1.5" stroke-dasharray="6,4" style="transition: all 0.4s;"/>
+            <path id="scene2-field-3" d="M 420,165 A 85,85 0 0,1 420,335" fill="none" stroke="#2e7d32"
+                  stroke-width="1.5" stroke-dasharray="6,4" style="transition: all 0.4s;"/>
+
+            <!-- 步骤标注 -->
+            <text id="scene2-label-r-change" x="180" y="295" text-anchor="middle" font-size="14"
+                  fill="#c62828" font-weight="bold" style="opacity: 0; transition: opacity 0.4s;">R变↑</text>
+            <text id="scene2-label-r-total" x="260" y="105" text-anchor="middle" font-size="14"
+                  fill="#c62828" font-weight="bold" style="opacity: 0; transition: opacity 0.4s;">R总↑</text>
+            <text id="scene2-label-i" x="30" y="165" text-anchor="middle" font-size="14"
+                  fill="#1565c0" font-weight="bold" style="opacity: 0; transition: opacity 0.4s;">I↓</text>
+            <text id="scene2-label-magnetic" x="520" y="180" text-anchor="start" font-size="14"
+                  fill="#c62828" font-weight="bold" style="opacity: 0; transition: opacity 0.4s;">磁性减弱</text>
+
+            <!-- 受力分析图 -->
+            <g id="scene2-force-analysis" style="opacity: 0; transform: translateY(10px); transition: all 0.4s;">
+                <circle cx="600" cy="240" r="18" fill="#bdbdbd" stroke="black" stroke-width="2"/>
+                <!-- 重力箭头 -->
+                <line x1="600" y1="240" x2="600" y2="280" stroke="black" stroke-width="2" marker-end="url(#scene2-arrow-black)"/>
+                <text x="585" y="285" text-anchor="middle" font-size="14" font-weight="bold" fill="black">G</text>
+                <!-- F吸箭头 -->
+                <line x1="600" y1="240" x2="600" y2="265" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)"/>
+                <text x="625" y="255" text-anchor="start" font-size="14" font-weight="bold" fill="#c62828">F吸</text>
+                <!-- F拉箭头 -->
+                <line x1="600" y1="240" x2="600" y2="200" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)"/>
+                <text x="610" y="215" text-anchor="start" font-size="14" font-weight="bold" fill="#1565c0">F拉</text>
+                <!-- 平衡方程 -->
+                <text x="600" y="330" text-anchor="middle" font-size="14" font-weight="bold" fill="black">F拉=G+F吸</text>
+            </g>
+        </svg>
+
+        <!-- 选项卡片 -->
+        <div id="scene2-option-A" class="scene2-option-card" style="left:30px;top:370px;">
+            A. 电路总电阻变小
+            <span class="scene2-option-icon">✗</span>
+        </div>
+        <div id="scene2-option-B" class="scene2-option-card" style="left:215px;top:370px;">
+            B. 弹簧测力计示数变小
+            <span class="scene2-option-icon">✓</span>
+        </div>
+        <div id="scene2-option-C" class="scene2-option-card" style="left:400px;top:370px;">
+            C. 电磁铁的磁性增强
+            <span class="scene2-option-icon">✗</span>
+        </div>
+        <div id="scene2-option-D" class="scene2-option-card" style="left:585px;top:370px;">
+            D. 电流表读数变大
+            <span class="scene2-option-icon">✗</span>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1 / 5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：滑片右移引起的电路-磁学-力学连锁变化
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const els = {
+            sliderGroup: document.getElementById('scene2-slider-group'),
+            rheostatHighlight: document.getElementById('scene2-rheostat-highlight'),
+            ammeterPointer: document.getElementById('scene2-ammeter-pointer'),
+            ammeterReading: document.getElementById('scene2-ammeter-reading'),
+            coreGlow: document.getElementById('scene2-core-glow'),
+            field1: document.getElementById('scene2-field-1'),
+            field2: document.getElementById('scene2-field-2'),
+            field3: document.getElementById('scene2-field-3'),
+            ironBallGroup: document.getElementById('scene2-iron-ball-group'),
+            ironBallShadow: document.getElementById('scene2-iron-ball-shadow'),
+            springPointerGroup: document.getElementById('scene2-spring-pointer-group'),
+            hookLine: document.getElementById('scene2-hook-line'),
+            forceAnalysis: document.getElementById('scene2-force-analysis'),
+            labelRChange: document.getElementById('scene2-label-r-change'),
+            labelRTotal: document.getElementById('scene2-label-r-total'),
+            labelI: document.getElementById('scene2-label-i'),
+            labelMagnetic: document.getElementById('scene2-label-magnetic'),
+            optionA: document.getElementById('scene2-option-A'),
+            optionB: document.getElementById('scene2-option-B'),
+            optionC: document.getElementById('scene2-option-C'),
+            optionD: document.getElementById('scene2-option-D'),
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next'),
+            stepIndicator: document.getElementById('scene2-step-indicator')
+        };
+
+        function updateButtons() {
+            els.btnPrev.disabled = currentStep === 0;
+            els.btnNext.disabled = currentStep === totalSteps - 1;
+            els.btnPrev.classList.toggle('scene2-btn-disabled', currentStep === 0);
+            els.btnNext.classList.toggle('scene2-btn-disabled', currentStep === totalSteps - 1);
+            els.stepIndicator.textContent = '步骤 ' + (currentStep + 1) + ' / ' + totalSteps;
+        }
+
+        function setOptionState(el, state) {
+            el.classList.remove('scene2-option-wrong', 'scene2-option-correct');
+            if (state) {
+                el.classList.add('scene2-option-' + state);
+            }
+        }
+
+        function renderStep() {
+            // 步骤1：滑片右移，电阻变化
+            if (currentStep >= 1) {
+                els.sliderGroup.style.transform = 'translateX(40px)';
+                els.rheostatHighlight.style.opacity = '1';
+                els.rheostatHighlight.setAttribute('x', '190');
+                els.rheostatHighlight.setAttribute('width', '40');
+            } else {
+                els.sliderGroup.style.transform = 'translateX(0px)';
+                els.rheostatHighlight.style.opacity = '0';
+                els.rheostatHighlight.setAttribute('x', '150');
+                els.rheostatHighlight.setAttribute('width', '80');
+            }
+            els.labelRChange.style.opacity = currentStep >= 1 ? '1' : '0';
+            els.labelRTotal.style.opacity = currentStep >= 1 ? '1' : '0';
+
+            // 步骤2：电流变化
+            if (currentStep >= 2) {
+                els.ammeterPointer.style.transform = 'rotate(-15deg)';
+                els.ammeterReading.textContent = '0.2A';
+            } else {
+                els.ammeterPointer.style.transform = 'rotate(15deg)';
+                els.ammeterReading.textContent = '0.4A';
+            }
+            els.labelI.style.opacity = currentStep >= 2 ? '1' : '0';
+
+            // 步骤3：磁性变化
+            if (currentStep >= 3) {
+                els.field1.style.opacity = '0.5';
+                els.field2.style.opacity = '0.2';
+                els.field2.style.stroke = '#888888';
+                els.field3.style.opacity = '0.2';
+                els.field3.style.stroke = '#888888';
+                els.coreGlow.setAttribute('opacity', '0.08');
+            } else {
+                els.field1.style.opacity = '1';
+                els.field2.style.opacity = '1';
+                els.field2.style.stroke = '#2e7d32';
+                els.field3.style.opacity = '1';
+                els.field3.style.stroke = '#2e7d32';
+                els.coreGlow.setAttribute('opacity', '0.3');
+            }
+            els.labelMagnetic.style.opacity = currentStep >= 3 ? '1' : '0';
+
+            // 步骤4：受力分析与结论
+            if (currentStep >= 4) {
+                els.forceAnalysis.style.opacity = '1';
+                els.forceAnalysis.style.transform = 'translateY(0)';
+                els.ironBallGroup.style.transform = 'translate(0, -10px)';
+                els.ironBallShadow.style.transform = 'translate(0, -10px) scale(0.8)';
+                els.springPointerGroup.style.transform = 'translate(0, -10px)';
+                els.hookLine.style.transform = 'scaleY(0.6)';
+            } else {
+                els.forceAnalysis.style.opacity = '0';
+                els.forceAnalysis.style.transform = 'translateY(10px)';
+                els.ironBallGroup.style.transform = 'translate(0, 0)';
+                els.ironBallShadow.style.transform = 'translate(0, 0) scale(1)';
+                els.springPointerGroup.style.transform = 'translate(0, 0)';
+                els.hookLine.style.transform = 'scaleY(1)';
+            }
+
+            // 选项卡片状态
+            setOptionState(els.optionA, currentStep >= 1 ? 'wrong' : null);
+            setOptionState(els.optionD, currentStep >= 2 ? 'wrong' : null);
+            setOptionState(els.optionC, currentStep >= 3 ? 'wrong' : null);
+            setOptionState(els.optionB, currentStep >= 4 ? 'correct' : null);
+
+            updateButtons();
+        }
+
+        els.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        els.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

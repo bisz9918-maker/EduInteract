@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 球心角与球面距离计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; transition: all 0.2s; }
+        .scene2-btn:hover { background: #1565c0; color: #ffffff; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+        .scene2-hidden { display: none !important; opacity: 0 !important; }
+        svg { display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 球体轮廓 -->
+            <ellipse id="scene2-sphere" cx="300" cy="250" rx="200" ry="200" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 截面圆（虚线） -->
+            <ellipse id="scene2-section" cx="300" cy="310" rx="120" ry="30" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- △BOC 填充 -->
+            <polygon id="scene2-triangle-fill" points="300,250 220,320 380,320" fill="#1565c0" opacity="0.1"/>
+            
+            <!-- 线段 OB -->
+            <line id="scene2-line-OB" x1="300" y1="250" x2="220" y2="320" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 线段 OC -->
+            <line id="scene2-line-OC" x1="300" y1="250" x2="380" y2="320" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 线段 BC -->
+            <line id="scene2-line-BC" x1="220" y1="320" x2="380" y2="320" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 球心角弧线（红色） -->
+            <path id="scene2-angle-arc" d="M 285.5,275 Q 300,260 314.5,275" fill="none" stroke="#c62828" stroke-width="1.5" opacity="0"/>
+            
+            <!-- 球面距离弧（绿色贝塞尔曲线） -->
+            <path id="scene2-surface-arc" d="M 220,320 Q 300,380 380,320" fill="none" stroke="#2e7d32" stroke-width="2" opacity="0"/>
+            
+            <!-- 等边标记（绿色短线） -->
+            <line id="scene2-mark-OB" x1="260" y1="285" x2="264" y2="282" stroke="#2e7d32" stroke-width="1" opacity="0"/>
+            <line id="scene2-mark-OC" x1="340" y1="285" x2="336" y2="282" stroke="#2e7d32" stroke-width="1" opacity="0"/>
+            <line id="scene2-mark-BC" x1="300" y1="320" x2="300" y2="324" stroke="#2e7d32" stroke-width="1" opacity="0"/>
+            
+            <!-- 球心 O -->
+            <circle id="scene2-point-O" cx="300" cy="250" r="5" fill="#c62828"/>
+            
+            <!-- 点 B -->
+            <circle id="scene2-point-B" cx="220" cy="320" r="5" fill="#c62828"/>
+            
+            <!-- 点 C -->
+            <circle id="scene2-point-C" cx="380" cy="320" r="5" fill="#c62828"/>
+            
+            <!-- 标签 - 移到球体轮廓外侧（球体边界：上 50、下 450、左 100、右 500） -->
+            <text id="scene2-label-O" x="305" y="40" font-size="16" fill="#000000">O</text>
+            <text id="scene2-label-B" x="80" y="340" font-size="16" fill="#000000">B</text>
+            <text id="scene2-label-C" x="520" y="340" font-size="16" fill="#000000">C</text>
+            
+            <!-- 数值标注 - 移到右侧空白区域 -->
+            <text id="scene2-label-radius" x="550" y="180" font-size="14" fill="#1565c0" opacity="0">OB=OC=3</text>
+            <text id="scene2-label-chord" x="550" y="220" font-size="14" fill="#000000" opacity="0">BC=3</text>
+            <text id="scene2-label-equilateral" x="550" y="260" font-size="14" fill="#2e7d32" opacity="0">等边三角形</text>
+            
+            <!-- 公式标签区 -->
+            <text id="scene2-label-angle" x="550" y="320" font-size="14" fill="#000000" opacity="0">∠BOC=60°=π/3</text>
+            <text id="scene2-label-formula" x="550" y="380" font-size="14" fill="#000000" opacity="0">s=R·θ=3·π/3=π</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 球心角与球面距离计算
+        // 布局坐标表（修复后）：
+        // | 元素 | 位置/范围 | 备注 |
+        // | 球体轮廓 | (100,100)-(500,500) | 400×400 |
+        // | 截面圆 | (180,280)-(420,340) | 240×60 虚线 |
+        // | 球心 O | (300,250) | 球心位置 |
+        // | 点 B | (220,320) | 球面右下偏左 |
+        // | 点 C | (380,320) | 球面右下偏右 |
+        // | 线段 OB | (300,250)-(220,320) | 半径，蓝色 |
+        // | 线段 OC | (300,250)-(380,320) | 半径，蓝色 |
+        // | 线段 BC | (220,320)-(380,320) | 弦，黑色 160px |
+        // | 标签 O | (305,40) | 移到球体上方外侧 |
+        // | 标签 B | (80,340) | 移到球体左方外侧 |
+        // | 标签 C | (520,340) | 移到球体右方外侧 |
+        // | 数值标注 | (550,180+) | 移到右侧空白区域 |
+        
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            // 元素 ID 映射
+            elements: {
+                sphere: 'scene2-sphere',
+                section: 'scene2-section',
+                triangleFill: 'scene2-triangle-fill',
+                lineOB: 'scene2-line-OB',
+                lineOC: 'scene2-line-OC',
+                lineBC: 'scene2-line-BC',
+                angleArc: 'scene2-angle-arc',
+                surfaceArc: 'scene2-surface-arc',
+                markOB: 'scene2-mark-OB',
+                markOC: 'scene2-mark-OC',
+                markBC: 'scene2-mark-BC',
+                pointO: 'scene2-point-O',
+                pointB: 'scene2-point-B',
+                pointC: 'scene2-point-C',
+                labelO: 'scene2-label-O',
+                labelB: 'scene2-label-B',
+                labelC: 'scene2-label-C',
+                labelRadius: 'scene2-label-radius',
+                labelChord: 'scene2-label-chord',
+                labelEquilateral: 'scene2-label-equilateral',
+                labelAngle: 'scene2-label-angle',
+                labelFormula: 'scene2-label-formula'
+            },
+            
+            // 步骤定义
+            steps: [
+                // 步骤 0：初始状态 - 显示基本结构
+                {
+                    show: ['sphere', 'section', 'triangleFill', 'lineOB', 'lineOC', 'lineBC', 'pointO', 'pointB', 'pointC', 'labelO', 'labelB', 'labelC'],
+                    hide: ['angleArc', 'surfaceArc', 'markOB', 'markOC', 'markBC', 'labelRadius', 'labelChord', 'labelEquilateral', 'labelAngle', 'labelFormula'],
+                    lineOBWidth: 2,
+                    lineOCWidth: 2,
+                    lineBCWidth: 1.5,
+                    triangleOpacity: 0.1
+                },
+                // 步骤 1：标注半径和弦长
+                {
+                    show: ['sphere', 'section', 'triangleFill', 'lineOB', 'lineOC', 'lineBC', 'pointO', 'pointB', 'pointC', 'labelO', 'labelB', 'labelC', 'labelRadius', 'labelChord'],
+                    hide: ['angleArc', 'surfaceArc', 'markOB', 'markOC', 'markBC', 'labelEquilateral', 'labelAngle', 'labelFormula'],
+                    lineOBWidth: 3,
+                    lineOCWidth: 3,
+                    lineBCWidth: 2,
+                    triangleOpacity: 0.1
+                },
+                // 步骤 2：等边三角形判定
+                {
+                    show: ['sphere', 'section', 'triangleFill', 'lineOB', 'lineOC', 'lineBC', 'pointO', 'pointB', 'pointC', 'labelO', 'labelB', 'labelC', 'labelRadius', 'labelChord', 'markOB', 'markOC', 'markBC', 'labelEquilateral'],
+                    hide: ['angleArc', 'surfaceArc', 'labelAngle', 'labelFormula'],
+                    lineOBWidth: 3,
+                    lineOCWidth: 3,
+                    lineBCWidth: 2,
+                    triangleOpacity: 0.2
+                },
+                // 步骤 3：球心角计算
+                {
+                    show: ['sphere', 'section', 'triangleFill', 'lineOB', 'lineOC', 'lineBC', 'pointO', 'pointB', 'pointC', 'labelO', 'labelB', 'labelC', 'labelRadius', 'labelChord', 'markOB', 'markOC', 'markBC', 'labelEquilateral', 'angleArc', 'labelAngle'],
+                    hide: ['surfaceArc', 'labelFormula'],
+                    lineOBWidth: 3,
+                    lineOCWidth: 3,
+                    lineBCWidth: 2,
+                    triangleOpacity: 0.2
+                },
+                // 步骤 4：球面距离公式（最终）
+                {
+                    show: ['sphere', 'section', 'triangleFill', 'lineOB', 'lineOC', 'lineBC', 'pointO', 'pointB', 'pointC', 'labelO', 'labelB', 'labelC', 'labelRadius', 'labelChord', 'markOB', 'markOC', 'markBC', 'labelEquilateral', 'angleArc', 'surfaceArc', 'labelAngle', 'labelFormula'],
+                    hide: [],
+                    lineOBWidth: 3,
+                    lineOCWidth: 3,
+                    lineBCWidth: 2,
+                    triangleOpacity: 0.2
+                }
+            ],
+            
+            // 获取元素引用
+            getEl: function(key) {
+                return document.getElementById(this.elements[key]);
+            },
+            
+            // 显示元素
+            showEl: function(key) {
+                const el = this.getEl(key);
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            },
+            
+            // 隐藏元素
+            hideEl: function(key) {
+                const el = this.getEl(key);
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            },
+            
+            // 更新步骤显示
+            updateScene: function() {
+                const step = this.steps[this.currentStep];
+                
+                // 显示元素
+                step.show.forEach(key => this.showEl(key));
+                
+                // 隐藏元素
+                step.hide.forEach(key => this.hideEl(key));
+                
+                // 更新线段粗细
+                const lineOB = this.getEl('lineOB');
+                const lineOC = this.getEl('lineOC');
+                const lineBC = this.getEl('lineBC');
+                const triangleFill = this.getEl('triangleFill');
+                
+                if (lineOB) lineOB.setAttribute('stroke-width', step.lineOBWidth);
+                if (lineOC) lineOC.setAttribute('stroke-width', step.lineOCWidth);
+                if (lineBC) lineBC.setAttribute('stroke-width', step.lineBCWidth);
+                if (triangleFill) triangleFill.setAttribute('opacity', step.triangleOpacity);
+                
+                // 更新步骤指示器
+                const indicator = document.getElementById('scene2-step-indicator');
+                if (indicator) {
+                    indicator.textContent = '步骤 ' + (this.currentStep + 1) + '/' + this.totalSteps;
+                }
+                
+                // 更新按钮状态
+                const btnPrev = document.getElementById('scene2-btn-prev');
+                const btnNext = document.getElementById('scene2-btn-next');
+                
+                if (btnPrev) btnPrev.disabled = (this.currentStep === 0);
+                if (btnNext) btnNext.disabled = (this.currentStep === this.totalSteps - 1);
+            },
+            
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    this.currentStep++;
+                    this.updateScene();
+                }
+            },
+            
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.updateScene();
+                }
+            },
+            
+            // 初始化
+            init: function() {
+                // 绑定按钮事件
+                document.getElementById('scene2-btn-prev').addEventListener('click', () => this.prevStep());
+                document.getElementById('scene2-btn-next').addEventListener('click', () => this.nextStep());
+                
+                // 初始化显示
+                this.updateScene();
+            }
+        };
+        
+        // 启动
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

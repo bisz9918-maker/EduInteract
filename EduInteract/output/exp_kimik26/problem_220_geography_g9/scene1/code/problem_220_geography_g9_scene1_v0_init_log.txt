@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>热力环流侧视图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        #scene1-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button.disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #333; min-width: 60px; text-align: center; }
+        .scene1-step-element { transition: opacity 0.2s ease; }
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" style="display: block;">
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
+                </marker>
+                <marker id="scene1-arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0" />
+                </marker>
+            </defs>
+            
+            <!-- 地面平行四边形 -->
+            <polygon points="180,400 620,400 580,330 220,330" fill="none" stroke="#000000" stroke-width="2" />
+            
+            <!-- 左侧垂直线 a-d -->
+            <line x1="220" y1="330" x2="220" y2="150" stroke="#000000" stroke-width="2" />
+            
+            <!-- 右侧垂直线 b-c -->
+            <line x1="580" y1="330" x2="580" y2="150" stroke="#000000" stroke-width="2" />
+            
+            <!-- 高空水平线 d-c -->
+            <line x1="220" y1="150" x2="580" y2="150" stroke="#000000" stroke-width="2" />
+            
+            <!-- 箭头①：高空水平向右 d→c -->
+            <line id="scene1-arrow-1" x1="250" y1="150" x2="550" y2="150" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- 箭头②：右侧垂直上升 b→c -->
+            <line id="scene1-arrow-2" x1="580" y1="300" x2="580" y2="180" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- 箭头③：近地面水平向右 a→b -->
+            <line id="scene1-arrow-3" x1="250" y1="330" x2="550" y2="330" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- 箭头④：左侧垂直下沉 d→a -->
+            <line id="scene1-arrow-4" x1="220" y1="180" x2="220" y2="300" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- 点标签：放置在图形外侧避免重叠 -->
+            <text x="170" y="340" text-anchor="end" fill="#000000" font-size="14px" font-family="sans-serif">a</text>
+            <text x="630" y="340" text-anchor="start" fill="#000000" font-size="14px" font-family="sans-serif">b</text>
+            <text x="630" y="140" text-anchor="start" fill="#000000" font-size="14px" font-family="sans-serif">c</text>
+            <text x="170" y="140" text-anchor="end" fill="#000000" font-size="14px" font-family="sans-serif">d</text>
+            
+            <!-- 箭头编号：放置在远离图形的位置 -->
+            <text x="400" y="95" text-anchor="middle" fill="#000000" font-size="14px" font-family="sans-serif">①</text>
+            <text x="630" y="240" text-anchor="start" fill="#000000" font-size="14px" font-family="sans-serif">②</text>
+            <text x="400" y="410" text-anchor="middle" fill="#000000" font-size="14px" font-family="sans-serif">③</text>
+            <text x="170" y="240" text-anchor="end" fill="#000000" font-size="14px" font-family="sans-serif">④</text>
+            
+            <!-- 步骤1：冷区/热区填充 -->
+            <rect id="scene1-cold-zone" class="scene1-step-element scene1-hidden" data-step="1" x="180" y="150" width="80" height="180" fill="#1565c0" opacity="0.15" />
+            <rect id="scene1-hot-zone" class="scene1-step-element scene1-hidden" data-step="1" x="540" y="150" width="80" height="180" fill="#c62828" opacity="0.15" />
+            
+            <!-- 步骤1：冷却下沉 / 受热上升 -->
+            <text id="scene1-label-cold" class="scene1-step-element scene1-hidden" data-step="1" x="130" y="240" text-anchor="end" fill="#1565c0" font-size="14px" font-family="sans-serif">冷却下沉</text>
+            <text id="scene1-label-hot" class="scene1-step-element scene1-hidden" data-step="1" x="660" y="240" text-anchor="start" fill="#c62828" font-size="14px" font-family="sans-serif">受热上升</text>
+            
+            <!-- 步骤2：温度标注 -->
+            <text id="scene1-t-a" class="scene1-step-element scene1-hidden" data-step="2" x="170" y="380" text-anchor="end" fill="#000000" font-size="14px" font-family="sans-serif">T_a</text>
+            <text id="scene1-t-b" class="scene1-step-element scene1-hidden" data-step="2" x="630" y="415" text-anchor="start" fill="#000000" font-size="14px" font-family="sans-serif">T_b</text>
+            <text id="scene1-t-d" class="scene1-step-element scene1-hidden" data-step="2" x="170" y="100" text-anchor="end" fill="#000000" font-size="14px" font-family="sans-serif">T_d</text>
+            <text id="scene1-t-c" class="scene1-step-element scene1-hidden" data-step="2" x="630" y="70" text-anchor="start" fill="#000000" font-size="14px" font-family="sans-serif">T_c</text>
+            
+            <!-- 步骤2：温度对比 -->
+            <text id="scene1-compare-temp" class="scene1-step-element scene1-hidden" data-step="2" x="300" y="445" text-anchor="middle" fill="#000000" font-size="14px" font-family="sans-serif">T_b > T_a</text>
+            <text id="scene1-note-temp" class="scene1-step-element scene1-hidden" data-step="2" x="250" y="85" text-anchor="middle" fill="#000000" font-size="14px" font-family="sans-serif">高空温度低于近地面</text>
+            
+            <!-- 步骤2：选项A标记 -->
+            <text id="scene1-option-a" class="scene1-step-element scene1-hidden" data-step="2" x="620" y="200" text-anchor="start" fill="#c62828" font-size="12px" font-family="sans-serif">A. 温度：a>b>c>d ✗</text>
+            
+            <!-- 步骤3：等压面曲线 -->
+            <path id="scene1-iso-surface-ground" class="scene1-step-element scene1-hidden" data-step="3" d="M180,310 C200,310 210,270 220,270 C230,270 300,320 400,330 C500,340 570,380 580,380 C590,380 600,350 620,350" fill="none" stroke="#2e7d32" stroke-width="1.5" />
+            <path id="scene1-iso-surface-high" class="scene1-step-element scene1-hidden" data-step="3" d="M180,170 C200,170 210,210 220,210 C230,210 300,160 400,150 C500,140 570,100 580,100 C590,100 600,130 620,130" fill="none" stroke="#2e7d32" stroke-width="1.5" />
+            
+            <!-- 步骤3：气压标注 -->
+            <text id="scene1-pressure-a" class="scene1-step-element scene1-hidden" data-step="3" x="150" y="290" text-anchor="end" fill="#2e7d32" font-size="14px" font-family="sans-serif">高压</text>
+            <text id="scene1-pressure-b" class="scene1-step-element scene1-hidden" data-step="3" x="690" y="385" text-anchor="start" fill="#2e7d32" font-size="14px" font-family="sans-serif">低压</text>
+            <text id="scene1-pressure-d" class="scene1-step-element scene1-hidden" data-step="3" x="150" y="195" text-anchor="end" fill="#2e7d32" font-size="14px" font-family="sans-serif">低压</text>
+            <text id="scene1-pressure-c" class="scene1-step-element scene1-hidden" data-step="3" x="660" y="120" text-anchor="start" fill="#2e7d32" font-size="14px" font-family="sans-serif">高压</text>
+            
+            <!-- 步骤3：气压说明 -->
+            <text id="scene1-note-pressure" class="scene1-step-element scene1-hidden" data-step="3" x="500" y="445" text-anchor="middle" fill="#000000" font-size="14px" font-family="sans-serif">近地面气压始终高于高空</text>
+            
+            <!-- 步骤3：选项B标记 -->
+            <text id="scene1-option-b" class="scene1-step-element scene1-hidden" data-step="3" x="620" y="280" text-anchor="start" fill="#c62828" font-size="12px" font-family="sans-serif">B. 气压：d>a>b>c ✗</text>
+            
+            <!-- 步骤4：正确结论 -->
+            <text id="scene1-conclusion" class="scene1-step-element scene1-hidden" data-step="4" x="400" y="35" text-anchor="middle" fill="#2e7d32" font-size="13px" font-family="sans-serif" font-weight="bold">
+                <tspan x="400" dy="0">温度：b > a > c = d（近地面高于高空）</tspan>
+                <tspan x="400" dy="18">气压：a > b > d > c（近地面高于高空）</tspan>
+            </text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        const STATE_COUNT = 5;
+        let currentState = 0;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const arrow2 = document.getElementById('scene1-arrow-2');
+        const arrow4 = document.getElementById('scene1-arrow-4');
+        const container = document.getElementById('scene1-container');
+        
+        function updateButtons() {
+            btnPrev.classList.toggle('disabled', currentState === 0);
+            btnNext.classList.toggle('disabled', currentState === STATE_COUNT - 1);
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === STATE_COUNT - 1;
+            stepIndicator.textContent = '步骤 ' + (currentState + 1) + '/' + STATE_COUNT;
+        }
+        
+        function render() {
+            // 处理带 data-step 的元素
+            const elements = container.querySelectorAll('.scene1-step-element');
+            elements.forEach(function(el) {
+                const step = parseInt(el.getAttribute('data-step'), 10);
+                if (currentState >= step) {
+                    el.classList.remove('scene1-hidden');
+                } else {
+                    el.classList.add('scene1-hidden');
+                }
+            });
+            
+            // 步骤1：箭头高亮
+            if (currentState >= 1) {
+                arrow2.setAttribute('stroke', '#c62828');
+                arrow2.setAttribute('marker-end', 'url(#scene1-arrowhead-red)');
+                arrow4.setAttribute('stroke', '#1565c0');
+                arrow4.setAttribute('marker-end', 'url(#scene1-arrowhead-blue)');
+            } else {
+                arrow2.setAttribute('stroke', '#000000');
+                arrow2.setAttribute('marker-end', 'url(#scene1-arrowhead)');
+                arrow4.setAttribute('stroke', '#000000');
+                arrow4.setAttribute('marker-end', 'url(#scene1-arrowhead)');
+            }
+            
+            updateButtons();
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                render();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < STATE_COUNT - 1) {
+                currentState++;
+                render();
+            }
+        });
+        
+        // 初始渲染
+        render();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; }
+        .fade { transition: opacity 0.5s ease; }
+        
+        @keyframes flow-right {
+            from { stroke-dashoffset: 20; }
+            to { stroke-dashoffset: 0; }
+        }
+        .flow-anim {
+            stroke-dasharray: 10 5;
+            animation: flow-right 0.5s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Glass tube -->
+            <path d="M 50 230 L 150 230 Q 160 230 160 220 L 160 210 Q 160 200 170 200 L 330 200 Q 340 200 340 210 L 340 220 Q 340 230 350 230 L 450 230 Q 460 230 460 220 L 460 210 Q 460 200 470 200 L 630 200 Q 640 200 640 210 L 640 220 Q 640 230 650 230 L 750 230" fill="none" stroke="#000" stroke-width="2"/>
+            <path d="M 50 270 L 150 270 Q 160 270 160 280 L 160 290 Q 160 300 170 300 L 330 300 Q 340 300 340 290 L 340 280 Q 340 270 350 270 L 450 270 Q 460 270 460 280 L 460 290 Q 460 300 470 300 L 630 300 Q 640 300 640 290 L 640 280 Q 640 270 650 270 L 750 270" fill="none" stroke="#000" stroke-width="2"/>
+            
+            <!-- Particles groups -->
+            <g id="scene1-particles-co1" class="fade"></g>
+            <g id="scene1-particles-impurity" class="fade"></g>
+            <g id="scene1-particles-co2" class="fade" style="opacity: 0;"></g>
+            
+            <!-- Gas flows -->
+            <line id="scene1-flow-left" x1="50" y1="250" x2="140" y2="250" stroke="#2e7d32" stroke-width="3" class="flow-anim fade" marker-end="url(#arrow-green)"/>
+            <line id="scene1-flow-mid" x1="360" y1="250" x2="440" y2="250" stroke="#c62828" stroke-width="3" class="flow-anim fade" style="opacity: 0;" marker-end="url(#arrow-red)"/>
+            <line id="scene1-flow-right" x1="660" y1="250" x2="750" y2="250" stroke="#2e7d32" stroke-width="3" class="flow-anim fade" style="opacity: 0;" marker-end="url(#arrow-green)"/>
+            
+            <!-- Markers -->
+            <defs>
+                <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- Labels -->
+            <text x="250" y="180" text-anchor="middle" font-size="16" fill="#000">容器1</text>
+            <text x="550" y="180" text-anchor="middle" font-size="16" fill="#000">容器2</text>
+            
+            <text id="scene1-label-900" x="250" y="140" text-anchor="middle" font-size="18" font-weight="bold" fill="#c62828" class="fade" style="opacity: 0;">900℃</text>
+            <text id="scene1-label-600" x="550" y="140" text-anchor="middle" font-size="18" font-weight="bold" fill="#1565c0" class="fade" style="opacity: 0;">600℃</text>
+            
+            <text id="scene1-label-gas-left" x="100" y="200" text-anchor="middle" font-size="14" fill="#2e7d32" class="fade">气体Y (HCl)</text>
+            
+            <text id="scene1-label-solid-x" x="250" y="335" text-anchor="middle" font-size="16" fill="#000" class="fade">固体X (粗Co)</text>
+            <text id="scene1-label-impurity" x="250" y="335" text-anchor="middle" font-size="16" fill="#888" class="fade" style="opacity: 0;">杂质</text>
+            
+            <text id="scene1-label-gas-mid" x="400" y="200" text-anchor="middle" font-size="14" fill="#c62828" class="fade" style="opacity: 0;">CoCl2(气)+H2(气)</text>
+            
+            <text id="scene1-label-pure-co" x="550" y="335" text-anchor="middle" font-size="16" fill="#1565c0" class="fade" style="opacity: 0;">纯净Co</text>
+            
+            <text id="scene1-label-gas-right" x="700" y="200" text-anchor="middle" font-size="14" fill="#2e7d32" class="fade" style="opacity: 0;">气体Y (HCl)</text>
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Generate particles
+        function createParticles(groupId, color, count, minX, maxX, minY, maxY) {
+            const group = document.getElementById(groupId);
+            for (let i = 0; i < count; i++) {
+                const x = minX + Math.random() * (maxX - minX);
+                const y = minY + Math.random() * (maxY - minY);
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", x);
+                circle.setAttribute("cy", y);
+                circle.setAttribute("r", 2.5);
+                circle.setAttribute("fill", color);
+                group.appendChild(circle);
+            }
+        }
+        
+        createParticles("scene1-particles-co1", "#1565c0", 80, 170, 330, 270, 295);
+        createParticles("scene1-particles-impurity", "#888888", 40, 170, 330, 270, 295);
+        createParticles("scene1-particles-co2", "#1565c0", 80, 470, 630, 270, 295);
+
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById("scene1-btn-prev");
+        const btnNext = document.getElementById("scene1-btn-next");
+        
+        function updateState() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            const setOpacity = (id, op) => document.getElementById(id).style.opacity = op;
+            
+            if (currentStep === 0) {
+                setOpacity("scene1-label-900", 0);
+                setOpacity("scene1-particles-co1", 1);
+                setOpacity("scene1-flow-mid", 0);
+                setOpacity("scene1-label-gas-mid", 0);
+                
+                setOpacity("scene1-label-600", 0);
+                setOpacity("scene1-particles-co2", 0);
+                setOpacity("scene1-label-pure-co", 0);
+                setOpacity("scene1-flow-right", 0);
+                
+                setOpacity("scene1-label-solid-x", 1);
+                setOpacity("scene1-label-impurity", 0);
+                setOpacity("scene1-label-gas-right", 0);
+                
+                document.getElementById("scene1-flow-left").style.animationPlayState = "paused";
+            } else if (currentStep === 1) {
+                setOpacity("scene1-label-900", 1);
+                setOpacity("scene1-particles-co1", 0.3);
+                setOpacity("scene1-flow-mid", 1);
+                setOpacity("scene1-label-gas-mid", 1);
+                
+                setOpacity("scene1-label-600", 0);
+                setOpacity("scene1-particles-co2", 0);
+                setOpacity("scene1-label-pure-co", 0);
+                setOpacity("scene1-flow-right", 0);
+                
+                setOpacity("scene1-label-solid-x", 1);
+                setOpacity("scene1-label-impurity", 0);
+                setOpacity("scene1-label-gas-right", 0);
+                
+                document.getElementById("scene1-flow-left").style.animationPlayState = "running";
+                document.getElementById("scene1-flow-mid").style.animationPlayState = "running";
+            } else if (currentStep === 2) {
+                setOpacity("scene1-label-900", 1);
+                setOpacity("scene1-particles-co1", 0.3);
+                setOpacity("scene1-flow-mid", 1);
+                setOpacity("scene1-label-gas-mid", 1);
+                
+                setOpacity("scene1-label-600", 1);
+                setOpacity("scene1-particles-co2", 1);
+                setOpacity("scene1-label-pure-co", 1);
+                setOpacity("scene1-flow-right", 1);
+                
+                setOpacity("scene1-label-solid-x", 1);
+                setOpacity("scene1-label-impurity", 0);
+                setOpacity("scene1-label-gas-right", 0);
+                
+                document.getElementById("scene1-flow-left").style.animationPlayState = "running";
+                document.getElementById("scene1-flow-mid").style.animationPlayState = "running";
+                document.getElementById("scene1-flow-right").style.animationPlayState = "running";
+            } else if (currentStep === 3) {
+                setOpacity("scene1-label-900", 1);
+                setOpacity("scene1-particles-co1", 0);
+                setOpacity("scene1-flow-mid", 1);
+                setOpacity("scene1-label-gas-mid", 1);
+                
+                setOpacity("scene1-label-600", 1);
+                setOpacity("scene1-particles-co2", 1);
+                setOpacity("scene1-label-pure-co", 1);
+                setOpacity("scene1-flow-right", 1);
+                
+                setOpacity("scene1-label-solid-x", 0);
+                setOpacity("scene1-label-impurity", 1);
+                setOpacity("scene1-label-gas-right", 1);
+            }
+        }
+        
+        btnPrev.addEventListener("click", () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener("click", () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+        
+        // Initial state
+        document.getElementById("scene1-flow-left").style.animationPlayState = "paused";
+        document.getElementById("scene1-flow-mid").style.animationPlayState = "paused";
+        document.getElementById("scene1-flow-right").style.animationPlayState = "paused";
+        updateState();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oah-sandbox
+  labels:
+    app.kubernetes.io/name: oah-sandbox
+    app.kubernetes.io/component: sandbox
+    app.kubernetes.io/part-of: open-agent-harness
+spec:
+  replicas: 2
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oah-sandbox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oah-sandbox
+        app.kubernetes.io/component: sandbox
+        app.kubernetes.io/part-of: open-agent-harness
+    spec:
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: sandbox
+          image: ghcr.io/open-agent-harness/open-agent-harness:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/worker.js", "--config", "/etc/oah/server.yaml"]
+          env:
+            - name: OAH_CONFIG
+              value: /etc/oah/server.yaml
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=2048 --max-semi-space-size=32"
+            - name: OAH_INTERNAL_BASE_URL
+              value: http://$(HOSTNAME).oah-sandbox-internal.open-agent-harness.svc.cluster.local:8787
+            - name: OAH_ALLOW_PRIVATE_INTERNAL_ROUTES
+              value: "true"
+            - name: OAH_OBJECT_STORAGE_SYNC_TRUST_MANAGED_PREFIXES
+              value: "true"
+            - name: OAH_POSTGRES_POOL_MAX
+              value: "3"
+            - name: OAH_REDIS_READY_QUEUE_READINESS_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_CLAIM_SCAN_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_PRESSURE_SCAN_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_INSPECT_LIMIT
+              value: "100"
+            - name: OAH_WORKER_DISK_METRICS_PATH
+              value: /var/lib/oah/workspaces
+            - name: OAH_WORKER_DISK_READINESS_THRESHOLD
+              value: "0.95"
+            - name: OAH_OBJECT_STORAGE_SYNC_MAX_OBJECTS
+              value: "50000"
+            - name: OAH_OBJECT_STORAGE_SYNC_MAX_BYTES
+              value: "4294967296"
+            - name: OAH_OBJECT_STORAGE_SYNC_MAX_FILE_BYTES
+              value: "536870912"
+            - name: OAH_WORKER_DRAIN_TIMEOUT_MS
+              value: "110000"
+            - name: OAH_WORKER_DRAIN_TIMEOUT_STRATEGY
+              value: requeue_running
+          ports:
+            - containerPort: 8787
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 6
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - node
+                  - -e
+                  - >-
+                    const delayMs = 5000;
+                    const requestTimeoutMs = Math.max(1000, Math.min(delayMs, 4000));
+                    fetch("http://127.0.0.1:8787/internal/v1/control/drain", { method: "POST", signal: AbortSignal.timeout(requestTimeoutMs) })
+                    .catch(() => undefined)
+                    .finally(() => { setTimeout(() => process.exit(0), delayMs); });
+          volumeMounts:
+            - name: oah-config
+              mountPath: /etc/oah
+              readOnly: true
+            - name: oah-workspaces
+              mountPath: /var/lib/oah/workspaces
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 4Gi
+      volumes:
+        - name: oah-config
+          configMap:
+            name: oah-config
+        - name: oah-workspaces
+          emptyDir:
+            sizeLimit: 8Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oah-sandbox-internal
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: oah-sandbox
+  ports:
+    - name: http
+      port: 8787
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: oah-sandbox
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oah-sandbox

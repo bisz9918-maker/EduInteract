@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形计数演示</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #000000;
+        }
+        .scene1-triangle-base {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+        }
+        .scene1-triangle-highlight {
+            fill: #1565c0;
+            opacity: 0.25;
+            stroke: #1565c0;
+            stroke-width: 2;
+        }
+        .scene1-triangle-counted {
+            fill: #2e7d32;
+            opacity: 0.20;
+            stroke: #2e7d32;
+            stroke-width: 2;
+        }
+        .scene1-triangle-hidden {
+            fill: none;
+            stroke: none;
+        }
+        #scene1-counter {
+            font-size: 16px;
+            fill: #000000;
+        }
+        #scene1-result {
+            font-size: 18px;
+            font-weight: bold;
+            fill: #2e7d32;
+        }
+        .scene1-btn-group {
+            cursor: pointer;
+        }
+        .scene1-btn-text {
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 三角形填充层（在最下层） -->
+            <polygon id="scene1-tri-ade" class="scene1-triangle-hidden" points="400,80 300,230 500,230"/>
+            <polygon id="scene1-tri-bdf" class="scene1-triangle-hidden" points="200,380 300,230 400,380"/>
+            <polygon id="scene1-tri-cef" class="scene1-triangle-hidden" points="600,380 500,230 400,380"/>
+            <polygon id="scene1-tri-def" class="scene1-triangle-hidden" points="300,230 500,230 400,380"/>
+            <polygon id="scene1-tri-abc" class="scene1-triangle-hidden" points="400,80 200,380 600,380"/>
+
+            <!-- 大三角形 ABC 框架 -->
+            <path id="scene1-triangle-abc" class="scene1-triangle-base" d="M 400,80 L 200,380 L 600,380 Z"/>
+
+            <!-- 内部线段 DE -->
+            <line id="scene1-line-de" x1="300" y1="230" x2="500" y2="230" stroke="#000000" stroke-width="2"/>
+
+            <!-- 内部线段 DF -->
+            <line id="scene1-line-df" x1="300" y1="230" x2="400" y2="380" stroke="#000000" stroke-width="2"/>
+
+            <!-- 内部线段 EF -->
+            <line id="scene1-line-ef" x1="500" y1="230" x2="400" y2="380" stroke="#000000" stroke-width="2"/>
+
+            <!-- 顶点标签（放在线段之上，远离线段） -->
+            <text id="scene1-label-a" class="scene1-label" x="400" y="45" text-anchor="middle">A</text>
+            <text id="scene1-label-b" class="scene1-label" x="165" y="400" text-anchor="end">B</text>
+            <text id="scene1-label-c" class="scene1-label" x="635" y="400" text-anchor="start">C</text>
+            <text id="scene1-label-d" class="scene1-label" x="270" y="210" text-anchor="end">D</text>
+            <text id="scene1-label-e" class="scene1-label" x="530" y="210" text-anchor="start">E</text>
+            <text id="scene1-label-f" class="scene1-label" x="400" y="400" text-anchor="middle">F</text>
+
+            <!-- 计数器 -->
+            <text id="scene1-counter" x="700" y="50" text-anchor="end">0/5</text>
+
+            <!-- 结果文本 -->
+            <text id="scene1-result" x="400" y="440" text-anchor="middle" style="opacity: 0;">共 5 个三角形</text>
+
+            <!-- 控件栏 - 上一步按钮组（按钮文字放在 rect 外部下方） -->
+            <g id="scene1-btn-prev" class="scene1-btn-group">
+                <rect id="scene1-btn-prev-bg" x="250" y="460" width="100" height="28" fill="#f0f0f0" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene1-btn-prev-text" class="scene1-btn-text" x="300" y="482" text-anchor="middle" font-size="14" fill="#000000">◀ 上一步</text>
+            </g>
+
+            <!-- 控件栏 - 下一步按钮组 -->
+            <g id="scene1-btn-next" class="scene1-btn-group">
+                <rect id="scene1-btn-next-bg" x="450" y="460" width="100" height="28" fill="#f0f0f0" stroke="#333" stroke-width="1" rx="4"/>
+                <text id="scene1-btn-next-text" class="scene1-btn-text" x="500" y="482" text-anchor="middle" font-size="14" fill="#000000">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 三角形计数演示
+
+        // 布局坐标表参考：
+        // | 元素 | 类型 | 位置/范围 | 备注 |
+        // |------|------|-----------|------|
+        // | 大三角形 ABC | 路径 | A(400,80)-B(200,380)-C(600,380) | 主框架 |
+        // | 线段 DE | 线段 | D(300,230)-E(500,230) | 内部连线 |
+        // | 线段 DF | 线段 | D(300,230)-F(400,380) | 内部连线 |
+        // | 线段 EF | 线段 | E(500,230)-F(400,380) | 内部连线 |
+        // | 标签 A | text | (400,45) | 顶点 A 上方 |
+        // | 标签 B | text | (165,400) | 顶点 B 左侧 |
+        // | 标签 C | text | (635,400) | 顶点 C 右侧 |
+        // | 标签 D | text | (270,210) | 顶点 D 左上方（远离线段） |
+        // | 标签 E | text | (530,210) | 顶点 E 右上方（远离线段） |
+        // | 标签 F | text | (400,400) | 顶点 F 下方 |
+        // | 计数器 | text | (700,50) | 显示进度 |
+        // | 结果文本 | text | (400,440) | 最终显示 |
+        // | 上一步按钮 | 按钮 | (250,460) | 控件栏左侧 |
+        // | 下一步按钮 | 按钮 | (450,460) | 控件栏右侧 |
+
+        // 步骤配置
+        const steps = [
+            { count: 0, highlight: [], counted: [], showResult: false },  // 步骤 0: 初始状态
+            { count: 1, highlight: ['ade'], counted: [], showResult: false },  // 步骤 1: △ADE
+            { count: 2, highlight: ['bdf'], counted: ['ade'], showResult: false },  // 步骤 2: △BDF
+            { count: 3, highlight: ['cef'], counted: ['ade', 'bdf'], showResult: false },  // 步骤 3: △CEF
+            { count: 4, highlight: ['def'], counted: ['ade', 'bdf', 'cef'], showResult: false },  // 步骤 4: △DEF
+            { count: 5, highlight: ['abc'], counted: ['ade', 'bdf', 'cef', 'def'], showResult: false },  // 步骤 5: △ABC
+            { count: 5, highlight: [], counted: ['ade', 'bdf', 'cef', 'def', 'abc'], showResult: true }  // 步骤 6: 最终结果
+        ];
+
+        let currentStep = 0;
+
+        // 获取元素
+        const counterEl = document.getElementById('scene1-counter');
+        const resultEl = document.getElementById('scene1-result');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const btnPrevBg = document.getElementById('scene1-btn-prev-bg');
+        const btnPrevText = document.getElementById('scene1-btn-prev-text');
+        const btnNextBg = document.getElementById('scene1-btn-next-bg');
+        const btnNextText = document.getElementById('scene1-btn-next-text');
+
+        // 三角形填充元素
+        const triangles = {
+            ade: document.getElementById('scene1-tri-ade'),
+            bdf: document.getElementById('scene1-tri-bdf'),
+            cef: document.getElementById('scene1-tri-cef'),
+            def: document.getElementById('scene1-tri-def'),
+            abc: document.getElementById('scene1-tri-abc')
+        };
+
+        // 更新步骤显示
+        function updateStep() {
+            const step = steps[currentStep];
+
+            // 更新计数器
+            counterEl.textContent = step.count + '/5';
+
+            // 更新结果文本
+            if (step.showResult) {
+                resultEl.style.opacity = '1';
+            } else {
+                resultEl.style.opacity = '0';
+            }
+
+            // 更新所有三角形状态
+            for (const key in triangles) {
+                const tri = triangles[key];
+                if (step.highlight.includes(key)) {
+                    tri.classList.remove('scene1-triangle-hidden', 'scene1-triangle-counted');
+                    tri.classList.add('scene1-triangle-highlight');
+                } else if (step.counted.includes(key)) {
+                    tri.classList.remove('scene1-triangle-hidden', 'scene1-triangle-highlight');
+                    tri.classList.add('scene1-triangle-counted');
+                } else {
+                    tri.classList.remove('scene1-triangle-highlight', 'scene1-triangle-counted');
+                    tri.classList.add('scene1-triangle-hidden');
+                }
+            }
+
+            // 更新按钮状态
+            if (currentStep === 0) {
+                btnPrevBg.setAttribute('fill', '#e0e0e0');
+                btnPrevText.setAttribute('fill', '#999999');
+                btnPrev.style.cursor = 'not-allowed';
+            } else {
+                btnPrevBg.setAttribute('fill', '#f0f0f0');
+                btnPrevText.setAttribute('fill', '#000000');
+                btnPrev.style.cursor = 'pointer';
+            }
+
+            if (currentStep === steps.length - 1) {
+                btnNextBg.setAttribute('fill', '#e0e0e0');
+                btnNextText.setAttribute('fill', '#999999');
+                btnNext.style.cursor = 'not-allowed';
+            } else {
+                btnNextBg.setAttribute('fill', '#f0f0f0');
+                btnNextText.setAttribute('fill', '#000000');
+                btnNext.style.cursor = 'pointer';
+            }
+        }
+
+        // 按钮点击事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

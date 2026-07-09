@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>牛顿调和三角形</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+
+        /* SVG 样式 */
+        #scene2-svg { position: absolute; top: 0; left: 0; z-index: 1; }
+        .pascal-node { fill: #e3f2fd; stroke: #000000; stroke-width: 2; transition: all 0.3s ease; }
+        .pascal-node-highlight { fill: #1565c0; stroke: #0d47a1; stroke-width: 3; transition: all 0.3s ease; }
+        .newton-node { fill: #fff3e0; stroke: #000000; stroke-width: 2; transition: all 0.3s ease; }
+        .newton-node-highlight { fill: #c62828; stroke: #b71c1c; stroke-width: 3; transition: all 0.3s ease; }
+        .link-line { stroke: #888888; stroke-width: 1.5; stroke-dasharray: 4,4; opacity: 0.35; transition: all 0.3s ease; }
+        .link-line-active { stroke: #2e7d32; stroke-width: 2; opacity: 1; stroke-dasharray: none; transition: all 0.3s ease; }
+        .formula-bg { fill: #f5f5f5; stroke: #888888; stroke-width: 1; rx: 8; }
+
+        /* HTML 文字标签 - 绝对定位覆盖在 SVG 上 */
+        .label-overlay {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-family: "Microsoft YaHei", sans-serif;
+            pointer-events: none;
+            z-index: 5;
+            transition: color 0.3s ease;
+        }
+        .pascal-label { font-size: 14px; color: #000000; }
+        .pascal-label.highlight { color: #ffffff; }
+        .newton-label { font-size: 13px; color: #000000; }
+        .newton-label.highlight { color: #ffffff; }
+        .title-label { font-size: 16px; font-weight: bold; color: #000000; }
+        .row-label-html { font-size: 14px; color: #000000; }
+        .formula-html {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-family: "Microsoft YaHei", sans-serif;
+            font-size: 15px;
+            color: #000000;
+            pointer-events: none;
+            z-index: 5;
+            white-space: nowrap;
+        }
+        .answer-label-html {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-family: "Microsoft YaHei", sans-serif;
+            font-size: 13px;
+            color: #c62828;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .answer-label-html.show { opacity: 1; }
+        .formula-green { color: #2e7d32; }
+        .formula-blue { color: #1565c0; }
+        .formula-red { color: #c62828; }
+
+        /* 按钮样式 */
+        .ctrl-btn { padding: 6px 16px; font-size: 14px; border: 1px solid #9e9e9e; border-radius: 6px; background: #e0e0e0; cursor: pointer; font-family: "Microsoft YaHei", sans-serif; transition: background 0.2s; }
+        .ctrl-btn:hover:not(:disabled) { background: #bdbdbd; }
+        .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 步骤指示器 */
+        .step-indicator { position: absolute; bottom: 2px; left: 0; right: 0; font-size: 12px; color: #666; text-align: center; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图形层：只包含形状，不含文字 -->
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 杨辉三角节点 (圆形) -->
+            <g id="scene2-pascal-r1c1" class="pascal-node" data-row="1" data-col="1"><circle cx="200" cy="88" r="18"/></g>
+            <g id="scene2-pascal-r2c1" class="pascal-node" data-row="2" data-col="1"><circle cx="170" cy="138" r="18"/></g>
+            <g id="scene2-pascal-r2c2" class="pascal-node" data-row="2" data-col="2"><circle cx="230" cy="138" r="18"/></g>
+            <g id="scene2-pascal-r3c1" class="pascal-node" data-row="3" data-col="1"><circle cx="140" cy="188" r="18"/></g>
+            <g id="scene2-pascal-r3c2" class="pascal-node" data-row="3" data-col="2"><circle cx="200" cy="188" r="18"/></g>
+            <g id="scene2-pascal-r3c3" class="pascal-node" data-row="3" data-col="3"><circle cx="260" cy="188" r="18"/></g>
+            <g id="scene2-pascal-r4c1" class="pascal-node" data-row="4" data-col="1"><circle cx="110" cy="238" r="18"/></g>
+            <g id="scene2-pascal-r4c2" class="pascal-node" data-row="4" data-col="2"><circle cx="170" cy="238" r="18"/></g>
+            <g id="scene2-pascal-r4c3" class="pascal-node" data-row="4" data-col="3"><circle cx="230" cy="238" r="18"/></g>
+            <g id="scene2-pascal-r4c4" class="pascal-node" data-row="4" data-col="4"><circle cx="290" cy="238" r="18"/></g>
+            <g id="scene2-pascal-r5c1" class="pascal-node" data-row="5" data-col="1"><circle cx="80" cy="288" r="18"/></g>
+            <g id="scene2-pascal-r5c2" class="pascal-node" data-row="5" data-col="2"><circle cx="140" cy="288" r="18"/></g>
+            <g id="scene2-pascal-r5c3" class="pascal-node" data-row="5" data-col="3"><circle cx="200" cy="288" r="18"/></g>
+            <g id="scene2-pascal-r5c4" class="pascal-node" data-row="5" data-col="4"><circle cx="260" cy="288" r="18"/></g>
+            <g id="scene2-pascal-r5c5" class="pascal-node" data-row="5" data-col="5"><circle cx="320" cy="288" r="18"/></g>
+
+            <!-- 牛顿调和三角节点 (圆角矩形) -->
+            <g id="scene2-newton-r1c1" class="newton-node" data-row="1" data-col="1"><rect x="580" y="75" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r2c1" class="newton-node" data-row="2" data-col="1"><rect x="550" y="125" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r2c2" class="newton-node" data-row="2" data-col="2"><rect x="610" y="125" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r3c1" class="newton-node" data-row="3" data-col="1"><rect x="520" y="175" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r3c2" class="newton-node" data-row="3" data-col="2"><rect x="580" y="175" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r3c3" class="newton-node" data-row="3" data-col="3"><rect x="640" y="175" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r4c1" class="newton-node" data-row="4" data-col="1"><rect x="490" y="225" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r4c2" class="newton-node" data-row="4" data-col="2"><rect x="550" y="225" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r4c3" class="newton-node" data-row="4" data-col="3"><rect x="610" y="225" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r4c4" class="newton-node" data-row="4" data-col="4"><rect x="670" y="225" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r5c1" class="newton-node" data-row="5" data-col="1"><rect x="460" y="275" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r5c2" class="newton-node" data-row="5" data-col="2"><rect x="520" y="275" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r5c3" class="newton-node" data-row="5" data-col="3"><rect x="580" y="275" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r5c4" class="newton-node" data-row="5" data-col="4"><rect x="640" y="275" width="40" height="26" rx="6"/></g>
+            <g id="scene2-newton-r5c5" class="newton-node" data-row="5" data-col="5"><rect x="700" y="275" width="40" height="26" rx="6"/></g>
+
+            <!-- 对应连线 (15条) -->
+            <line id="scene2-link-r1c1" class="link-line" x1="218" y1="88" x2="580" y2="88"/>
+            <line id="scene2-link-r2c1" class="link-line" x1="188" y1="138" x2="550" y2="138"/>
+            <line id="scene2-link-r2c2" class="link-line" x1="248" y1="138" x2="610" y2="138"/>
+            <line id="scene2-link-r3c1" class="link-line" x1="158" y1="188" x2="520" y2="188"/>
+            <line id="scene2-link-r3c2" class="link-line" x1="218" y1="188" x2="580" y2="188"/>
+            <line id="scene2-link-r3c3" class="link-line" x1="278" y1="188" x2="640" y2="188"/>
+            <line id="scene2-link-r4c1" class="link-line" x1="128" y1="238" x2="490" y2="238"/>
+            <line id="scene2-link-r4c2" class="link-line" x1="188" y1="238" x2="550" y2="238"/>
+            <line id="scene2-link-r4c3" class="link-line" x1="248" y1="238" x2="610" y2="238"/>
+            <line id="scene2-link-r4c4" class="link-line" x1="308" y1="238" x2="670" y2="238"/>
+            <line id="scene2-link-r5c1" class="link-line" x1="98" y1="288" x2="460" y2="288"/>
+            <line id="scene2-link-r5c2" class="link-line" x1="158" y1="288" x2="520" y2="288"/>
+            <line id="scene2-link-r5c3" class="link-line" x1="218" y1="288" x2="580" y2="288"/>
+            <line id="scene2-link-r5c4" class="link-line" x1="278" y1="288" x2="640" y2="288"/>
+            <line id="scene2-link-r5c5" class="link-line" x1="338" y1="288" x2="700" y2="288"/>
+
+            <!-- 公式区背景 -->
+            <rect id="scene2-formula-bg" class="formula-bg" x="80" y="325" width="640" height="85"/>
+        </svg>
+
+        <!-- HTML 文字标签层 -->
+        <!-- 标题 -->
+        <div class="label-overlay title-label" style="left:200px; top:42px;">杨辉三角</div>
+        <div class="label-overlay title-label" style="left:600px; top:42px;">牛顿调和三角形</div>
+
+        <!-- 杨辉行号 -->
+        <div class="label-overlay row-label-html" style="left:50px; top:88px;">1</div>
+        <div class="label-overlay row-label-html" style="left:50px; top:138px;">2</div>
+        <div class="label-overlay row-label-html" style="left:50px; top:188px;">3</div>
+        <div class="label-overlay row-label-html" style="left:50px; top:238px;">4</div>
+        <div class="label-overlay row-label-html" style="left:50px; top:288px;">5</div>
+
+        <!-- 牛顿行号 -->
+        <div class="label-overlay row-label-html" style="left:750px; top:88px;">1</div>
+        <div class="label-overlay row-label-html" style="left:750px; top:138px;">2</div>
+        <div class="label-overlay row-label-html" style="left:750px; top:188px;">3</div>
+        <div class="label-overlay row-label-html" style="left:750px; top:238px;">4</div>
+        <div class="label-overlay row-label-html" style="left:750px; top:288px;">5</div>
+
+        <!-- 杨辉节点标签 -->
+        <div id="scene2-label-pascal-r1c1" class="label-overlay pascal-label" style="left:200px; top:88px;">1</div>
+        <div id="scene2-label-pascal-r2c1" class="label-overlay pascal-label" style="left:170px; top:138px;">1</div>
+        <div id="scene2-label-pascal-r2c2" class="label-overlay pascal-label" style="left:230px; top:138px;">1</div>
+        <div id="scene2-label-pascal-r3c1" class="label-overlay pascal-label" style="left:140px; top:188px;">1</div>
+        <div id="scene2-label-pascal-r3c2" class="label-overlay pascal-label" style="left:200px; top:188px;">2</div>
+        <div id="scene2-label-pascal-r3c3" class="label-overlay pascal-label" style="left:260px; top:188px;">1</div>
+        <div id="scene2-label-pascal-r4c1" class="label-overlay pascal-label" style="left:110px; top:238px;">1</div>
+        <div id="scene2-label-pascal-r4c2" class="label-overlay pascal-label" style="left:170px; top:238px;">3</div>
+        <div id="scene2-label-pascal-r4c3" class="label-overlay pascal-label" style="left:230px; top:238px;">3</div>
+        <div id="scene2-label-pascal-r4c4" class="label-overlay pascal-label" style="left:290px; top:238px;">1</div>
+        <div id="scene2-label-pascal-r5c1" class="label-overlay pascal-label" style="left:80px; top:288px;">1</div>
+        <div id="scene2-label-pascal-r5c2" class="label-overlay pascal-label" style="left:140px; top:288px;">4</div>
+        <div id="scene2-label-pascal-r5c3" class="label-overlay pascal-label" style="left:200px; top:288px;">6</div>
+        <div id="scene2-label-pascal-r5c4" class="label-overlay pascal-label" style="left:260px; top:288px;">4</div>
+        <div id="scene2-label-pascal-r5c5" class="label-overlay pascal-label" style="left:320px; top:288px;">1</div>
+
+        <!-- 牛顿节点标签 -->
+        <div id="scene2-label-newton-r1c1" class="label-overlay newton-label" style="left:600px; top:88px;">1/1</div>
+        <div id="scene2-label-newton-r2c1" class="label-overlay newton-label" style="left:570px; top:138px;">1/2</div>
+        <div id="scene2-label-newton-r2c2" class="label-overlay newton-label" style="left:630px; top:138px;">1/2</div>
+        <div id="scene2-label-newton-r3c1" class="label-overlay newton-label" style="left:540px; top:188px;">1/3</div>
+        <div id="scene2-label-newton-r3c2" class="label-overlay newton-label" style="left:600px; top:188px;">1/6</div>
+        <div id="scene2-label-newton-r3c3" class="label-overlay newton-label" style="left:660px; top:188px;">1/3</div>
+        <div id="scene2-label-newton-r4c1" class="label-overlay newton-label" style="left:510px; top:238px;">1/4</div>
+        <div id="scene2-label-newton-r4c2" class="label-overlay newton-label" style="left:570px; top:238px;">1/12</div>
+        <div id="scene2-label-newton-r4c3" class="label-overlay newton-label" style="left:630px; top:238px;">1/12</div>
+        <div id="scene2-label-newton-r4c4" class="label-overlay newton-label" style="left:690px; top:238px;">1/4</div>
+        <div id="scene2-label-newton-r5c1" class="label-overlay newton-label" style="left:480px; top:288px;">1/5</div>
+        <div id="scene2-label-newton-r5c2" class="label-overlay newton-label" style="left:540px; top:288px;">1/20</div>
+        <div id="scene2-label-newton-r5c3" class="label-overlay newton-label" style="left:600px; top:288px;">1/30</div>
+        <div id="scene2-label-newton-r5c4" class="label-overlay newton-label" style="left:660px; top:288px;">1/20</div>
+        <div id="scene2-label-newton-r5c5" class="label-overlay newton-label" style="left:720px; top:288px;">1/5</div>
+
+        <!-- 公式区文字 -->
+        <div id="scene2-formula-step0" class="formula-html" style="left:400px; top:365px;">观察左右两图，准备发现规律</div>
+        <div id="scene2-formula-step1" class="formula-html" style="left:400px; top:365px; display:none; opacity:0;">
+            <div style="text-align:center;"><span class="formula-green">1/6 = 1/(3×2)</span></div>
+            <div style="text-align:center; margin-top:18px;">规律：<span class="formula-green">牛顿数 = 1 ÷ (行号 × 杨辉数)</span></div>
+        </div>
+        <div id="scene2-formula-step2" class="formula-html" style="left:400px; top:365px; display:none; opacity:0;">
+            a<sub>n,k</sub> = 1 / (n · <span class="formula-blue">C</span><sub class="formula-blue">n-1</sub><sup class="formula-blue">k-1</sup>)
+        </div>
+        <div id="scene2-formula-step3" class="formula-html" style="left:400px; top:365px; display:none; opacity:0;">
+            <div style="text-align:center;">a<sub>n,3</sub> = 1/(n·<span class="formula-blue">C</span><sub class="formula-blue">n-1</sub><sup class="formula-blue">2</sup>) = <span class="formula-green">2/(n(n-1)(n-2))</span></div>
+            <div style="text-align:center; margin-top:18px;">验证 n=5：<span class="formula-green">2/(5×4×3) = </span><span class="formula-red">1/30</span><span class="formula-green"> ✓</span></div>
+        </div>
+
+        <!-- 答案标签 -->
+        <div id="scene2-answer-label" class="answer-label-html" style="left:600px; top:255px;">答案</div>
+
+        <!-- 控件 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="ctrl-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="ctrl-btn">下一步 ▶</button>
+        </div>
+        <div id="scene2-step-indicator" class="step-indicator">步骤 1 / 4</div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        const prevBtn = document.getElementById('scene2-btn-prev');
+        const nextBtn = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const answerLabel = document.getElementById('scene2-answer-label');
+
+        // 高亮配置
+        const highlightGroups = {
+            1: [
+                { pascal: 'scene2-pascal-r2c1', newton: 'scene2-newton-r2c1', link: 'scene2-link-r2c1' },
+                { pascal: 'scene2-pascal-r3c2', newton: 'scene2-newton-r3c2', link: 'scene2-link-r3c2' },
+                { pascal: 'scene2-pascal-r4c2', newton: 'scene2-newton-r4c2', link: 'scene2-link-r4c2' },
+                { pascal: 'scene2-pascal-r5c3', newton: 'scene2-newton-r5c3', link: 'scene2-link-r5c3' }
+            ],
+            2: [
+                { pascal: 'scene2-pascal-r2c1', newton: 'scene2-newton-r2c1', link: 'scene2-link-r2c1' },
+                { pascal: 'scene2-pascal-r3c2', newton: 'scene2-newton-r3c2', link: 'scene2-link-r3c2' },
+                { pascal: 'scene2-pascal-r4c2', newton: 'scene2-newton-r4c2', link: 'scene2-link-r4c2' },
+                { pascal: 'scene2-pascal-r5c3', newton: 'scene2-newton-r5c3', link: 'scene2-link-r5c3' }
+            ],
+            3: [
+                { pascal: 'scene2-pascal-r5c3', newton: 'scene2-newton-r5c3', link: 'scene2-link-r5c3' }
+            ]
+        };
+
+        function setNodeHighlight(nodeId, isHighlight, isPascal) {
+            const el = document.getElementById(nodeId);
+            if (!el) return;
+            const baseClass = isPascal ? 'pascal-node' : 'newton-node';
+            const highlightClass = isPascal ? 'pascal-node-highlight' : 'newton-node-highlight';
+            const labelId = nodeId.replace('scene2-', 'scene2-label-');
+            const label = document.getElementById(labelId);
+            if (isHighlight) {
+                el.classList.remove(baseClass);
+                el.classList.add(highlightClass);
+                if (label) label.classList.add('highlight');
+                if (isPascal) {
+                    el.querySelector('circle').setAttribute('r', '20');
+                } else {
+                    const rect = el.querySelector('rect');
+                    const cx = parseFloat(rect.getAttribute('x')) + parseFloat(rect.getAttribute('width'))/2;
+                    const cy = parseFloat(rect.getAttribute('y')) + parseFloat(rect.getAttribute('height'))/2;
+                    rect.setAttribute('x', cx - 22);
+                    rect.setAttribute('y', cy - 15);
+                    rect.setAttribute('width', '44');
+                    rect.setAttribute('height', '30');
+                }
+            } else {
+                el.classList.remove(highlightClass);
+                el.classList.add(baseClass);
+                if (label) label.classList.remove('highlight');
+                if (isPascal) {
+                    el.querySelector('circle').setAttribute('r', '18');
+                } else {
+                    const row = parseInt(el.getAttribute('data-row'));
+                    const col = parseInt(el.getAttribute('data-col'));
+                    const rect = el.querySelector('rect');
+                    const baseX = 610 - (row - 1) * 30;
+                    const baseY = 88 + (row - 1) * 50 - 13;
+                    const x = baseX + (col - 1) * 60 - 20;
+                    rect.setAttribute('x', x);
+                    rect.setAttribute('y', baseY);
+                    rect.setAttribute('width', '40');
+                    rect.setAttribute('height', '26');
+                }
+            }
+        }
+
+        function setLinkHighlight(linkId, isActive) {
+            const el = document.getElementById(linkId);
+            if (!el) return;
+            if (isActive) {
+                el.classList.remove('link-line');
+                el.classList.add('link-line-active');
+            } else {
+                el.classList.remove('link-line-active');
+                el.classList.add('link-line');
+            }
+        }
+
+        function resetAllHighlights() {
+            for (let r = 1; r <= 5; r++) {
+                for (let c = 1; c <= r; c++) {
+                    setNodeHighlight('scene2-pascal-r' + r + 'c' + c, false, true);
+                    setNodeHighlight('scene2-newton-r' + r + 'c' + c, false, false);
+                }
+            }
+            for (let r = 1; r <= 5; r++) {
+                for (let c = 1; c <= r; c++) {
+                    setLinkHighlight('scene2-link-r' + r + 'c' + c, false);
+                }
+            }
+        }
+
+        function applyHighlights(step) {
+            const groups = highlightGroups[step];
+            if (!groups) return;
+            groups.forEach(g => {
+                setNodeHighlight(g.pascal, true, true);
+                setNodeHighlight(g.newton, true, false);
+                setLinkHighlight(g.link, true);
+            });
+        }
+
+        function showFormulaGroup(step) {
+            for (let i = 0; i < totalSteps; i++) {
+                const g = document.getElementById('scene2-formula-step' + i);
+                if (g) {
+                    if (i === step) {
+                        g.style.display = 'block';
+                        requestAnimationFrame(function() {
+                            g.style.opacity = '1';
+                        });
+                    } else {
+                        g.style.opacity = '0';
+                        g.style.display = 'none';
+                    }
+                }
+            }
+        }
+
+        function renderStep(step) {
+            currentStep = step;
+            resetAllHighlights();
+            if (step > 0) {
+                applyHighlights(step);
+            }
+            showFormulaGroup(step);
+            if (step === 3) {
+                answerLabel.classList.add('show');
+            } else {
+                answerLabel.classList.remove('show');
+            }
+            prevBtn.disabled = (step === 0);
+            if (step === totalSteps - 1) {
+                nextBtn.textContent = '完成';
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+                nextBtn.disabled = false;
+            }
+            stepIndicator.textContent = '步骤 ' + (step + 1) + ' / ' + totalSteps;
+        }
+
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                renderStep(currentStep - 1);
+            }
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                renderStep(currentStep + 1);
+            }
+        });
+
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

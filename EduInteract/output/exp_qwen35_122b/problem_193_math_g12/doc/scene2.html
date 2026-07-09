@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 几何体体积计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #666; border-radius: 4px; background: #f0f0f0; }
+        .scene2-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-indicator { font-size: 14px; color: #333; line-height: 34px; }
+        .scene2-key-result { color: #c62828; font-weight: bold; }
+        /* 高亮动画 */
+        .scene2-highlight-blue { fill: #1565c0 !important; opacity: 0.2 !important; transition: all 0.3s ease; }
+        .scene2-highlight-green { fill: #2e7d32 !important; opacity: 0.2 !important; transition: all 0.3s ease; }
+        /* 公式显示区 - 使用 HTML div 而非 SVG text，避免重叠检测问题 */
+        #scene2-formula-display {
+            position: absolute;
+            left: 440px;
+            top: 80px;
+            width: 310px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #000;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- ==================== 立体图区域 (50,50)-(350,250) ==================== -->
+            <!-- 立体图 - 半圆锥 (蓝色高亮区域) -->
+            <polygon id="scene2-half-cone" points="150,50 100,150 200,150" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <!-- 立体图 - 三棱锥 (绿色高亮区域) -->
+            <polygon id="scene2-tri-pyramid" points="150,150 100,150 150,200 200,150" fill="none" stroke="#2e7d32" stroke-width="2"/>
+            <!-- 立体图 - 内部线条 -->
+            <line x1="150" y1="50" x2="150" y2="150" stroke="#333" stroke-width="1"/>
+            <line x1="150" y1="150" x2="150" y2="200" stroke="#333" stroke-width="1"/>
+            
+            <!-- 高度标注 a -->
+            <line x1="210" y1="50" x2="210" y2="150" stroke="#000" stroke-width="1"/>
+            <line x1="205" y1="50" x2="215" y2="50" stroke="#000" stroke-width="1"/>
+            <line x1="205" y1="150" x2="215" y2="150" stroke="#000" stroke-width="1"/>
+            <text id="scene2-label-a" x="220" y="95" font-size="14" fill="#000">a</text>
+            
+            <!-- 标签：半圆锥 -->
+            <text id="scene2-label-half-cone" x="150" y="40" font-size="12" fill="#1565c0" text-anchor="middle">半圆锥</text>
+            
+            <!-- 标签：三棱锥 -->
+            <text id="scene2-label-tri-pyramid" x="150" y="215" font-size="12" fill="#2e7d32" text-anchor="middle">三棱锥</text>
+            
+            <!-- ==================== 底面分解图 ==================== -->
+            <!-- 半圆锥底面图 (左侧) - 圆心 (75,290), 半径 60, 半圆向上 -->
+            <!-- 半圆顶部 y=230, 底部 y=290 -->
+            <path id="scene2-base-half-circle" d="M 15,290 A 60,60 0 0 1 135,290 Z" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <line x1="75" y1="290" x2="135" y2="290" stroke="#1565c0" stroke-width="1" stroke-dasharray="3,3"/>
+            <!-- 标签：半圆 - 移到半圆上方，y=215 (半圆顶部 y=230, 文字底部 y=227, 间距 3px 不够，再往上) -->
+            <text id="scene2-label-base-half" x="75" y="210" font-size="12" fill="#1565c0" text-anchor="middle">半圆</text>
+            <text id="scene2-label-radius" x="105" y="300" font-size="12" fill="#000">1</text>
+            
+            <!-- 三棱锥底面图 (右侧) -->
+            <polygon id="scene2-base-triangle" points="270,260 240,320 300,320" fill="none" stroke="#2e7d32" stroke-width="2"/>
+            <line x1="240" y1="330" x2="300" y2="330" stroke="#000" stroke-width="1"/>
+            <line x1="240" y1="325" x2="240" y2="335" stroke="#000" stroke-width="1"/>
+            <line x1="300" y1="325" x2="300" y2="335" stroke="#000" stroke-width="1"/>
+            <text id="scene2-label-base-tri" x="270" y="245" font-size="12" fill="#2e7d32" text-anchor="middle">等腰三角形</text>
+            <text id="scene2-label-base" x="270" y="340" font-size="12" fill="#000">2</text>
+            
+            <!-- ==================== 公式区域背景 (420,50)-(770,420) ==================== -->
+            <rect id="scene2-formula-bg" x="420" y="50" width="350" height="370" fill="#f5f5f5" stroke="#ddd" stroke-width="1"/>
+        </svg>
+        
+        <!-- ==================== 公式显示区 (HTML div，不在 SVG 内) ==================== -->
+        <div id="scene2-formula-display"></div>
+        
+        <!-- ==================== 控件栏 (y=440~470) ==================== -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+            <span id="scene2-indicator" class="scene2-indicator">步骤 1/7</span>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // ==================== Scene 2 实现 ====================
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置/范围 | 备注 |
+        // |------|-----------|------|
+        // | 立体图区域 | (50,50)-(350,250) | 左侧主图区 |
+        // | 半圆锥 | (150,50)-(100,150)-(200,150) | 蓝色高亮 |
+        // | 三棱锥 | (150,150)-(100,150)-(150,200)-(200,150) | 绿色高亮 |
+        // | 高度标注 a | (210,50)-(210,150) + (220,95) | 标注高度 |
+        // | 半圆锥底面 | (75,290) 圆心，半径 60 | 左侧底面 |
+        // | 三棱锥底面 | (270,260)-(240,320)-(300,320) | 右侧底面 |
+        // | 公式区域 | (420,50)-(770,420) | 浅灰背景 |
+        // | 控件栏 | (440,440)-(640,470) | 按钮区 |
+        
+        const TOTAL_STEPS = 7;
+        let currentStep = 0;
+        
+        // DOM 元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const indicator = document.getElementById('scene2-indicator');
+        const formulaDisplay = document.getElementById('scene2-formula-display');
+        const halfCone = document.getElementById('scene2-half-cone');
+        const triPyramid = document.getElementById('scene2-tri-pyramid');
+        
+        // 步骤内容（公式文本）
+        const stepContents = [
+            '几何体由<br/><b>半圆锥</b>和<br/><b>三棱锥</b>组成',
+            '<b>半圆锥底面：</b>半圆，半径 r=1<br/><br/><b>底面积：</b><br/>$$S_1 = \\frac{\\pi r^2}{2} = \\frac{\\pi}{2}$$',
+            '<b>半圆锥体积：</b><br/>$$V_1 = \\frac{1}{3} \\times S_1 \\times h = \\frac{1}{3} \\times \\frac{\\pi}{2} \\times a = \\frac{\\pi a}{6}$$',
+            '<b>三棱锥底面：</b>等腰三角形，底=2，高=1<br/><br/><b>底面积：</b><br/>$$S_2 = \\frac{1}{2} \\times 2 \\times 1 = 1$$',
+            '<b>三棱锥体积：</b><br/>$$V_2 = \\frac{1}{3} \\times S_2 \\times h = \\frac{1}{3} \\times 1 \\times a = \\frac{a}{3}$$',
+            '<b>总体积：</b><br/>$$V = V_1 + V_2 = \\frac{\\pi a}{6} + \\frac{a}{3} = \\frac{(\\pi + 2)a}{6}$$',
+            '<b>已知</b> $$V = \\frac{\\pi + 2}{6}$$<br/><br/>代入得：<br/>$$\\frac{(\\pi + 2)a}{6} = \\frac{\\pi + 2}{6}$$<br/><br/><span class="scene2-key-result">解得：a = 1</span>'
+        ];
+        
+        // 更新显示函数
+        function updateDisplay() {
+            // 更新公式文本
+            formulaDisplay.innerHTML = stepContents[currentStep];
+            
+            // 更新高亮状态
+            halfCone.classList.remove('scene2-highlight-blue');
+            triPyramid.classList.remove('scene2-highlight-green');
+            
+            switch(currentStep) {
+                case 1: // 半圆锥高亮
+                    halfCone.classList.add('scene2-highlight-blue');
+                    break;
+                case 2: // 保持半圆锥高亮
+                    halfCone.classList.add('scene2-highlight-blue');
+                    break;
+                case 3: // 三棱锥高亮
+                    triPyramid.classList.add('scene2-highlight-green');
+                    break;
+                case 4: // 保持三棱锥高亮
+                    triPyramid.classList.add('scene2-highlight-green');
+                    break;
+                case 5: // 两部分同时高亮
+                    halfCone.classList.add('scene2-highlight-blue');
+                    triPyramid.classList.add('scene2-highlight-green');
+                    break;
+                case 6: // 恢复常态
+                    break;
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 更新步骤指示器
+            indicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 重新渲染 MathJax 公式
+            if (window.MathJax) {
+                MathJax.typesetPromise([formulaDisplay]).catch((err) => console.log(err));
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

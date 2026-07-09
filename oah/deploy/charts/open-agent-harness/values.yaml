@@ -1,0 +1,467 @@
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+global:
+  clusterDomain: cluster.local
+
+image:
+  repository: ghcr.io/open-agent-harness/open-agent-harness
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+config:
+  create: true
+  nameOverride: ""
+  mountPath: /etc/oah
+  serverYaml: |
+    server:
+      host: 0.0.0.0
+      port: 8787
+
+    storage:
+      postgres_url: ${env.DATABASE_URL}
+      redis_url: ${env.REDIS_URL}
+
+    paths:
+      workspace_dir: /var/lib/oah/workspaces
+      runtime_state_dir: {{ .Values.worker.workspaceVolume.mountPath }}/.openharness-state
+      runtime_dir: /var/lib/oah/runtimes
+      model_dir: /var/lib/oah/models
+      tool_dir: /var/lib/oah/tools
+      skill_dir: /var/lib/oah/skills
+
+    {{- if .Values.objectStorage.enabled }}
+    object_storage:
+      provider: s3
+      bucket: {{ required "objectStorage.bucket is required when objectStorage.enabled=true" .Values.objectStorage.bucket | quote }}
+      region: {{ .Values.objectStorage.region | quote }}
+      {{- with .Values.objectStorage.endpoint }}
+      endpoint: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.objectStorage.accessKeyEnv }}
+      access_key: ${env.{{ . }}}
+      {{- end }}
+      {{- with .Values.objectStorage.secretKeyEnv }}
+      secret_key: ${env.{{ . }}}
+      {{- end }}
+      {{- with .Values.objectStorage.sessionTokenEnv }}
+      session_token: ${env.{{ . }}}
+      {{- end }}
+      force_path_style: {{ .Values.objectStorage.forcePathStyle }}
+      workspace_backing_store:
+        enabled: {{ .Values.objectStorage.workspaceBackingStore.enabled }}
+        key_prefix: {{ .Values.objectStorage.workspaceBackingStore.keyPrefix | quote }}
+    {{- end }}
+
+    sandbox:
+      provider: self_hosted
+      self_hosted:
+        base_url: http://{{ include "open-agent-harness.workerInternalServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }}:{{ .Values.worker.service.port }}/internal/v1
+      fleet:
+        min_count: {{ .Values.worker.replicaCount }}
+        max_count: 16
+        warm_empty_count: 1
+        resource_cpu_pressure_threshold: 0.8
+        resource_memory_pressure_threshold: 0.8
+        max_workspaces_per_sandbox: 32
+        ownerless_pool: shared
+
+    workspace:
+      materialization:
+        idle_ttl_ms: 900000
+        maintenance_interval_ms: 15000
+
+    workers:
+      embedded:
+        min_count: 2
+        max_count: 4
+        scale_interval_ms: 3000
+        scale_up_window: 2
+        scale_down_window: 3
+        cooldown_ms: 4000
+        reserved_capacity_for_subagent: 1
+      standalone:
+        min_replicas: {{ .Values.worker.replicaCount }}
+        max_replicas: 16
+        slots_per_pod: 4
+        ready_sessions_per_capacity_unit: 1
+        reserved_capacity_for_subagent: 1
+      controller:
+        scale_interval_ms: 5000
+        scale_up_window: 2
+        scale_down_window: 4
+        cooldown_ms: 10000
+        scale_up_busy_ratio_threshold: 0.75
+        scale_up_max_ready_age_ms: 5000
+        leader_election:
+          type: kubernetes
+          kubernetes:
+            namespace: {{ .Release.Namespace }}
+            lease_name: {{ include "open-agent-harness.controllerName" . }}
+        scale_target:
+          type: kubernetes
+          allow_scale_down: true
+          kubernetes:
+            namespace: {{ .Release.Namespace }}
+            label_selector: app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=sandbox
+
+    llm:
+      default_model: openai-default
+
+apiServer:
+  enabled: true
+  replicaCount: 2
+  minReadySeconds: 5
+  terminationGracePeriodSeconds: 30
+  nodeOptions: "--max-old-space-size=2048 --max-semi-space-size=32"
+  runtimeOptimizations:
+    allowPrivateInternalModelRoutes: true
+    workspacePrewarmEnabled: false
+    objectStorageTrustManagedPrefixes: true
+  priorityClassName: ""
+  podSecurityContext: {}
+  securityContext: {}
+  topologySpreadConstraints: []
+  strategy:
+    maxUnavailable: 0
+    maxSurge: 1
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  extraEnv: []
+  envFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  serviceAnnotations: {}
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    timeoutSeconds: 5
+    failureThreshold: 6
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    timeoutSeconds: 5
+    failureThreshold: 6
+  service:
+    port: 8787
+    type: ClusterIP
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: oah.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+worker:
+  enabled: true
+  replicaCount: 2
+  minReadySeconds: 5
+  terminationGracePeriodSeconds: 120
+  nodeOptions: "--max-old-space-size=2048 --max-semi-space-size=32"
+  runtimeOptimizations:
+    allowPrivateInternalRoutes: true
+    objectStorageTrustManagedPrefixes: true
+  diskReadiness:
+    threshold: "0.95"
+  workspacePolicy:
+    maxObjects: "50000"
+    maxBytes: "4294967296"
+    maxFileBytes: "536870912"
+  drain:
+    timeoutMs: 110000
+    timeoutStrategy: requeue_running
+    preStop:
+      enabled: true
+      path: /internal/v1/control/drain
+      delayMs: 5000
+  priorityClassName: ""
+  podSecurityContext: {}
+  securityContext: {}
+  topologySpreadConstraints: []
+  strategy:
+    maxUnavailable: 0
+    maxSurge: 1
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+  extraEnv: []
+  envFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  serviceAnnotations: {}
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    timeoutSeconds: 5
+    failureThreshold: 6
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    timeoutSeconds: 5
+    failureThreshold: 6
+  service:
+    port: 8787
+  workspaceVolume:
+    type: emptyDir
+    mountPath: /var/lib/oah/workspaces
+    emptyDir:
+      sizeLimit: 8Gi
+    persistentVolumeClaim:
+      claimName: ""
+      readOnly: false
+
+objectStorage:
+  enabled: false
+  bucket: ""
+  region: us-east-1
+  endpoint: ""
+  accessKeyEnv: AWS_ACCESS_KEY_ID
+  secretKeyEnv: AWS_SECRET_ACCESS_KEY
+  sessionTokenEnv: ""
+  forcePathStyle: false
+  workspaceBackingStore:
+    enabled: true
+    keyPrefix: workspaces
+
+redisReadyQueue:
+  claimScanLimit: 100
+  pressureScanLimit: 100
+  inspectLimit: 100
+
+controller:
+  enabled: true
+  replicaCount: 2
+  minReadySeconds: 5
+  terminationGracePeriodSeconds: 30
+  nodeOptions: "--max-old-space-size=128 --max-semi-space-size=4"
+  priorityClassName: ""
+  podSecurityContext: {}
+  securityContext: {}
+  topologySpreadConstraints: []
+  strategy:
+    maxUnavailable: 0
+    maxSurge: 1
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  extraEnv: []
+  envFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    timeoutSeconds: 5
+    failureThreshold: 6
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    timeoutSeconds: 5
+    failureThreshold: 6
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  rbac:
+    create: true
+  service:
+    port: 8788
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/path: /metrics
+      prometheus.io/port: "8788"
+
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  interval: 15s
+  scrapeTimeout: 5s
+
+prometheusRule:
+  enabled: false
+  additionalLabels: {}
+  severities:
+    noLeader: critical
+    scaleTargetError: warning
+    rolloutStuck: warning
+    scaleDownBlocked: info
+    workerDiskPressure: warning
+    materializationLatency: warning
+    objectStorageFailureRate: warning
+    objectStorageLatency: warning
+    redisReadyQueueDepth: warning
+    redisMemory: warning
+    postgresBloat: warning
+  durations:
+    noLeader: 2m
+    scaleTargetError: 10m
+    rolloutStuck: 10m
+    scaleDownBlocked: 15m
+    workerDiskPressure: 5m
+    materializationLatency: 10m
+    objectStorageFailureRate: 5m
+    objectStorageLatency: 10m
+    redisReadyQueueDepth: 10m
+    redisMemory: 10m
+    postgresBloat: 30m
+  thresholds:
+    materializationLatencyMs: 120000
+    objectStorageErrorsPerFiveMinutes: 5
+    objectStorageLatencyMs: 30000
+    redisReadyQueueDepth: 100
+    redisMemoryUsedRatio: 0.85
+    postgresDeadTupleRatio: 0.2
+
+grafanaDashboard:
+  enabled: false
+  additionalLabels: {}
+  sidecarLabel: grafana_dashboard
+  sidecarLabelValue: "1"
+
+networkPolicy:
+  enabled: false
+  allowSameNamespace: true
+  monitoring:
+    enabled: false
+    namespaceSelector: {}
+    podSelector: {}
+  apiServer:
+    enabled: false
+    extraIngress: []
+    egress:
+      enabled: false
+      allowSameNamespace: true
+      allowDns: true
+      allowKubernetesApi: false
+      allowRedis: false
+      allowPostgres: false
+      allowObjectStorage: false
+      allowModelGateway: false
+      extraRules: []
+  worker:
+    enabled: true
+    extraIngress: []
+    egress:
+      enabled: false
+      allowSameNamespace: true
+      allowDns: true
+      allowKubernetesApi: false
+      allowRedis: false
+      allowPostgres: false
+      allowObjectStorage: false
+      allowModelGateway: false
+      extraRules: []
+  controller:
+    enabled: true
+    extraIngress: []
+    egress:
+      enabled: false
+      allowSameNamespace: true
+      allowDns: true
+      allowKubernetesApi: true
+      allowRedis: true
+      allowPostgres: false
+      allowObjectStorage: false
+      allowModelGateway: false
+      extraRules: []
+  egress:
+    dependencies:
+      dns:
+        peers:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchExpressions:
+                - key: k8s-app
+                  operator: In
+                  values:
+                    - kube-dns
+                    - coredns
+        ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+      kubernetesApi:
+        cidrs: []
+        ports:
+          - protocol: TCP
+            port: 443
+      redis:
+        peers: []
+        ports:
+          - protocol: TCP
+            port: 6379
+      postgres:
+        peers: []
+        ports:
+          - protocol: TCP
+            port: 5432
+      objectStorage:
+        peers: []
+        ports:
+          - protocol: TCP
+            port: 443
+          - protocol: TCP
+            port: 80
+      modelGateway:
+        peers: []
+        ports:
+          - protocol: TCP
+            port: 443
+          - protocol: TCP
+            port: 80

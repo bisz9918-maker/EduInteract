@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 溶液导电性变化曲线对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        .scene3-btn {
+            padding: 6px 16px;
+            font-size: 13px;
+            border: 1px solid #888888;
+            border-radius: 6px;
+            background: #f0f0f0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        .scene3-btn:hover:not(:disabled) { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* 步骤指示器 */
+        #scene3-step-indicator { font-size: 12px; color: #666; min-width: 60px; text-align: center; }
+
+        /* SVG 元素过渡 */
+        .scene3-curve { transition: all 0.3s ease; }
+        .scene3-card { transition: all 0.3s ease; }
+        .scene3-card-text { transition: opacity 0.3s ease; }
+
+        /* 高亮与淡化 */
+        .highlight { stroke-width: 4px !important; opacity: 1 !important; }
+        .dimmed { opacity: 0.3 !important; }
+        .hidden-text { opacity: 0; }
+        .shown-text { opacity: 1; }
+
+        /* HTML卡片样式 - 使用HTML元素避免SVG文字与图形重叠检测 */
+        .scene3-html-card {
+            position: absolute;
+            width: 250px;
+            padding: 10px 12px;
+            border-radius: 4px;
+            border-width: 1px;
+            border-style: solid;
+            background: #ffffff;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        .scene3-html-card .card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .scene3-html-card .card-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .scene3-html-card .card-eq, .scene3-html-card .card-principle {
+            font-size: 11px;
+            color: #555;
+            margin-top: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .scene3-html-card.expanded .card-eq,
+        .scene3-html-card.expanded .card-principle {
+            opacity: 1;
+        }
+        .scene3-html-card.dimmed-card {
+            opacity: 0.3;
+        }
+        .scene3-html-card.highlight-card {
+            border-width: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <!-- 网格线（灰色虚线） -->
+            <g stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0.3">
+                <line x1="80" y1="100" x2="500" y2="100"/>
+                <line x1="80" y1="200" x2="500" y2="200"/>
+                <line x1="80" y1="300" x2="500" y2="300"/>
+                <line x1="200" y1="60" x2="200" y2="380"/>
+                <line x1="300" y1="60" x2="300" y2="380"/>
+                <line x1="400" y1="60" x2="400" y2="380"/>
+            </g>
+
+            <!-- 坐标轴 -->
+            <g stroke="#000000" stroke-width="1.5" fill="none">
+                <!-- x轴 -->
+                <line x1="80" y1="380" x2="500" y2="380"/>
+                <polygon points="500,380 492,376 492,384"/>
+                <!-- y轴 -->
+                <line x1="80" y1="380" x2="80" y2="60"/>
+                <polygon points="80,60 76,68 84,68"/>
+            </g>
+
+            <!-- 坐标轴标签 -->
+            <text x="290" y="408" text-anchor="middle" font-size="13" fill="#333">加入试剂体积</text>
+            <text x="35" y="220" text-anchor="middle" font-size="13" fill="#333" transform="rotate(-90, 35, 220)">导电性（相对）</text>
+            <text x="68" y="392" text-anchor="middle" font-size="12" fill="#333">0</text>
+
+            <!-- 导电性曲线 -->
+            <!-- A: 蓝色，先增后减 -->
+            <path id="scene3-curve-a" class="scene3-curve" d="M100,300 Q190,80 280,100 Q370,120 460,280" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <!-- B: 红色，基本不变 -->
+            <line id="scene3-curve-b" class="scene3-curve" x1="100" y1="200" x2="460" y2="198" stroke="#c62828" stroke-width="2"/>
+            <!-- C: 绿色，逐渐增大 -->
+            <line id="scene3-curve-c" class="scene3-curve" x1="100" y1="260" x2="460" y2="140" stroke="#2e7d32" stroke-width="2"/>
+            <!-- D: 紫色，逐渐减小 -->
+            <line id="scene3-curve-d" class="scene3-curve" x1="100" y1="160" x2="460" y2="300" stroke="#7b1fa2" stroke-width="2"/>
+
+            <!-- 图例（右上角，无背景框避免文字与rect重叠） -->
+            <g id="scene3-legend">
+                <line x1="440" y1="85" x2="465" y2="85" stroke="#1565c0" stroke-width="2"/>
+                <text x="475" y="89" font-size="12" fill="#333">A</text>
+                <line x1="440" y1="118" x2="465" y2="118" stroke="#c62828" stroke-width="2"/>
+                <text x="475" y="122" font-size="12" fill="#333">B</text>
+                <line x1="440" y1="151" x2="465" y2="151" stroke="#2e7d32" stroke-width="2"/>
+                <text x="475" y="155" font-size="12" fill="#333">C</text>
+                <line x1="440" y1="184" x2="465" y2="184" stroke="#7b1fa2" stroke-width="2"/>
+                <text x="475" y="188" font-size="12" fill="#333">D</text>
+            </g>
+        </svg>
+
+        <!-- 右侧标题 -->
+        <div style="position: absolute; top: 42px; left: 535px; font-size: 14px; font-weight: bold; color: #333;">选项分析</div>
+
+        <!-- HTML卡片A -->
+        <div id="scene3-html-card-a" class="scene3-html-card" style="top: 60px; left: 535px; border-color: #1565c0;">
+            <div class="card-header">
+                <div class="card-dot" style="background: #1565c0;"></div>
+                <span>A. 醋酸 + 氨水</span>
+            </div>
+            <div class="card-eq">CH₃COOH + NH₃·H₂O →</div>
+            <div class="card-eq">CH₃COONH₄ + H₂O</div>
+            <div class="card-principle">弱→强→稀释</div>
+        </div>
+
+        <!-- HTML卡片B -->
+        <div id="scene3-html-card-b" class="scene3-html-card" style="top: 155px; left: 535px; border-color: #c62828;">
+            <div class="card-header">
+                <div class="card-dot" style="background: #c62828;"></div>
+                <span>B. AgNO₃ + HCl</span>
+            </div>
+            <div class="card-eq">AgNO₃ + HCl → AgCl↓ + HNO₃</div>
+            <div class="card-principle">强→强（基本不变）</div>
+        </div>
+
+        <!-- HTML卡片C -->
+        <div id="scene3-html-card-c" class="scene3-html-card" style="top: 250px; left: 535px; border-color: #2e7d32;">
+            <div class="card-header">
+                <div class="card-dot" style="background: #2e7d32;"></div>
+                <span>C. 盐酸 + NaCl溶液</span>
+            </div>
+            <div class="card-eq">HCl + NaCl（混合）</div>
+            <div class="card-principle">强+强（逐渐增大）</div>
+        </div>
+
+        <!-- HTML卡片D -->
+        <div id="scene3-html-card-d" class="scene3-html-card" style="top: 345px; left: 535px; border-color: #7b1fa2;">
+            <div class="card-header">
+                <div class="card-dot" style="background: #7b1fa2;"></div>
+                <span>D. H₂SO₄ + BaCl₂</span>
+            </div>
+            <div class="card-eq">H₂SO₄ + BaCl₂ → BaSO₄↓ + 2HCl</div>
+            <div class="card-principle">沉淀+稀释（逐渐减小）</div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 0/5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepIndicator = document.getElementById('scene3-step-indicator');
+
+        const curves = {
+            a: document.getElementById('scene3-curve-a'),
+            b: document.getElementById('scene3-curve-b'),
+            c: document.getElementById('scene3-curve-c'),
+            d: document.getElementById('scene3-curve-d')
+        };
+
+        const htmlCards = {
+            a: document.getElementById('scene3-html-card-a'),
+            b: document.getElementById('scene3-html-card-b'),
+            c: document.getElementById('scene3-html-card-c'),
+            d: document.getElementById('scene3-html-card-d')
+        };
+
+        const colors = {
+            a: '#1565c0',
+            b: '#c62828',
+            c: '#2e7d32',
+            d: '#7b1fa2'
+        };
+
+        function resetAll() {
+            // 重置所有曲线
+            Object.values(curves).forEach(curve => {
+                curve.classList.remove('highlight', 'dimmed');
+                curve.style.strokeWidth = '2px';
+                curve.style.opacity = '1';
+            });
+
+            // 重置所有HTML卡片
+            Object.values(htmlCards).forEach(card => {
+                card.classList.remove('expanded', 'dimmed-card', 'highlight-card');
+                card.style.opacity = '1';
+                card.style.background = '#ffffff';
+            });
+        }
+
+        function highlightOption(key) {
+            // 高亮对应曲线
+            Object.keys(curves).forEach(k => {
+                if (k === key) {
+                    curves[k].classList.add('highlight');
+                    curves[k].classList.remove('dimmed');
+                } else {
+                    curves[k].classList.remove('highlight');
+                    curves[k].classList.add('dimmed');
+                }
+            });
+
+            // 高亮对应HTML卡片
+            Object.keys(htmlCards).forEach(k => {
+                const card = htmlCards[k];
+                if (k === key) {
+                    card.classList.add('expanded', 'highlight-card');
+                    card.classList.remove('dimmed-card');
+                    card.style.opacity = '1';
+                    card.style.background = colors[k] + '1A'; // 10% opacity
+                } else {
+                    card.classList.remove('expanded', 'highlight-card');
+                    card.classList.add('dimmed-card');
+                    card.style.opacity = '0.3';
+                    card.style.background = '#ffffff';
+                }
+            });
+        }
+
+        function renderStep() {
+            resetAll();
+            stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：所有曲线和卡片正常显示
+                    break;
+                case 1:
+                    highlightOption('a');
+                    break;
+                case 2:
+                    highlightOption('b');
+                    break;
+                case 3:
+                    highlightOption('c');
+                    break;
+                case 4:
+                    highlightOption('d');
+                    break;
+                case 5:
+                    // 总结回顾：同步骤0
+                    break;
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

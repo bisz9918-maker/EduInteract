@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景 1：基因互作与毛发颜色性状的代谢途径</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #1976d2;
+            border-radius: 4px;
+            background: #ffffff;
+            color: #1976d2;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) {
+            background: #1976d2;
+            color: #ffffff;
+        }
+        #scene1-controls button:disabled {
+            border-color: #bdbdbd;
+            color: #bdbdbd;
+            cursor: not-allowed;
+        }
+        .scene1-hidden { display: none !important; }
+        .scene1-visible { display: block !important; opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 坐标表对照（供实现参考）：
+                白色物质框：(120,180)-(220,240)
+                棕色物质框：(350,180)-(450,240)
+                黑色物质框：(580,180)-(680,240)
+                代谢箭头 1: (220,210)-(350,210)
+                代谢箭头 2: (450,210)-(580,210)
+                酶标注 1: (285,225) - 调整到箭头下方
+                酶标注 2: (515,225) - 调整到箭头下方
+                B 基因标签：(285,155) - 向上调整
+                C 基因标签：(515,155) - 向上调整
+                A 基因标签：(80,140)
+                抑制虚线箭头：(110,150)-(140,200)
+                抑制文字：(95,175)
+                对照表框：(200,340)-(600,420)
+                对照表行 1: (250,375) - 调整位置
+                对照表行 2: (250,400) - 调整位置
+                对照表行 3: (550,388) - 调整位置
+            -->
+
+            <!-- ============ 基础代谢途径（步骤 0 显示） ============ -->
+            <!-- 白色物质框 -->
+            <rect id="scene1-box-white" x="120" y="180" width="100" height="60" fill="#f5f5f5" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-white" x="170" y="215" text-anchor="middle" font-size="14" fill="#000000">白色物质</text>
+
+            <!-- 棕色物质框 -->
+            <rect id="scene1-box-brown" x="350" y="180" width="100" height="60" fill="#8d6e63" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-brown" x="400" y="215" text-anchor="middle" font-size="14" fill="#ffffff">棕色物质</text>
+
+            <!-- 黑色物质框 -->
+            <rect id="scene1-box-black" x="580" y="180" width="100" height="60" fill="#212121" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-black" x="630" y="215" text-anchor="middle" font-size="14" fill="#ffffff">黑色物质</text>
+
+            <!-- 代谢箭头 1（白色→棕色） -->
+            <line id="scene1-arrow1-line" x1="220" y1="210" x2="340" y2="210" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrow1-head" points="340,205 350,210 340,215" fill="#000000"/>
+
+            <!-- 代谢箭头 2（棕色→黑色） -->
+            <line id="scene1-arrow2-line" x1="450" y1="210" x2="570" y2="210" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrow2-head" points="570,205 580,210 570,215" fill="#000000"/>
+
+            <!-- 酶标注 1 - 调整到箭头下方 -->
+            <text id="scene1-label-enzyme1" x="285" y="225" text-anchor="middle" font-size="12" fill="#000000">酶</text>
+
+            <!-- 酶标注 2 - 调整到箭头下方 -->
+            <text id="scene1-label-enzyme2" x="515" y="225" text-anchor="middle" font-size="12" fill="#000000">酶</text>
+
+            <!-- ============ 基因调控层（步骤 1-3 逐步显示） ============ -->
+            <!-- B 基因标签（步骤 1 显示） - 向上调整 -->
+            <text id="scene1-label-B" class="scene1-hidden" x="285" y="155" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">B 基因</text>
+
+            <!-- C 基因标签（步骤 2 显示） - 向上调整 -->
+            <text id="scene1-label-C" class="scene1-hidden" x="515" y="155" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">C 基因</text>
+
+            <!-- A 基因标签（步骤 3 显示） -->
+            <text id="scene1-label-A" class="scene1-hidden" x="80" y="140" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">A 基因</text>
+
+            <!-- 抑制虚线箭头（步骤 3 显示） -->
+            <line id="scene1-inhibit-line" class="scene1-hidden" x1="110" y1="150" x2="140" y2="200" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5"/>
+            <polygon id="scene1-inhibit-head" class="scene1-hidden" points="140,200 135,190 145,190" fill="#c62828"/>
+
+            <!-- 抑制文字（步骤 3 显示） -->
+            <text id="scene1-label-inhibit" class="scene1-hidden" x="95" y="175" text-anchor="middle" font-size="12" fill="#c62828">抑制</text>
+
+            <!-- ============ 基因型 - 表现型对照表（步骤 4 显示） ============ -->
+            <!-- 对照表框 -->
+            <rect id="scene1-table-box" class="scene1-hidden" x="200" y="340" width="400" height="80" fill="#ffffff" stroke="#2e7d32" stroke-width="2"/>
+
+            <!-- 对照表标题 -->
+            <text id="scene1-table-title" class="scene1-hidden" x="400" y="360" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">基因型 → 表现型对照表</text>
+
+            <!-- 对照表行 1 - 调整位置（增加垂直间距） -->
+            <text id="scene1-table-row1" class="scene1-hidden" x="250" y="370" text-anchor="middle" font-size="13" fill="#000000">aaB_cc → 棕色</text>
+
+            <!-- 对照表行 2 - 调整位置（增加垂直间距） -->
+            <text id="scene1-table-row2" class="scene1-hidden" x="250" y="405" text-anchor="middle" font-size="13" fill="#000000">aaB_C_ → 黑色</text>
+
+            <!-- 对照表行 3 - 调整位置 -->
+            <text id="scene1-table-row3" class="scene1-hidden" x="550" y="388" text-anchor="middle" font-size="13" fill="#000000">A_ _ _ _ _ = 白色</text>
+        </svg>
+
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：基因互作与毛发颜色性状的代谢途径
+        // 分步序列：
+        // 步骤 0：基础代谢途径（白色→棕色→黑色）
+        // 步骤 1：显示 B 基因标签
+        // 步骤 2：显示 C 基因标签
+        // 步骤 3：显示 A 基因和抑制关系
+        // 步骤 4：显示基因型 - 表现型对照表
+
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+
+        // 元素引用缓存
+        const elements = {
+            // 基因标签
+            labelA: document.getElementById('scene1-label-A'),
+            labelB: document.getElementById('scene1-label-B'),
+            labelC: document.getElementById('scene1-label-C'),
+            // 抑制关系
+            inhibitLine: document.getElementById('scene1-inhibit-line'),
+            inhibitHead: document.getElementById('scene1-inhibit-head'),
+            labelInhibit: document.getElementById('scene1-label-inhibit'),
+            // 对照表
+            tableBox: document.getElementById('scene1-table-box'),
+            tableTitle: document.getElementById('scene1-table-title'),
+            tableRow1: document.getElementById('scene1-table-row1'),
+            tableRow2: document.getElementById('scene1-table-row2'),
+            tableRow3: document.getElementById('scene1-table-row3'),
+            // 按钮
+            prevBtn: document.getElementById('scene1-prev-btn'),
+            nextBtn: document.getElementById('scene1-next-btn')
+        };
+
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新步骤显示状态
+        function updateStep() {
+            // 步骤 0：只显示基础代谢途径（已默认显示，无需额外操作）
+            // 步骤 1：显示 B 基因
+            if (currentStep >= 1) {
+                show(elements.labelB);
+            } else {
+                hide(elements.labelB);
+            }
+
+            // 步骤 2：显示 C 基因
+            if (currentStep >= 2) {
+                show(elements.labelC);
+            } else {
+                hide(elements.labelC);
+            }
+
+            // 步骤 3：显示 A 基因和抑制关系
+            if (currentStep >= 3) {
+                show(elements.labelA);
+                show(elements.inhibitLine);
+                show(elements.inhibitHead);
+                show(elements.labelInhibit);
+            } else {
+                hide(elements.labelA);
+                hide(elements.inhibitLine);
+                hide(elements.inhibitHead);
+                hide(elements.labelInhibit);
+            }
+
+            // 步骤 4：显示对照表
+            if (currentStep >= 4) {
+                show(elements.tableBox);
+                show(elements.tableTitle);
+                show(elements.tableRow1);
+                show(elements.tableRow2);
+                show(elements.tableRow3);
+            } else {
+                hide(elements.tableBox);
+                hide(elements.tableTitle);
+                hide(elements.tableRow1);
+                hide(elements.tableRow2);
+                hide(elements.tableRow3);
+            }
+
+            // 更新按钮状态
+            elements.prevBtn.disabled = (currentStep === 0);
+            elements.nextBtn.disabled = (currentStep === TOTAL_STEPS);
+        }
+
+        // 事件绑定
+        elements.prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        elements.nextBtn.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化：确保步骤 0 状态正确
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

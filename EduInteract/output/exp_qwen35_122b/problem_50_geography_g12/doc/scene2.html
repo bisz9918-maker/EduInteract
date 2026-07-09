@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 线速度与正午太阳高度角比较</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; cursor: pointer; transition: all 0.3s ease; }
+        .scene2-btn:hover { background: #1565c0; color: #ffffff; }
+        .scene2-btn:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+        .scene2-formula-box { fill: rgba(220, 240, 255, 0.85); stroke: #1565c0; stroke-width: 2; }
+        .scene2-result-box { fill: rgba(255, 250, 240, 0.9); stroke: #ff9800; stroke-width: 2; }
+        .scene2-point { transition: all 0.3s ease; }
+        .scene2-point-highlight { filter: drop-shadow(0 0 6px currentColor); }
+        .scene2-lat-line { stroke-dasharray: 5,5; opacity: 0; transition: opacity 0.3s ease; }
+        .scene2-text { font-size: 14px; }
+        .scene2-text-title { font-size: 15px; font-weight: bold; }
+        .scene2-fade { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 地球轮廓 - 缩小到半径 120px -->
+            <ellipse cx="350" cy="280" rx="120" ry="120" fill="none" stroke="#000000" stroke-width="2" id="scene2-earth"/>
+            
+            <!-- 赤道线 -->
+            <line x1="230" y1="280" x2="470" y2="280" stroke="#000000" stroke-width="2" id="scene2-equator-line"/>
+            <text x="480" y="285" class="scene2-text" id="scene2-equator-label">赤道</text>
+            
+            <!-- 经线 -->
+            <line x1="350" y1="160" x2="350" y2="400" stroke="#000000" stroke-width="2" id="scene2-meridian"/>
+            
+            <!-- 纬线辅助虚线（初始隐藏） -->
+            <line x1="250" y1="256" x2="450" y2="256" stroke="#888888" stroke-width="1" class="scene2-lat-line scene2-fade" id="scene2-lat-line-a"/>
+            <line x1="290" y1="180" x2="410" y2="180" stroke="#888888" stroke-width="1" class="scene2-lat-line scene2-fade" id="scene2-lat-line-b"/>
+            <line x1="250" y1="384" x2="450" y2="384" stroke="#888888" stroke-width="1" class="scene2-lat-line scene2-fade" id="scene2-lat-line-c"/>
+            
+            <!-- A 点（15°N，直射点）- 在地球内部 -->
+            <circle cx="350" cy="256" r="6" fill="#1565c0" class="scene2-point scene2-fade" id="scene2-point-a"/>
+            <!-- A 点标签移到地球右侧外部，下移避开赤道 -->
+            <text x="480" y="265" class="scene2-text scene2-fade" id="scene2-label-a">A (15°N)</text>
+            
+            <!-- B 点（75°N，高纬度）- 在地球内部 -->
+            <circle cx="350" cy="180" r="6" fill="#c62828" class="scene2-point scene2-fade" id="scene2-point-b"/>
+            <!-- B 点标签移到地球左侧外部 -->
+            <text x="190" y="180" class="scene2-text scene2-fade" id="scene2-label-b">B (75°N)</text>
+            
+            <!-- C 点（15°S）- 在地球内部 -->
+            <circle cx="350" cy="384" r="6" fill="#2e7d32" class="scene2-point scene2-fade" id="scene2-point-c"/>
+            <!-- C 点标签移到地球右侧外部，避开按钮 -->
+            <text x="480" y="384" class="scene2-text scene2-fade" id="scene2-label-c">C (15°S)</text>
+            
+            <!-- 公式框 1：线速度公式（初始隐藏）- 增加高度，文字下移 -->
+            <rect x="560" y="100" width="220" height="65" class="scene2-formula-box scene2-fade" id="scene2-formula-box-1"/>
+            <text x="575" y="128" class="scene2-text-title scene2-fade" id="scene2-formula-text-1">线速度规律</text>
+            <text x="575" y="158" class="scene2-text scene2-fade" id="scene2-formula-detail-1">v = ωR·cosφ</text>
+            
+            <!-- 公式框 2：正午太阳高度角公式（初始隐藏） -->
+            <rect x="560" y="185" width="220" height="65" class="scene2-formula-box scene2-fade" id="scene2-formula-box-2"/>
+            <text x="575" y="213" class="scene2-text-title scene2-fade" id="scene2-formula-text-2">正午太阳高度角</text>
+            <text x="575" y="243" class="scene2-text scene2-fade" id="scene2-formula-detail-2">H = 90° - |φ - δ|</text>
+            
+            <!-- 结果框 1：线速度比较结果（初始隐藏） -->
+            <rect x="560" y="270" width="220" height="65" class="scene2-result-box scene2-fade" id="scene2-result-box-1"/>
+            <text x="575" y="298" class="scene2-text-title scene2-fade" id="scene2-result-text-1">线速度比较</text>
+            <text x="575" y="328" class="scene2-text scene2-fade" id="scene2-result-detail-1">v_A = v_C > v_B</text>
+            
+            <!-- 结果框 2：高度角比较结果（初始隐藏） -->
+            <rect x="560" y="350" width="220" height="65" class="scene2-result-box scene2-fade" id="scene2-result-box-2"/>
+            <text x="575" y="378" class="scene2-text-title scene2-fade" id="scene2-result-text-2">高度角比较</text>
+            <text x="575" y="408" class="scene2-text scene2-fade" id="scene2-result-detail-2">H_A = H_C > H_B</text>
+            
+            <!-- 计算过程文本（初始隐藏）- 移到地球左侧显示，B 点计算过程下移避开标签 -->
+            <text x="190" y="256" class="scene2-text scene2-fade" id="scene2-calc-a" style="fill: #1565c0;">A: H=90°</text>
+            <text x="190" y="200" class="scene2-text scene2-fade" id="scene2-calc-b" style="fill: #c62828;">B: H=30°</text>
+            <text x="190" y="384" class="scene2-text scene2-fade" id="scene2-calc-c" style="fill: #2e7d32;">C: H=90°</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button class="scene2-btn" id="scene2-prev-btn" disabled>◀ 上一步</button>
+            <button class="scene2-btn" id="scene2-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 线速度与正午太阳高度角比较
+        // 布局坐标表对照：
+        // 地球轮廓：椭圆，中心 (350,280)，半径 120px（缩小）
+        // A 点：(350,256)，15°N，直射点，蓝色 #1565c0
+        // B 点：(350,180)，75°N，高纬度，红色 #c62828
+        // C 点：(350,384)，15°S，绿色 #2e7d32
+        // 赤道线：(230,280)-(470,280)
+        // 经线：(350,160)-(350,400)
+        // 标签位置：A 点标签 (480,265) 地球右侧，B 点标签 (190,180) 地球左侧，C 点标签 (480,384) 地球右侧
+        // 计算过程文本移到左侧 (190, y) 避免与地球重叠，B 点计算过程下移到 y=200
+        
+        const TOTAL_STEPS = 8;
+        let currentStep = 0;
+        
+        // 获取 DOM 元素
+        const elements = {
+            // 点
+            pointA: document.getElementById('scene2-point-a'),
+            pointB: document.getElementById('scene2-point-b'),
+            pointC: document.getElementById('scene2-point-c'),
+            // 标签
+            labelA: document.getElementById('scene2-label-a'),
+            labelB: document.getElementById('scene2-label-b'),
+            labelC: document.getElementById('scene2-label-c'),
+            // 纬线
+            latLineA: document.getElementById('scene2-lat-line-a'),
+            latLineB: document.getElementById('scene2-lat-line-b'),
+            latLineC: document.getElementById('scene2-lat-line-c'),
+            // 公式框
+            formulaBox1: document.getElementById('scene2-formula-box-1'),
+            formulaText1: document.getElementById('scene2-formula-text-1'),
+            formulaDetail1: document.getElementById('scene2-formula-detail-1'),
+            formulaBox2: document.getElementById('scene2-formula-box-2'),
+            formulaText2: document.getElementById('scene2-formula-text-2'),
+            formulaDetail2: document.getElementById('scene2-formula-detail-2'),
+            // 结果框
+            resultBox1: document.getElementById('scene2-result-box-1'),
+            resultText1: document.getElementById('scene2-result-text-1'),
+            resultDetail1: document.getElementById('scene2-result-detail-1'),
+            resultBox2: document.getElementById('scene2-result-box-2'),
+            resultText2: document.getElementById('scene2-result-text-2'),
+            resultDetail2: document.getElementById('scene2-result-detail-2'),
+            // 计算过程
+            calcA: document.getElementById('scene2-calc-a'),
+            calcB: document.getElementById('scene2-calc-b'),
+            calcC: document.getElementById('scene2-calc-c'),
+            // 按钮
+            prevBtn: document.getElementById('scene2-prev-btn'),
+            nextBtn: document.getElementById('scene2-next-btn')
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el) el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // 工具函数：高亮点
+        function highlightPoint(el, color) {
+            if (el) {
+                el.style.filter = `drop-shadow(0 0 8px ${color})`;
+                el.style.transform = 'scale(1.3)';
+            }
+        }
+        
+        // 工具函数：取消高亮
+        function unhighlightPoint(el) {
+            if (el) {
+                el.style.filter = 'none';
+                el.style.transform = 'scale(1)';
+            }
+        }
+        
+        // 闪烁效果
+        function flashPoint(el, color, times = 2) {
+            let count = 0;
+            const interval = setInterval(() => {
+                if (count % 2 === 0) {
+                    highlightPoint(el, color);
+                } else {
+                    unhighlightPoint(el);
+                }
+                count++;
+                if (count >= times * 2) {
+                    clearInterval(interval);
+                    unhighlightPoint(el);
+                }
+            }, 200);
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 重置所有元素
+            const allPoints = [elements.pointA, elements.pointB, elements.pointC];
+            const allLabels = [elements.labelA, elements.labelB, elements.labelC];
+            const allLatLines = [elements.latLineA, elements.latLineB, elements.latLineC];
+            const allFormulaBoxes = [elements.formulaBox1, elements.formulaText1, elements.formulaDetail1,
+                                     elements.formulaBox2, elements.formulaText2, elements.formulaDetail2];
+            const allResultBoxes = [elements.resultBox1, elements.resultText1, elements.resultDetail1,
+                                    elements.resultBox2, elements.resultText2, elements.resultDetail2];
+            const allCalc = [elements.calcA, elements.calcB, elements.calcC];
+            
+            allPoints.forEach(p => unhighlightPoint(p));
+            
+            // 根据步骤设置显示状态
+            switch(currentStep) {
+                case 0: // 初始状态：只显示地球、赤道、经线、三点位置
+                    allLabels.forEach(hide);
+                    allLatLines.forEach(hide);
+                    allFormulaBoxes.forEach(hide);
+                    allResultBoxes.forEach(hide);
+                    allCalc.forEach(hide);
+                    // 三点显示但不高亮
+                    show(elements.pointA);
+                    show(elements.pointB);
+                    show(elements.pointC);
+                    break;
+                    
+                case 1: // 显示线速度公式
+                    show(elements.formulaBox1);
+                    show(elements.formulaText1);
+                    show(elements.formulaDetail1);
+                    show(elements.labelA);
+                    show(elements.labelB);
+                    show(elements.labelC);
+                    hide(elements.formulaBox2);
+                    hide(elements.formulaText2);
+                    hide(elements.formulaDetail2);
+                    hide(elements.resultBox1);
+                    hide(elements.resultText1);
+                    hide(elements.resultDetail1);
+                    hide(elements.resultBox2);
+                    hide(elements.resultText2);
+                    hide(elements.resultDetail2);
+                    hide(elements.calcA);
+                    hide(elements.calcB);
+                    hide(elements.calcC);
+                    break;
+                    
+                case 2: // 高亮三点并显示纬线
+                    show(elements.labelA);
+                    show(elements.labelB);
+                    show(elements.labelC);
+                    show(elements.latLineA);
+                    show(elements.latLineB);
+                    show(elements.latLineC);
+                    highlightPoint(elements.pointA, '#1565c0');
+                    highlightPoint(elements.pointB, '#c62828');
+                    highlightPoint(elements.pointC, '#2e7d32');
+                    break;
+                    
+                case 3: // 显示线速度比较结果
+                    show(elements.resultBox1);
+                    show(elements.resultText1);
+                    show(elements.resultDetail1);
+                    flashPoint(elements.pointA, '#1565c0', 3);
+                    flashPoint(elements.pointC, '#2e7d32', 3);
+                    flashPoint(elements.pointB, '#c62828', 3);
+                    break;
+                    
+                case 4: // 显示正午太阳高度角公式，线速度公式淡出
+                    hide(elements.formulaBox1);
+                    hide(elements.formulaText1);
+                    hide(elements.formulaDetail1);
+                    show(elements.formulaBox2);
+                    show(elements.formulaText2);
+                    show(elements.formulaDetail2);
+                    hide(elements.resultBox1);
+                    hide(elements.resultText1);
+                    hide(elements.resultDetail1);
+                    break;
+                    
+                case 5: // 显示计算过程
+                    show(elements.calcA);
+                    show(elements.calcB);
+                    show(elements.calcC);
+                    break;
+                    
+                case 6: // 显示高度角比较结果
+                    show(elements.resultBox2);
+                    show(elements.resultText2);
+                    show(elements.resultDetail2);
+                    flashPoint(elements.pointA, '#1565c0', 3);
+                    flashPoint(elements.pointC, '#2e7d32', 3);
+                    flashPoint(elements.pointB, '#c62828', 3);
+                    break;
+                    
+                case 7: // 结论：两个结果框并列显示
+                    hide(elements.formulaBox1);
+                    hide(elements.formulaText1);
+                    hide(elements.formulaDetail1);
+                    hide(elements.formulaBox2);
+                    hide(elements.formulaText2);
+                    hide(elements.formulaDetail2);
+                    hide(elements.calcA);
+                    hide(elements.calcB);
+                    hide(elements.calcC);
+                    show(elements.resultBox1);
+                    show(elements.resultText1);
+                    show(elements.resultDetail1);
+                    show(elements.resultBox2);
+                    show(elements.resultText2);
+                    show(elements.resultDetail2);
+                    break;
+            }
+            
+            // 更新按钮状态
+            elements.prevBtn.disabled = (currentStep === 0);
+            elements.nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+            elements.nextBtn.textContent = (currentStep === TOTAL_STEPS - 1) ? '完成' : '下一步 ▶';
+        }
+        
+        // 事件绑定
+        elements.prevBtn.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        elements.nextBtn.addEventListener('click', () => {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

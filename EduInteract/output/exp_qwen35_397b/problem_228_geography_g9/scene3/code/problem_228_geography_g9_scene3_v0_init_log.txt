@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地理 - 晨昏线与地方时计算</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-label {
+            font-size: 13px;
+            fill: #000000;
+        }
+        .scene3-label-blue {
+            font-size: 13px;
+            fill: #1565c0;
+            font-weight: bold;
+        }
+        .scene3-label-red {
+            font-size: 13px;
+            fill: #c62828;
+            font-weight: bold;
+        }
+        .scene3-fade-in {
+            animation: scene3FadeIn 300ms ease-in forwards;
+        }
+        @keyframes scene3FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .scene3-btn-rect {
+            cursor: pointer;
+        }
+        .scene3-btn-rect.disabled {
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" viewBox="0 0 800 500">
+            <!-- ===== 光照图框架 (50,40)-(380,210) ===== -->
+            <rect id="scene3-light-frame" x="50" y="40" width="330" height="170" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 纬线 -->
+            <line id="scene3-equator" x1="50" y1="125" x2="380" y2="125" stroke="#000000" stroke-width="1.5"/>
+            <line id="scene3-lat235" x1="50" y1="168" x2="380" y2="168" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+            <line id="scene3-lat70" x1="50" y1="210" x2="380" y2="210" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+            
+            <!-- 经线 (6条，间隔约55px代表30°) -->
+            <line id="scene3-meridian1" x1="50" y1="40" x2="50" y2="210" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-meridian2" x1="105" y1="40" x2="105" y2="210" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-meridian3" x1="160" y1="40" x2="160" y2="210" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-meridian4" x1="215" y1="40" x2="215" y2="210" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-meridian5" x1="270" y1="40" x2="270" y2="210" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-meridian6" x1="325" y1="40" x2="325" y2="210" stroke="#000000" stroke-width="1"/>
+            <line id="scene3-meridian7" x1="380" y1="40" x2="380" y2="210" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 阴影区 (日期分界) -->
+            <defs>
+                <pattern id="scene3-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#ddd" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect id="scene3-shadow1" x="105" y="40" width="55" height="170" fill="url(#scene3-hatch)" opacity="0.15"/>
+            <rect id="scene3-shadow2" x="160" y="40" width="55" height="170" fill="url(#scene3-hatch)" opacity="0.15"/>
+            
+            <!-- 晨昏线 -->
+            <line id="scene3-ao-line" x1="105" y1="168" x2="215" y2="210" stroke="#000000" stroke-width="2"/>
+            <line id="scene3-bo-line" x1="215" y1="210" x2="380" y2="125" stroke="#000000" stroke-width="2"/>
+            
+            <!-- A、B、O 三点 -->
+            <circle id="scene3-point-a" cx="105" cy="168" r="3.5" fill="#000000"/>
+            <circle id="scene3-point-b" cx="380" cy="125" r="3.5" fill="#000000"/>
+            <circle id="scene3-point-o" cx="215" cy="210" r="3.5" fill="#000000"/>
+            
+            <!-- 点标签 -->
+            <text id="scene3-label-a" x="92" y="160" class="scene3-label">A</text>
+            <text id="scene3-label-b" x="388" y="117" class="scene3-label">B</text>
+            <text id="scene3-label-o" x="215" y="225" class="scene3-label" text-anchor="middle">O</text>
+            
+            <!-- 纬度标签 -->
+            <text id="scene3-lat-label-0" x="395" y="130" class="scene3-label">0°</text>
+            <text id="scene3-lat-label-235" x="395" y="173" class="scene3-label">23.5°</text>
+            <text id="scene3-lat-label-70" x="395" y="215" class="scene3-label">70°</text>
+            
+            <!-- ===== 步骤1元素：地方时 ===== -->
+            <g id="scene3-step1-group" style="opacity:0; display:none;">
+                <text id="scene3-time-b" x="395" y="150" class="scene3-label-blue">6时</text>
+                <text id="scene3-time-o" x="215" y="265" class="scene3-label-blue" text-anchor="middle">0时</text>
+            </g>
+            
+            <!-- ===== 步骤2元素：A地经度与夜长 ===== -->
+            <g id="scene3-step2-group" style="opacity:0; display:none;">
+                <text id="scene3-longitude-a" x="85" y="185" class="scene3-label-blue">180°</text>
+                <path id="scene3-night-arc" d="M 105 200 Q 215 215 325 200" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,4"/>
+                <text id="scene3-night-length" x="215" y="245" class="scene3-label-blue" text-anchor="middle">夜长 8h</text>
+            </g>
+            
+            <!-- ===== 步骤3元素：直射点坐标 ===== -->
+            <g id="scene3-step3-group" style="opacity:0; display:none;">
+                <line id="scene3-sun-point-h" x1="265" y1="168" x2="275" y2="168" stroke="#c62828" stroke-width="2"/>
+                <line id="scene3-sun-point-v" x1="270" y1="163" x2="270" y2="173" stroke="#c62828" stroke-width="2"/>
+                <text id="scene3-sun-coord" x="270" y="150" class="scene3-label-blue" text-anchor="middle">(20°S,60°W)</text>
+            </g>
+            
+            <!-- ===== 答案区 (右侧) - 垂直分布 ===== -->
+            <g id="scene3-answer-q2" style="opacity:0; display:none;">
+                <rect x="420" y="45" width="355" height="42" fill="#e3f2fd" stroke="#90caf9" stroke-width="1" rx="4"/>
+                <text x="430" y="70" class="scene3-label" font-size="12px">(2) B地：6时  O地：0时</text>
+            </g>
+            
+            <g id="scene3-answer-q3" style="opacity:0; display:none;">
+                <rect x="420" y="92" width="355" height="42" fill="#e3f2fd" stroke="#90caf9" stroke-width="1" rx="4"/>
+                <text x="430" y="117" class="scene3-label" font-size="12px">(3) A地经度：180°  夜长：8h</text>
+            </g>
+            
+            <g id="scene3-answer-q4" style="opacity:0; display:none;">
+                <rect x="420" y="139" width="355" height="42" fill="#e3f2fd" stroke="#90caf9" stroke-width="1" rx="4"/>
+                <text x="430" y="164" class="scene3-label" font-size="12px">(4) 直射点：(20°S, 60°W)</text>
+            </g>
+            
+            <g id="scene3-answer-q5" style="opacity:0; display:none;">
+                <rect x="420" y="186" width="355" height="42" fill="#e3f2fd" stroke="#90caf9" stroke-width="1" rx="4"/>
+                <text x="430" y="211" class="scene3-label" font-size="12px">(5) 正午太阳高度年较差：47°</text>
+            </g>
+            
+            <!-- ===== 步骤4元素：年变化曲线图 ===== -->
+            <g id="scene3-step4-group" style="opacity:0; display:none;">
+                <!-- 年变化图外框 -->
+                <rect id="scene3-curve-frame" x="50" y="265" width="725" height="170" fill="none" stroke="#000000" stroke-width="1.5"/>
+                
+                <!-- 坐标轴 -->
+                <line id="scene3-curve-xaxis" x1="90" y1="405" x2="735" y2="405" stroke="#000000" stroke-width="1.5"/>
+                <line id="scene3-curve-yaxis" x1="90" y1="315" x2="90" y2="405" stroke="#000000" stroke-width="1.5"/>
+                
+                <!-- 年变化曲线 -->
+                <path id="scene3-curve-path" d="M 90 360 C 200 325, 310 320, 420 345 C 530 370, 640 395, 735 375" fill="none" stroke="#2e7d32" stroke-width="2"/>
+                
+                <!-- 最大值点和最小值点 -->
+                <circle id="scene3-curve-max" cx="310" cy="320" r="4" fill="#2e7d32"/>
+                <circle id="scene3-curve-min" cx="640" cy="395" r="4" fill="#2e7d32"/>
+                
+                <!-- 差值区域 -->
+                <rect id="scene3-diff-rect" x="415" y="320" width="10" height="75" fill="#c62828" opacity="0.15"/>
+                <line id="scene3-diff-line-top" x1="410" y1="320" x2="430" y2="320" stroke="#c62828" stroke-width="1"/>
+                <line id="scene3-diff-line-bottom" x1="410" y1="395" x2="430" y2="395" stroke="#c62828" stroke-width="1"/>
+                <text id="scene3-diff-label" x="445" y="365" class="scene3-label-red">年较差 47°</text>
+                
+                <!-- 轴标签 -->
+                <text id="scene3-curve-xlabel" x="412" y="430" class="scene3-label" text-anchor="middle">时间</text>
+                <text id="scene3-curve-ylabel" x="80" y="365" class="scene3-label" text-anchor="end">H</text>
+                
+                <!-- 节气标签 -->
+                <text id="scene3-spring" x="90" y="425" class="scene3-label" text-anchor="middle">春分</text>
+                <text id="scene3-summer" x="310" y="425" class="scene3-label" text-anchor="middle">夏至</text>
+                <text id="scene3-autumn" x="530" y="425" class="scene3-label" text-anchor="middle">秋分</text>
+                <text id="scene3-winter" x="735" y="425" class="scene3-label" text-anchor="end">冬至</text>
+            </g>
+            
+            <!-- 控件栏 -->
+            <g id="scene3-controls">
+                <g id="scene3-btn-prev" class="scene3-btn-rect disabled">
+                    <rect x="265" y="455" width="65" height="24" fill="#e0e0e0" stroke="#999" stroke-width="1" rx="3"/>
+                    <text x="297" y="472" class="scene3-label" text-anchor="middle" font-size="12px" fill="#888">◀上一步</text>
+                </g>
+                <text id="scene3-step-indicator" x="400" y="472" class="scene3-label" text-anchor="middle" font-size="12px">步骤 0/5</text>
+                <g id="scene3-btn-next" class="scene3-btn-rect">
+                    <rect x="470" y="455" width="65" height="24" fill="#f5f5f5" stroke="#333" stroke-width="1" rx="3"/>
+                    <text x="502" y="472" class="scene3-label" text-anchor="middle" font-size="12px">下一步▶</text>
+                </g>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现 - 晨昏线与地方时计算
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepIndicator = document.getElementById('scene3-step-indicator');
+        
+        const stepElements = {
+            1: ['scene3-step1-group', 'scene3-answer-q2'],
+            2: ['scene3-step2-group', 'scene3-answer-q3'],
+            3: ['scene3-step3-group', 'scene3-answer-q4'],
+            4: ['scene3-step4-group', 'scene3-answer-q5']
+        };
+        
+        function showElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                    el.classList.add('scene3-fade-in');
+                }, 10);
+            }
+        }
+        
+        function hideElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+                el.classList.remove('scene3-fade-in');
+            }
+        }
+        
+        function updateButtons() {
+            const prevRect = btnPrev.querySelector('rect');
+            const prevText = btnPrev.querySelector('text');
+            const nextRect = btnNext.querySelector('rect');
+            const nextText = btnNext.querySelector('text');
+            
+            if (currentStep === 0) {
+                prevRect.setAttribute('fill', '#e0e0e0');
+                prevText.setAttribute('fill', '#888');
+                btnPrev.classList.add('disabled');
+            } else {
+                prevRect.setAttribute('fill', '#f5f5f5');
+                prevText.setAttribute('fill', '#000000');
+                btnPrev.classList.remove('disabled');
+            }
+            
+            if (currentStep === totalSteps - 1) {
+                nextRect.setAttribute('fill', '#e0e0e0');
+                nextText.setAttribute('fill', '#888');
+                btnNext.classList.add('disabled');
+            } else {
+                nextRect.setAttribute('fill', '#f5f5f5');
+                nextText.setAttribute('fill', '#000000');
+                btnNext.classList.remove('disabled');
+            }
+        }
+        
+        function updateStepDisplay() {
+            stepIndicator.textContent = `步骤 ${currentStep}/5`;
+            updateButtons();
+            
+            for (let step = 1; step <= 4; step++) {
+                const elements = stepElements[step];
+                if (elements) {
+                    elements.forEach(elId => {
+                        if (step <= currentStep) {
+                            showElement(elId);
+                        } else {
+                            hideElement(elId);
+                        }
+                    });
+                }
+            }
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStepDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStepDisplay();
+            }
+        });
+        
+        updateStepDisplay();
+        
+    })();
+    </script>
+</body>
+</html>

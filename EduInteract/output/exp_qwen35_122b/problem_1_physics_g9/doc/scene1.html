@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>杠杆平衡 - 力臂概念演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-prev-btn, #scene1-next-btn { padding: 8px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+        #scene1-prev-btn { background: #9e9e9e; color: white; }
+        #scene1-prev-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene1-next-btn { background: #1565c0; color: white; }
+        #scene1-step-indicator { font-size: 14px; color: #666; line-height: 35px; }
+        .hint-text { font-size: 15px; fill: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 杠杆 OAB -->
+            <line id="scene1-lever" x1="100" y1="250" x2="700" y2="250" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 支点三角形 -->
+            <polygon id="scene1-fulcrum" points="85,250 115,250 100,225" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 重物 G 矩形 -->
+            <rect id="scene1-weight-rect" x="285" y="290" width="30" height="50" fill="#e0e0e0" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 重物 G 箭头 -->
+            <line id="scene1-weight-arrow-line" x1="300" y1="290" x2="300" y2="340" stroke="#c62828" stroke-width="2"/>
+            <polygon id="scene1-weight-arrow-head" points="300,340 295,330 305,330" fill="#c62828"/>
+            
+            <!-- 连接 A 点到重物的线 -->
+            <line id="scene1-connection" x1="300" y1="250" x2="300" y2="290" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 四个力箭头 - 缩短长度避免标签超出边界 -->
+            <!-- F₁: 斜向右下 -->
+            <line id="scene1-force1-line" x1="700" y1="250" x2="750" y2="300" stroke="#1565c0" stroke-width="2"/>
+            <polygon id="scene1-force1-head" points="750,300 743,293 754,290" fill="#1565c0"/>
+            
+            <!-- F₂: 斜向右上 -->
+            <line id="scene1-force2-line" x1="700" y1="250" x2="750" y2="200" stroke="#1565c0" stroke-width="2"/>
+            <polygon id="scene1-force2-head" points="750,200 743,207 754,210" fill="#1565c0"/>
+            
+            <!-- F₃: 垂直向上 -->
+            <line id="scene1-force3-line" x1="700" y1="250" x2="700" y2="150" stroke="#1565c0" stroke-width="2"/>
+            <polygon id="scene1-force3-head" points="700,150 695,160 705,160" fill="#1565c0"/>
+            
+            <!-- F₄: 斜向左上 -->
+            <line id="scene1-force4-line" x1="700" y1="250" x2="620" y2="170" stroke="#1565c0" stroke-width="2"/>
+            <polygon id="scene1-force4-head" points="620,170 630,160 625,145" fill="#1565c0"/>
+            
+            <!-- 力臂虚线 (初始隐藏) -->
+            <!-- L₁: O 到 F₁作用线的垂线 -->
+            <line id="scene1-arm1" x1="100" y1="250" x2="710" y2="275" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- L₂: O 到 F₂作用线的垂线 -->
+            <line id="scene1-arm2" x1="100" y1="250" x2="710" y2="225" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- L₃: O 到 F₃作用线的垂线 (与 OB 重合) -->
+            <line id="scene1-arm3" x1="100" y1="250" x2="700" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- L₄: O 到 F₄作用线的垂线 -->
+            <line id="scene1-arm4" x1="100" y1="250" x2="660" y2="210" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 阻力臂 L_G (步骤 2 显示) -->
+            <line id="scene1-arm-g" x1="100" y1="250" x2="300" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0"/>
+            
+            <!-- 高亮力臂 (绿色实线) -->
+            <line id="scene1-arm-highlight" x1="100" y1="250" x2="700" y2="250" stroke="#2e7d32" stroke-width="2.5" opacity="0"/>
+            
+            <!-- 标签 - 调整位置避免重叠 -->
+            <!-- O 标签移到支点左侧更远处 -->
+            <text id="scene1-label-o" x="70" y="220" font-size="16" fill="#000000">O</text>
+            <!-- A 标签上移避免与杠杆重叠 -->
+            <text id="scene1-label-a" x="295" y="220" font-size="16" fill="#000000">A</text>
+            <!-- B 标签移到 B 点右侧并上移 -->
+            <text id="scene1-label-b" x="710" y="220" font-size="16" fill="#000000">B</text>
+            <!-- G 标签移到重物下方 -->
+            <text id="scene1-label-g" x="295" y="355" font-size="16" fill="#000000">G</text>
+            <!-- F₁标签移到箭头末端右侧 -->
+            <text id="scene1-label-f1" x="755" y="310" font-size="14" fill="#1565c0">F₁</text>
+            <!-- F₂标签移到箭头末端右侧 -->
+            <text id="scene1-label-f2" x="755" y="190" font-size="14" fill="#1565c0">F₂</text>
+            <!-- F₃标签保持 -->
+            <text id="scene1-label-f3" x="680" y="130" font-size="14" fill="#1565c0">F₃</text>
+            <!-- F₄标签保持 -->
+            <text id="scene1-label-f4" x="590" y="150" font-size="14" fill="#1565c0">F₄</text>
+            
+            <!-- 力臂标签 (初始隐藏) - 调整位置避免与线重叠 -->
+            <text id="scene1-label-lg" x="195" y="285" font-size="14" fill="#888888" opacity="0">L_G</text>
+            <text id="scene1-label-l1" x="715" y="290" font-size="14" fill="#888888" opacity="0">L₁</text>
+            <text id="scene1-label-l2" x="715" y="215" font-size="14" fill="#888888" opacity="0">L₂</text>
+            <text id="scene1-label-l3" x="395" y="285" font-size="14" fill="#888888" opacity="0">L₃</text>
+            <text id="scene1-label-l4" x="650" y="190" font-size="14" fill="#888888" opacity="0">L₄</text>
+            
+            <!-- 提示文字 (初始隐藏) -->
+            <text id="scene1-hint1" class="hint-text" x="400" y="400" text-anchor="middle" opacity="0">支点是杠杆绕着转动的固定点</text>
+            <text id="scene1-hint2" class="hint-text" x="400" y="400" text-anchor="middle" opacity="0">阻力臂是从支点到阻力作用线的垂直距离</text>
+            <text id="scene1-hint3" class="hint-text" x="400" y="400" text-anchor="middle" opacity="0">F₃垂直向上，力臂 L₃=OB</text>
+            <text id="scene1-hint4" class="hint-text" x="400" y="400" text-anchor="middle" opacity="0">比较力臂长度：L₃最长（等于 OB）</text>
+            <text id="scene1-hint5" class="hint-text" x="400" y="400" text-anchor="middle" opacity="0">根据杠杆平衡条件 F×L = G×L_G，力臂最长则力最小，所以 F₃最小</text>
+            
+            <!-- 高亮效果 (初始隐藏) -->
+            <polygon id="scene1-fulcrum-highlight" points="85,250 115,250 100,225" fill="#fff9c4" opacity="0"/>
+            <line id="scene1-weight-arrow-highlight" x1="300" y1="290" x2="300" y2="340" stroke="#c62828" stroke-width="3" opacity="0"/>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/6</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 杠杆平衡与力臂概念演示
+        // 坐标表对照:
+        // 杠杆 OAB: (100,250)-(700,250)
+        // O 点: (100,250), A 点: (300,250), B 点: (700,250)
+        // 支点三角形: (85,250) 顶点向上
+        // 重物 G 矩形: (285,290)-(315,340)
+        // F₁箭头: (700,250)-(750,300), F₂: (700,250)-(750,200)
+        // F₃箭头: (700,250)-(700,150), F₄: (700,250)-(620,170)
+        
+        const currentStepMax = 5;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (el) { el.style.display = 'block'; el.style.opacity = '1'; }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (el) { el.style.display = 'none'; el.style.opacity = '0'; }
+        }
+        
+        // 工具函数：设置 SVG 元素显示
+        function showSvg(el) {
+            if (el) { el.style.opacity = '1'; }
+        }
+        
+        // 工具函数：设置 SVG 元素隐藏
+        function hideSvg(el) {
+            if (el) { el.style.opacity = '0'; }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 重置所有高亮和显示状态
+            const fulcrumHighlight = document.getElementById('scene1-fulcrum-highlight');
+            const weightArrowHighlight = document.getElementById('scene1-weight-arrow-highlight');
+            const armHighlight = document.getElementById('scene1-arm-highlight');
+            
+            hideSvg(fulcrumHighlight);
+            hideSvg(weightArrowHighlight);
+            hideSvg(armHighlight);
+            
+            // 隐藏所有力臂
+            hideSvg(document.getElementById('scene1-arm1'));
+            hideSvg(document.getElementById('scene1-arm2'));
+            hideSvg(document.getElementById('scene1-arm3'));
+            hideSvg(document.getElementById('scene1-arm4'));
+            hideSvg(document.getElementById('scene1-arm-g'));
+            
+            // 隐藏所有力臂标签
+            hideSvg(document.getElementById('scene1-label-lg'));
+            hideSvg(document.getElementById('scene1-label-l1'));
+            hideSvg(document.getElementById('scene1-label-l2'));
+            hideSvg(document.getElementById('scene1-label-l3'));
+            hideSvg(document.getElementById('scene1-label-l4'));
+            
+            // 隐藏所有提示文字
+            hideSvg(document.getElementById('scene1-hint1'));
+            hideSvg(document.getElementById('scene1-hint2'));
+            hideSvg(document.getElementById('scene1-hint3'));
+            hideSvg(document.getElementById('scene1-hint4'));
+            hideSvg(document.getElementById('scene1-hint5'));
+            
+            // 根据步骤显示对应内容
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示基础结构
+                    document.getElementById('scene1-step-indicator').textContent = '步骤 1/6';
+                    break;
+                    
+                case 1:
+                    // 高亮支点
+                    document.getElementById('scene1-step-indicator').textContent = '步骤 2/6';
+                    showSvg(fulcrumHighlight);
+                    showSvg(document.getElementById('scene1-hint1'));
+                    break;
+                    
+                case 2:
+                    // 显示阻力臂
+                    document.getElementById('scene1-step-indicator').textContent = '步骤 3/6';
+                    showSvg(document.getElementById('scene1-arm-g'));
+                    showSvg(document.getElementById('scene1-label-lg'));
+                    showSvg(document.getElementById('scene1-hint2'));
+                    showSvg(weightArrowHighlight);
+                    break;
+                    
+                case 3:
+                    // 演示力臂 L₁
+                    document.getElementById('scene1-step-indicator').textContent = '步骤 4/6';
+                    showSvg(document.getElementById('scene1-arm1'));
+                    showSvg(document.getElementById('scene1-label-l1'));
+                    break;
+                    
+                case 4:
+                    // 演示力臂 L₂
+                    document.getElementById('scene1-step-indicator').textContent = '步骤 5/6';
+                    showSvg(document.getElementById('scene1-arm1'));
+                    showSvg(document.getElementById('scene1-label-l1'));
+                    showSvg(document.getElementById('scene1-arm2'));
+                    showSvg(document.getElementById('scene1-label-l2'));
+                    break;
+                    
+                case 5:
+                    // 演示力臂 L₃并高亮，显示结论
+                    document.getElementById('scene1-step-indicator').textContent = '步骤 6/6';
+                    showSvg(document.getElementById('scene1-arm1'));
+                    showSvg(document.getElementById('scene1-label-l1'));
+                    showSvg(document.getElementById('scene1-arm2'));
+                    showSvg(document.getElementById('scene1-label-l2'));
+                    showSvg(document.getElementById('scene1-arm3'));
+                    showSvg(document.getElementById('scene1-label-l3'));
+                    showSvg(armHighlight);
+                    showSvg(document.getElementById('scene1-hint5'));
+                    break;
+            }
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-prev-btn');
+            const nextBtn = document.getElementById('scene1-next-btn');
+            
+            prevBtn.disabled = (currentStep === 0);
+            
+            if (currentStep === currentStepMax) {
+                nextBtn.textContent = '完成';
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+                nextBtn.disabled = false;
+            }
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateScene();
+            }
+        }
+        
+        // 绑定事件
+        document.getElementById('scene1-prev-btn').addEventListener('click', prevStep);
+        document.getElementById('scene1-next-btn').addEventListener('click', nextStep);
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

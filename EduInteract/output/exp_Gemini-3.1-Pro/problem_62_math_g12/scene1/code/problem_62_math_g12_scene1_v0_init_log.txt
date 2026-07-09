@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-slider { width: 300px; }
+        #scene1-label { font-size: 16px; color: #333; }
+        #scene1-message { position: absolute; top: 20px; left: 0; right: 0; text-align: center; color: #c62828; font-size: 20px; font-weight: bold; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <canvas id="scene1-canvas" width="800" height="500"></canvas>
+        <div id="scene1-message">GF ∥ BD, EH ∥ BD</div>
+        <div id="scene1-controls">
+            <span id="scene1-label">截面位置 λ: 0.20</span>
+            <input type="range" id="scene1-slider" min="-0.5" max="1.5" step="0.01" value="0.2">
+        </div>
+    </div>
+    <script>
+    (function() {
+        const canvas = document.getElementById('scene1-canvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('scene1-slider');
+        const label = document.getElementById('scene1-label');
+        const message = document.getElementById('scene1-message');
+
+        // 3D 坐标
+        const basePoints = {
+            A: { x: 0, y: -170, z: 0 },
+            B: { x: -200, y: 100, z: 150 },
+            C: { x: 50, y: 200, z: 100 },
+            D: { x: 250, y: 70, z: -150 }
+        };
+
+        let angleX = 0;
+        let angleY = 0;
+        let lambda = 0.2;
+
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        // 旋转矩阵
+        function rotate(point, ax, ay) {
+            // 绕 X 轴旋转
+            let y1 = point.y * Math.cos(ax) - point.z * Math.sin(ax);
+            let z1 = point.y * Math.sin(ax) + point.z * Math.cos(ax);
+            
+            // 绕 Y 轴旋转
+            let x2 = point.x * Math.cos(ay) + z1 * Math.sin(ay);
+            let z2 = -point.x * Math.sin(ay) + z1 * Math.cos(ay);
+            
+            return { x: x2, y: y1, z: z2 };
+        }
+
+        // 投影到 2D
+        function project(point) {
+            return {
+                x: point.x + 400,
+                y: point.y + 250
+            };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 计算旋转后的 3D 坐标
+            const pts = {};
+            for (let key in basePoints) {
+                pts[key] = rotate(basePoints[key], angleX, angleY);
+            }
+
+            // 计算 E, F, G, H, P 的 3D 坐标
+            pts.E = { x: (pts.A.x + pts.B.x)/2, y: (pts.A.y + pts.B.y)/2, z: (pts.A.z + pts.B.z)/2 };
+            pts.F = { x: (pts.C.x + pts.D.x)/2, y: (pts.C.y + pts.D.y)/2, z: (pts.C.z + pts.D.z)/2 };
+            
+            pts.G = {
+                x: pts.B.x + lambda * (pts.C.x - pts.B.x),
+                y: pts.B.y + lambda * (pts.C.y - pts.B.y),
+                z: pts.B.z + lambda * (pts.C.z - pts.B.z)
+            };
+            
+            pts.H = {
+                x: pts.A.x + lambda * (pts.D.x - pts.A.x),
+                y: pts.A.y + lambda * (pts.D.y - pts.A.y),
+                z: pts.A.z + lambda * (pts.D.z - pts.A.z)
+            };
+
+            let hasP = Math.abs(lambda - 0.5) > 0.001;
+            if (hasP) {
+                let factorB = (lambda - 1) / (2 * lambda - 1);
+                let factorD = lambda / (2 * lambda - 1);
+                pts.P = {
+                    x: factorB * pts.B.x + factorD * pts.D.x,
+                    y: factorB * pts.B.y + factorD * pts.D.y,
+                    z: factorB * pts.B.z + factorD * pts.D.z
+                };
+            }
+
+            // 投影到 2D
+            const p2d = {};
+            for (let key in pts) {
+                p2d[key] = project(pts[key]);
+            }
+
+            // 绘制辅助线 EF
+            ctx.beginPath();
+            ctx.moveTo(p2d.E.x, p2d.E.y);
+            ctx.lineTo(p2d.F.x, p2d.F.y);
+            ctx.strokeStyle = '#888888';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+
+            // 绘制延长线 GP, HP
+            if (hasP) {
+                ctx.beginPath();
+                ctx.moveTo(p2d.G.x, p2d.G.y);
+                ctx.lineTo(p2d.P.x, p2d.P.y);
+                ctx.moveTo(p2d.H.x, p2d.H.y);
+                ctx.lineTo(p2d.P.x, p2d.P.y);
+                ctx.strokeStyle = '#888888';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.stroke();
+            }
+
+            // 绘制四面体边 (虚线 BD)
+            ctx.beginPath();
+            ctx.moveTo(p2d.B.x, p2d.B.y);
+            ctx.lineTo(p2d.D.x, p2d.D.y);
+            ctx.strokeStyle = '#c62828';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+
+            // 绘制四面体边 (实线)
+            ctx.beginPath();
+            ctx.moveTo(p2d.A.x, p2d.A.y);
+            ctx.lineTo(p2d.B.x, p2d.B.y);
+            ctx.lineTo(p2d.C.x, p2d.C.y);
+            ctx.lineTo(p2d.A.x, p2d.A.y);
+            ctx.lineTo(p2d.D.x, p2d.D.y);
+            ctx.lineTo(p2d.C.x, p2d.C.y);
+            ctx.moveTo(p2d.B.x, p2d.B.y);
+            ctx.lineTo(p2d.D.x, p2d.D.y); // 已经被虚线画过，这里不再画实线
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.stroke();
+            
+            // 重新画实线部分，避免覆盖
+            ctx.beginPath();
+            ctx.moveTo(p2d.A.x, p2d.A.y);
+            ctx.lineTo(p2d.B.x, p2d.B.y);
+            ctx.lineTo(p2d.C.x, p2d.C.y);
+            ctx.lineTo(p2d.A.x, p2d.A.y);
+            ctx.lineTo(p2d.D.x, p2d.D.y);
+            ctx.lineTo(p2d.C.x, p2d.C.y);
+            ctx.stroke();
+
+            // 绘制截面填充
+            ctx.beginPath();
+            ctx.moveTo(p2d.E.x, p2d.E.y);
+            ctx.lineTo(p2d.G.x, p2d.G.y);
+            ctx.lineTo(p2d.F.x, p2d.F.y);
+            ctx.lineTo(p2d.H.x, p2d.H.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(21, 101, 192, 0.2)';
+            ctx.fill();
+
+            // 绘制截面边 (实线 EG, HF)
+            ctx.beginPath();
+            ctx.moveTo(p2d.E.x, p2d.E.y);
+            ctx.lineTo(p2d.G.x, p2d.G.y);
+            ctx.moveTo(p2d.H.x, p2d.H.y);
+            ctx.lineTo(p2d.F.x, p2d.F.y);
+            ctx.strokeStyle = '#1565c0';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.stroke();
+
+            // 绘制截面边 (虚线 EH, GF)
+            ctx.beginPath();
+            ctx.moveTo(p2d.E.x, p2d.E.y);
+            ctx.lineTo(p2d.H.x, p2d.H.y);
+            ctx.moveTo(p2d.G.x, p2d.G.y);
+            ctx.lineTo(p2d.F.x, p2d.F.y);
+            ctx.strokeStyle = '#1565c0';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+
+            // 绘制点和标签
+            ctx.font = '16px Arial';
+            ctx.setLineDash([]);
+            
+            const drawPoint = (p, name, color, offsetX, offsetY) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, name === 'P' ? 4 : 3, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.fillText(name, p.x + offsetX, p.y + offsetY);
+            };
+
+            drawPoint(p2d.A, 'A', '#000000', 0, -10);
+            drawPoint(p2d.B, 'B', '#000000', -20, 10);
+            drawPoint(p2d.C, 'C', '#000000', 0, 20);
+            drawPoint(p2d.D, 'D', '#000000', 15, 10);
+            drawPoint(p2d.E, 'E', '#000000', -20, -10);
+            drawPoint(p2d.F, 'F', '#000000', 15, 15);
+            drawPoint(p2d.G, 'G', '#000000', -15, 20);
+            drawPoint(p2d.H, 'H', '#000000', 15, -15);
+            
+            if (hasP) {
+                drawPoint(p2d.P, 'P', '#c62828', -20, -15);
+            }
+        }
+
+        // 事件监听
+        slider.addEventListener('input', (e) => {
+            let val = parseFloat(e.target.value);
+            // 吸附逻辑
+            if (Math.abs(val - 0.5) < 0.05) {
+                val = 0.5;
+                slider.value = 0.5;
+            }
+            lambda = val;
+            label.textContent = `截面位置 λ: ${lambda.toFixed(2)}`;
+            
+            if (lambda === 0.5) {
+                message.style.opacity = 1;
+            } else {
+                message.style.opacity = 0;
+            }
+            
+            draw();
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                angleY += deltaX * 0.01;
+                angleX += deltaY * 0.01;
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                
+                draw();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // 初始绘制
+        draw();
+    })();
+    </script>
+</body>
+</html>

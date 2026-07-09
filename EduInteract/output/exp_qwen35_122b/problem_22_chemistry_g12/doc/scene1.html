@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电化学装置 - 原电池原理</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-prev-btn, #scene1-next-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #333; border-radius: 6px; background: #f5f5f5; cursor: pointer; transition: all 0.2s; }
+        #scene1-prev-btn:hover:not(:disabled), #scene1-next-btn:hover { background: #e0e0e0; }
+        #scene1-prev-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; font-weight: bold; color: #333; line-height: 30px; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 烧杯轮廓 -->
+            <path id="scene1-beaker" d="M 200 200 L 200 420 L 600 420 L 600 200 L 580 200 L 580 190 L 220 190 L 220 200 L 200 200 Z M 190 210 L 200 210" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 溶液区域 -->
+            <rect id="scene1-solution" x="210" y="280" width="380" height="130" fill="#64b5f6" fill-opacity="0.2" stroke="none"/>
+            
+            <!-- 铜电极 Cu -->
+            <rect id="scene1-cu-electrode" x="250" y="150" width="40" height="200" fill="#b87333" fill-opacity="0.3" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 铁电极 Fe -->
+            <rect id="scene1-fe-electrode" x="510" y="150" width="40" height="200" fill="#808080" fill-opacity="0.3" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 电极引线 a -->
+            <line id="scene1-lead-a" x1="270" y1="150" x2="270" y2="116" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 电极引线 b -->
+            <line id="scene1-lead-b" x1="530" y1="150" x2="530" y2="116" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 接线柱 a -->
+            <circle id="scene1-terminal-a" cx="270" cy="110" r="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 接线柱 b -->
+            <circle id="scene1-terminal-b" cx="530" cy="110" r="12" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 导线连接 ab (步骤 1 显示) -->
+            <path id="scene1-wire-ab" d="M 270 110 L 270 80 L 530 80 L 530 110" fill="none" stroke="#000000" stroke-width="2" style="display: none;"/>
+            
+            <!-- 电子流向箭头 (步骤 2 显示) -->
+            <g id="scene1-electron-arrow" style="display: none;">
+                <line x1="460" y1="100" x2="340" y2="100" stroke="#c62828" stroke-width="3"/>
+                <polygon points="340,100 350,95 350,105" fill="#c62828"/>
+            </g>
+            
+            <!-- e⁻ 标签 (步骤 2 显示) -->
+            <text id="scene1-electron-label" x="380" y="85" font-size="16" fill="#c62828" style="display: none;">$e^-$</text>
+            
+            <!-- Cu²⁺移动箭头 (步骤 3 显示) -->
+            <g id="scene1-cu2plus-arrow" style="display: none;">
+                <line x1="420" y1="310" x2="340" y2="310" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="340,310 350,305 350,315" fill="#1565c0"/>
+            </g>
+            
+            <!-- SO₄²⁻移动箭头 (步骤 3 显示) -->
+            <g id="scene1-so4-arrow" style="display: none;">
+                <line x1="340" y1="360" x2="420" y2="360" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+                <polygon points="420,360 410,355 410,365" fill="#888888"/>
+            </g>
+            
+            <!-- 负极反应框 (步骤 4 显示) -->
+            <g id="scene1-anode-box" style="display: none;">
+                <rect x="180" y="220" width="100" height="40" fill="#ffffff" stroke="#2e7d32" stroke-width="2" rx="5"/>
+                <text x="230" y="245" font-size="12" fill="#2e7d32" text-anchor="middle">负极(Fe)</text>
+                <text x="230" y="260" font-size="11" fill="#000000" text-anchor="middle">Fe - 2e⁻ → Fe²⁺</text>
+            </g>
+            
+            <!-- 正极反应框 (步骤 4 显示) -->
+            <g id="scene1-cathode-box" style="display: none;">
+                <rect x="520" y="220" width="100" height="40" fill="#ffffff" stroke="#2e7d32" stroke-width="2" rx="5"/>
+                <text x="570" y="245" font-size="12" fill="#2e7d32" text-anchor="middle">正极(Cu)</text>
+                <text x="570" y="260" font-size="11" fill="#000000" text-anchor="middle">Cu²⁺ + 2e⁻ → Cu</text>
+            </g>
+            
+            <!-- 结论文字框 (步骤 5 显示) -->
+            <g id="scene1-conclusion-box" style="display: none;">
+                <rect x="200" y="380" width="400" height="50" fill="#fff9c4" stroke="#f57f17" stroke-width="2" rx="5"/>
+                <text x="400" y="400" font-size="12" fill="#f57f17" text-anchor="middle">✓ 选项 A 正确：铜片上析出金属铜</text>
+                <text x="400" y="418" font-size="12" fill="#f57f17" text-anchor="middle">✓ 选项 D 正确：铁片溶解，溶液变浅绿色</text>
+            </g>
+            
+            <!-- 标签 -->
+            <text id="scene1-label-cu" x="255" y="135" font-size="16" fill="#000000">Cu</text>
+            <text id="scene1-label-fe" x="515" y="135" font-size="16" fill="#000000">Fe</text>
+            <text id="scene1-label-a" x="265" y="95" font-size="14" fill="#000000">a</text>
+            <text id="scene1-label-b" x="525" y="95" font-size="14" fill="#000000">b</text>
+            <text id="scene1-label-cu2plus" x="340" y="310" font-size="16" fill="#000000">$Cu^{2+}$</text>
+            <text id="scene1-label-so4" x="460" y="360" font-size="16" fill="#000000">$SO_4^{2-}$</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/6</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // 烧杯轮廓：(200,200)-(600,420)
+        // 溶液区域：(210,280)-(590,410)
+        // 铜电极 Cu：(250,150)-(290,350)
+        // 铁电极 Fe：(510,150)-(550,350)
+        // 接线柱 a：(270,110)
+        // 接线柱 b：(530,110)
+        // 导线连接 ab：(270,110)-(270,80)-(530,80)-(530,110)
+        // 电子流向箭头：(400,100) 水平向左
+        // Cu²⁺移动箭头：(380,310) 水平向左
+        // SO₄²⁻移动箭头：(380,360) 水平向右
+        // 负极反应框：(180,220)-(280,260)
+        // 正极反应框：(520,220)-(620,260)
+        
+        const TOTAL_STEPS = 6;
+        let currentStep = 0;
+        
+        // 步骤元素映射表
+        const stepElements = {
+            1: ['scene1-wire-ab'],
+            2: ['scene1-electron-arrow', 'scene1-electron-label'],
+            3: ['scene1-cu2plus-arrow', 'scene1-so4-arrow'],
+            4: ['scene1-anode-box', 'scene1-cathode-box'],
+            5: ['scene1-conclusion-box']
+        };
+        
+        // 步骤描述
+        const stepDescriptions = [
+            "装置基础结构",
+            "原电池连接",
+            "电子流向",
+            "离子移动",
+            "电极反应",
+            "结论"
+        ];
+        
+        // 显示/隐藏元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                }, 10);
+            }
+        }
+        
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-prev-btn');
+            const nextBtn = document.getElementById('scene1-next-btn');
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 隐藏所有步骤相关元素
+            for (let step = 1; step <= TOTAL_STEPS; step++) {
+                if (stepElements[step]) {
+                    stepElements[step].forEach(id => hideElement(id));
+                }
+            }
+            
+            // 显示当前步骤及之前的所有元素
+            for (let step = 1; step <= currentStep; step++) {
+                if (stepElements[step]) {
+                    stepElements[step].forEach(id => showElement(id));
+                }
+            }
+            
+            // 触发 MathJax 重新渲染
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        }
+        
+        // 绑定事件
+        document.getElementById('scene1-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        document.getElementById('scene1-next-btn').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

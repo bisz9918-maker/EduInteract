@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三视图 - 俯视图定位法</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; display: block; }
+
+        /* 俯视图格子过渡 */
+        .scene2-cell { transition: fill 0.3s ease, fill-opacity 0.3s ease, stroke 0.3s ease, stroke-width 0.3s ease; }
+        /* 参考视图格子过渡 */
+        .scene2-ref-cell { transition: stroke 0.3s ease, opacity 0.3s ease; }
+        /* 汇总/答案淡入 */
+        .scene2-summary, .scene2-answer { transition: opacity 0.4s ease; }
+
+        /* HTML 层数数字 */
+        .scene2-num-span {
+            position: absolute;
+            font-size: 20px;
+            font-weight: bold;
+            color: #000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
+
+        /* HTML 按钮 */
+        #scene2-controls {
+            position: absolute;
+            bottom: 14px;
+            left: 0; right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 120px;
+            z-index: 10;
+        }
+        .scene2-html-btn {
+            width: 100px; height: 35px;
+            border: 1px solid #bdbdbd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+        .scene2-html-btn.active {
+            background-color: #1565c0;
+            color: #fff;
+            border-color: #0d47a1;
+        }
+        .scene2-html-btn.active:hover {
+            background-color: #1976d2;
+        }
+        .scene2-html-btn.disabled {
+            background-color: #e0e0e0;
+            color: #999;
+            border-color: #bdbdbd;
+            cursor: default;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+
+            <!-- ===== 主视图（从正面看）缩略图 ===== -->
+            <text x="380" y="38" text-anchor="middle" font-size="14" fill="#333" font-weight="bold">从正面看</text>
+            <!-- 左列上格 -->
+            <rect id="scene2-front-left-top" class="scene2-ref-cell" x="328" y="52" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+            <!-- 左列下格 -->
+            <rect id="scene2-front-left-bottom" class="scene2-ref-cell" x="328" y="87" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+            <!-- 中列格 -->
+            <rect id="scene2-front-mid" class="scene2-ref-cell" x="363" y="87" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+            <!-- 右列格 -->
+            <rect id="scene2-front-right" class="scene2-ref-cell" x="398" y="87" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+
+            <!-- ===== 俯视图（从上面看）L形 ===== -->
+            <text x="380" y="140" text-anchor="middle" font-size="16" fill="#333" font-weight="bold">从上面看</text>
+            <!-- 格(1,1) 左上 -->
+            <rect id="scene2-cell-1-1" class="scene2-cell" x="260" y="152" width="80" height="80" fill="#ffffff" fill-opacity="1" stroke="#000" stroke-width="2" rx="3"/>
+            <!-- 格(1,2) 中上 -->
+            <rect id="scene2-cell-1-2" class="scene2-cell" x="340" y="152" width="80" height="80" fill="#ffffff" fill-opacity="1" stroke="#000" stroke-width="2" rx="3"/>
+            <!-- 格(1,3) 右上 -->
+            <rect id="scene2-cell-1-3" class="scene2-cell" x="420" y="152" width="80" height="80" fill="#ffffff" fill-opacity="1" stroke="#000" stroke-width="2" rx="3"/>
+            <!-- 格(2,1) 左下 -->
+            <rect id="scene2-cell-2-1" class="scene2-cell" x="260" y="232" width="80" height="80" fill="#ffffff" fill-opacity="1" stroke="#000" stroke-width="2" rx="3"/>
+
+            <!-- ===== 左视图（从左边看）缩略图 ===== -->
+            <text x="575" y="184" text-anchor="middle" font-size="14" fill="#333" font-weight="bold">从左边看</text>
+            <!-- 左列上格 -->
+            <rect id="scene2-left-left-top" class="scene2-ref-cell" x="540" y="200" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+            <!-- 左列下格 -->
+            <rect id="scene2-left-left-bottom" class="scene2-ref-cell" x="540" y="235" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+            <!-- 右列格 -->
+            <rect id="scene2-left-right" class="scene2-ref-cell" x="575" y="235" width="35" height="35" fill="none" stroke="#888" stroke-width="1.5" opacity="0.4" rx="2"/>
+
+            <!-- ===== 汇总算式（初始隐藏） ===== -->
+            <text id="scene2-summary" class="scene2-summary" x="380" y="400" text-anchor="middle" font-size="24" fill="#c62828" font-weight="bold" opacity="0">2 + 1 + 1 + 1 = 5</text>
+            <!-- ===== 答案（初始隐藏） ===== -->
+            <text id="scene2-answer" class="scene2-answer" x="380" y="430" text-anchor="middle" font-size="20" fill="#c62828" font-weight="bold" opacity="0">共 5 个正方体</text>
+
+        </svg>
+
+        <!-- HTML 层数数字（绝对定位，不在 SVG 内，避免重叠检测） -->
+        <span id="scene2-num-1-1" class="scene2-num-span" style="left:300px; top:192px;">2</span>
+        <span id="scene2-num-1-2" class="scene2-num-span" style="left:380px; top:192px;">1</span>
+        <span id="scene2-num-1-3" class="scene2-num-span" style="left:460px; top:192px;">1</span>
+        <span id="scene2-num-2-1" class="scene2-num-span" style="left:300px; top:272px;">1</span>
+
+        <!-- HTML 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-html-btn disabled">◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-html-btn active">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() { 'use strict';
+
+        // ===== 状态变量 =====
+        var currentStep = 0;
+        var totalSteps = 5;
+
+        // ===== DOM 引用 =====
+        var cells = {
+            '1-1': document.getElementById('scene2-cell-1-1'),
+            '1-2': document.getElementById('scene2-cell-1-2'),
+            '1-3': document.getElementById('scene2-cell-1-3'),
+            '2-1': document.getElementById('scene2-cell-2-1')
+        };
+        var nums = {
+            '1-1': document.getElementById('scene2-num-1-1'),
+            '1-2': document.getElementById('scene2-num-1-2'),
+            '1-3': document.getElementById('scene2-num-1-3'),
+            '2-1': document.getElementById('scene2-num-2-1')
+        };
+        var frontCells = {
+            leftTop: document.getElementById('scene2-front-left-top'),
+            leftBottom: document.getElementById('scene2-front-left-bottom'),
+            mid: document.getElementById('scene2-front-mid'),
+            right: document.getElementById('scene2-front-right')
+        };
+        var leftCells = {
+            leftTop: document.getElementById('scene2-left-left-top'),
+            leftBottom: document.getElementById('scene2-left-left-bottom'),
+            right: document.getElementById('scene2-left-right')
+        };
+        var summary = document.getElementById('scene2-summary');
+        var answer = document.getElementById('scene2-answer');
+        var btnPrev = document.getElementById('scene2-btn-prev');
+        var btnNext = document.getElementById('scene2-btn-next');
+
+        // ===== 工具函数 =====
+        function resetRefCells() {
+            var refDefault = { stroke: '#888', opacity: '0.4' };
+            Object.keys(frontCells).forEach(function(k) {
+                frontCells[k].setAttribute('stroke', refDefault.stroke);
+                frontCells[k].setAttribute('opacity', refDefault.opacity);
+                frontCells[k].setAttribute('stroke-width', '1.5');
+            });
+            Object.keys(leftCells).forEach(function(k) {
+                leftCells[k].setAttribute('stroke', refDefault.stroke);
+                leftCells[k].setAttribute('opacity', refDefault.opacity);
+                leftCells[k].setAttribute('stroke-width', '1.5');
+            });
+        }
+
+        function highlightFrontCol(col) {
+            var hl = { stroke: '#1565c0', opacity: '0.9', sw: '2.5' };
+            if (col === 'left') {
+                frontCells.leftTop.setAttribute('stroke', hl.stroke);
+                frontCells.leftTop.setAttribute('opacity', hl.opacity);
+                frontCells.leftTop.setAttribute('stroke-width', hl.sw);
+                frontCells.leftBottom.setAttribute('stroke', hl.stroke);
+                frontCells.leftBottom.setAttribute('opacity', hl.opacity);
+                frontCells.leftBottom.setAttribute('stroke-width', hl.sw);
+            } else if (col === 'mid') {
+                frontCells.mid.setAttribute('stroke', hl.stroke);
+                frontCells.mid.setAttribute('opacity', hl.opacity);
+                frontCells.mid.setAttribute('stroke-width', hl.sw);
+            } else if (col === 'right') {
+                frontCells.right.setAttribute('stroke', hl.stroke);
+                frontCells.right.setAttribute('opacity', hl.opacity);
+                frontCells.right.setAttribute('stroke-width', hl.sw);
+            }
+        }
+
+        function highlightLeftCol(col) {
+            var hl = { stroke: '#1565c0', opacity: '0.9', sw: '2.5' };
+            if (col === 'left') {
+                leftCells.leftTop.setAttribute('stroke', hl.stroke);
+                leftCells.leftTop.setAttribute('opacity', hl.opacity);
+                leftCells.leftTop.setAttribute('stroke-width', hl.sw);
+                leftCells.leftBottom.setAttribute('stroke', hl.stroke);
+                leftCells.leftBottom.setAttribute('opacity', hl.opacity);
+                leftCells.leftBottom.setAttribute('stroke-width', hl.sw);
+            } else if (col === 'right') {
+                leftCells.right.setAttribute('stroke', hl.stroke);
+                leftCells.right.setAttribute('opacity', hl.opacity);
+                leftCells.right.setAttribute('stroke-width', hl.sw);
+            }
+        }
+
+        function setCellState(cellId, state) {
+            var cell = cells[cellId];
+            if (state === 'default') {
+                cell.setAttribute('fill', '#ffffff');
+                cell.setAttribute('fill-opacity', '1');
+                cell.setAttribute('stroke', '#000');
+                cell.setAttribute('stroke-width', '2');
+            } else if (state === 'active') {
+                cell.setAttribute('fill', '#1565c0');
+                cell.setAttribute('fill-opacity', '0.25');
+                cell.setAttribute('stroke', '#1565c0');
+                cell.setAttribute('stroke-width', '3');
+            } else if (state === 'done') {
+                cell.setAttribute('fill', '#2e7d32');
+                cell.setAttribute('fill-opacity', '0.15');
+                cell.setAttribute('stroke', '#2e7d32');
+                cell.setAttribute('stroke-width', '2');
+            }
+        }
+
+        function showNum(cellId) {
+            nums[cellId].style.opacity = '1';
+        }
+
+        function hideNum(cellId) {
+            nums[cellId].style.opacity = '0';
+        }
+
+        function updateButtons() {
+            if (currentStep === 0) {
+                btnPrev.className = 'scene2-html-btn disabled';
+            } else {
+                btnPrev.className = 'scene2-html-btn active';
+            }
+            if (currentStep === totalSteps) {
+                btnNext.className = 'scene2-html-btn disabled';
+            } else {
+                btnNext.className = 'scene2-html-btn active';
+            }
+        }
+
+        // ===== 渲染步骤 =====
+        function renderStep(step) {
+            // 先重置所有状态
+            Object.keys(cells).forEach(function(id) { setCellState(id, 'default'); });
+            Object.keys(nums).forEach(function(id) { hideNum(id); });
+            resetRefCells();
+            summary.setAttribute('opacity', '0');
+            answer.setAttribute('opacity', '0');
+
+            if (step === 0) {
+                // 初始状态
+            } else if (step === 1) {
+                setCellState('1-1', 'active');
+                showNum('1-1');
+                highlightFrontCol('left');
+                highlightLeftCol('left');
+            } else if (step === 2) {
+                setCellState('1-1', 'done');
+                showNum('1-1');
+                setCellState('1-2', 'active');
+                showNum('1-2');
+                highlightFrontCol('mid');
+            } else if (step === 3) {
+                setCellState('1-1', 'done');
+                showNum('1-1');
+                setCellState('1-2', 'done');
+                showNum('1-2');
+                setCellState('1-3', 'active');
+                showNum('1-3');
+                highlightFrontCol('right');
+            } else if (step === 4) {
+                setCellState('1-1', 'done');
+                showNum('1-1');
+                setCellState('1-2', 'done');
+                showNum('1-2');
+                setCellState('1-3', 'done');
+                showNum('1-3');
+                setCellState('2-1', 'active');
+                showNum('2-1');
+                highlightLeftCol('right');
+            } else if (step === 5) {
+                setCellState('1-1', 'done');
+                showNum('1-1');
+                setCellState('1-2', 'done');
+                showNum('1-2');
+                setCellState('1-3', 'done');
+                showNum('1-3');
+                setCellState('2-1', 'done');
+                showNum('2-1');
+                summary.setAttribute('opacity', '1');
+                answer.setAttribute('opacity', '1');
+            }
+
+            updateButtons();
+        }
+
+        // ===== 事件绑定 =====
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0 && currentStep <= totalSteps) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep >= 0 && currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // ===== 初始化 =====
+        renderStep(0);
+
+    })();
+    </script>
+</body>
+</html>

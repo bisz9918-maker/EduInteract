@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆台形容器正放与倒放 — 密度推导</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+        #scene1-controls {
+            position: absolute; bottom: 12px; left: 0; right: 0;
+            display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 8px 20px; font-size: 15px; border: 2px solid #333; border-radius: 6px;
+            background: #f5f5f5; cursor: pointer; transition: all 0.2s; font-family: inherit;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: default; border-color: #999; }
+        #scene1-step-indicator { font-size: 15px; color: #333; min-width: 80px; text-align: center; font-weight: bold; }
+
+        /* Step elements: initial opacity 0, transition for fade-in */
+        .scene1-step-el { opacity: 0; transition: opacity 0.5s ease; }
+        .scene1-step-el.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- Arrowhead marker -->
+                <marker id="scene1-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
+                </marker>
+                <!-- Blue arrowhead marker -->
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0" />
+                </marker>
+                <!-- Hatching pattern for table surface -->
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#999999" stroke-width="1.2" />
+                </pattern>
+            </defs>
+
+            <!-- ===== 桌面线 ===== -->
+            <line x1="30" y1="360" x2="770" y2="360" stroke="#000000" stroke-width="2" />
+            <!-- 桌面阴影 -->
+            <rect x="30" y="360" width="740" height="30" fill="url(#scene1-hatch)" />
+
+            <!-- ===== 甲容器轮廓（上宽下窄，倒放） ===== -->
+            <polygon id="scene1-container-jia"
+                points="155,360 225,360 265,190 115,190"
+                fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="round" />
+
+            <!-- ===== 乙容器轮廓（上窄下宽，正放） ===== -->
+            <polygon id="scene1-container-yi"
+                points="545,360 685,360 655,190 575,190"
+                fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="round" />
+
+            <!-- ===== 甲液体区域 ===== -->
+            <polygon id="scene1-liquid-jia"
+                points="155,360 225,360 247,260 133,260"
+                fill="#cccccc" fill-opacity="0.2" stroke="none" />
+
+            <!-- ===== 乙液体区域 ===== -->
+            <polygon id="scene1-liquid-yi"
+                points="545,360 685,360 668,260 562,260"
+                fill="#cccccc" fill-opacity="0.2" stroke="none" />
+
+            <!-- ===== 液面线 ===== -->
+            <line id="scene1-surface-jia" x1="133" y1="260" x2="247" y2="260" stroke="#1565c0" stroke-width="2" />
+            <line id="scene1-surface-yi" x1="562" y1="260" x2="668" y2="260" stroke="#1565c0" stroke-width="2" />
+
+            <!-- ===== 容器名称标签 ===== -->
+            <text x="200" y="175" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">甲</text>
+            <text x="600" y="175" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">乙</text>
+
+            <!-- ===== 速度标注 ===== -->
+            <!-- 甲速度 v -->
+            <line x1="145" y1="150" x2="185" y2="150" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+            <text id="scene1-label-v" x="165" y="143" text-anchor="middle" font-size="15" fill="#000000">v</text>
+            <!-- 乙速度 2v -->
+            <line x1="545" y1="150" x2="585" y2="150" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+            <text id="scene1-label-2v" x="565" y="143" text-anchor="middle" font-size="15" fill="#000000">2v</text>
+
+            <!-- ===== 拉力标注 ===== -->
+            <!-- F₁ -->
+            <line x1="230" y1="305" x2="270" y2="305" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+            <text id="scene1-label-f1" x="278" y="310" text-anchor="start" font-size="15" fill="#000000">F₁</text>
+            <!-- F₂ -->
+            <line x1="630" y1="305" x2="670" y2="305" stroke="#000000" stroke-width="1.5" marker-end="url(#scene1-arrow)" />
+            <text id="scene1-label-f2" x="678" y="310" text-anchor="start" font-size="15" fill="#000000">F₂</text>
+
+            <!-- ===== 深度标注 h ===== -->
+            <!-- 甲左侧 h -->
+            <line id="scene1-label-h-left-line" x1="100" y1="260" x2="100" y2="360" stroke="#1565c0" stroke-width="1.5"
+                marker-start="url(#scene1-arrow-blue)" marker-end="url(#scene1-arrow-blue)" />
+            <text id="scene1-label-h-left" x="88" y="314" text-anchor="middle" font-size="15" fill="#1565c0" font-style="italic">h</text>
+            <!-- 乙右侧 h -->
+            <line id="scene1-label-h-right-line" x1="700" y1="260" x2="700" y2="360" stroke="#1565c0" stroke-width="1.5"
+                marker-start="url(#scene1-arrow-blue)" marker-end="url(#scene1-arrow-blue)" />
+            <text id="scene1-label-h-right" x="712" y="314" text-anchor="start" font-size="15" fill="#1565c0" font-style="italic">h</text>
+
+            <!-- ===== 步骤1元素：体积比较 ===== -->
+            <!-- 液体区域高亮描边 -->
+            <polygon id="scene1-liquid-jia-highlight" class="scene1-step-el"
+                points="155,360 225,360 247,260 133,260"
+                fill="none" stroke="#1565c0" stroke-width="1.5" />
+            <polygon id="scene1-liquid-yi-highlight" class="scene1-step-el"
+                points="545,360 685,360 668,260 562,260"
+                fill="none" stroke="#1565c0" stroke-width="1.5" />
+
+            <!-- V₁ 标签 -->
+            <text id="scene1-label-v1" class="scene1-step-el" x="190" y="325" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">V₁</text>
+            <!-- V₂ 标签 -->
+            <text id="scene1-label-v2" class="scene1-step-el" x="610" y="325" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">V₂</text>
+            <!-- V₁ < V₂ 结论 -->
+            <text id="scene1-label-v-compare" class="scene1-step-el" x="400" y="210" text-anchor="middle" font-size="16" fill="#1565c0" font-weight="bold">V₁ &lt; V₂</text>
+
+            <!-- ===== 步骤2元素：密度推导 ===== -->
+            <text id="scene1-label-m-equal" class="scene1-step-el" x="400" y="250" text-anchor="middle" font-size="16" fill="#2e7d32" font-weight="bold">m₁ = m₂</text>
+            <text id="scene1-label-rho-formula" class="scene1-step-el" x="400" y="285" text-anchor="middle" font-size="16" fill="#2e7d32" font-weight="bold">ρ = m / V</text>
+            <text id="scene1-label-rho-result" class="scene1-step-el" x="400" y="320" text-anchor="middle" font-size="16" fill="#2e7d32" font-weight="bold">ρ₁ &gt; ρ₂</text>
+            <!-- ρ₁ 标注 -->
+            <text id="scene1-label-rho1" class="scene1-step-el" x="130" y="230" text-anchor="middle" font-size="15" fill="#2e7d32" font-weight="bold">ρ₁</text>
+            <!-- ρ₂ 标注 -->
+            <text id="scene1-label-rho2" class="scene1-step-el" x="670" y="230" text-anchor="middle" font-size="15" fill="#2e7d32" font-weight="bold">ρ₂</text>
+
+            <!-- ===== 步骤3元素：结论总结 ===== -->
+            <text id="scene1-label-conclusion" class="scene1-step-el" x="400" y="355" text-anchor="middle" font-size="18" fill="#2e7d32" font-weight="bold">① ρ₁ &gt; ρ₂ ✓</text>
+
+            <!-- ===== 控件栏 ===== -->
+            <g id="scene1-controls-svg">
+                <rect x="240" y="440" width="320" height="44" rx="8" fill="#f0f0f0" stroke="#ccc" stroke-width="1" />
+                <text id="scene1-step-indicator" x="400" y="467" text-anchor="middle" font-size="15" fill="#333" font-weight="bold">步骤 0 / 4</text>
+            </g>
+        </svg>
+
+        <!-- HTML 控件栏（按钮） -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() { 'use strict';
+
+        var currentStep = 0;
+        var totalSteps = 4; // 0, 1, 2, 3
+
+        // DOM references
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // Step elements
+        var step1Els = [
+            'scene1-liquid-jia-highlight',
+            'scene1-liquid-yi-highlight',
+            'scene1-label-v1',
+            'scene1-label-v2',
+            'scene1-label-v-compare'
+        ];
+        var step2Els = [
+            'scene1-label-m-equal',
+            'scene1-label-rho-formula',
+            'scene1-label-rho-result',
+            'scene1-label-rho1',
+            'scene1-label-rho2'
+        ];
+        var step3Els = [
+            'scene1-label-conclusion'
+        ];
+
+        // Liquid fill elements
+        var liquidJia = document.getElementById('scene1-liquid-jia');
+        var liquidYi = document.getElementById('scene1-liquid-yi');
+
+        // Container outlines
+        var containerJia = document.getElementById('scene1-container-jia');
+        var containerYi = document.getElementById('scene1-container-yi');
+
+        function showEl(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.classList.add('visible');
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideEl(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('visible');
+                el.style.opacity = '0';
+            }
+        }
+
+        function updateDisplay() {
+            // Update step indicator
+            stepIndicator.textContent = '步骤 ' + currentStep + ' / ' + totalSteps;
+
+            // Button states
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+
+            // Step 0: base state
+            liquidJia.setAttribute('fill-opacity', '0.2');
+            liquidYi.setAttribute('fill-opacity', '0.2');
+            containerJia.setAttribute('stroke', '#000000');
+            containerJia.setAttribute('stroke-width', '2');
+            containerYi.setAttribute('stroke', '#000000');
+            containerYi.setAttribute('stroke-width', '2');
+
+            // Step 1 elements
+            if (currentStep >= 1) {
+                liquidJia.setAttribute('fill-opacity', '0.35');
+                liquidYi.setAttribute('fill-opacity', '0.35');
+                step1Els.forEach(showEl);
+            } else {
+                step1Els.forEach(hideEl);
+            }
+
+            // Step 2 elements
+            if (currentStep >= 2) {
+                step2Els.forEach(showEl);
+            } else {
+                step2Els.forEach(hideEl);
+            }
+
+            // Step 3 elements
+            if (currentStep >= 3) {
+                step3Els.forEach(showEl);
+                // Highlight containers in green
+                containerJia.setAttribute('stroke', '#2e7d32');
+                containerJia.setAttribute('stroke-width', '3');
+                containerYi.setAttribute('stroke', '#2e7d32');
+                containerYi.setAttribute('stroke-width', '3');
+            } else {
+                step3Els.forEach(hideEl);
+            }
+        }
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        // Initial display
+        updateDisplay();
+
+    })();
+    </script>
+</body>
+</html>

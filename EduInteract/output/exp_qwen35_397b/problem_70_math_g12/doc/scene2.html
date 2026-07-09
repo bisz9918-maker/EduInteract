@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四棱锥动点探究 - 平面垂直条件</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-label { font-size: 16px; fill: #000000; }
+        .scene2-angle-text { font-size: 18px; fill: #000000; }
+        .scene2-perp-text { font-size: 20px; fill: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 定义箭头和标记 -->
+            <defs>
+                <marker id="scene2-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- 四棱锥棱线 -->
+            <!-- 不可见棱（虚线） -->
+            <line id="scene2-edge-pd" x1="150" y1="80" x2="350" y2="280" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+            <line id="scene2-edge-cd" x1="650" y1="320" x2="350" y2="280" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+            <line id="scene2-edge-da" x1="350" y1="280" x2="150" y2="380" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+            <line id="scene2-edge-bd" x1="450" y1="420" x2="350" y2="280" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+
+            <!-- 可见棱（实线） -->
+            <line id="scene2-edge-pa" x1="150" y1="80" x2="150" y2="380" stroke="#000000" stroke-width="2" />
+            <line id="scene2-edge-pb" x1="150" y1="80" x2="450" y2="420" stroke="#000000" stroke-width="2" />
+            <line id="scene2-edge-pc" x1="150" y1="80" x2="650" y2="320" stroke="#000000" stroke-width="2" />
+            <line id="scene2-edge-ab" x1="150" y1="380" x2="450" y2="420" stroke="#000000" stroke-width="2" />
+            <line id="scene2-edge-bc" x1="450" y1="420" x2="650" y2="320" stroke="#000000" stroke-width="2" />
+
+            <!-- 平面 PCD（绿色，透明度20%） -->
+            <polygon id="scene2-plane-pcd" points="150,80 650,320 350,280" fill="#2e7d32" opacity="0.2" />
+
+            <!-- 平面 MBD（蓝色，透明度20%） -->
+            <polygon id="scene2-plane-mbd" points="" fill="#1565c0" opacity="0.2" />
+
+            <!-- 线段 DM（红色） -->
+            <line id="scene2-line-dm" x1="350" y1="280" stroke="#c62828" stroke-width="2" />
+
+            <!-- 线段 BM -->
+            <line id="scene2-line-bm" x1="450" y1="420" stroke="#000000" stroke-width="2" />
+
+            <!-- 动点 M -->
+            <circle id="scene2-point-m" r="6" fill="#c62828" />
+
+            <!-- 垂直符号（直角标记，初始隐藏） -->
+            <g id="scene2-perp-symbol" style="opacity: 0;">
+                <line x1="0" y1="0" x2="12" y2="0" stroke="#c62828" stroke-width="2" />
+                <line x1="0" y1="0" x2="0" y2="12" stroke="#c62828" stroke-width="2" />
+            </g>
+
+            <!-- 二面角标记弧线 -->
+            <path id="scene2-angle-arc" d="" fill="none" stroke="#ff9800" stroke-width="2" />
+
+            <!-- 顶点标签 -->
+            <text id="scene2-label-p" x="135" y="70" class="scene2-label">P</text>
+            <text id="scene2-label-a" x="135" y="395" class="scene2-label">A</text>
+            <text id="scene2-label-b" x="465" y="435" class="scene2-label">B</text>
+            <text id="scene2-label-c" x="665" y="320" class="scene2-label">C</text>
+            <text id="scene2-label-d" x="335" y="270" class="scene2-label">D</text>
+            <text id="scene2-label-m" x="" y="" class="scene2-label" style="opacity: 0;">M</text>
+
+            <!-- 角度显示区 -->
+            <text id="scene2-angle-value" x="700" y="150" class="scene2-angle-text">θ = --°</text>
+            <text id="scene2-perp-mark" x="700" y="180" class="scene2-perp-text" style="opacity: 0;">垂直</text>
+
+            <!-- 滑块控件（放在 SVG 内部底部） -->
+            <line id="scene2-slider-track" x1="100" y1="460" x2="500" y2="460" stroke="#888888" stroke-width="6" stroke-linecap="round" />
+            <circle id="scene2-slider-handle" cx="300" cy="460" r="12" fill="#c62828" style="cursor: pointer;" />
+            <text id="scene2-slider-label" x="300" y="485" text-anchor="middle" font-size="14px" fill="#000000">M 位置：P ←→ C</text>
+        </svg>
+
+        <div id="scene2-controls"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 四棱锥动点 M 探究
+
+        // 坐标定义
+        const P = { x: 150, y: 80 };
+        const A = { x: 150, y: 380 };
+        const B = { x: 450, y: 420 };
+        const C = { x: 650, y: 320 };
+        const D = { x: 350, y: 280 };
+
+        // 获取 DOM 元素
+        const svg = document.getElementById('scene2-svg');
+        const planeMbd = document.getElementById('scene2-plane-mbd');
+        const planePcd = document.getElementById('scene2-plane-pcd');
+        const lineDm = document.getElementById('scene2-line-dm');
+        const lineBm = document.getElementById('scene2-line-bm');
+        const pointM = document.getElementById('scene2-point-m');
+        const labelM = document.getElementById('scene2-label-m');
+        const angleValue = document.getElementById('scene2-angle-value');
+        const perpMark = document.getElementById('scene2-perp-mark');
+        const perpSymbol = document.getElementById('scene2-perp-symbol');
+        const angleArc = document.getElementById('scene2-angle-arc');
+        const sliderTrack = document.getElementById('scene2-slider-track');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+
+        // 状态变量
+        let t = 0.5; // M 在 PC 上的位置参数 (0=P, 1=C)
+        let isDragging = false;
+
+        // 计算 M 点坐标
+        function calcM(t) {
+            return {
+                x: P.x + t * (C.x - P.x),
+                y: P.y + t * (C.y - P.y)
+            };
+        }
+
+        // 向量运算
+        function vec(a, b) {
+            return { x: b.x - a.x, y: b.y - a.y };
+        }
+
+        // 2D 叉积（用于计算法向量的 z 分量）
+        function cross2D(a, b) {
+            return a.x * b.y - a.y * b.x;
+        }
+
+        // 点积
+        function dot(a, b) {
+            return a.x * b.x + a.y * b.y;
+        }
+
+        // 向量长度
+        function len(v) {
+            return Math.sqrt(v.x * v.x + v.y * v.y);
+        }
+
+        // 计算二面角（简化版：使用平面法向量夹角）
+        function calcDihedralAngle(M) {
+            // 平面 MBD 的法向量（使用 3D 近似）
+            // 将 2D 坐标视为 3D 的 x,y，z=0
+            // BM × BD 的 z 分量
+            const BM = { x: M.x - B.x, y: M.y - B.y, z: 0 };
+            const BD = { x: D.x - B.x, y: D.y - B.y, z: 0 };
+            const n1 = {
+                x: 0,
+                y: 0,
+                z: cross2D(BM, BD)
+            };
+
+            // 平面 PCD 的法向量
+            const PC = { x: C.x - P.x, y: C.y - P.y, z: 0 };
+            const PD = { x: D.x - P.x, y: D.y - P.y, z: 0 };
+            const n2 = {
+                x: 0,
+                y: 0,
+                z: cross2D(PC, PD)
+            };
+
+            // 计算夹角
+            const n1Len = Math.abs(n1.z);
+            const n2Len = Math.abs(n2.z);
+
+            if (n1Len < 0.001 || n2Len < 0.001) return 90;
+
+            const cosTheta = Math.abs(n1.z * n2.z) / (n1Len * n2Len);
+            const theta = Math.acos(Math.min(1, Math.max(-1, cosTheta))) * 180 / Math.PI;
+
+            return theta;
+        }
+
+        // 检查 DM 是否垂直于 PC
+        function checkPerpendicular(M) {
+            const DM = { x: M.x - D.x, y: M.y - D.y };
+            const PC = { x: C.x - P.x, y: C.y - P.y };
+            const dp = dot(DM, PC);
+            const threshold = 5000; // 阈值
+            return Math.abs(dp) < threshold;
+        }
+
+        // 计算垂直位置 t 值
+        // DM · PC = 0
+        // (P + t*(C-P) - D) · (C-P) = 0
+        // (P-D)·(C-P) + t*|C-P|² = 0
+        // t = -(P-D)·(C-P) / |C-P|²
+        function calcPerpendicularT() {
+            const PD_vec = { x: P.x - D.x, y: P.y - D.y };
+            const PC_vec = { x: C.x - P.x, y: C.y - P.y };
+            const numerator = -dot(PD_vec, PC_vec);
+            const denominator = dot(PC_vec, PC_vec);
+            return numerator / denominator;
+        }
+
+        const perpT = calcPerpendicularT(); // 约 0.65
+
+        // 更新场景
+        function updateScene() {
+            const M = calcM(t);
+
+            // 更新 M 点位置
+            pointM.setAttribute('cx', M.x);
+            pointM.setAttribute('cy', M.y);
+
+            // 更新 M 标签
+            labelM.setAttribute('x', M.x + 10);
+            labelM.setAttribute('y', M.y - 10);
+            labelM.style.opacity = '1';
+
+            // 更新平面 MBD
+            planeMbd.setAttribute('points', `${M.x},${M.y} ${B.x},${B.y} ${D.x},${D.y}`);
+
+            // 更新线段 DM
+            lineDm.setAttribute('x1', D.x);
+            lineDm.setAttribute('y1', D.y);
+            lineDm.setAttribute('x2', M.x);
+            lineDm.setAttribute('y2', M.y);
+
+            // 更新线段 BM
+            lineBm.setAttribute('x1', B.x);
+            lineBm.setAttribute('y1', B.y);
+            lineBm.setAttribute('x2', M.x);
+            lineBm.setAttribute('y2', M.y);
+
+            // 更新滑块手柄位置
+            const sliderX = 100 + t * 400;
+            sliderHandle.setAttribute('cx', sliderX);
+
+            // 计算并显示二面角
+            const angle = calcDihedralAngle(M);
+            angleValue.textContent = `θ = ${angle.toFixed(1)}°`;
+
+            // 检查垂直条件
+            const isPerp = checkPerpendicular(M);
+            if (isPerp) {
+                lineDm.setAttribute('stroke-width', '4');
+                pointM.setAttribute('r', '10');
+                perpMark.style.opacity = '1';
+
+                // 显示垂直符号
+                perpSymbol.style.opacity = '1';
+                perpSymbol.setAttribute('transform', `translate(${M.x - 6}, ${M.y - 6})`);
+            } else {
+                lineDm.setAttribute('stroke-width', '2');
+                pointM.setAttribute('r', '6');
+                perpMark.style.opacity = '0';
+                perpSymbol.style.opacity = '0';
+            }
+
+            // 更新二面角弧线（在交线附近）
+            // 交线近似为 CD 方向
+            const arcCenter = { x: 500, y: 300 };
+            const arcRadius = 25;
+            const startAngle = -30 * Math.PI / 180;
+            const endAngle = (angle - 30) * Math.PI / 180;
+            const x1 = arcCenter.x + arcRadius * Math.cos(startAngle);
+            const y1 = arcCenter.y + arcRadius * Math.sin(startAngle);
+            const x2 = arcCenter.x + arcRadius * Math.cos(endAngle);
+            const y2 = arcCenter.y + arcRadius * Math.sin(endAngle);
+            const largeArc = angle > 180 ? 1 : 0;
+            angleArc.setAttribute('d', `M ${x1} ${y1} A ${arcRadius} ${arcRadius} 0 ${largeArc} 1 ${x2} ${y2}`);
+        }
+
+        // 滑块拖拽事件
+        function onSliderMouseDown(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+
+        function onSliderMouseMove(e) {
+            if (!isDragging) return;
+
+            const rect = svg.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const clampedX = Math.max(100, Math.min(500, mouseX));
+            t = (clampedX - 100) / 400;
+            t = Math.max(0, Math.min(1, t));
+
+            updateScene();
+        }
+
+        function onSliderMouseUp() {
+            isDragging = false;
+        }
+
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', onSliderMouseDown);
+        svg.addEventListener('mousemove', onSliderMouseMove);
+        svg.addEventListener('mouseup', onSliderMouseUp);
+        svg.addEventListener('mouseleave', onSliderMouseUp);
+
+        // 触摸事件支持
+        sliderHandle.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        svg.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const rect = svg.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            const clampedX = Math.max(100, Math.min(500, touchX));
+            t = (clampedX - 100) / 400;
+            t = Math.max(0, Math.min(1, t));
+            updateScene();
+            e.preventDefault();
+        });
+
+        svg.addEventListener('touchend', onSliderMouseUp);
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

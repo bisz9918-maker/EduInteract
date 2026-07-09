@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连通器装置气体压强平衡分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        .scene1-btn {
+            width: 100px; height: 36px; border: none; border-radius: 4px;
+            background: #1565c0; color: #fff; font-size: 14px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.2s;
+        }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .scene1-btn:hover:not(:disabled) { background: #0d47a1; }
+
+        /* 右侧面板 */
+        #scene1-panel {
+            position: absolute; left: 530px; top: 20px; width: 250px; height: 410px;
+            background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px;
+            padding: 16px; box-sizing: border-box; z-index: 10;
+            font-size: 14px; line-height: 1.6; color: #333;
+        }
+        #scene1-panel h3 { margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #1565c0; }
+        #scene1-panel .formula { background: #e3f2fd; padding: 8px; border-radius: 4px; margin: 8px 0; font-family: "Times New Roman", serif; }
+        #scene1-panel .highlight-box { background: #ffeb3b; padding: 8px; border-radius: 4px; margin: 8px 0; font-weight: bold; }
+
+        /* 步骤元素显隐 */
+        .scene1-step-el { display: none; }
+        .scene1-step-el.active { display: block; }
+
+        /* 水柱上升动画 */
+        #scene1-water-rise {
+            transition: height 0.6s ease-out, y 0.6s ease-out;
+        }
+
+        /* 呼吸动画 */
+        @keyframes scene1-breathe {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.2; }
+        }
+        .scene1-breathe { animation: scene1-breathe 2s ease-in-out infinite; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg width="800" height="500" style="position: absolute; left: 0; top: 0;">
+            <defs>
+                <!-- 箭头标记 -->
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrowhead-down" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== 基础装置（始终显示） ==================== -->
+
+            <!-- 甲容器 -->
+            <rect id="scene1-jia" x="220" y="40" width="100" height="80" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 乙容器 -->
+            <rect id="scene1-yi" x="220" y="160" width="100" height="80" fill="none" stroke="#000" stroke-width="2"/>
+            <!-- 丙容器 -->
+            <rect id="scene1-bing" x="220" y="280" width="100" height="80" fill="none" stroke="#000" stroke-width="2"/>
+
+            <!-- 甲水区（初始） -->
+            <rect id="scene1-jia-water" x="220" y="60" width="100" height="60" fill="#1565c0" opacity="0.2"/>
+            <!-- 乙水区（初始） -->
+            <rect id="scene1-yi-water" x="220" y="210" width="100" height="30" fill="#1565c0" opacity="0.2"/>
+            <!-- 丙水区（初始） -->
+            <rect id="scene1-bing-water" x="220" y="320" width="100" height="40" fill="#1565c0" opacity="0.2"/>
+
+            <!-- 乙气区（初始） -->
+            <rect id="scene1-yi-gas" x="220" y="160" width="100" height="50" fill="#e3f2fd" opacity="0.1"/>
+            <!-- 丙气区（初始） -->
+            <rect id="scene1-bing-gas" x="220" y="280" width="100" height="40" fill="#e3f2fd" opacity="0.1"/>
+
+            <!-- 初始液面虚线 -->
+            <line id="scene1-jia-level-init" x1="220" y1="60" x2="320" y2="60" stroke="#888" stroke-width="1" stroke-dasharray="4,3"/>
+            <line id="scene1-yi-level-init" x1="220" y1="210" x2="320" y2="210" stroke="#888" stroke-width="1" stroke-dasharray="4,3"/>
+            <line id="scene1-bing-level-init" x1="220" y1="320" x2="320" y2="320" stroke="#888" stroke-width="1" stroke-dasharray="4,3"/>
+
+            <!-- 左侧液体连通管（外框+水填充） -->
+            <!-- 水填充粗线 -->
+            <polyline points="220,120 190,120 190,360 220,360" fill="none" stroke="#1565c0" stroke-width="4" opacity="0.3"/>
+            <!-- 外框细线 -->
+            <polyline points="220,120 190,120 190,360 220,360" fill="none" stroke="#000" stroke-width="1"/>
+
+            <!-- 右侧气体连通管 -->
+            <polyline id="scene1-gas-pipe" points="320,160 350,160 350,280 320,280" fill="none" stroke="#000" stroke-width="1"/>
+
+            <!-- 中间竖直玻璃管 -->
+            <line id="scene1-vertical-pipe" x1="300" y1="20" x2="300" y2="230" stroke="#000" stroke-width="1"/>
+
+            <!-- 竖直管M下方水（始终存在） -->
+            <rect id="scene1-pipe-water-lower" x="298" y="65" width="4" height="165" fill="#1565c0" opacity="0.2"/>
+
+            <!-- 开关M -->
+            <circle id="scene1-valve-m" cx="300" cy="65" r="8" fill="#c62828" stroke="#000" stroke-width="1"/>
+            <line id="scene1-valve-handle" x1="294" y1="65" x2="306" y2="65" stroke="#fff" stroke-width="2"/>
+
+            <!-- 基础标签（始终显示） -->
+            <!-- 甲: 容器上方居中, 上移避免与容器rect重叠 -->
+            <text id="scene1-label-jia" x="270" y="36" text-anchor="middle" font-size="14" font-weight="bold" fill="#000">甲</text>
+            <!-- 乙: 容器左侧, 左移避免与左侧连通管重叠 -->
+            <text id="scene1-label-yi" x="175" y="200" text-anchor="middle" font-size="14" font-weight="bold" fill="#000">乙</text>
+            <!-- 丙: 容器下方居中 -->
+            <text id="scene1-label-bing" x="270" y="375" text-anchor="middle" font-size="14" font-weight="bold" fill="#000">丙</text>
+            <!-- M: 开关右侧 -->
+            <text id="scene1-label-m" x="345" y="80" font-size="14" font-weight="bold" fill="#000">M</text>
+            <!-- 大气: 甲容器左上方, 下移避免顶部裁切 -->
+            <text id="scene1-label-atm" x="200" y="38" font-size="14" font-weight="bold" fill="#000">大气</text>
+
+            <!-- ==================== 步骤1：初始压强分析 ==================== -->
+
+            <!-- 左侧高亮衬底 -->
+            <g class="scene1-step-el" data-step="1">
+                <rect x="218" y="58" width="104" height="64" fill="#ffeb3b" opacity="0.3"/>
+                <rect x="218" y="318" width="104" height="44" fill="#ffeb3b" opacity="0.3"/>
+                <polyline points="220,120 190,120 190,360 220,360" fill="none" stroke="#ffeb3b" stroke-width="10" opacity="0.3"/>
+            </g>
+
+            <!-- 右侧高亮衬底 -->
+            <g class="scene1-step-el" data-step="1">
+                <rect x="218" y="158" width="104" height="54" fill="#ffeb3b" opacity="0.3"/>
+                <rect x="218" y="278" width="104" height="44" fill="#ffeb3b" opacity="0.3"/>
+                <polyline points="320,160 350,160 350,280 320,280" fill="none" stroke="#ffeb3b" stroke-width="10" opacity="0.3"/>
+            </g>
+
+            <!-- 中间高亮衬底 -->
+            <g class="scene1-step-el" data-step="1">
+                <line x1="300" y1="20" x2="300" y2="230" stroke="#ffeb3b" stroke-width="10" opacity="0.3"/>
+            </g>
+
+            <!-- 步骤1标签 -->
+            <g class="scene1-step-el" data-step="1">
+                <!-- P₀: 甲液面左侧, 左移避免与大气重叠 -->
+                <text x="165" y="58" font-size="16" fill="#2e7d32" font-weight="bold">P₀</text>
+                <!-- P乙: 乙容器右侧外面 -->
+                <text x="360" y="175" font-size="16" fill="#c62828" font-weight="bold">P乙</text>
+                <!-- P丙: 丙容器右侧外面, 上移避免与h丙拥挤 -->
+                <text x="360" y="290" font-size="16" fill="#c62828" font-weight="bold">P丙</text>
+                <!-- h甲: 甲液面右侧, 右移避免与M冲突 -->
+                <text x="380" y="50" font-size="14" fill="#000">h甲</text>
+                <!-- h乙: 乙液面右侧 -->
+                <text x="360" y="208" font-size="14" fill="#000">h乙</text>
+                <!-- h丙: 丙液面右侧, 右移避免与P丙拥挤 -->
+                <text x="405" y="318" font-size="14" fill="#000">h丙</text>
+            </g>
+
+            <!-- ==================== 步骤2：打开开关M ==================== -->
+
+            <!-- 竖直管M上方水柱（动画） -->
+            <rect id="scene1-water-rise" class="scene1-step-el" data-step="2" x="298" y="30" width="4" height="0" fill="#1565c0" opacity="0.4"/>
+
+            <!-- 竖直管内向上箭头 -->
+            <g class="scene1-step-el" data-step="2">
+                <line x1="300" y1="55" x2="300" y2="35" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+            </g>
+
+            <!-- ==================== 步骤3：液面与体积变化 ==================== -->
+
+            <!-- 乙末态液面实线 -->
+            <line id="scene1-yi-level-final" class="scene1-step-el" data-step="3" x1="220" y1="230" x2="320" y2="230" stroke="#1565c0" stroke-width="2"/>
+            <!-- 丙末态液面实线 -->
+            <line id="scene1-bing-level-final" class="scene1-step-el" data-step="3" x1="220" y1="310" x2="320" y2="310" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 乙新水区（步骤3） -->
+            <rect id="scene1-yi-water-new" class="scene1-step-el" data-step="3" x="220" y="230" width="100" height="10" fill="#1565c0" opacity="0.2"/>
+            <!-- 丙新水区（步骤3） -->
+            <rect id="scene1-bing-water-new" class="scene1-step-el" data-step="3" x="220" y="310" width="100" height="50" fill="#1565c0" opacity="0.2"/>
+
+            <!-- 乙新气区（步骤3） -->
+            <rect id="scene1-yi-gas-new" class="scene1-step-el" data-step="3" x="220" y="160" width="100" height="70" fill="#e3f2fd" opacity="0.1"/>
+            <!-- 丙新气区（步骤3） -->
+            <rect id="scene1-bing-gas-new" class="scene1-step-el" data-step="3" x="220" y="280" width="100" height="30" fill="#e3f2fd" opacity="0.1"/>
+
+            <!-- 乙向下箭头 -->
+            <g class="scene1-step-el" data-step="3">
+                <line x1="310" y1="212" x2="310" y2="228" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrowhead-down)"/>
+            </g>
+            <!-- 丙向上箭头 -->
+            <g class="scene1-step-el" data-step="3">
+                <line x1="310" y1="318" x2="310" y2="312" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+            </g>
+
+            <!-- 体积变化标签 -->
+            <g class="scene1-step-el" data-step="3">
+                <!-- +ΔV乙: 右移避免与右侧气管重叠 -->
+                <text x="360" y="195" font-size="16" fill="#2e7d32" font-weight="bold">+ΔV乙</text>
+                <!-- −ΔV丙: 右移 -->
+                <text x="360" y="340" font-size="16" fill="#c62828" font-weight="bold">−ΔV丙</text>
+            </g>
+
+            <!-- ==================== 步骤4：最终平衡与结论 ==================== -->
+
+            <!-- 最终液面位置（实线保留） -->
+            <line id="scene1-yi-level-final4" class="scene1-step-el" data-step="4" x1="220" y1="230" x2="320" y2="230" stroke="#1565c0" stroke-width="2"/>
+            <line id="scene1-bing-level-final4" class="scene1-step-el" data-step="4" x1="220" y1="310" x2="320" y2="310" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 乙最终水区 -->
+            <rect id="scene1-yi-water-final" class="scene1-step-el" data-step="4" x="220" y="230" width="100" height="10" fill="#1565c0" opacity="0.2"/>
+            <!-- 丙最终水区 -->
+            <rect id="scene1-bing-water-final" class="scene1-step-el" data-step="4" x="220" y="310" width="100" height="50" fill="#1565c0" opacity="0.2"/>
+
+            <!-- 乙最终气区 -->
+            <rect id="scene1-yi-gas-final" class="scene1-step-el" data-step="4" x="220" y="160" width="100" height="70" fill="#e3f2fd" opacity="0.1"/>
+            <!-- 丙最终气区 -->
+            <rect id="scene1-bing-gas-final" class="scene1-step-el" data-step="4" x="220" y="280" width="100" height="30" fill="#e3f2fd" opacity="0.1"/>
+
+            <!-- 最终液面标签 -->
+            <g class="scene1-step-el" data-step="4">
+                <!-- h乙末: 右移避免与右侧气管重叠 -->
+                <text x="360" y="235" font-size="14" fill="#000">h乙末</text>
+                <!-- h丙末: 右移 -->
+                <text x="360" y="315" font-size="14" fill="#000">h丙末</text>
+            </g>
+        </svg>
+
+        <!-- 右侧面板 -->
+        <div id="scene1-panel">
+            <h3 id="scene1-panel-title">装置结构</h3>
+            <div id="scene1-panel-content">
+                <p>三个相同容器甲、乙、丙竖直放置，通过管路连接：</p>
+                <ul style="padding-left: 16px; margin: 8px 0;">
+                    <li>甲与丙通过左侧细管连通（液体）</li>
+                    <li>乙与丙通过右侧细管连通（气体）</li>
+                    <li>竖直管穿过甲底插入乙水中，上方开口通大气</li>
+                </ul>
+                <p>开关 M 位于甲容器水面处，控制竖直管与甲容器的连通。</p>
+            </div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var totalSteps = 4;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var panelTitle = document.getElementById('scene1-panel-title');
+        var panelContent = document.getElementById('scene1-panel-content');
+        var valveM = document.getElementById('scene1-valve-m');
+        var waterRise = document.getElementById('scene1-water-rise');
+        var gasPipe = document.getElementById('scene1-gas-pipe');
+
+        // 面板内容数据
+        var panelData = [
+            {
+                title: '装置结构',
+                html: '<p>三个相同容器甲、乙、丙竖直放置，通过管路连接：</p>' +
+                      '<ul style="padding-left: 16px; margin: 8px 0;">' +
+                      '<li>甲与丙通过左侧细管连通（液体）</li>' +
+                      '<li>乙与丙通过右侧细管连通（气体）</li>' +
+                      '<li>竖直管穿过甲底插入乙水中，上方开口通大气</li>' +
+                      '</ul>' +
+                      '<p>开关 M 位于甲容器水面处，控制竖直管与甲容器的连通。</p>'
+            },
+            {
+                title: '初始压强分析',
+                html: '<p>分析各区域压强关系：</p>' +
+                      '<div class="formula">P<sub>丙</sub> = P<sub>0</sub> + ρg(h<sub>甲</sub> − h<sub>丙</sub>) > P<sub>0</sub></div>' +
+                      '<div class="formula">P<sub>乙</sub> = P<sub>丙</sub></div>' +
+                      '<p>乙、丙气体通过右侧管连通，压强相等且大于大气压。</p>' +
+                      '<p>M 处上方受 P<sub>0</sub>，下方水柱与乙内气压关联。</p>'
+            },
+            {
+                title: '打开开关 M',
+                html: '<p>开关 M 打开后，竖直管与甲容器连通。</p>' +
+                      '<p>由于乙内气压 <strong>P<sub>乙</sub> > P<sub>0</sub></strong>，水被压入竖直管向上流动。</p>' +
+                      '<p>观察竖直管内水柱上升动画。</p>'
+            },
+            {
+                title: '液面与体积变化',
+                html: '<p>水流动导致液面变化：</p>' +
+                      '<ul style="padding-left: 16px; margin: 8px 0;">' +
+                      '<li>乙中液面<strong>下降</strong>，气体体积增大（+ΔV<sub>乙</sub>）</li>' +
+                      '<li>丙中液面<strong>上升</strong>，气体体积减小（−ΔV<sub>丙</sub>）</li>' +
+                      '</ul>' +
+                      '<p>右侧气体管中气体发生膨胀/收缩迁移。</p>'
+            },
+            {
+                title: '最终平衡与结论',
+                html: '<p>重新平衡后的逻辑链：</p>' +
+                      '<ol style="padding-left: 16px; margin: 8px 0;">' +
+                      '<li>总压强减小</li>' +
+                      '<li>由玻意耳定律，气体总体积增大</li>' +
+                      '<li>ΔV<sub>乙</sub> − ΔV<sub>丙</sub> > 0</li>' +
+                      '<li>因此 <strong>ΔV<sub>乙</sub> > ΔV<sub>丙</sub></strong></li>' +
+                      '</ol>' +
+                      '<div class="highlight-box">正确答案：A<br>V<sub>乙</sub>增大，V<sub>丙</sub>减少，且ΔV<sub>乙</sub> > ΔV<sub>丙</sub></div>'
+            }
+        ];
+
+        function updateStep(step) {
+            currentStep = step;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+
+            // 隐藏所有步骤元素
+            var stepEls = document.querySelectorAll('.scene1-step-el');
+            for (var i = 0; i < stepEls.length; i++) {
+                stepEls[i].style.display = 'none';
+                stepEls[i].classList.remove('active');
+            }
+
+            // 显示当前步骤的元素
+            var currentEls = document.querySelectorAll('.scene1-step-el[data-step="' + currentStep + '"]');
+            for (var j = 0; j < currentEls.length; j++) {
+                currentEls[j].style.display = 'block';
+                currentEls[j].classList.add('active');
+            }
+
+            // 更新面板内容
+            panelTitle.textContent = panelData[currentStep].title;
+            panelContent.innerHTML = panelData[currentStep].html;
+
+            // 步骤2特殊处理：开关变绿 + 水柱动画
+            if (currentStep === 2) {
+                valveM.setAttribute('fill', '#2e7d32');
+                // 触发水柱上升动画
+                setTimeout(function() {
+                    waterRise.setAttribute('height', '35');
+                }, 50);
+            } else {
+                valveM.setAttribute('fill', '#c62828');
+                waterRise.setAttribute('height', '0');
+            }
+
+            // 步骤3特殊处理：气体管呼吸动画
+            if (currentStep === 3) {
+                gasPipe.classList.add('scene1-breathe');
+            } else {
+                gasPipe.classList.remove('scene1-breathe');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                updateStep(currentStep - 1);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                updateStep(currentStep + 1);
+            }
+        });
+
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

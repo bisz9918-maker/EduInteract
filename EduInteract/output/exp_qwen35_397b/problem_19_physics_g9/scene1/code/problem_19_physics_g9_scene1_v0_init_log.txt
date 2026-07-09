@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并联电路结构分解与电流路径</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 步骤显示控制 */
+        .step-element {
+            transition: opacity 0.3s ease;
+        }
+        .hidden {
+            opacity: 0;
+            display: none;
+        }
+        /* 按钮样式 */
+        .btn {
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-btn-prev {
+            background: #9e9e9e;
+            color: white;
+        }
+        #scene1-btn-prev:not(:disabled):hover {
+            background: #757575;
+        }
+        #scene1-btn-next {
+            background: #1976d2;
+            color: white;
+        }
+        #scene1-btn-next:not(:disabled):hover {
+            background: #1565c0;
+        }
+        /* 电流箭头动画 */
+        .current-arrow {
+            stroke: #c62828;
+            stroke-width: 2;
+            fill: none;
+            marker-end: url(#scene1-arrowhead);
+        }
+        /* 高亮节点 */
+        .highlight-node {
+            fill: #ffd54f;
+            stroke: #f57f17;
+            stroke-width: 2;
+        }
+        /* 电阻锯齿线 */
+        .resistor-zigzag {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        .resistor-highlight {
+            stroke: #ff9800;
+            stroke-width: 3;
+        }
+        /* 铅笔芯 */
+        .pencil-core {
+            stroke: #000000;
+            stroke-width: 6;
+            stroke-linecap: round;
+        }
+        /* 导线 */
+        .wire {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* 外框 */
+        .frame {
+            fill: none;
+            stroke: #cccccc;
+            stroke-width: 1;
+        }
+        /* 标题文字 */
+        .title-text {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #212121;
+            text-anchor: middle;
+        }
+        /* 标签文字 */
+        .label-text {
+            font-size: 14px;
+            fill: #212121;
+        }
+        .label-blue {
+            font-size: 14px;
+            fill: #1565c0;
+            font-weight: bold;
+        }
+        .label-red {
+            font-size: 14px;
+            fill: #c62828;
+        }
+        /* 滑片箭头 */
+        .slider-arrow {
+            fill: #2e7d32;
+            stroke: #1b5e20;
+            stroke-width: 1;
+        }
+        /* 电流表圆圈 */
+        .ammeter-circle {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: #ffffff;
+        }
+        .ammeter-text {
+            font-size: 14px;
+            fill: #000000;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        /* 节点圆点 */
+        .node-dot {
+            fill: #000000;
+        }
+        /* 电源符号 */
+        .battery {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* 开关符号 */
+        .switch {
+            stroke: #000000;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* 步骤指示器 */
+        #scene1-step-indicator {
+            font-size: 14px;
+            fill: #212121;
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- ========== 左侧原电路图区域 ========== -->
+            <!-- 外框 -->
+            <rect id="scene1-original-frame" class="frame" x="40" y="40" width="380" height="340" />
+            <text id="scene1-original-title" class="title-text" x="230" y="25">原电路图</text>
+
+            <!-- 电源符号 (原图) - 顶部中央 -->
+            <g id="scene1-battery-original">
+                <!-- 长线(正极) -->
+                <line class="battery" x1="210" y1="70" x2="230" y2="70" />
+                <!-- 短线(负极) -->
+                <line class="battery" x1="213" y1="80" x2="227" y2="80" />
+                <!-- 长线(正极) -->
+                <line class="battery" x1="210" y1="90" x2="230" y2="90" />
+                <!-- 短线(负极) -->
+                <line class="battery" x1="213" y1="100" x2="227" y2="100" />
+                <!-- 垂直连接线 -->
+                <line class="wire" x1="220" y1="70" x2="220" y2="100" />
+            </g>
+
+            <!-- 开关符号 (原图) - 电源下方 -->
+            <g id="scene1-switch-original">
+                <line class="switch" x1="220" y1="110" x2="220" y2="125" />
+                <!-- 开关臂 -->
+                <line class="switch" x1="220" y1="125" x2="235" y2="135" />
+                <!-- 触点 -->
+                <circle class="node-dot" cx="220" cy="125" r="2" />
+                <circle class="node-dot" cx="235" cy="135" r="2" />
+            </g>
+
+            <!-- 导线：从开关到顶部节点 -->
+            <line class="wire" x1="220" y1="110" x2="220" y2="55" />
+            <!-- 顶部节点 -->
+            <circle class="node-dot" cx="220" cy="55" r="5" />
+
+            <!-- 左侧支路导线 -->
+            <line class="wire" x1="220" y1="55" x2="80" y2="55" />
+            <line class="wire" x1="80" y1="55" x2="80" y2="125" />
+
+            <!-- 右侧支路导线 -->
+            <line class="wire" x1="220" y1="55" x2="360" y2="55" />
+            <line class="wire" x1="360" y1="55" x2="360" y2="125" />
+
+            <!-- 电流表 A1 (原图) -->
+            <g id="scene1-ammeter-a1-original">
+                <circle class="ammeter-circle" cx="80" cy="150" r="25" />
+                <text class="ammeter-text" x="80" y="150">A₁</text>
+            </g>
+
+            <!-- 电流表 A2 (原图) -->
+            <g id="scene1-ammeter-a2-original">
+                <circle class="ammeter-circle" cx="360" cy="150" r="25" />
+                <text class="ammeter-text" x="360" y="150">A₂</text>
+            </g>
+
+            <!-- 从电流表到铅笔芯的导线 -->
+            <line class="wire" x1="80" y1="175" x2="80" y2="260" />
+            <line class="wire" x1="360" y1="175" x2="360" y2="260" />
+
+            <!-- 铅笔芯 AB (原图) -->
+            <line id="scene1-pencil-ab" class="pencil-core" x1="80" y1="260" x2="360" y2="260" />
+
+            <!-- A、B 端点 -->
+            <circle id="scene1-point-a" class="node-dot" cx="80" cy="260" r="4" />
+            <circle id="scene1-point-b" class="node-dot" cx="360" cy="260" r="4" />
+
+            <!-- c、d 点 (滑动范围) -->
+            <circle id="scene1-point-c" class="node-dot" cx="160" cy="260" r="3" />
+            <circle id="scene1-point-d" class="node-dot" cx="280" cy="260" r="3" />
+
+            <!-- 滑片 P (原图) - 从开关指向铅笔芯 -->
+            <g id="scene1-slider-p">
+                <!-- 滑片杆 -->
+                <line class="wire" x1="220" y1="140" x2="220" y2="230" />
+                <!-- 箭头 -->
+                <polygon class="slider-arrow" points="220,230 214,245 226,245" />
+            </g>
+
+            <!-- 底部导线连接 A 和 B -->
+            <line class="wire" x1="80" y1="260" x2="80" y2="280" />
+            <line class="wire" x1="80" y1="280" x2="360" y2="280" />
+            <line class="wire" x1="360" y1="260" x2="360" y2="280" />
+
+            <!-- 标签 (原图) -->
+            <text id="scene1-label-a" class="label-text" x="70" y="295">A</text>
+            <text id="scene1-label-b" class="label-text" x="370" y="295">B</text>
+            <text id="scene1-label-c" class="label-text" x="155" y="295">c</text>
+            <text id="scene1-label-d" class="label-text" x="275" y="295">d</text>
+            <text id="scene1-label-p" class="label-text" x="230" y="135">P</text>
+
+            <!-- 电流方向箭头 (步骤1显示) -->
+            <g id="scene1-current-arrows-original" class="step-element hidden">
+                <!-- 左侧电流箭头 (向下) -->
+                <line class="current-arrow" x1="80" y1="100" x2="80" y2="130" />
+                <!-- 右侧电流箭头 (向上) -->
+                <line class="current-arrow" x1="360" y1="130" x2="360" y2="100" />
+                <!-- I1 标签 -->
+                <text class="label-red" x="90" y="120">I₁</text>
+                <!-- I2 标签 -->
+                <text class="label-red" x="370" y="120">I₂</text>
+            </g>
+
+            <!-- 高亮节点 (步骤1显示) -->
+            <g id="scene1-highlight-nodes" class="step-element hidden">
+                <circle class="highlight-node" cx="80" cy="260" r="6" />
+                <circle class="highlight-node" cx="360" cy="260" r="6" />
+                <circle class="highlight-node" cx="220" cy="260" r="6" />
+            </g>
+
+            <!-- ========== 右侧等效电路图区域 ========== -->
+            <!-- 外框 -->
+            <rect id="scene1-equivalent-frame" class="frame" x="440" y="40" width="340" height="340" />
+            <text id="scene1-equivalent-title" class="title-text" x="610" y="25">等效电路图</text>
+
+            <!-- 等效电路整体 (步骤2开始显示) -->
+            <g id="scene1-equivalent-circuit" class="step-element hidden">
+                <!-- 电源符号 (等效) -->
+                <g id="scene1-battery-equivalent">
+                    <line class="battery" x1="600" y1="70" x2="620" y2="70" />
+                    <line class="battery" x1="603" y1="80" x2="617" y2="80" />
+                    <line class="battery" x1="600" y1="90" x2="620" y2="90" />
+                    <line class="battery" x1="603" y1="100" x2="617" y2="100" />
+                    <line class="wire" x1="610" y1="70" x2="610" y2="100" />
+                </g>
+
+                <!-- 开关 (等效) -->
+                <g id="scene1-switch-equivalent">
+                    <line class="switch" x1="610" y1="110" x2="610" y2="125" />
+                    <line class="switch" x1="610" y1="125" x2="625" y2="135" />
+                    <circle class="node-dot" cx="610" cy="125" r="2" />
+                    <circle class="node-dot" cx="625" cy="135" r="2" />
+                </g>
+
+                <!-- 节点 O -->
+                <circle class="node-dot" cx="610" cy="150" r="5" />
+
+                <!-- 从开关到节点 -->
+                <line class="wire" x1="610" y1="110" x2="610" y2="150" />
+
+                <!-- 左支路 -->
+                <line class="wire" x1="610" y1="150" x2="520" y2="150" />
+                <!-- 电流表 A1 (等效) -->
+                <g id="scene1-ammeter-a1-equivalent">
+                    <circle class="ammeter-circle" cx="520" cy="150" r="20" />
+                    <text class="ammeter-text" x="520" y="150">A₁</text>
+                </g>
+                <!-- 左支路向下 -->
+                <line class="wire" x1="520" y1="150" x2="520" y2="180" />
+                <!-- 电阻 R_AP (锯齿线) -->
+                <g id="scene1-resistor-rap">
+                    <polyline class="resistor-zigzag" points="520,180 515,190 525,200 515,210 525,220 515,230 525,240 520,250" />
+                </g>
+                <!-- 左支路继续向下 -->
+                <line class="wire" x1="520" y1="250" x2="520" y2="320" />
+
+                <!-- 右支路 -->
+                <line class="wire" x1="610" y1="150" x2="700" y2="150" />
+                <!-- 电流表 A2 (等效) -->
+                <g id="scene1-ammeter-a2-equivalent">
+                    <circle class="ammeter-circle" cx="700" cy="150" r="20" />
+                    <text class="ammeter-text" x="700" y="150">A₂</text>
+                </g>
+                <!-- 右支路向下 -->
+                <line class="wire" x1="700" y1="150" x2="700" y2="180" />
+                <!-- 电阻 R_PB (锯齿线) -->
+                <g id="scene1-resistor-rpb">
+                    <polyline class="resistor-zigzag" points="700,180 695,190 705,200 695,210 705,220 695,230 705,240 700,250" />
+                </g>
+                <!-- 右支路继续向下 -->
+                <line class="wire" x1="700" y1="250" x2="700" y2="320" />
+
+                <!-- 底部汇合线 -->
+                <line class="wire" x1="520" y1="320" x2="700" y2="320" />
+                <line class="wire" x1="610" y1="320" x2="610" y2="340" />
+
+                <!-- 电流箭头 I1 (左支路) -->
+                <g id="scene1-current-i1">
+                    <line class="current-arrow" x1="520" y1="170" x2="520" y2="195" />
+                    <text class="label-red" x="535" y="185">I₁</text>
+                </g>
+
+                <!-- 电流箭头 I2 (右支路) -->
+                <g id="scene1-current-i2">
+                    <line class="current-arrow" x1="700" y1="170" x2="700" y2="195" />
+                    <text class="label-red" x="685" y="185">I₂</text>
+                </g>
+
+                <!-- 电阻标签 (步骤3显示) -->
+                <g id="scene1-resistor-labels" class="step-element hidden">
+                    <text id="scene1-label-r-ap" class="label-blue" x="485" y="230">Rₐₚ</text>
+                    <text id="scene1-label-r-pb" class="label-blue" x="720" y="230">Rₚᵦ</text>
+                </g>
+
+                <!-- 电阻高亮 (步骤3显示) -->
+                <g id="scene1-resistor-highlight" class="step-element hidden">
+                    <polyline class="resistor-highlight" points="520,180 515,190 525,200 515,210 525,220 515,230 525,240 520,250" fill="none" />
+                    <polyline class="resistor-highlight" points="700,180 695,190 705,200 695,210 705,220 695,230 705,240 700,250" fill="none" />
+                </g>
+            </g>
+
+            <!-- ========== 控件栏 (在 SVG 内部底部) ========== -->
+            <g id="scene1-controls">
+                <!-- 上一步按钮 -->
+                <rect id="scene1-btn-prev-bg" x="280" y="455" width="100" height="35" rx="4" fill="#9e9e9e" />
+                <text id="scene1-btn-prev-text" x="330" y="477" text-anchor="middle" fill="white" font-size="14" font-weight="bold">◀ 上一步</text>
+
+                <!-- 下一步按钮 -->
+                <rect id="scene1-btn-next-bg" x="420" y="455" width="100" height="35" rx="4" fill="#1976d2" />
+                <text id="scene1-btn-next-text" x="470" y="477" text-anchor="middle" fill="white" font-size="14" font-weight="bold">下一步 ▶</text>
+
+                <!-- 步骤指示器 -->
+                <text id="scene1-step-indicator" x="550" y="477">步骤 1/4</text>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：并联电路结构分解与电流路径
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 元素引用
+        const btnPrev = document.getElementById('scene1-btn-prev-bg');
+        const btnPrevText = document.getElementById('scene1-btn-prev-text');
+        const btnNext = document.getElementById('scene1-btn-next-bg');
+        const btnNextText = document.getElementById('scene1-btn-next-text');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 步骤元素分组
+        const stepElements = {
+            0: {
+                show: ['scene1-original-frame', 'scene1-original-title', 'scene1-battery-original', 
+                       'scene1-switch-original', 'scene1-ammeter-a1-original', 'scene1-ammeter-a2-original',
+                       'scene1-pencil-ab', 'scene1-point-a', 'scene1-point-b', 'scene1-point-c', 
+                       'scene1-point-d', 'scene1-slider-p', 'scene1-label-a', 'scene1-label-b',
+                       'scene1-label-c', 'scene1-label-d', 'scene1-label-p', 'scene1-equivalent-frame',
+                       'scene1-equivalent-title'],
+                hide: ['scene1-current-arrows-original', 'scene1-highlight-nodes', 'scene1-equivalent-circuit']
+            },
+            1: {
+                show: ['scene1-current-arrows-original', 'scene1-highlight-nodes'],
+                hide: []
+            },
+            2: {
+                show: ['scene1-equivalent-circuit'],
+                hide: []
+            },
+            3: {
+                show: ['scene1-resistor-labels', 'scene1-resistor-highlight'],
+                hide: []
+            }
+        };
+
+        // 显示/隐藏元素工具函数
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            // 上一步按钮
+            if (currentStep === 0) {
+                btnPrev.setAttribute('fill', '#bdbdbd');
+                btnPrev.style.cursor = 'not-allowed';
+                btnPrevText.setAttribute('fill', '#e0e0e0');
+            } else {
+                btnPrev.setAttribute('fill', '#9e9e9e');
+                btnPrev.style.cursor = 'pointer';
+                btnPrevText.setAttribute('fill', 'white');
+            }
+
+            // 下一步按钮
+            if (currentStep === totalSteps - 1) {
+                btnNext.setAttribute('fill', '#bdbdbd');
+                btnNext.style.cursor = 'not-allowed';
+                btnNextText.setAttribute('fill', '#e0e0e0');
+            } else {
+                btnNext.setAttribute('fill', '#1976d2');
+                btnNext.style.cursor = 'pointer';
+                btnNextText.setAttribute('fill', 'white');
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+        }
+
+        // 应用步骤状态
+        function applyStep(step) {
+            // 步骤0：显示基础原图
+            if (step === 0) {
+                stepElements[0].show.forEach(showElement);
+                stepElements[0].hide.forEach(hideElement);
+                // 隐藏后续步骤的元素
+                for (let i = 1; i < totalSteps; i++) {
+                    stepElements[i].show.forEach(hideElement);
+                }
+            } else {
+                // 步骤1-3：累积显示
+                // 先显示步骤0的所有元素
+                stepElements[0].show.forEach(showElement);
+                stepElements[0].hide.forEach(hideElement);
+                
+                // 然后依次显示到当前步骤的元素
+                for (let i = 1; i <= step; i++) {
+                    stepElements[i].show.forEach(showElement);
+                    stepElements[i].hide.forEach(hideElement);
+                }
+                // 隐藏后续步骤的元素
+                for (let i = step + 1; i < totalSteps; i++) {
+                    stepElements[i].show.forEach(hideElement);
+                }
+            }
+            updateButtons();
+        }
+
+        // 按钮点击事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                applyStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                applyStep(currentStep);
+            }
+        });
+
+        // 设置按钮点击区域
+        btnPrev.style.cursor = 'pointer';
+        btnNext.style.cursor = 'pointer';
+
+        // 初始化
+        applyStep(0);
+
+    })();
+    </script>
+</body>
+</html>

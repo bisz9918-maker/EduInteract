@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三球下落过程与受力分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-btn:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-step-indicator { font-size: 14px; padding: 8px 12px; background: #e3f2fd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 电场区域 -->
+            <rect id="scene2-electric-field" x="250" y="140" width="300" height="140" fill="#1565c0" opacity="0.1"/>
+            
+            <!-- 上极板（带小孔） -->
+            <line id="scene2-plate-top-left" x1="250" y1="140" x2="395" y2="140" stroke="#000000" stroke-width="4"/>
+            <line id="scene2-plate-top-right" x1="405" y1="140" x2="550" y2="140" stroke="#000000" stroke-width="4"/>
+            
+            <!-- 下极板 -->
+            <line id="scene2-plate-bottom" x1="250" y1="280" x2="550" y2="280" stroke="#000000" stroke-width="4"/>
+            
+            <!-- 板间距离标注 d=3L -->
+            <line id="scene2-dist-d-line" x1="230" y1="140" x2="230" y2="280" stroke="#333" stroke-width="2"/>
+            <polygon id="scene2-dist-d-arrow1" points="230,140 225,150 235,150" fill="#333"/>
+            <polygon id="scene2-dist-d-arrow2" points="230,280 225,270 235,270" fill="#333"/>
+            <text id="scene2-label-d" x="210" y="215" font-size="14" text-anchor="end" fill="#333">d=3L</text>
+            
+            <!-- 连接杆 -->
+            <line id="scene2-rod1" x1="400" y1="120" x2="400" y2="155" stroke="#333333" stroke-width="2"/>
+            <line id="scene2-rod2" x1="400" y1="85" x2="400" y2="120" stroke="#333333" stroke-width="2"/>
+            
+            <!-- 三个小球 -->
+            <circle id="scene2-ball1" cx="400" cy="155" r="8" fill="#1565c0"/>
+            <circle id="scene2-ball2" cx="400" cy="120" r="8" fill="#1565c0"/>
+            <circle id="scene2-ball3" cx="400" cy="85" r="8" fill="#1565c0"/>
+            
+            <!-- 杆长标注 L -->
+            <line id="scene2-dist-L1-line" x1="420" y1="85" x2="420" y2="120" stroke="#333" stroke-width="2"/>
+            <polygon id="scene2-dist-L1-arrow1" points="420,85 415,95 425,95" fill="#333"/>
+            <polygon id="scene2-dist-L1-arrow2" points="420,120 415,110 425,110" fill="#333"/>
+            <text id="scene2-label-L1" x="435" y="107" font-size="14" text-anchor="start" fill="#333">L</text>
+            
+            <line id="scene2-dist-L2-line" x1="420" y1="120" x2="420" y2="155" stroke="#333" stroke-width="2"/>
+            <polygon id="scene2-dist-L2-arrow1" points="420,120 415,130 425,130" fill="#333"/>
+            <polygon id="scene2-dist-L2-arrow2" points="420,155 415,145 425,145" fill="#333"/>
+            <text id="scene2-label-L2" x="435" y="142" font-size="14" text-anchor="start" fill="#333">L</text>
+            
+            <!-- 重力箭头组（每个小球） -->
+            <g id="scene2-mg-group">
+                <line id="scene2-mg1-line" x1="400" y1="155" x2="400" y2="180" stroke="#2e7d32" stroke-width="2"/>
+                <polygon id="scene2-mg1-arrow" points="400,180 395,170 405,170" fill="#2e7d32"/>
+                <text id="scene2-mg1-label" x="415" y="190" font-size="12" fill="#2e7d32">mg</text>
+                
+                <line id="scene2-mg2-line" x1="400" y1="120" x2="400" y2="145" stroke="#2e7d32" stroke-width="2"/>
+                <polygon id="scene2-mg2-arrow" points="400,145 395,135 405,135" fill="#2e7d32"/>
+                <text id="scene2-mg2-label" x="415" y="155" font-size="12" fill="#2e7d32">mg</text>
+                
+                <line id="scene2-mg3-line" x1="400" y1="85" x2="400" y2="110" stroke="#2e7d32" stroke-width="2"/>
+                <polygon id="scene2-mg3-arrow" points="400,110 395,100 405,100" fill="#2e7d32"/>
+                <text id="scene2-mg3-label" x="415" y="120" font-size="12" fill="#2e7d32">mg</text>
+            </g>
+            
+            <!-- 电场力箭头组（动态显示） -->
+            <g id="scene2-qe-group" style="opacity: 0;">
+                <line id="scene2-qe1-line" x1="400" y1="155" x2="400" y2="130" stroke="#c62828" stroke-width="2"/>
+                <polygon id="scene2-qe1-arrow" points="400,130 395,140 405,140" fill="#c62828"/>
+                <text id="scene2-qe1-label" x="415" y="125" font-size="12" fill="#c62828">qE</text>
+                
+                <line id="scene2-qe2-line" x1="400" y1="120" x2="400" y2="95" stroke="#c62828" stroke-width="2"/>
+                <polygon id="scene2-qe2-arrow" points="400,95 395,105 405,105" fill="#c62828"/>
+                <text id="scene2-qe2-label" x="415" y="90" font-size="12" fill="#c62828">qE</text>
+                
+                <line id="scene2-qe3-line" x1="400" y1="85" x2="400" y2="60" stroke="#c62828" stroke-width="2"/>
+                <polygon id="scene2-qe3-arrow" points="400,60 395,70 405,70" fill="#c62828"/>
+                <text id="scene2-qe3-label" x="415" y="55" font-size="12" fill="#c62828">qE</text>
+            </g>
+            
+            <!-- 合力箭头 -->
+            <g id="scene2-fnet-group">
+                <line id="scene2-fnet-line" x1="400" y1="120" x2="400" y2="150" stroke="#1565c0" stroke-width="3"/>
+                <polygon id="scene2-fnet-arrow" points="400,150 395,140 405,140" fill="#1565c0"/>
+                <text id="scene2-fnet-label" x="415" y="160" font-size="12" fill="#1565c0">F合</text>
+            </g>
+            
+            <!-- 速度箭头 -->
+            <g id="scene2-v-group">
+                <line id="scene2-v-line" x1="415" y1="155" x2="415" y2="155" stroke="#888888" stroke-width="2"/>
+                <polygon id="scene2-v-arrow" points="415,155 410,145 420,145" fill="#888888"/>
+                <text id="scene2-v-label" x="425" y="150" font-size="12" fill="#888888">v</text>
+            </g>
+            
+            <!-- 信息面板 -->
+            <text id="scene2-label-stage" x="650" y="100" font-size="14" fill="#333">阶段：1</text>
+            <text id="scene2-label-n" x="650" y="130" font-size="14" fill="#333">n=0</text>
+            <text id="scene2-label-fnet" x="650" y="160" font-size="14" fill="#333">F合=3mg</text>
+            <text id="scene2-label-v" x="650" y="190" font-size="14" fill="#333">v=0</text>
+            
+            <!-- 图例区 -->
+            <text x="620" y="250" font-size="14" font-weight="bold" fill="#333">图例：</text>
+            <line x1="620" y1="270" x2="640" y2="270" stroke="#2e7d32" stroke-width="2"/>
+            <text x="650" y="275" font-size="12" fill="#333">重力 mg</text>
+            <line x1="620" y1="295" x2="640" y2="295" stroke="#c62828" stroke-width="2"/>
+            <text x="650" y="300" font-size="12" fill="#333">电场力 qE</text>
+            <line x1="620" y1="320" x2="640" y2="320" stroke="#1565c0" stroke-width="2"/>
+            <text x="650" y="325" font-size="12" fill="#333">合力 F合</text>
+            <line x1="620" y1="345" x2="640" y2="345" stroke="#888888" stroke-width="2"/>
+            <text x="650" y="350" font-size="12" fill="#333">速度 v</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/3</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 三球下落过程与受力分析
+        // 布局坐标表参考：
+        // 上极板: (250,140)-(550,140), 下极板: (250,280)-(550,280)
+        // 球初始: 球1(400,155), 球2(400,120), 球3(400,85)
+        // 每步下落: 35px
+        
+        const currentStep = { value: 0 };
+        const totalSteps = 3;
+        
+        // 每步下落距离
+        const stepDistance = 35;
+        
+        // 初始位置
+        const initialPositions = {
+            ball1: 155,
+            ball2: 120,
+            ball3: 85
+        };
+        
+        // 各步骤状态数据
+        const stepData = [
+            { stage: 1, n: 0, fnet: "3mg", v: "0", vLen: 0, qeVisible: [false, false, false], fnetDown: true },
+            { stage: 2, n: 1, fnet: "3mg-qE", v: "增大", vLen: 15, qeVisible: [true, false, false], fnetDown: true },
+            { stage: 3, n: 2, fnet: "3mg-2qE", v: "最大", vLen: 25, qeVisible: [true, true, false], fnetDown: true },
+            { stage: 4, n: 3, fnet: "3qE-3mg", v: "0", vLen: 0, qeVisible: [true, true, true], fnetDown: false }
+        ];
+        
+        function getElement(id) {
+            return document.getElementById(id);
+        }
+        
+        function updateScene(step) {
+            const data = stepData[step];
+            const offset = step * stepDistance;
+            
+            // 更新小球位置
+            getElement('scene2-ball1').setAttribute('cy', initialPositions.ball1 + offset);
+            getElement('scene2-ball2').setAttribute('cy', initialPositions.ball2 + offset);
+            getElement('scene2-ball3').setAttribute('cy', initialPositions.ball3 + offset);
+            
+            // 更新连接杆位置
+            getElement('scene2-rod1').setAttribute('y1', initialPositions.ball2 + offset);
+            getElement('scene2-rod1').setAttribute('y2', initialPositions.ball1 + offset);
+            getElement('scene2-rod2').setAttribute('y1', initialPositions.ball3 + offset);
+            getElement('scene2-rod2').setAttribute('y2', initialPositions.ball2 + offset);
+            
+            // 更新重力箭头位置
+            const mgOffsets = [
+                { line: 'scene2-mg1-line', arrow: 'scene2-mg1-arrow', label: 'scene2-mg1-label', baseY: initialPositions.ball1 },
+                { line: 'scene2-mg2-line', arrow: 'scene2-mg2-arrow', label: 'scene2-mg2-label', baseY: initialPositions.ball2 },
+                { line: 'scene2-mg3-line', arrow: 'scene2-mg3-arrow', label: 'scene2-mg3-label', baseY: initialPositions.ball3 }
+            ];
+            mgOffsets.forEach(m => {
+                const y = m.baseY + offset;
+                getElement(m.line).setAttribute('y1', y);
+                getElement(m.line).setAttribute('y2', y + 25);
+                getElement(m.arrow).setAttribute('points', `400,${y+25} 395,${y+15} 405,${y+15}`);
+                getElement(m.label).setAttribute('y', y + 35);
+            });
+            
+            // 更新电场力箭头位置和可见性
+            const qeGroup = getElement('scene2-qe-group');
+            const qeOffsets = [
+                { line: 'scene2-qe1-line', arrow: 'scene2-qe1-arrow', label: 'scene2-qe1-label', baseY: initialPositions.ball1 },
+                { line: 'scene2-qe2-line', arrow: 'scene2-qe2-arrow', label: 'scene2-qe2-label', baseY: initialPositions.ball2 },
+                { line: 'scene2-qe3-line', arrow: 'scene2-qe3-arrow', label: 'scene2-qe3-label', baseY: initialPositions.ball3 }
+            ];
+            qeOffsets.forEach((m, i) => {
+                const y = m.baseY + offset;
+                getElement(m.line).setAttribute('y1', y);
+                getElement(m.line).setAttribute('y2', y - 25);
+                getElement(m.arrow).setAttribute('points', `400,${y-25} 395,${y-15} 405,${y-15}`);
+                getElement(m.label).setAttribute('y', y - 30);
+                
+                // 根据步骤数据设置可见性
+                if (data.qeVisible[i]) {
+                    getElement(m.line).setAttribute('opacity', '1');
+                    getElement(m.arrow).setAttribute('opacity', '1');
+                    getElement(m.label).setAttribute('opacity', '1');
+                } else {
+                    getElement(m.line).setAttribute('opacity', '0');
+                    getElement(m.arrow).setAttribute('opacity', '0');
+                    getElement(m.label).setAttribute('opacity', '0');
+                }
+            });
+            qeGroup.setAttribute('opacity', '1');
+            
+            // 更新合力箭头
+            const fnetBaseY = initialPositions.ball2 + offset;
+            const fnetLine = getElement('scene2-fnet-line');
+            const fnetArrow = getElement('scene2-fnet-arrow');
+            const fnetLabel = getElement('scene2-fnet-label');
+            
+            if (data.fnetDown) {
+                fnetLine.setAttribute('y1', fnetBaseY);
+                fnetLine.setAttribute('y2', fnetBaseY + 30);
+                fnetArrow.setAttribute('points', `400,${fnetBaseY+30} 395,${fnetBaseY+20} 405,${fnetBaseY+20}`);
+                fnetLabel.setAttribute('y', fnetBaseY + 40);
+            } else {
+                fnetLine.setAttribute('y1', fnetBaseY);
+                fnetLine.setAttribute('y2', fnetBaseY - 30);
+                fnetArrow.setAttribute('points', `400,${fnetBaseY-30} 395,${fnetBaseY-20} 405,${fnetBaseY-20}`);
+                fnetLabel.setAttribute('y', fnetBaseY - 35);
+            }
+            
+            // 更新速度箭头
+            const vBaseY = initialPositions.ball1 + offset;
+            const vLine = getElement('scene2-v-line');
+            const vArrow = getElement('scene2-v-arrow');
+            const vLabel = getElement('scene2-v-label');
+            
+            if (data.vLen > 0) {
+                vLine.setAttribute('y1', vBaseY);
+                vLine.setAttribute('y2', vBaseY + data.vLen);
+                vArrow.setAttribute('points', `415,${vBaseY+data.vLen} 410,${vBaseY+data.vLen-10} 420,${vBaseY+data.vLen-10}`);
+                vLabel.setAttribute('y', vBaseY + data.vLen + 15);
+                vLine.setAttribute('opacity', '1');
+                vArrow.setAttribute('opacity', '1');
+                vLabel.setAttribute('opacity', '1');
+            } else {
+                vLine.setAttribute('opacity', '0');
+                vArrow.setAttribute('opacity', '0');
+                vLabel.setAttribute('opacity', '0');
+            }
+            
+            // 更新信息面板
+            getElement('scene2-label-stage').textContent = `阶段：${data.stage}`;
+            getElement('scene2-label-n').textContent = `n=${data.n}`;
+            getElement('scene2-label-fnet').textContent = `F合=${data.fnet}`;
+            getElement('scene2-label-v').textContent = `v=${data.v}`;
+            
+            // 更新按钮状态
+            getElement('scene2-btn-prev').disabled = (step === 0);
+            getElement('scene2-btn-next').disabled = (step === totalSteps);
+            getElement('scene2-step-indicator').textContent = `步骤 ${step}/${totalSteps}`;
+        }
+        
+        function goToStep(step) {
+            if (step < 0 || step > totalSteps) return;
+            currentStep.value = step;
+            updateScene(step);
+        }
+        
+        // 初始化
+        getElement('scene2-btn-prev').addEventListener('click', () => goToStep(currentStep.value - 1));
+        getElement('scene2-btn-next').addEventListener('click', () => goToStep(currentStep.value + 1));
+        
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

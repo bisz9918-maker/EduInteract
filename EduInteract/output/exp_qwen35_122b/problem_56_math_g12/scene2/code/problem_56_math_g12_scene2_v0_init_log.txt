@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆半径递推关系推导 - Scene 2</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            width: 100px; height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .highlight { animation: highlight 0.5s ease-in-out; }
+        @keyframes highlight {
+            0%, 100% { stroke-width: 2; }
+            50% { stroke-width: 4; stroke: #ff9800; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 第 1 个圆：主圆，黑色实线 -->
+            <circle id="scene2-circle-main" cx="400" cy="220" r="120" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 正六边形边 AB：右上象限的一条边 -->
+            <line id="scene2-line-ab" x1="460" y1="160" x2="504" y2="180" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 圆心 O：红色实心点 -->
+            <circle id="scene2-circle-o" cx="400" cy="220" r="3" fill="#c62828"/>
+            <!-- 顶点 A：黑色点 -->
+            <circle id="scene2-circle-a" cx="460" cy="160" r="2" fill="#000000"/>
+            <!-- 顶点 B：黑色点 -->
+            <circle id="scene2-circle-b" cx="504" cy="180" r="2" fill="#000000"/>
+            
+            <!-- 半径 OA：蓝色高亮（步骤 1 显示） -->
+            <line id="scene2-line-oa" x1="400" y1="220" x2="460" y2="160" stroke="#1565c0" stroke-width="2" style="display: none;"/>
+            <!-- 垂线段 OM：蓝色高亮（步骤 1 显示） -->
+            <line id="scene2-line-om" x1="400" y1="220" x2="482" y2="170" stroke="#1565c0" stroke-width="2" style="display: none;"/>
+            
+            <!-- 垂足 M：黑色点（步骤 1 显示） -->
+            <circle id="scene2-circle-m" cx="482" cy="170" r="2" fill="#000000" style="display: none;"/>
+            
+            <!-- 直角符号：红色 L 形（步骤 1 显示） -->
+            <path id="scene2-rect-symbol" d="M 482 170 L 482 182 L 494 182" fill="none" stroke="#c62828" stroke-width="1.5" style="display: none;"/>
+            
+            <!-- 角度弧线：绿色，∠AOM（步骤 2 显示） -->
+            <path id="scene2-arc-angle" d="M 428.3 205 A 30 30 0 0 1 414.6 194.6" fill="none" stroke="#2e7d32" stroke-width="1.5" style="display: none;"/>
+            
+            <!-- 标签 O：红色 - 移到圆心正下方圆外 -->
+            <text id="scene2-label-o" x="400" y="360" font-size="16" fill="#c62828" font-weight="bold" text-anchor="middle">O</text>
+            <!-- 标签 A：黑色 - 移到 A 点正上方圆外 -->
+            <text id="scene2-label-a" x="460" y="80" font-size="16" fill="#000000" text-anchor="middle">A</text>
+            <!-- 标签 B：黑色 - 移到 B 点右侧圆外（y=170） -->
+            <text id="scene2-label-b" x="540" y="170" font-size="16" fill="#000000">B</text>
+            <!-- 标签 M：黑色（步骤 1 显示）- 移到 M 点右侧圆外（y=210，与 B 错开 40px） -->
+            <text id="scene2-label-m" x="540" y="210" font-size="16" fill="#000000" style="display: none;">M</text>
+            
+            <!-- 标签 R₁：在 OA 左侧（步骤 1 显示）- 移到圆外左侧 -->
+            <text id="scene2-label-r1" x="250" y="200" font-size="14" fill="#1565c0" style="display: none;">R₁</text>
+            <!-- 标签 R₂：在 OM 下方（步骤 1 显示）- 移到圆外下方 -->
+            <text id="scene2-label-r2" x="420" y="360" font-size="14" fill="#1565c0" style="display: none;">R₂</text>
+            
+            <!-- 标签 ∠AOM=30°（步骤 2 显示）- 移到右侧圆外（与 M 错开，y=260，增加 20px 间距） -->
+            <text id="scene2-label-angle" x="560" y="260" font-size="14" fill="#2e7d32" style="display: none;">∠AOM = 30°</text>
+            
+            <!-- 公式文本（步骤 3 显示） -->
+            <text id="scene2-text-formula" x="50" y="350" font-size="16" fill="#000000" style="display: none;">
+                <tspan x="50" dy="0">R₂ = R₁·cos30° = R₁·</tspan>
+                <tspan x="50" dy="24">√3/2</tspan>
+            </text>
+            
+            <!-- 结论文本（步骤 4 显示）- 移到更下方 -->
+            <text id="scene2-text-conclusion" x="50" y="410" font-size="16" fill="#000000" style="display: none;">
+                <tspan x="50" dy="0">公比 q = √3/2，面积公比 q² = 3/4</tspan>
+            </text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        'use strict';
+        
+        // 布局坐标表（实现对照依据）
+        // 标签位置已调整以避免重叠（圆半径 120，圆心 400,220，圆边界 x:280-520, y:100-340）：
+        // O(400,360) - 圆心正下方圆外
+        // A(460,80) - A 点正上方圆外
+        // B(540,170) - B 点右侧圆外（y=170）
+        // M(540,210) - M 点右侧圆外（y=210，与 B 错开 40px）
+        // R₁(250,200) - 圆外左侧
+        // R₂(420,360) - 圆外下方
+        // ∠AOM=30°(560,260) - 右侧圆外（与 M 错开 50px，满足 12px 最小间距）
+        
+        // 状态变量
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        // 元素 ID 列表
+        const elements = {
+            // 步骤 1 显示的元素
+            step1: [
+                'scene2-line-oa',
+                'scene2-line-om',
+                'scene2-circle-m',
+                'scene2-rect-symbol',
+                'scene2-label-m',
+                'scene2-label-r1',
+                'scene2-label-r2'
+            ],
+            // 步骤 2 显示的元素
+            step2: [
+                'scene2-arc-angle',
+                'scene2-label-angle'
+            ],
+            // 步骤 3 显示的元素
+            step3: [
+                'scene2-text-formula'
+            ],
+            // 步骤 4 显示的元素
+            step4: [
+                'scene2-text-conclusion'
+            ]
+        };
+        
+        // 工具函数：显示元素
+        function show(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '0';
+                requestAnimationFrame(() => {
+                    el.style.opacity = '1';
+                });
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：添加高亮动画
+        function highlight(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('highlight');
+                void el.offsetWidth; // 触发重绘
+                el.classList.add('highlight');
+            }
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 重置所有步骤特定元素
+            elements.step1.forEach(id => hide(id));
+            elements.step2.forEach(id => hide(id));
+            elements.step3.forEach(id => hide(id));
+            elements.step4.forEach(id => hide(id));
+            
+            // 根据当前步骤显示元素
+            if (currentStep >= 1) {
+                elements.step1.forEach(id => show(id));
+            }
+            if (currentStep >= 2) {
+                elements.step2.forEach(id => show(id));
+            }
+            if (currentStep >= 3) {
+                elements.step3.forEach(id => show(id));
+                // 高亮 OA 和 OM
+                highlight('scene2-line-oa');
+                highlight('scene2-line-om');
+            }
+            if (currentStep >= 4) {
+                elements.step4.forEach(id => show(id));
+                // 高亮整个三角形
+                highlight('scene2-line-oa');
+                highlight('scene2-line-om');
+                highlight('scene2-line-ab');
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            
+            if (currentStep === maxStep) {
+                btnNext.textContent = '完成';
+                btnNext.disabled = true;
+            } else {
+                btnNext.textContent = '下一步 ▶';
+                btnNext.disabled = false;
+            }
+        }
+        
+        // 事件监听
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配子致死导致的异常分离比分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #1565c0; border-radius: 4px; background: #fff; color: #1565c0; }
+        .scene3-btn:hover { background: #e3f2fd; }
+        .scene3-btn:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+        .scene3-step-indicator { padding: 8px 16px; font-size: 14px; color: #666; }
+        .scene3-grid-cell { fill: #f5f5f5; stroke: #000; stroke-width: 1; }
+        .scene3-grid-cell.dead { fill: #ffebee; }
+        .scene3-text-normal { fill: #1565c0; font-size: 8px; }
+        .scene3-text-dead { fill: #c62828; font-size: 8px; font-weight: bold; }
+        .scene3-text-green { fill: #2e7d32; font-size: 10px; }
+        .scene3-text-title { fill: #000; font-size: 12px; font-weight: bold; }
+        .scene3-text-label { fill: #666; font-size: 10px; }
+        .scene3-arrow { stroke: #888; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+        .scene3-cross { stroke: #c62828; stroke-width: 2; }
+        .scene3-highlight { stroke: #c62828; stroke-width: 2; }
+        .scene3-fade { opacity: 0; transition: opacity 0.3s ease; }
+        .scene3-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500">
+            <!-- 标题 - 调整 y 坐标到 20 避免裁切 -->
+            <text x="320" y="20" class="scene3-text-title">配子致死导致的异常分离比分析</text>
+            
+            <!-- 亲本区 - 调整布局，增加间距 -->
+            <text id="scene3-text-p" x="50" y="50" class="scene3-text-label">P:</text>
+            <text id="scene3-text-parent1" x="80" y="65" class="scene3-text-green">长翅细眼</text>
+            <text id="scene3-text-parent1-genotype" x="80" y="80" class="scene3-text-normal">VVRR</text>
+            <line id="scene3-arrow1" x1="180" y1="72" x2="220" y2="72" class="scene3-arrow"/>
+            <polygon id="scene3-arrow1-head" points="220,67 230,72 220,77" class="scene3-arrow"/>
+            <text id="scene3-text-parent2" x="240" y="65" class="scene3-text-green">残翅粗眼</text>
+            <text id="scene3-text-parent2-genotype" x="240" y="80" class="scene3-text-normal">vvrr</text>
+            
+            <!-- F1 区 - 增加行间距 -->
+            <text id="scene3-text-f1-label" x="350" y="130" class="scene3-text-label">F1 代</text>
+            <text id="scene3-text-f1-genotype" x="350" y="148" class="scene3-text-green">VvRr</text>
+            <text id="scene3-text-f1-phenotype" x="350" y="166" class="scene3-text-green">长翅细眼</text>
+            <line id="scene3-arrow2" x1="400" y1="158" x2="440" y2="158" class="scene3-arrow"/>
+            <polygon id="scene3-arrow2-head" points="440,153 450,158 440,163" class="scene3-arrow"/>
+            
+            <!-- F2 标题 -->
+            <text id="scene3-text-f2-label" x="450" y="130" class="scene3-text-label">F2 代（实际比例）</text>
+            
+            <!-- 棋盘格 - 调整布局 -->
+            <!-- 列头 - 调整 y 坐标到 200，避免与格子重叠 -->
+            <text id="scene3-text-col-header" x="200" y="200" class="scene3-text-label">配子\</text>
+            <text id="scene3-text-col-vr" x="260" y="200" class="scene3-text-normal" text-anchor="middle">VR</text>
+            <text id="scene3-text-col-vr2" x="355" y="200" class="scene3-text-normal" text-anchor="middle">Vr</text>
+            <text id="scene3-text-col-vR" x="450" y="200" class="scene3-text-normal" text-anchor="middle">vR</text>
+            <text id="scene3-text-col-vr-dead" x="545" y="200" class="scene3-text-dead" text-anchor="middle">vr</text>
+            <text id="scene3-text-col-vr-dead-label" x="545" y="209" class="scene3-text-dead" text-anchor="middle" font-size="6">（致死）</text>
+            
+            <!-- 行头 - 调整 x 坐标到 170，避免与格子重叠 -->
+            <text id="scene3-text-row-vr" x="170" y="245" class="scene3-text-normal" text-anchor="end">VR</text>
+            <text id="scene3-text-row-vr2" x="170" y="290" class="scene3-text-normal" text-anchor="end">Vr</text>
+            <text id="scene3-text-row-vR" x="170" y="335" class="scene3-text-normal" text-anchor="end">vR</text>
+            <text id="scene3-text-row-vr-dead" x="170" y="380" class="scene3-text-dead" text-anchor="end">vr</text>
+            <text id="scene3-text-row-vr-dead-label" x="170" y="389" class="scene3-text-dead" text-anchor="end" font-size="6">（致死）</text>
+            
+            <!-- 棋盘格格子（4×4，每格 40×40，间距 5） -->
+            <!-- 第 1 行 (VR) - y=220 -->
+            <rect id="scene3-cell-1-1" x="180" y="220" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-1-1" x="200" y="240" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VVRr</text>
+            <rect id="scene3-cell-1-2" x="275" y="220" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-1-2" x="295" y="240" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VVRr</text>
+            <rect id="scene3-cell-1-3" x="370" y="220" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-1-3" x="390" y="240" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRR</text>
+            <rect id="scene3-cell-1-4" x="465" y="220" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-1-4" x="485" y="240" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRr</text>
+            
+            <!-- 第 2 行 (Vr) - y=265 -->
+            <rect id="scene3-cell-2-1" x="180" y="265" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-2-1" x="200" y="285" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VVRr</text>
+            <rect id="scene3-cell-2-2" x="275" y="265" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-2-2" x="295" y="285" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRr</text>
+            <rect id="scene3-cell-2-3" x="370" y="265" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-2-3" x="390" y="285" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRr</text>
+            <rect id="scene3-cell-2-4" x="465" y="265" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-2-4" x="485" y="285" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">Vvrr</text>
+            
+            <!-- 第 3 行 (vR) - y=310 -->
+            <rect id="scene3-cell-3-1" x="180" y="310" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-3-1" x="200" y="330" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRR</text>
+            <rect id="scene3-cell-3-2" x="275" y="310" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-3-2" x="295" y="330" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRr</text>
+            <rect id="scene3-cell-3-3" x="370" y="310" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-3-3" x="390" y="330" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">vvRR</text>
+            <rect id="scene3-cell-3-4" x="465" y="310" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-3-4" x="485" y="330" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">vvRr</text>
+            
+            <!-- 第 4 行 (vr) - 致死行 - y=355 -->
+            <rect id="scene3-cell-4-1" x="180" y="355" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-4-1" x="200" y="375" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">VvRr</text>
+            <rect id="scene3-cell-4-2" x="275" y="355" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-4-2" x="295" y="375" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">Vvrr</text>
+            <rect id="scene3-cell-4-3" x="370" y="355" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-4-3" x="390" y="375" text-anchor="middle" dominant-baseline="middle" class="scene3-text-normal scene3-fade">vvRr</text>
+            <rect id="scene3-cell-4-4" x="465" y="355" width="40" height="40" class="scene3-grid-cell scene3-fade"/>
+            <text id="scene3-cell-text-4-4" x="485" y="375" text-anchor="middle" dominant-baseline="middle" class="scene3-text-dead scene3-fade">vvrr</text>
+            
+            <!-- 致死叉号（覆盖在 vr 行和 vr 列的格子上） -->
+            <line id="scene3-cross-1-4" x1="465" y1="220" x2="505" y2="260" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-1-4-2" x1="505" y1="220" x2="465" y2="260" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-2-4" x1="465" y1="265" x2="505" y2="305" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-2-4-2" x1="505" y1="265" x2="465" y2="305" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-3-4" x1="465" y1="310" x2="505" y2="350" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-3-4-2" x1="505" y1="310" x2="465" y2="350" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-1" x1="180" y1="355" x2="220" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-1-2" x1="220" y1="355" x2="180" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-2" x1="275" y1="355" x2="315" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-2-2" x1="315" y1="355" x2="275" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-3" x1="370" y1="355" x2="410" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-3-2" x1="410" y1="355" x2="370" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-4" x1="465" y1="355" x2="505" y2="395" class="scene3-cross scene3-fade"/>
+            <line id="scene3-cross-4-4-2" x1="505" y1="355" x2="465" y2="395" class="scene3-cross scene3-fade"/>
+            
+            <!-- 统计区 - 调整 y 坐标到 415，增加与棋盘格的间距 -->
+            <text id="scene3-text-stat-label" x="180" y="415" class="scene3-text-label">F2 表现型统计：</text>
+            <text id="scene3-text-stat-1" x="320" y="415" class="scene3-text-normal">长翅细眼:7</text>
+            <text id="scene3-text-stat-2" x="430" y="415" class="scene3-text-normal">长翅粗眼:3</text>
+            <text id="scene3-text-stat-3" x="540" y="415" class="scene3-text-normal">残翅细眼:1</text>
+            <text id="scene3-text-stat-4" x="650" y="415" class="scene3-text-normal">残翅粗眼:1</text>
+            
+            <!-- 结论（步骤 5） - 调整 y 坐标到 445 -->
+            <text id="scene3-text-conclusion" x="200" y="445" class="scene3-text-dead scene3-fade">假设：基因型为 vr 的配子致死，导致 F2 比例为 7:3:1:1</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" class="scene3-btn" disabled>◀ 上一步</button>
+            <span id="scene3-step-indicator" class="scene3-step-indicator">步骤 0/5</span>
+            <button id="scene3-btn-next" class="scene3-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 配子致死导致的异常分离比分析
+        // 坐标表对照（已调整）：
+        // 标题 (320,20), 亲本区 (50-240,50-80), F1 区 (350,130-166), F2 标题 (450,130)
+        // 棋盘格列头 (260/355/450/545,200-209), 行头 (170,245/290/335/380-389)
+        // 棋盘格格子：第 1 列 180-220, 第 2 列 275-315, 第 3 列 370-410, 第 4 列 465-505
+        //              第 1 行 220-260, 第 2 行 265-305, 第 3 行 310-350, 第 4 行 355-395
+        // 统计区 (180-650,415), 结论 (200,445)
+        
+        const currentStepMax = 5;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.display = 'block';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = '0';
+                el.style.display = 'none';
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            document.getElementById('scene3-step-indicator').textContent = '步骤 ' + currentStep + '/' + currentStepMax;
+            
+            // 更新按钮状态
+            document.getElementById('scene3-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene3-btn-next').disabled = (currentStep === currentStepMax);
+            
+            // 根据步骤显示/隐藏元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示亲本杂交
+                    hide('scene3-text-f1-label');
+                    hide('scene3-text-f1-genotype');
+                    hide('scene3-text-f1-phenotype');
+                    hide('scene3-arrow2');
+                    hide('scene3-arrow2-head');
+                    hide('scene3-text-f2-label');
+                    hide('scene3-text-col-header');
+                    hide('scene3-text-col-vr');
+                    hide('scene3-text-col-vr2');
+                    hide('scene3-text-col-vR');
+                    hide('scene3-text-col-vr-dead');
+                    hide('scene3-text-col-vr-dead-label');
+                    hide('scene3-text-row-vr');
+                    hide('scene3-text-row-vr2');
+                    hide('scene3-text-row-vR');
+                    hide('scene3-text-row-vr-dead');
+                    hide('scene3-text-row-vr-dead-label');
+                    for (let i = 1; i <= 4; i++) {
+                        for (let j = 1; j <= 4; j++) {
+                            hide('scene3-cell-' + i + '-' + j);
+                            hide('scene3-cell-text-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j + '-2');
+                        }
+                    }
+                    hide('scene3-text-stat-label');
+                    hide('scene3-text-stat-1');
+                    hide('scene3-text-stat-2');
+                    hide('scene3-text-stat-3');
+                    hide('scene3-text-stat-4');
+                    hide('scene3-text-conclusion');
+                    show('scene3-text-p');
+                    show('scene3-text-parent1');
+                    show('scene3-text-parent1-genotype');
+                    show('scene3-arrow1');
+                    show('scene3-arrow1-head');
+                    show('scene3-text-parent2');
+                    show('scene3-text-parent2-genotype');
+                    break;
+                    
+                case 1:
+                    // 显示 F1 代
+                    show('scene3-text-p');
+                    show('scene3-text-parent1');
+                    show('scene3-text-parent1-genotype');
+                    show('scene3-arrow1');
+                    show('scene3-arrow1-head');
+                    show('scene3-text-parent2');
+                    show('scene3-text-parent2-genotype');
+                    show('scene3-text-f1-label');
+                    show('scene3-text-f1-genotype');
+                    show('scene3-text-f1-phenotype');
+                    show('scene3-arrow2');
+                    show('scene3-arrow2-head');
+                    hide('scene3-text-f2-label');
+                    hide('scene3-text-col-header');
+                    hide('scene3-text-col-vr');
+                    hide('scene3-text-col-vr2');
+                    hide('scene3-text-col-vR');
+                    hide('scene3-text-col-vr-dead');
+                    hide('scene3-text-col-vr-dead-label');
+                    hide('scene3-text-row-vr');
+                    hide('scene3-text-row-vr2');
+                    hide('scene3-text-row-vR');
+                    hide('scene3-text-row-vr-dead');
+                    hide('scene3-text-row-vr-dead-label');
+                    for (let i = 1; i <= 4; i++) {
+                        for (let j = 1; j <= 4; j++) {
+                            hide('scene3-cell-' + i + '-' + j);
+                            hide('scene3-cell-text-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j + '-2');
+                        }
+                    }
+                    hide('scene3-text-stat-label');
+                    hide('scene3-text-stat-1');
+                    hide('scene3-text-stat-2');
+                    hide('scene3-text-stat-3');
+                    hide('scene3-text-stat-4');
+                    hide('scene3-text-conclusion');
+                    break;
+                    
+                case 2:
+                    // 显示棋盘格框架和配子类型
+                    show('scene3-text-p');
+                    show('scene3-text-parent1');
+                    show('scene3-text-parent1-genotype');
+                    show('scene3-arrow1');
+                    show('scene3-arrow1-head');
+                    show('scene3-text-parent2');
+                    show('scene3-text-parent2-genotype');
+                    show('scene3-text-f1-label');
+                    show('scene3-text-f1-genotype');
+                    show('scene3-text-f1-phenotype');
+                    show('scene3-arrow2');
+                    show('scene3-arrow2-head');
+                    show('scene3-text-f2-label');
+                    show('scene3-text-col-header');
+                    show('scene3-text-col-vr');
+                    show('scene3-text-col-vr2');
+                    show('scene3-text-col-vR');
+                    show('scene3-text-col-vr-dead');
+                    show('scene3-text-col-vr-dead-label');
+                    show('scene3-text-row-vr');
+                    show('scene3-text-row-vr2');
+                    show('scene3-text-row-vR');
+                    show('scene3-text-row-vr-dead');
+                    show('scene3-text-row-vr-dead-label');
+                    // 显示棋盘格格子框架
+                    for (let i = 1; i <= 4; i++) {
+                        for (let j = 1; j <= 4; j++) {
+                            show('scene3-cell-' + i + '-' + j);
+                            hide('scene3-cell-text-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j + '-2');
+                        }
+                    }
+                    hide('scene3-text-stat-label');
+                    hide('scene3-text-stat-1');
+                    hide('scene3-text-stat-2');
+                    hide('scene3-text-stat-3');
+                    hide('scene3-text-stat-4');
+                    hide('scene3-text-conclusion');
+                    break;
+                    
+                case 3:
+                    // 显示正常配子组合的基因型
+                    show('scene3-text-p');
+                    show('scene3-text-parent1');
+                    show('scene3-text-parent1-genotype');
+                    show('scene3-arrow1');
+                    show('scene3-arrow1-head');
+                    show('scene3-text-parent2');
+                    show('scene3-text-parent2-genotype');
+                    show('scene3-text-f1-label');
+                    show('scene3-text-f1-genotype');
+                    show('scene3-text-f1-phenotype');
+                    show('scene3-arrow2');
+                    show('scene3-arrow2-head');
+                    show('scene3-text-f2-label');
+                    show('scene3-text-col-header');
+                    show('scene3-text-col-vr');
+                    show('scene3-text-col-vr2');
+                    show('scene3-text-col-vR');
+                    show('scene3-text-col-vr-dead');
+                    show('scene3-text-col-vr-dead-label');
+                    show('scene3-text-row-vr');
+                    show('scene3-text-row-vr2');
+                    show('scene3-text-row-vR');
+                    show('scene3-text-row-vr-dead');
+                    show('scene3-text-row-vr-dead-label');
+                    // 显示所有格子框架和基因型
+                    for (let i = 1; i <= 4; i++) {
+                        for (let j = 1; j <= 4; j++) {
+                            show('scene3-cell-' + i + '-' + j);
+                            show('scene3-cell-text-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j);
+                            hide('scene3-cross-' + i + '-' + j + '-2');
+                        }
+                    }
+                    hide('scene3-text-stat-label');
+                    hide('scene3-text-stat-1');
+                    hide('scene3-text-stat-2');
+                    hide('scene3-text-stat-3');
+                    hide('scene3-text-stat-4');
+                    hide('scene3-text-conclusion');
+                    break;
+                    
+                case 4:
+                    // 显示致死标记和统计
+                    show('scene3-text-p');
+                    show('scene3-text-parent1');
+                    show('scene3-text-parent1-genotype');
+                    show('scene3-arrow1');
+                    show('scene3-arrow1-head');
+                    show('scene3-text-parent2');
+                    show('scene3-text-parent2-genotype');
+                    show('scene3-text-f1-label');
+                    show('scene3-text-f1-genotype');
+                    show('scene3-text-f1-phenotype');
+                    show('scene3-arrow2');
+                    show('scene3-arrow2-head');
+                    show('scene3-text-f2-label');
+                    show('scene3-text-col-header');
+                    show('scene3-text-col-vr');
+                    show('scene3-text-col-vr2');
+                    show('scene3-text-col-vR');
+                    show('scene3-text-col-vr-dead');
+                    show('scene3-text-col-vr-dead-label');
+                    show('scene3-text-row-vr');
+                    show('scene3-text-row-vr2');
+                    show('scene3-text-row-vR');
+                    show('scene3-text-row-vr-dead');
+                    show('scene3-text-row-vr-dead-label');
+                    // 显示所有格子框架和基因型
+                    for (let i = 1; i <= 4; i++) {
+                        for (let j = 1; j <= 4; j++) {
+                            show('scene3-cell-' + i + '-' + j);
+                            show('scene3-cell-text-' + i + '-' + j);
+                        }
+                    }
+                    // 显示致死叉号（vr 行和 vr 列）
+                    show('scene3-cross-1-4');
+                    show('scene3-cross-1-4-2');
+                    show('scene3-cross-2-4');
+                    show('scene3-cross-2-4-2');
+                    show('scene3-cross-3-4');
+                    show('scene3-cross-3-4-2');
+                    show('scene3-cross-4-1');
+                    show('scene3-cross-4-1-2');
+                    show('scene3-cross-4-2');
+                    show('scene3-cross-4-2-2');
+                    show('scene3-cross-4-3');
+                    show('scene3-cross-4-3-2');
+                    show('scene3-cross-4-4');
+                    show('scene3-cross-4-4-2');
+                    show('scene3-text-stat-label');
+                    show('scene3-text-stat-1');
+                    show('scene3-text-stat-2');
+                    show('scene3-text-stat-3');
+                    show('scene3-text-stat-4');
+                    hide('scene3-text-conclusion');
+                    break;
+                    
+                case 5:
+                    // 显示结论
+                    show('scene3-text-p');
+                    show('scene3-text-parent1');
+                    show('scene3-text-parent1-genotype');
+                    show('scene3-arrow1');
+                    show('scene3-arrow1-head');
+                    show('scene3-text-parent2');
+                    show('scene3-text-parent2-genotype');
+                    show('scene3-text-f1-label');
+                    show('scene3-text-f1-genotype');
+                    show('scene3-text-f1-phenotype');
+                    show('scene3-arrow2');
+                    show('scene3-arrow2-head');
+                    show('scene3-text-f2-label');
+                    show('scene3-text-col-header');
+                    show('scene3-text-col-vr');
+                    show('scene3-text-col-vr2');
+                    show('scene3-text-col-vR');
+                    show('scene3-text-col-vr-dead');
+                    show('scene3-text-col-vr-dead-label');
+                    show('scene3-text-row-vr');
+                    show('scene3-text-row-vr2');
+                    show('scene3-text-row-vR');
+                    show('scene3-text-row-vr-dead');
+                    show('scene3-text-row-vr-dead-label');
+                    // 显示所有格子框架和基因型
+                    for (let i = 1; i <= 4; i++) {
+                        for (let j = 1; j <= 4; j++) {
+                            show('scene3-cell-' + i + '-' + j);
+                            show('scene3-cell-text-' + i + '-' + j);
+                        }
+                    }
+                    // 显示致死叉号
+                    show('scene3-cross-1-4');
+                    show('scene3-cross-1-4-2');
+                    show('scene3-cross-2-4');
+                    show('scene3-cross-2-4-2');
+                    show('scene3-cross-3-4');
+                    show('scene3-cross-3-4-2');
+                    show('scene3-cross-4-1');
+                    show('scene3-cross-4-1-2');
+                    show('scene3-cross-4-2');
+                    show('scene3-cross-4-2-2');
+                    show('scene3-cross-4-3');
+                    show('scene3-cross-4-3-2');
+                    show('scene3-cross-4-4');
+                    show('scene3-cross-4-4-2');
+                    show('scene3-text-stat-label');
+                    show('scene3-text-stat-1');
+                    show('scene3-text-stat-2');
+                    show('scene3-text-stat-3');
+                    show('scene3-text-stat-4');
+                    show('scene3-text-conclusion');
+                    break;
+            }
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

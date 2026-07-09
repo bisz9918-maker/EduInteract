@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三棱柱展开图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { position: absolute; top: 0; left: 0; width: 800px; height: 500px; z-index: 2; pointer-events: none; }
+        #scene1-3d { position: absolute; top: 0; left: 0; width: 800px; height: 500px; z-index: 1; pointer-events: auto; opacity: 0; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .shape { fill: #e0e0e0; fill-opacity: 0.3; stroke: #000000; stroke-width: 2; stroke-linejoin: round; }
+        .label { font-size: 20px; text-anchor: middle; fill: #000; }
+        .missing-triangle { fill: none; stroke: #c62828; stroke-width: 2; stroke-dasharray: 4,4; opacity: 0; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-3d"></div>
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 展开图A -->
+            <g id="scene1-group-a" transform="translate(130, 230)">
+                <rect class="shape" x="-60" y="-50" width="40" height="100" />
+                <rect class="shape" x="-20" y="-50" width="40" height="100" />
+                <rect class="shape" x="20" y="-50" width="40" height="100" />
+                <polygon id="scene1-a-top" class="shape" points="-60,-50 -20,-50 -40,-84.64" />
+                <polygon id="scene1-a-bottom" class="shape" points="20,50 60,50 40,84.64" />
+            </g>
+            <text id="scene1-label-a" class="label" x="130" y="350">A</text>
+
+            <!-- 展开图B -->
+            <g id="scene1-group-b" transform="translate(310, 230)">
+                <rect class="shape" x="-60" y="-50" width="40" height="100" />
+                <rect class="shape" x="-20" y="-50" width="40" height="100" />
+                <rect class="shape" x="20" y="-50" width="40" height="100" />
+                <polygon id="scene1-b-top1" class="shape" points="-60,-50 -20,-50 -40,-84.64" />
+                <polygon id="scene1-b-top2" class="shape" points="20,-50 60,-50 40,-84.64" />
+            </g>
+            <text id="scene1-label-b" class="label" x="310" y="350">B</text>
+
+            <!-- 展开图C -->
+            <g id="scene1-group-c" transform="translate(490, 230)">
+                <rect class="shape" x="-60" y="-50" width="40" height="100" />
+                <rect class="shape" x="-20" y="-50" width="40" height="100" />
+                <rect class="shape" x="20" y="-50" width="40" height="100" />
+                <polygon class="shape" points="-60,50 -20,50 -40,84.64" />
+                <polygon id="scene1-c-missing" class="missing-triangle" points="20,-50 60,-50 40,-84.64" />
+            </g>
+            <text id="scene1-label-c" class="label" x="490" y="350">C</text>
+
+            <!-- 展开图D -->
+            <g id="scene1-group-d" transform="translate(670, 230)">
+                <rect class="shape" x="-60" y="-50" width="40" height="100" />
+                <rect class="shape" x="-20" y="-50" width="40" height="100" />
+                <rect class="shape" x="20" y="-50" width="40" height="100" />
+                <polygon id="scene1-d-missing1" class="missing-triangle" points="-60,-50 -20,-50 -40,-84.64" />
+                <polygon id="scene1-d-missing2" class="missing-triangle" points="20,50 60,50 40,84.64" />
+            </g>
+            <text id="scene1-label-d" class="label" x="670" y="350">D</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let currentStep = 0;
+        const maxStep = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        // SVG Elements
+        const groupA = document.getElementById('scene1-group-a');
+        const groupB = document.getElementById('scene1-group-b');
+        const groupC = document.getElementById('scene1-group-c');
+        const groupD = document.getElementById('scene1-group-d');
+        const labelA = document.getElementById('scene1-label-a');
+        const labelB = document.getElementById('scene1-label-b');
+        const labelC = document.getElementById('scene1-label-c');
+        const labelD = document.getElementById('scene1-label-d');
+        const cMissing = document.getElementById('scene1-c-missing');
+        const dMissing1 = document.getElementById('scene1-d-missing1');
+        const dMissing2 = document.getElementById('scene1-d-missing2');
+        const aTop = document.getElementById('scene1-a-top');
+        const aBottom = document.getElementById('scene1-a-bottom');
+        const bTop1 = document.getElementById('scene1-b-top1');
+        const bTop2 = document.getElementById('scene1-b-top2');
+        const svgLayer = document.getElementById('scene1-svg');
+        const threeLayer = document.getElementById('scene1-3d');
+
+        // Animation state
+        let animationFrameId = null;
+
+        function updateState() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Reset styles for step 0
+            if (currentStep === 0) {
+                groupC.style.opacity = 1;
+                groupD.style.opacity = 1;
+                labelC.style.opacity = 1;
+                labelD.style.opacity = 1;
+                cMissing.style.opacity = 0;
+                dMissing1.style.opacity = 0;
+                dMissing2.style.opacity = 0;
+                
+                groupA.setAttribute('transform', 'translate(130, 230) scale(1)');
+                groupB.setAttribute('transform', 'translate(310, 230) scale(1)');
+                labelA.setAttribute('x', '130');
+                labelA.setAttribute('y', '350');
+                labelB.setAttribute('x', '310');
+                labelB.setAttribute('y', '350');
+                
+                aTop.style.fill = '#e0e0e0';
+                aBottom.style.fill = '#e0e0e0';
+                bTop1.style.fill = '#e0e0e0';
+                bTop2.style.fill = '#e0e0e0';
+                
+                svgLayer.style.opacity = 1;
+                threeLayer.style.opacity = 0;
+                threeLayer.style.pointerEvents = 'none';
+            }
+            else if (currentStep === 1) {
+                groupC.style.opacity = 0.3;
+                groupD.style.opacity = 0.3;
+                labelC.style.opacity = 0.3;
+                labelD.style.opacity = 0.3;
+                cMissing.style.opacity = 1;
+                dMissing1.style.opacity = 1;
+                dMissing2.style.opacity = 1;
+                
+                groupA.setAttribute('transform', 'translate(130, 230) scale(1)');
+                groupB.setAttribute('transform', 'translate(310, 230) scale(1)');
+                labelA.setAttribute('x', '130');
+                labelA.setAttribute('y', '350');
+                labelB.setAttribute('x', '310');
+                labelB.setAttribute('y', '350');
+                
+                aTop.style.fill = '#e0e0e0';
+                aBottom.style.fill = '#e0e0e0';
+                bTop1.style.fill = '#e0e0e0';
+                bTop2.style.fill = '#e0e0e0';
+                
+                svgLayer.style.opacity = 1;
+                threeLayer.style.opacity = 0;
+                threeLayer.style.pointerEvents = 'none';
+            }
+            else if (currentStep === 2) {
+                groupC.style.opacity = 0;
+                groupD.style.opacity = 0;
+                labelC.style.opacity = 0;
+                labelD.style.opacity = 0;
+                cMissing.style.opacity = 0;
+                dMissing1.style.opacity = 0;
+                dMissing2.style.opacity = 0;
+                
+                groupA.style.opacity = 1;
+                labelA.style.opacity = 1;
+                
+                // Animate to new positions
+                groupA.setAttribute('transform', 'translate(250, 230) scale(1.5)');
+                groupB.setAttribute('transform', 'translate(550, 230) scale(1.5)');
+                labelA.setAttribute('x', '250');
+                labelA.setAttribute('y', '380');
+                labelB.setAttribute('x', '550');
+                labelB.setAttribute('y', '380');
+                
+                aTop.style.fill = '#2e7d32';
+                aBottom.style.fill = '#2e7d32';
+                bTop1.style.fill = '#c62828';
+                bTop2.style.fill = '#c62828';
+                
+                svgLayer.style.opacity = 1;
+                threeLayer.style.opacity = 0;
+                threeLayer.style.pointerEvents = 'none';
+            }
+            else if (currentStep === 3) {
+                // Step 3: Fold B
+                groupA.style.opacity = 0;
+                labelA.style.opacity = 0;
+                labelB.style.opacity = 0;
+                
+                svgLayer.style.opacity = 0;
+                threeLayer.style.opacity = 1;
+                threeLayer.style.pointerEvents = 'auto';
+                
+                // Trigger Three.js animation for B
+                playAnimationB();
+            }
+            else if (currentStep === 4) {
+                // Step 4: Fold A
+                svgLayer.style.opacity = 0;
+                threeLayer.style.opacity = 1;
+                threeLayer.style.pointerEvents = 'auto';
+                
+                // Trigger Three.js animation for A
+                playAnimationA();
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+
+        // Three.js Setup
+        const scene = new THREE.Scene();
+        scene.background = null; // transparent
+        
+        const camera = new THREE.PerspectiveCamera(45, 800 / 500, 1, 2000);
+        // To match 1.5x scale in SVG:
+        // SVG height is 500. 1 unit in Three.js = 1 pixel in SVG if camera distance is correct.
+        // distance = (height / 2) / Math.tan(fov / 2)
+        // distance = 250 / Math.tan(22.5 * Math.PI / 180) = 603.55
+        // Since we want 1.5x scale, we can either scale the objects or move the camera closer.
+        // Let's scale the objects by 1.5.
+        camera.position.set(0, 0, 603.55);
+        
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(800, 500);
+        threeLayer.appendChild(renderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.enablePan = false;
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(100, 200, 300);
+        scene.add(dirLight);
+
+        // Materials
+        const matNormal = new THREE.MeshLambertMaterial({ color: 0xe0e0e0, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+        const matRed = new THREE.MeshLambertMaterial({ color: 0xc62828, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+        const matGreen = new THREE.MeshLambertMaterial({ color: 0x2e7d32, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+        const matEdge = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+
+        function createRect() {
+            const geom = new THREE.PlaneGeometry(40, 100);
+            const mesh = new THREE.Mesh(geom, matNormal);
+            const edges = new THREE.EdgesGeometry(geom);
+            const line = new THREE.LineSegments(edges, matEdge);
+            mesh.add(line);
+            return mesh;
+        }
+
+        function createTriangle(mat) {
+            const shape = new THREE.Shape();
+            shape.moveTo(-20, 0);
+            shape.lineTo(20, 0);
+            shape.lineTo(0, 34.64);
+            shape.lineTo(-20, 0);
+            const geom = new THREE.ShapeGeometry(shape);
+            const mesh = new THREE.Mesh(geom, mat);
+            const edges = new THREE.EdgesGeometry(geom);
+            const line = new THREE.LineSegments(edges, matEdge);
+            mesh.add(line);
+            return mesh;
+        }
+
+        // Group B
+        const group3DB = new THREE.Group();
+        group3DB.scale.set(1.5, 1.5, 1.5);
+        scene.add(group3DB);
+        
+        const bCenter = createRect();
+        group3DB.add(bCenter);
+        
+        const bLeftHinge = new THREE.Group();
+        bLeftHinge.position.set(-20, 0, 0);
+        bCenter.add(bLeftHinge);
+        const bLeft = createRect();
+        bLeft.position.set(-20, 0, 0);
+        bLeftHinge.add(bLeft);
+        
+        const bRightHinge = new THREE.Group();
+        bRightHinge.position.set(20, 0, 0);
+        bCenter.add(bRightHinge);
+        const bRight = createRect();
+        bRight.position.set(20, 0, 0);
+        bRightHinge.add(bRight);
+        
+        const bTop1Hinge = new THREE.Group();
+        bTop1Hinge.position.set(0, 50, 0);
+        bLeft.add(bTop1Hinge);
+        const bTop1Mesh = createTriangle(matRed);
+        bTop1Hinge.add(bTop1Mesh);
+        
+        const bTop2Hinge = new THREE.Group();
+        bTop2Hinge.position.set(0, 50, 0);
+        bRight.add(bTop2Hinge);
+        const bTop2Mesh = createTriangle(matRed);
+        bTop2Hinge.add(bTop2Mesh);
+
+        // Group A
+        const group3DA = new THREE.Group();
+        group3DA.scale.set(1.5, 1.5, 1.5);
+        scene.add(group3DA);
+        
+        const aCenter = createRect();
+        group3DA.add(aCenter);
+        
+        const aLeftHinge = new THREE.Group();
+        aLeftHinge.position.set(-20, 0, 0);
+        aCenter.add(aLeftHinge);
+        const aLeft = createRect();
+        aLeft.position.set(-20, 0, 0);
+        aLeftHinge.add(aLeft);
+        
+        const aRightHinge = new THREE.Group();
+        aRightHinge.position.set(20, 0, 0);
+        aCenter.add(aRightHinge);
+        const aRight = createRect();
+        aRight.position.set(20, 0, 0);
+        aRightHinge.add(aRight);
+        
+        const aTopHinge = new THREE.Group();
+        aTopHinge.position.set(0, 50, 0);
+        aLeft.add(aTopHinge);
+        const aTopMesh = createTriangle(matGreen);
+        aTopHinge.add(aTopMesh);
+        
+        const aBottomHinge = new THREE.Group();
+        aBottomHinge.position.set(0, -50, 0);
+        aBottomHinge.rotation.z = Math.PI; // point downwards
+        aRight.add(aBottomHinge);
+        const aBottomMesh = createTriangle(matGreen);
+        aBottomHinge.add(aBottomMesh);
+
+        group3DA.visible = false;
+        group3DB.visible = false;
+
+        let animStartTime = 0;
+        let currentAnim = null;
+
+        function playAnimationB() {
+            group3DA.visible = false;
+            group3DB.visible = true;
+            
+            // Reset B
+            bLeftHinge.rotation.y = 0;
+            bRightHinge.rotation.y = 0;
+            bTop1Hinge.rotation.x = 0;
+            bTop2Hinge.rotation.x = 0;
+            camera.position.set(0, 0, 603.55);
+            controls.target.set(0, 0, 0);
+            
+            animStartTime = performance.now();
+            currentAnim = 'B';
+        }
+
+        function playAnimationA() {
+            group3DB.visible = false;
+            group3DA.visible = true;
+            
+            // Reset A
+            aLeftHinge.rotation.y = 0;
+            aRightHinge.rotation.y = 0;
+            aTopHinge.rotation.x = 0;
+            aBottomHinge.rotation.x = 0;
+            camera.position.set(0, 0, 603.55);
+            controls.target.set(0, 0, 0);
+            
+            animStartTime = performance.now();
+            currentAnim = 'A';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            if (currentAnim) {
+                const elapsed = performance.now() - animStartTime;
+                const duration = 2000;
+                let t = Math.min(elapsed / duration, 1);
+                // Ease in out
+                t = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                
+                if (currentAnim === 'B') {
+                    bLeftHinge.rotation.y = t * Math.PI * 2 / 3; // 120 deg
+                    bRightHinge.rotation.y = -t * Math.PI * 2 / 3;
+                    bTop1Hinge.rotation.x = t * Math.PI / 2; // 90 deg
+                    bTop2Hinge.rotation.x = t * Math.PI / 2;
+                    
+                    // Move camera
+                    camera.position.set(
+                        t * 250,
+                        t * 200,
+                        603.55 - t * 253.55 // to 350
+                    );
+                } else if (currentAnim === 'A') {
+                    aLeftHinge.rotation.y = t * Math.PI * 2 / 3;
+                    aRightHinge.rotation.y = -t * Math.PI * 2 / 3;
+                    aTopHinge.rotation.x = t * Math.PI / 2;
+                    aBottomHinge.rotation.x = -t * Math.PI / 2; // fold inwards
+                    
+                    // Move camera
+                    camera.position.set(
+                        t * 250,
+                        t * 200,
+                        603.55 - t * 253.55
+                    );
+                }
+                
+                if (t === 1) {
+                    currentAnim = null;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+        updateState();
+    </script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电粒子在复合场中的运动分解</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-controls button { padding: 8px 20px; font-size: 14px; cursor: pointer; background: #1976d2; color: white; border: none; border-radius: 4px; }
+        #scene1-controls button:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene1-controls button:hover:not(:disabled) { background: #1565c0; }
+        #scene1-step-indicator { font-size: 14px; color: #424242; font-weight: bold; }
+        .velocity-label { font-size: 14px; fill: #000000; }
+        .force-label { font-size: 14px; fill: #000000; }
+        .position-label { font-size: 14px; fill: #000000; font-weight: bold; }
+        .displacement-label { font-size: 14px; fill: #000000; }
+        .field-label { font-size: 14px; fill: #000000; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- 箭头标记定义 -->
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <!-- 轨迹渐变 -->
+                <linearGradient id="trajectoryGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#1565c0;stop-opacity:0.3"/>
+                    <stop offset="100%" style="stop-color:#1565c0;stop-opacity:0.1"/>
+                </linearGradient>
+            </defs>
+
+            <!-- 电场线（5 条） -->
+            <line x1="50" y1="100" x2="740" y2="100" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="50" y1="180" x2="740" y2="180" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="50" y1="260" x2="740" y2="260" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="50" y1="340" x2="740" y2="340" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="50" y1="420" x2="740" y2="420" stroke="#000000" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+            <!-- E 标签 -->
+            <text id="scene1-e-label" class="field-label" x="760" y="105">E</text>
+
+            <!-- A 点 -->
+            <circle id="scene1-point-a" cx="150" cy="340" r="3" fill="#000000"/>
+            <text id="scene1-label-a" class="position-label" x="130" y="345">A</text>
+
+            <!-- v₀矢量（蓝色竖直向上） -->
+            <line id="scene1-vec-v0" x1="150" y1="340" x2="150" y2="260" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+            <text id="scene1-label-v0" class="velocity-label" x="135" y="250">v₀</text>
+
+            <!-- B 点（初始隐藏） -->
+            <circle id="scene1-point-b" cx="550" cy="180" r="3" fill="#000000" style="display:none;"/>
+            <text id="scene1-label-b" class="position-label" x="560" y="175" style="display:none;">B</text>
+
+            <!-- mg 矢量（红色虚线向下，初始隐藏） -->
+            <line id="scene1-vec-mg" x1="150" y1="340" x2="150" y2="390" stroke="#c62828" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead-red)" style="display:none;"/>
+            <text id="scene1-label-mg" class="force-label" x="160" y="395" style="display:none;">mg</text>
+
+            <!-- qE 矢量（绿色虚线向右，初始隐藏） -->
+            <line id="scene1-vec-qe" x1="150" y1="340" x2="220" y2="340" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead-green)" style="display:none;"/>
+            <text id="scene1-label-qe" class="force-label" x="230" y="355" style="display:none;">qE</text>
+
+            <!-- 轨迹曲线（初始隐藏） -->
+            <path id="scene1-trajectory" d="M 150,340 Q 350,340 550,180" fill="none" stroke="#1565c0" stroke-width="2" stroke-opacity="0.5" style="display:none;"/>
+            <path id="scene1-trajectory-fill" d="M 150,340 Q 350,340 550,180 L 550,340 Z" fill="url(#trajectoryGradient)" style="display:none;"/>
+
+            <!-- 水平位移线（初始隐藏） -->
+            <line id="scene1-disp-horizontal" x1="150" y1="340" x2="550" y2="340" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" style="display:none;"/>
+            <!-- 竖直位移线（初始隐藏） -->
+            <line id="scene1-disp-vertical" x1="550" y1="340" x2="550" y2="180" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" style="display:none;"/>
+
+            <!-- x 标签（初始隐藏） -->
+            <text id="scene1-label-x" class="displacement-label" x="350" y="355" style="display:none;">x</text>
+            <!-- h 标签（初始隐藏） -->
+            <text id="scene1-label-h" class="displacement-label" x="565" y="260" style="display:none;">h</text>
+
+            <!-- 直角符号（初始隐藏） -->
+            <line id="scene1-right-angle-1" x1="550" y1="340" x2="535" y2="340" stroke="#888888" stroke-width="1" style="display:none;"/>
+            <line id="scene1-right-angle-2" x1="550" y1="340" x2="550" y2="325" stroke="#888888" stroke-width="1" style="display:none;"/>
+
+            <!-- v_B矢量（红色水平向右，初始隐藏） -->
+            <line id="scene1-vec-vb" x1="550" y1="180" x2="630" y2="180" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-red)" style="display:none;"/>
+            <text id="scene1-label-vb" class="velocity-label" x="640" y="175" style="display:none;">v_B=2v₀</text>
+
+            <!-- 速度分解标注（初始隐藏）- 移到轨迹左侧空白区域 -->
+            <text id="scene1-vel-decomp-a" class="velocity-label" x="80" y="300" style="display:none;fill:#1565c0;">v_x=0, v_y=v₀</text>
+            <text id="scene1-vel-decomp-b" class="velocity-label" x="555" y="140" style="display:none;fill:#c62828;">v_x=2v₀, v_y=0</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 场景 1：带电粒子在复合场中的运动分解
+        // 布局坐标表对照：
+        // | 元素 | 位置 | 备注 |
+        // | A 点 | (150,340) | 黑色圆点 |
+        // | B 点 | (550,180) | 黑色圆点 |
+        // | 电场线 y | 100/180/260/340/420 | 5 条水平线 |
+        // | v₀矢量 | (150,340)→(150,260) | 蓝色竖直向上 |
+        // | v_B矢量 | (550,180)→(630,180) | 红色水平向右 |
+        // | mg 矢量 | (150,340)→(150,390) | 红色虚线向下 |
+        // | qE 矢量 | (150,340)→(220,340) | 绿色虚线向右 |
+
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+
+        // 元素 ID 映射
+        const elements = {
+            // 步骤 1 新增
+            pointB: 'scene1-point-b',
+            labelB: 'scene1-label-b',
+            vecMg: 'scene1-vec-mg',
+            labelMg: 'scene1-label-mg',
+            vecQe: 'scene1-vec-qe',
+            labelQe: 'scene1-label-qe',
+            // 步骤 2 新增
+            trajectory: 'scene1-trajectory',
+            trajectoryFill: 'scene1-trajectory-fill',
+            dispHorizontal: 'scene1-disp-horizontal',
+            dispVertical: 'scene1-disp-vertical',
+            labelX: 'scene1-label-x',
+            labelH: 'scene1-label-h',
+            rightAngle1: 'scene1-right-angle-1',
+            rightAngle2: 'scene1-right-angle-2',
+            // 步骤 3 新增
+            vecVb: 'scene1-vec-vb',
+            labelVb: 'scene1-label-vb',
+            // 步骤 4 新增
+            velDecompA: 'scene1-vel-decomp-a',
+            velDecompB: 'scene1-vel-decomp-b'
+        };
+
+        const controls = {
+            prevBtn: document.getElementById('scene1-prev-btn'),
+            nextBtn: document.getElementById('scene1-next-btn'),
+            indicator: document.getElementById('scene1-step-indicator')
+        };
+
+        // 显示元素
+        function show(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 隐藏元素
+        function hide(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            controls.prevBtn.disabled = (currentStep === 0);
+            controls.nextBtn.disabled = (currentStep === TOTAL_STEPS - 1);
+            controls.indicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 步骤 0：初始状态 - 只显示电场线、A 点、v₀
+            // 步骤 1：新增 mg、qE、B 点
+            if (currentStep >= 1) {
+                show(elements.pointB);
+                show(elements.labelB);
+                show(elements.vecMg);
+                show(elements.labelMg);
+                show(elements.vecQe);
+                show(elements.labelQe);
+            } else {
+                hide(elements.pointB);
+                hide(elements.labelB);
+                hide(elements.vecMg);
+                hide(elements.labelMg);
+                hide(elements.vecQe);
+                hide(elements.labelQe);
+            }
+
+            // 步骤 2：新增轨迹、位移标注
+            if (currentStep >= 2) {
+                show(elements.trajectory);
+                show(elements.trajectoryFill);
+                show(elements.dispHorizontal);
+                show(elements.dispVertical);
+                show(elements.labelX);
+                show(elements.labelH);
+                show(elements.rightAngle1);
+                show(elements.rightAngle2);
+            } else {
+                hide(elements.trajectory);
+                hide(elements.trajectoryFill);
+                hide(elements.dispHorizontal);
+                hide(elements.dispVertical);
+                hide(elements.labelX);
+                hide(elements.labelH);
+                hide(elements.rightAngle1);
+                hide(elements.rightAngle2);
+            }
+
+            // 步骤 3：新增 v_B矢量
+            if (currentStep >= 3) {
+                show(elements.vecVb);
+                show(elements.labelVb);
+            } else {
+                hide(elements.vecVb);
+                hide(elements.labelVb);
+            }
+
+            // 步骤 4：新增速度分解标注
+            if (currentStep >= 4) {
+                show(elements.velDecompA);
+                show(elements.velDecompB);
+            } else {
+                hide(elements.velDecompA);
+                hide(elements.velDecompB);
+            }
+
+            updateButtons();
+        }
+
+        // 下一步
+        function nextStep() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        }
+
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        }
+
+        // 绑定事件
+        controls.nextBtn.addEventListener('click', nextStep);
+        controls.prevBtn.addEventListener('click', prevStep);
+
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

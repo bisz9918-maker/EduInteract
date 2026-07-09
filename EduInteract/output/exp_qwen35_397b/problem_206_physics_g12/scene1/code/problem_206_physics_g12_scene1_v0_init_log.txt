@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电场中两球碰撞模型 - 场景 1</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 200px;
+            text-align: center;
+        }
+        /* 脉冲动画 */
+        @keyframes scene1-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .scene1-pulsing {
+            animation: scene1-pulse 1s ease-in-out infinite;
+        }
+        /* 元素显隐控制 */
+        .scene1-hidden {
+            display: none !important;
+            opacity: 0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000000" />
+                </marker>
+                <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+                <marker id="scene1-arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#2e7d32" />
+                </marker>
+            </defs>
+
+            <!-- 上电场线 -->
+            <line id="scene1-field-line-top" x1="50" y1="100" x2="750" y2="100" stroke="#000000" stroke-width="3" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- 下电场线 -->
+            <line id="scene1-field-line-bottom" x1="50" y1="350" x2="750" y2="350" stroke="#000000" stroke-width="3" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- E 标签 -->
+            <text id="scene1-field-label-E" x="760" y="95" font-size="18" fill="#000000" font-style="italic">E</text>
+            
+            <!-- 轨迹虚线 -->
+            <line id="scene1-trajectory" x1="100" y1="225" x2="700" y2="225" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" />
+            
+            <!-- 距离 L 双向箭头 -->
+            <g id="scene1-group-distance-L">
+                <line id="scene1-distance-L" x1="200" y1="280" x2="500" y2="280" stroke="#1565c0" stroke-width="2" marker-start="url(#scene1-arrowhead-blue)" marker-end="url(#scene1-arrowhead-blue)" />
+                <text id="scene1-label-L" x="350" y="298" font-size="16" fill="#1565c0" text-anchor="middle">L</text>
+            </g>
+            
+            <!-- A 球相关元素 -->
+            <g id="scene1-group-ball-a">
+                <!-- A 球 -->
+                <circle id="scene1-ball-a" cx="200" cy="225" r="12" fill="#000000" />
+                <!-- A 球标签 -->
+                <text id="scene1-label-a" x="200" y="255" font-size="16" fill="#000000" text-anchor="middle">A</text>
+                <!-- A 球质量 m -->
+                <text id="scene1-label-ma" x="175" y="195" font-size="14" fill="#000000" text-anchor="end">m</text>
+                <!-- A 球电荷 +q -->
+                <text id="scene1-label-qa" x="225" y="180" font-size="14" fill="#000000" text-anchor="start">+q</text>
+            </g>
+            
+            <!-- B 球相关元素 -->
+            <g id="scene1-group-ball-b">
+                <!-- B 球 -->
+                <circle id="scene1-ball-b" cx="500" cy="225" r="12" fill="#000000" />
+                <!-- B 球标签 -->
+                <text id="scene1-label-b" x="500" y="255" font-size="16" fill="#000000" text-anchor="middle">B</text>
+                <!-- B 球质量 m -->
+                <text id="scene1-label-mb" x="485" y="205" font-size="14" fill="#000000" text-anchor="end">m</text>
+            </g>
+            
+            <!-- 电场力 qE 箭头及标签（步骤 1、2 显示） -->
+            <g id="scene1-group-force" class="scene1-hidden">
+                <line id="scene1-force-arrow" x1="212" y1="225" x2="292" y2="225" stroke="#c62828" stroke-width="4" marker-end="url(#scene1-arrowhead-red)" />
+                <text id="scene1-force-label" x="252" y="210" font-size="14" fill="#c62828" text-anchor="middle">qE</text>
+            </g>
+            
+            <!-- 速度 v₀ 箭头及标签（步骤 3 显示） -->
+            <g id="scene1-group-velocity" class="scene1-hidden">
+                <line id="scene1-velocity-arrow" x1="212" y1="225" x2="312" y2="225" stroke="#2e7d32" stroke-width="4" marker-end="url(#scene1-arrowhead-green)" />
+                <text id="scene1-velocity-label" x="262" y="210" font-size="14" fill="#2e7d32" text-anchor="middle">v₀</text>
+            </g>
+            
+            <!-- 碰撞后状态（步骤 4 显示） -->
+            <g id="scene1-group-collision" class="scene1-hidden">
+                <!-- 碰撞后 B 速度箭头 -->
+                <line id="scene1-collision-velocity-b" x1="512" y1="225" x2="612" y2="225" stroke="#2e7d32" stroke-width="4" marker-end="url(#scene1-arrowhead-green)" />
+                <text id="scene1-collision-velocity-label-b" x="562" y="210" font-size="14" fill="#2e7d32" text-anchor="middle">v₀</text>
+                <!-- 碰撞后 A 静止标签 -->
+                <text id="scene1-collision-velocity-label-a" x="200" y="175" font-size="14" fill="#000000" text-anchor="middle">0</text>
+            </g>
+            
+            <!-- 移动后的 A 球（步骤 3、4 显示，与 B 重合） -->
+            <g id="scene1-group-ball-a-moved" class="scene1-hidden">
+                <circle id="scene1-ball-a-moved" cx="500" cy="225" r="12" fill="#000000" />
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/4：初始状态</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 上电场线 | 线段+箭头 | (50,100)-(750,100) | 700×3 | - | 带向右箭头 |
+        // | 下电场线 | 线段+箭头 | (50,350)-(750,350) | 700×3 | - | 带向右箭头 |
+        // | E 标签 | text | (760,95) | ~20×18 | 右侧 | 上电场线右端 |
+        // | 轨迹虚线 | 虚线 | (100,225)-(700,225) | 600×2 | - | 两球运动轨迹 |
+        // | A 球 | 实心圆 | (200,225) | r=12 | - | 左侧小球 |
+        // | B 球 | 实心圆 | (500,225) | r=12 | - | 右侧小球 |
+        // | A 球标签 | text | (200,255) | ~12×16 | 下方 | "A" 在球正下方 |
+        // | B 球标签 | text | (500,255) | ~12×16 | 下方 | "B" 在球正下方 |
+        // | A 球质量 | text | (175,195) | ~14×14 | 左上 | "m" 在 A 球左上方 |
+        // | A 球电荷 | text | (225,180) | ~20×14 | 右上 | "+q" 在 A 球右上方（向上调整避免与 qE 拥挤） |
+        // | B 球质量 | text | (485,205) | ~14×14 | 左上 | "m" 在 B 球左上方 |
+        // | 距离 L 双向箭头 | 双向箭头 | (200,280)-(500,280) | 300×3 | - | 两球下方 |
+        // | L 标签 | text | (350,295) | ~14×16 | 下方 | 双向箭头中点下方 |
+        // | 电场力 qE 箭头 | 箭头 | (212,225)-(292,225) | 80×4 | - | 从 A 球右边缘向右 |
+        // | qE 标签 | text | (252,210) | ~24×14 | 上方 | 电场力箭头上方 |
+        // | 速度 v₀ 箭头 | 箭头 | (212,225)-(312,225) | 100×4 | - | 从 A 球右边缘向右 |
+        // | v₀ 标签 | text | (262,210) | ~20×14 | 上方 | 速度箭头上方 |
+        // | 碰撞后 B 速度箭头 | 箭头 | (512,225)-(612,225) | 100×4 | - | 从 B 球右边缘向右 |
+        // | 碰撞后 A 速度标签 | text | (200,175) | ~12×14 | 上方 | "0" 表示 A 静止 |
+        // | 控件栏背景 | 矩形 | (0,440)-(800,500) | 800×60 | - | SVG 内底部 |
+        // | 上一步按钮 | 按钮 | (250,455) | 100×35 | - | 控件栏左侧 |
+        // | 下一步按钮 | 按钮 | (450,455) | 100×35 | - | 控件栏右侧 |
+        // | 步骤指示 | text | (400,470) | ~80×16 | - | 控件栏中央 |
+
+        const totalSteps = 5; // 步骤 0-4
+        let currentStep = 0;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 元素组
+        const groupInitial = document.getElementById('scene1-group-distance-L');
+        const groupForce = document.getElementById('scene1-group-force');
+        const groupVelocity = document.getElementById('scene1-group-velocity');
+        const groupCollision = document.getElementById('scene1-group-collision');
+        const groupBallAMoved = document.getElementById('scene1-group-ball-a-moved');
+        
+        // 电场力箭头（用于脉冲动画）
+        const forceArrow = document.getElementById('scene1-force-arrow');
+        const forceLabel = document.getElementById('scene1-force-label');
+
+        // 步骤说明文本
+        const stepDescriptions = [
+            '步骤 0/4：初始状态',
+            '步骤 1/4：受力分析',
+            '步骤 2/4：加速运动',
+            '步骤 3/4：碰撞瞬间',
+            '步骤 4/4：速度交换'
+        ];
+
+        // 显示/隐藏工具函数
+        function showElement(el) {
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.style.display = '';
+                el.style.opacity = '';
+            }
+        }
+
+        function hideElement(el) {
+            if (el) {
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+            
+            // 更新步骤指示
+            stepIndicator.textContent = stepDescriptions[currentStep];
+            
+            // 根据步骤显示/隐藏元素
+            switch (currentStep) {
+                case 0: // 初始状态
+                    showElement(groupInitial);
+                    hideElement(groupForce);
+                    hideElement(groupVelocity);
+                    hideElement(groupCollision);
+                    hideElement(groupBallAMoved);
+                    forceArrow.classList.remove('scene1-pulsing');
+                    forceLabel.classList.remove('scene1-pulsing');
+                    break;
+                    
+                case 1: // 受力分析
+                    showElement(groupInitial);
+                    showElement(groupForce);
+                    hideElement(groupVelocity);
+                    hideElement(groupCollision);
+                    hideElement(groupBallAMoved);
+                    forceArrow.classList.remove('scene1-pulsing');
+                    forceLabel.classList.remove('scene1-pulsing');
+                    break;
+                    
+                case 2: // 加速运动（电场力脉冲动画）
+                    showElement(groupInitial);
+                    showElement(groupForce);
+                    hideElement(groupVelocity);
+                    hideElement(groupCollision);
+                    hideElement(groupBallAMoved);
+                    forceArrow.classList.add('scene1-pulsing');
+                    forceLabel.classList.add('scene1-pulsing');
+                    break;
+                    
+                case 3: // 碰撞瞬间
+                    hideElement(groupInitial);
+                    hideElement(groupForce);
+                    showElement(groupVelocity);
+                    hideElement(groupCollision);
+                    showElement(groupBallAMoved);
+                    forceArrow.classList.remove('scene1-pulsing');
+                    forceLabel.classList.remove('scene1-pulsing');
+                    break;
+                    
+                case 4: // 速度交换
+                    hideElement(groupInitial);
+                    hideElement(groupForce);
+                    hideElement(groupVelocity);
+                    showElement(groupCollision);
+                    showElement(groupBallAMoved);
+                    forceArrow.classList.remove('scene1-pulsing');
+                    forceLabel.classList.remove('scene1-pulsing');
+                    break;
+            }
+        }
+
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

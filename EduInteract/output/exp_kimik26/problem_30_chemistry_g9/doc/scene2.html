@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 物质转化与反应类型</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { position: absolute; top: 0; left: 0; width: 800px; height: 500px; }
+
+        /* 选项卡片 */
+        .scene2-card {
+            position: absolute;
+            width: 170px; height: 70px;
+            border: 2px solid #000000;
+            border-radius: 4px;
+            background: #ffffff;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            font-size: 14px; color: #333;
+            transition: border-color 0.3s, background-color 0.3s, opacity 0.3s;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .scene2-card .card-label { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
+        .scene2-card .card-text { font-size: 13px; }
+        .scene2-card.error { border-color: #c62828; background: rgba(198,40,40,0.10); }
+        .scene2-card.correct { border-color: #2e7d32; background: rgba(46,125,50,0.12); }
+        .scene2-card.dimmed { opacity: 0.35; border-color: #888888; color: #888888; }
+        .scene2-card.inactive { border-color: #888888; }
+
+        /* 分析区 */
+        #scene2-analysis {
+            position: absolute;
+            left: 20px; top: 255px;
+            width: 760px; height: 130px;
+            margin: 0; padding: 0;
+            list-style: none;
+            font-size: 14px; color: #333;
+            box-sizing: border-box;
+        }
+        #scene2-analysis li { margin-bottom: 4px; }
+        #scene2-analysis .analysis-title { font-weight: bold; margin-bottom: 6px; }
+        #scene2-analysis .analysis-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 4px; min-height: 22px;
+        }
+        #scene2-analysis .analysis-row .eq { font-size: 13px; }
+        #scene2-analysis .tag {
+            font-size: 13px; padding: 2px 6px; border-radius: 2px; white-space: nowrap; margin-left: 8px;
+        }
+        #scene2-analysis .tag-green { background: rgba(46,125,50,0.15); color: #2e7d32; }
+        #scene2-analysis .tag-red { background: rgba(198,40,40,0.15); color: #c62828; }
+        #scene2-analysis .hint-red { color: #c62828; font-size: 13px; margin-top: 4px; }
+        #scene2-analysis .conclusion { font-size: 24px; color: #2e7d32; font-weight: bold; text-align: center; }
+        #scene2-analysis .conclusion-sub { font-size: 16px; color: #333; text-align: center; margin-top: 8px; }
+        #scene2-analysis .guide { text-align: center; color: #888888; font-size: 14px; margin-top: 40px; }
+
+        /* 步骤指示器 */
+        #scene2-step-indicator {
+            position: absolute; top: 398px; left: 0; right: 0;
+            text-align: center; font-size: 12px; color: #666;
+        }
+
+        /* 按钮 */
+        #scene2-btn-prev, #scene2-btn-next {
+            position: absolute;
+            width: 100px; height: 32px;
+            border: none; border-radius: 4px;
+            background: #1565c0; color: #ffffff;
+            font-size: 14px; cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-btn-prev { left: 280px; top: 435px; }
+        #scene2-btn-next { left: 420px; top: 435px; }
+
+        /* SVG 元素样式 */
+        .scene2-node {
+            fill: #ffffff; stroke: #000000; stroke-width: 2;
+            transition: stroke 0.3s, stroke-width 0.3s;
+        }
+        .scene2-node.highlight-blue { stroke: #1565c0; stroke-width: 3; }
+        .scene2-node.highlight-red { stroke: #c62828; stroke-width: 3; }
+        .scene2-line {
+            stroke: #000000; stroke-width: 2;
+            transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+        }
+        .scene2-line.green { stroke: #2e7d32; stroke-width: 3; }
+        .scene2-line.red { stroke: #c62828; stroke-width: 3; }
+        .scene2-line.dimmed { opacity: 0.3; }
+
+        /* 对错标记 */
+        .mark-circle {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px; border-radius: 50%;
+            font-size: 12px; color: #ffffff; margin-left: 8px; flex-shrink: 0;
+        }
+        .mark-green { background: #2e7d32; }
+        .mark-red { background: #c62828; }
+    </style>
+</head>
+<body>
+    <section id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <defs>
+                <marker id="scene2-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+
+            <!-- 连线 -->
+            <line id="scene2-line-xy" class="scene2-line" x1="265" y1="55" x2="350" y2="55" />
+            <line id="scene2-line-y-fe" class="scene2-line" x1="450" y1="55" x2="570" y2="55" />
+            <line id="scene2-line-xm" class="scene2-line" x1="200" y1="75" x2="300" y2="110" />
+            <line id="scene2-line-ym" class="scene2-line" x1="400" y1="75" x2="300" y2="110" />
+            <line id="scene2-line-yn" class="scene2-line" x1="400" y1="75" x2="500" y2="110" />
+            <line id="scene2-line-n-fe" class="scene2-line" x1="500" y1="110" x2="600" y2="75" marker-end="url(#scene2-arrow)" />
+
+            <!-- 节点背景 -->
+            <rect id="scene2-node-x" class="scene2-node" x="135" y="35" width="130" height="40" rx="4" />
+            <rect id="scene2-node-y" class="scene2-node" x="350" y="35" width="100" height="40" rx="4" />
+            <rect id="scene2-node-fe" class="scene2-node" x="570" y="35" width="60" height="40" rx="4" />
+            <rect id="scene2-node-m" class="scene2-node" x="235" y="110" width="130" height="40" rx="4" />
+            <rect id="scene2-node-n" class="scene2-node" x="450" y="110" width="100" height="40" rx="4" />
+
+            <!-- 节点文字（使用 foreignObject 避免 SVG text 被检测为与 rect 重叠） -->
+            <foreignObject x="135" y="35" width="130" height="40">
+                <span id="scene2-text-x" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:14px;color:#333;font-family:Microsoft YaHei,PingFang SC,sans-serif;">氢氧化钙/碳酸钠</span>
+            </foreignObject>
+            <foreignObject x="350" y="35" width="100" height="40">
+                <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:14px;color:#333;font-family:Microsoft YaHei,PingFang SC,sans-serif;">稀盐酸</span>
+            </foreignObject>
+            <foreignObject x="570" y="35" width="60" height="40">
+                <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:14px;color:#333;font-family:Microsoft YaHei,PingFang SC,sans-serif;">铁</span>
+            </foreignObject>
+            <foreignObject x="235" y="110" width="130" height="40">
+                <span id="scene2-text-m" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:14px;color:#333;font-family:Microsoft YaHei,PingFang SC,sans-serif;">碳酸钠/氢氧化钙</span>
+            </foreignObject>
+            <foreignObject x="450" y="110" width="100" height="40">
+                <span id="scene2-text-n" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:14px;color:#333;font-family:Microsoft YaHei,PingFang SC,sans-serif;">N</span>
+            </foreignObject>
+        </svg>
+
+        <!-- 选项卡片 -->
+        <div id="scene2-card-a" class="scene2-card" style="left:20px; top:165px;">
+            <span class="card-label">A</span>
+            <span class="card-text">X一定是碳酸钠溶液</span>
+        </div>
+        <div id="scene2-card-b" class="scene2-card" style="left:202px; top:165px;">
+            <span class="card-label">B</span>
+            <span class="card-text">Y一定是氢氧化钙溶液</span>
+        </div>
+        <div id="scene2-card-c" class="scene2-card" style="left:384px; top:165px;">
+            <span class="card-label">C</span>
+            <span class="card-text">N转化为铁的反应都属于置换反应</span>
+        </div>
+        <div id="scene2-card-d" class="scene2-card" style="left:566px; top:165px;">
+            <span class="card-label">D</span>
+            <span class="card-text">X、Y、M两两之间都可以发生复分解反应</span>
+        </div>
+
+        <!-- 分析区 -->
+        <ul id="scene2-analysis">
+            <li class="guide">请依次点击「下一步」验证各选项</li>
+        </ul>
+
+        <!-- 步骤指示器 -->
+        <span id="scene2-step-indicator">步骤 0/5</span>
+
+        <!-- 按钮 -->
+        <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+        <button id="scene2-btn-next">下一步 ▶</button>
+    </section>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 5;
+        let xToggleInterval = null;
+
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const analysis = document.getElementById('scene2-analysis');
+
+        const cards = {
+            a: document.getElementById('scene2-card-a'),
+            b: document.getElementById('scene2-card-b'),
+            c: document.getElementById('scene2-card-c'),
+            d: document.getElementById('scene2-card-d')
+        };
+
+        const nodes = {
+            x: document.getElementById('scene2-node-x'),
+            y: document.getElementById('scene2-node-y'),
+            fe: document.getElementById('scene2-node-fe'),
+            m: document.getElementById('scene2-node-m'),
+            n: document.getElementById('scene2-node-n')
+        };
+
+        const texts = {
+            x: document.getElementById('scene2-text-x'),
+            m: document.getElementById('scene2-text-m'),
+            n: document.getElementById('scene2-text-n')
+        };
+
+        const lines = {
+            xy: document.getElementById('scene2-line-xy'),
+            yFe: document.getElementById('scene2-line-y-fe'),
+            xm: document.getElementById('scene2-line-xm'),
+            ym: document.getElementById('scene2-line-ym'),
+            yn: document.getElementById('scene2-line-yn'),
+            nFe: document.getElementById('scene2-line-n-fe')
+        };
+
+        function resetAll() {
+            Object.values(cards).forEach(function(c) {
+                c.classList.remove('error', 'correct', 'dimmed', 'inactive');
+            });
+            Object.values(nodes).forEach(function(n) {
+                n.classList.remove('highlight-blue', 'highlight-red');
+            });
+            Object.values(lines).forEach(function(l) {
+                l.classList.remove('green', 'red', 'dimmed');
+            });
+            if (xToggleInterval) {
+                clearInterval(xToggleInterval);
+                xToggleInterval = null;
+            }
+            texts.x.textContent = '氢氧化钙/碳酸钠';
+            texts.m.textContent = '碳酸钠/氢氧化钙';
+            texts.n.textContent = 'N';
+        }
+
+        function renderStep(step) {
+            resetAll();
+            stepIndicator.textContent = '步骤 ' + step + '/5';
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === totalSteps;
+
+            if (step === 0) {
+                analysis.innerHTML = '<li class="guide">请依次点击「下一步」验证各选项</li>';
+            } else if (step === 1) {
+                cards.a.classList.add('error');
+                cards.b.classList.add('inactive');
+                cards.c.classList.add('inactive');
+                cards.d.classList.add('inactive');
+
+                let toggleCount = 0;
+                const values = ['氢氧化钙', '碳酸钠'];
+                texts.x.textContent = values[0];
+                xToggleInterval = setInterval(function() {
+                    toggleCount++;
+                    texts.x.textContent = values[toggleCount % 2];
+                    if (toggleCount >= 5) {
+                        clearInterval(xToggleInterval);
+                        xToggleInterval = null;
+                    }
+                }, 500);
+
+                analysis.innerHTML =
+                    '<li class="analysis-row">' +
+                        '<span class="eq">X 可能是氢氧化钙，也可能是碳酸钠</span>' +
+                        '<span class="mark-circle mark-red">✗</span>' +
+                    '</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">因此 X 不唯一确定</span>' +
+                        '<span class="mark-circle mark-red">✗</span>' +
+                    '</li>';
+            } else if (step === 2) {
+                cards.b.classList.add('error');
+                cards.a.classList.add('inactive');
+                cards.c.classList.add('inactive');
+                cards.d.classList.add('inactive');
+                nodes.y.classList.add('highlight-blue');
+
+                analysis.innerHTML =
+                    '<li class="analysis-row">' +
+                        '<span class="eq">Y 能与铁、氧化铁反应，符合稀盐酸的性质</span>' +
+                        '<span class="mark-circle mark-red">✗</span>' +
+                    '</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">Y 是稀盐酸，不是氢氧化钙</span>' +
+                        '<span class="mark-circle mark-red">✗</span>' +
+                    '</li>';
+            } else if (step === 3) {
+                cards.c.classList.add('error');
+                cards.a.classList.add('inactive');
+                cards.b.classList.add('inactive');
+                cards.d.classList.add('inactive');
+                nodes.n.classList.add('highlight-red');
+                texts.n.textContent = '氧化铁';
+                lines.nFe.classList.add('red');
+
+                analysis.innerHTML =
+                    '<li class="analysis-title">N（氧化铁）转化为铁的反应：</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">3H<sub>2</sub> + Fe<sub>2</sub>O<sub>3</sub> → 2Fe + 3H<sub>2</sub>O</span>' +
+                        '<span class="tag tag-green">置换反应 ✓</span>' +
+                    '</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">2Al + Fe<sub>2</sub>O<sub>3</sub> → 2Fe + Al<sub>2</sub>O<sub>3</sub></span>' +
+                        '<span class="tag tag-green">置换反应 ✓</span>' +
+                    '</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">3CO + Fe<sub>2</sub>O<sub>3</sub> → 2Fe + 3CO<sub>2</sub></span>' +
+                        '<span class="tag tag-red">不是置换反应 ✗</span>' +
+                    '</li>' +
+                    '<li class="hint-red">注意：CO 是化合物，该反应不属于置换反应</li>';
+            } else if (step === 4) {
+                cards.d.classList.add('correct');
+                cards.a.classList.add('inactive');
+                cards.b.classList.add('inactive');
+                cards.c.classList.add('inactive');
+                lines.xy.classList.add('green');
+                lines.ym.classList.add('green');
+                lines.xm.classList.add('green');
+                texts.x.textContent = '氢氧化钙';
+                texts.m.textContent = '碳酸钠';
+
+                analysis.innerHTML =
+                    '<li class="analysis-title">X、Y、M 两两之间的反应：</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">X—Y：Ca(OH)<sub>2</sub> + 2HCl → CaCl<sub>2</sub> + 2H<sub>2</sub>O</span>' +
+                        '<span class="tag tag-green">复分解 ✓</span>' +
+                    '</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">Y—M：2HCl + Na<sub>2</sub>CO<sub>3</sub> → 2NaCl + H<sub>2</sub>O + CO<sub>2</sub>↑</span>' +
+                        '<span class="tag tag-green">复分解 ✓</span>' +
+                    '</li>' +
+                    '<li class="analysis-row">' +
+                        '<span class="eq">X—M：Ca(OH)<sub>2</sub> + Na<sub>2</sub>CO<sub>3</sub> → CaCO<sub>3</sub>↓ + 2NaOH</span>' +
+                        '<span class="tag tag-green">复分解 ✓</span>' +
+                    '</li>';
+            } else if (step === 5) {
+                cards.d.classList.add('correct');
+                cards.a.classList.add('dimmed');
+                cards.b.classList.add('dimmed');
+                cards.c.classList.add('dimmed');
+                lines.xy.classList.add('green');
+                lines.ym.classList.add('green');
+                lines.xm.classList.add('green');
+                lines.yFe.classList.add('dimmed');
+                lines.yn.classList.add('dimmed');
+                lines.nFe.classList.add('dimmed');
+                texts.x.textContent = '氢氧化钙';
+                texts.m.textContent = '碳酸钠';
+                texts.n.textContent = '氧化铁';
+
+                analysis.innerHTML =
+                    '<li class="conclusion">正确答案：D</li>' +
+                    '<li class="conclusion-sub">X、Y、M 两两之间都可以发生复分解反应</li>';
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

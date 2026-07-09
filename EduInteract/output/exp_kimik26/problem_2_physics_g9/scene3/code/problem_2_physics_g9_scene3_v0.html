@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 小车撞击木块实验</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            z-index: 10;
+        }
+        #scene3-btn-prev,
+        #scene3-btn-next {
+            position: absolute;
+            top: 12px;
+            width: 90px;
+            height: 36px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #scene3-btn-prev {
+            left: 290px;
+        }
+        #scene3-btn-next {
+            left: 420px;
+        }
+        #scene3-btn-prev:disabled,
+        #scene3-btn-next:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene3-step-indicator {
+            position: absolute;
+            left: 370px;
+            top: 52px;
+            width: 60px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+        }
+        /* 公式卡片 HTML 层 */
+        #scene3-formula-card-html {
+            position: absolute;
+            left: 540px;
+            top: 70px;
+            width: 240px;
+            height: 125px;
+            background: rgba(232,245,233,0.3);
+            border: 2px solid #2e7d32;
+            border-radius: 8px;
+            padding: 12px 15px;
+            box-sizing: border-box;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 5;
+            pointer-events: none;
+        }
+        #scene3-formula-card-html .formula-title {
+            font-size: 18px;
+            color: #1565c0;
+            font-weight: bold;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+        #scene3-formula-card-html .formula-line {
+            font-size: 14px;
+            color: #2e7d32;
+            line-height: 1.4;
+            margin-bottom: 5px;
+        }
+        #scene3-formula-card-html .formula-line.bold {
+            font-weight: bold;
+        }
+        #scene3-formula-card-html .checkmark {
+            position: absolute;
+            right: 18px;
+            top: 48px;
+            width: 22px;
+            height: 14px;
+            border-right: 3px solid #2e7d32;
+            border-bottom: 3px solid #2e7d32;
+            transform: rotate(45deg);
+        }
+        /* D正确 HTML 层 */
+        #scene3-text-correct-html {
+            position: absolute;
+            left: 560px;
+            top: 205px;
+            font-size: 18px;
+            color: #2e7d32;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <!-- 公式卡片（HTML 层，避免 SVG text+rect 重叠检测误报） -->
+        <div id="scene3-formula-card-html">
+            <div class="formula-title">Eₖ = ½mv²</div>
+            <div class="formula-line">质量 m 不变</div>
+            <div class="formula-line">速度 v 不变</div>
+            <div class="formula-line bold">∴ 动能 Eₖ 不变</div>
+            <div class="checkmark"></div>
+        </div>
+        <div id="scene3-text-correct-html">D 正确</div>
+
+        <svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 控件背景 -->
+            <rect x="0" y="440" width="800" height="60" fill="#fafafa" stroke="#e0e0e0" stroke-width="1"/>
+
+            <!-- 斜面 -->
+            <line id="scene3-slope" x1="100" y1="160" x2="280" y2="300" stroke="#333" stroke-width="4" stroke-linecap="round"/>
+
+            <!-- 木板 -->
+            <rect id="scene3-board" x="280" y="300" width="440" height="12" fill="#e8d5c4" stroke="#333" stroke-width="2"/>
+
+            <!-- 小车（斜面上） -->
+            <g id="scene3-car-slope" style="opacity: 1; transition: opacity 0.3s ease;">
+                <g transform="rotate(-38, 170, 200)">
+                    <rect x="152" y="184" width="36" height="20" fill="#e0e0e0" stroke="#333" stroke-width="2" rx="2"/>
+                    <circle cx="162" cy="204" r="5" fill="#666"/>
+                    <circle cx="182" cy="204" r="5" fill="#666"/>
+                </g>
+            </g>
+
+            <!-- 小车（平面上） -->
+            <g id="scene3-car-flat" style="opacity: 0; transition: opacity 0.3s ease;">
+                <rect x="364" y="274" width="36" height="20" fill="#e0e0e0" stroke="#333" stroke-width="2" rx="2"/>
+                <circle cx="372" cy="295" r="5" fill="#666"/>
+                <circle cx="392" cy="295" r="5" fill="#666"/>
+            </g>
+
+            <!-- 运动轨迹虚线 -->
+            <line id="scene3-track" x1="425" y1="295" x2="680" y2="295" stroke="#888" stroke-width="2" stroke-dasharray="6,4" style="opacity: 0; transition: opacity 0.3s ease;"/>
+
+            <!-- 撞击点 -->
+            <circle id="scene3-impact" cx="395" cy="285" r="6" fill="#c62828" style="opacity: 0; transition: opacity 0.3s ease;"/>
+
+            <!-- 木块组（含木块、标签、速度矢量） -->
+            <g id="scene3-block-group" transform="translate(425, 285)" style="transition: transform 0.4s ease;">
+                <!-- 木块 -->
+                <rect x="-25" y="-15" width="50" height="30" fill="#d7ccc8" stroke="#333" stroke-width="2" rx="2"/>
+                <!-- 木块标签 -->
+                <text x="0" y="-22" text-anchor="middle" font-size="14" fill="#333">木块</text>
+                <!-- 速度矢量组 -->
+                <g id="scene3-velocity-group" style="opacity: 0; transition: opacity 0.3s ease;">
+                    <line x1="10" y1="-45" x2="75" y2="-45" stroke="#1565c0" stroke-width="3" stroke-linecap="round"/>
+                    <polygon points="80,-45 72,-50 72,-40" fill="#1565c0"/>
+                    <text x="85" y="-50" font-size="16" fill="#1565c0" font-weight="bold">v</text>
+                </g>
+            </g>
+
+            <!-- 静态标签与说明文字 -->
+            <text id="scene3-label-car" x="140" y="150" text-anchor="middle" font-size="14" fill="#333">小车</text>
+            <text id="scene3-label-board" x="660" y="335" text-anchor="middle" font-size="14" fill="#333">木板</text>
+            <text id="scene3-label-smooth" x="340" y="290" text-anchor="middle" font-size="14" fill="#333" style="opacity: 0; transition: opacity 0.3s ease;">光滑</text>
+            <text id="scene3-text-friction" x="340" y="230" text-anchor="middle" font-size="14" fill="#333" style="opacity: 0; transition: opacity 0.3s ease;">无摩擦 → 水平方向不受力</text>
+            <text id="scene3-text-uniform" x="520" y="230" text-anchor="middle" font-size="14" fill="#333" style="opacity: 0; transition: opacity 0.3s ease;">匀速直线运动，v 不变</text>
+        </svg>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev">◀ 上一步</button>
+            <button id="scene3-btn-next">下一步 ▶</button>
+            <span id="scene3-step-indicator">1 / 5</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 状态机
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 元素引用
+        var blockGroup = document.getElementById('scene3-block-group');
+        var velocityGroup = document.getElementById('scene3-velocity-group');
+        var carSlope = document.getElementById('scene3-car-slope');
+        var carFlat = document.getElementById('scene3-car-flat');
+        var impact = document.getElementById('scene3-impact');
+        var track = document.getElementById('scene3-track');
+        var formulaCardHtml = document.getElementById('scene3-formula-card-html');
+        var labelSmooth = document.getElementById('scene3-label-smooth');
+        var textFriction = document.getElementById('scene3-text-friction');
+        var textUniform = document.getElementById('scene3-text-uniform');
+        var textCorrectHtml = document.getElementById('scene3-text-correct-html');
+        var btnPrev = document.getElementById('scene3-btn-prev');
+        var btnNext = document.getElementById('scene3-btn-next');
+        var stepIndicator = document.getElementById('scene3-step-indicator');
+
+        // 木块目标 X 坐标（步骤 0~4）
+        var blockX = [425, 425, 505, 585, 645];
+
+        function setOpacity(el, val) {
+            if (el) el.style.opacity = val;
+        }
+
+        function updateScene(step) {
+            // 木块位置与动画曲线
+            blockGroup.style.transform = 'translate(' + blockX[step] + 'px, 285px)';
+            if (step === 2) {
+                blockGroup.style.transition = 'transform 0.4s ease-out';
+            } else if (step === 3 || step === 4) {
+                blockGroup.style.transition = 'transform 0.4s linear';
+            } else {
+                blockGroup.style.transition = 'transform 0.4s ease';
+            }
+
+            // 小车显隐
+            setOpacity(carSlope, step === 0 ? '1' : '0');
+            if (step === 0) {
+                setOpacity(carFlat, '0');
+            } else if (step === 1) {
+                setOpacity(carFlat, '1');
+            } else {
+                setOpacity(carFlat, '0.3');
+            }
+
+            // 速度矢量
+            setOpacity(velocityGroup, step >= 1 ? '1' : '0');
+
+            // 撞击点
+            setOpacity(impact, step === 1 ? '0.5' : '0');
+
+            // 轨迹
+            setOpacity(track, step >= 2 ? '1' : '0');
+
+            // 光滑标签
+            setOpacity(labelSmooth, step >= 2 ? '1' : '0');
+
+            // 受力分析文字（仅步骤2）
+            setOpacity(textFriction, step === 2 ? '1' : '0');
+
+            // 匀速文字（仅步骤3）
+            setOpacity(textUniform, step === 3 ? '1' : '0');
+
+            // 公式卡片（仅步骤4）
+            setOpacity(formulaCardHtml, step === 4 ? '1' : '0');
+
+            // D正确（仅步骤4）
+            setOpacity(textCorrectHtml, step === 4 ? '1' : '0');
+
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            btnPrev.style.opacity = (step === 0) ? '0.4' : '1';
+            btnNext.disabled = (step === 4);
+            btnNext.style.opacity = (step === 4) ? '0.4' : '1';
+
+            // 步骤指示器
+            stepIndicator.textContent = (step + 1) + ' / ' + totalSteps;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 4) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+
+        // 初始化
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

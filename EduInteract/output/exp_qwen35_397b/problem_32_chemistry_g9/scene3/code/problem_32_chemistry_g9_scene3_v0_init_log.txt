@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 氨气溶解与喷泉效应</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene3-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene3-btn:hover { background: #e0e0e0; }
+        .scene3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene3-hidden { display: none; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 步骤指示器 -->
+            <text id="scene3-step-indicator" x="400" y="30" text-anchor="middle" font-size="16" fill="#333">步骤 1/4</text>
+            
+            <!-- B 瓶瓶体：圆形，圆心 (550,150)，半径 80 -->
+            <circle id="scene3-bottle-b" cx="550" cy="150" r="80" fill="#2e7d32" fill-opacity="0.2" stroke="#000" stroke-width="2"/>
+            
+            <!-- B 瓶瓶颈：矩形 (530,230)-(570,270) -->
+            <rect id="scene3-neck" x="530" y="230" width="40" height="40" fill="none" stroke="#000" stroke-width="2"/>
+            
+            <!-- 瓶塞：矩形 (525,270)-(575,290) -->
+            <rect id="scene3-stopper" x="525" y="270" width="50" height="20" fill="#424242"/>
+            
+            <!-- 胶头滴管：组合图形 -->
+            <g id="scene3-dropper">
+                <!-- 滴管主体 -->
+                <rect x="585" y="250" width="20" height="50" fill="#888" stroke="#333" stroke-width="1"/>
+                <!-- 胶头 -->
+                <ellipse cx="595" cy="245" rx="12" ry="15" fill="#666"/>
+                <!-- 滴管尖端 -->
+                <polygon points="585,300 605,300 595,320" fill="#888" stroke="#333" stroke-width="1"/>
+            </g>
+            
+            <!-- 水滴：椭圆 (590,300)，初始隐藏 -->
+            <ellipse id="scene3-water-drop" cx="595" cy="300" rx="6" ry="10" fill="#1565c0" class="scene3-hidden"/>
+            
+            <!-- 导管（垂直）：(550,290)-(550,420) -->
+            <rect id="scene3-tube-vertical" x="546" y="290" width="8" height="130" fill="#888" stroke="#333" stroke-width="1"/>
+            
+            <!-- 导管（水平段）：(520,420)-(580,420) -->
+            <rect id="scene3-tube-horizontal" x="520" y="418" width="60" height="4" fill="#888" stroke="#333" stroke-width="1"/>
+            
+            <!-- 活塞 a：圆形 (550,350)，半径 10 -->
+            <circle id="scene3-piston-a" cx="550" cy="350" r="10" fill="#ff9800" stroke="#333" stroke-width="1"/>
+            
+            <!-- 烧杯：梯形 (400,420)-(700,490) -->
+            <path id="scene3-beaker" d="M 400 420 L 700 420 L 680 490 L 420 490 Z" fill="none" stroke="#000" stroke-width="2"/>
+            
+            <!-- 烧杯内水面：矩形 (420,450)-(680,490) -->
+            <rect id="scene3-water-level" x="420" y="450" width="260" height="40" fill="#1565c0" fill-opacity="0.4"/>
+            
+            <!-- 喷泉液柱：初始隐藏 -->
+            <path id="scene3-fountain" d="M 540 420 L 560 420 L 555 350 L 545 350 Z" fill="#c62828" fill-opacity="0.6" class="scene3-hidden"/>
+            
+            <!-- 压强指示箭头：向下箭头 (500,150)，初始隐藏 -->
+            <g id="scene3-pressure-arrow" class="scene3-hidden">
+                <polygon points="500,120 490,160 500,150 510,160" fill="#888"/>
+                <rect x="497" y="100" width="6" height="20" fill="#888"/>
+            </g>
+            
+            <!-- 水流方向箭头：向上箭头 (555,380)，初始隐藏 -->
+            <g id="scene3-flow-arrow" class="scene3-hidden">
+                <polygon points="555,360 545,380 555,370 565,380" fill="#1565c0"/>
+                <rect x="552" y="380" width="6" height="20" fill="#1565c0"/>
+            </g>
+            
+            <!-- 导管内水流：初始隐藏 -->
+            <rect id="scene3-tube-flow" x="546" y="380" width="8" height="40" fill="#1565c0" fill-opacity="0.6" class="scene3-hidden"/>
+            
+            <!-- 标签 -->
+            <text id="scene3-label-b" x="550" y="100" text-anchor="middle" font-size="16" fill="#333">B</text>
+            <text id="scene3-label-nh3" x="550" y="155" text-anchor="middle" font-size="14" fill="#2e7d32">NH₃</text>
+            <text id="scene3-label-water" x="690" y="470" font-size="14" fill="#333">水</text>
+            <text id="scene3-label-piston" x="570" y="355" font-size="12" fill="#333">活塞 a</text>
+            
+            <!-- 动态标签：初始隐藏 -->
+            <text id="scene3-label-squeeze" x="630" y="285" font-size="13" fill="#1565c0" class="scene3-hidden">挤入水</text>
+            <text id="scene3-label-dissolve" x="430" y="185" font-size="13" fill="#333" class="scene3-hidden">NH₃溶解</text>
+            <text id="scene3-label-pressure" x="430" y="155" font-size="13" fill="#888" class="scene3-hidden">压强减小</text>
+            <text id="scene3-label-open" x="480" y="355" font-size="13" fill="#333" class="scene3-hidden">打开活塞 a</text>
+            <text id="scene3-label-fountain" x="350" y="465" font-size="13" fill="#c62828" class="scene3-hidden">酚酞变红</text>
+            <text id="scene3-label-alkaline" x="350" y="485" font-size="12" fill="#c62828" class="scene3-hidden">氨水呈碱性</text>
+            
+            <!-- 控件栏 -->
+            <g id="scene3-controls">
+                <rect x="80" y="455" width="100" height="35" fill="#f0f0f0" stroke="#333" stroke-width="1" rx="4"/>
+                <text x="130" y="478" text-anchor="middle" font-size="14" fill="#333" id="scene3-btn-prev-text">◀ 上一步</text>
+                <rect x="620" y="455" width="100" height="35" fill="#f0f0f0" stroke="#333" stroke-width="1" rx="4"/>
+                <text x="670" y="478" text-anchor="middle" font-size="14" fill="#333" id="scene3-btn-next-text">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 - 氨气溶解与喷泉效应
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 元素引用
+        const elements = {
+            stepIndicator: document.getElementById('scene3-step-indicator'),
+            bottleB: document.getElementById('scene3-bottle-b'),
+            waterDrop: document.getElementById('scene3-water-drop'),
+            pressureArrow: document.getElementById('scene3-pressure-arrow'),
+            flowArrow: document.getElementById('scene3-flow-arrow'),
+            tubeFlow: document.getElementById('scene3-tube-flow'),
+            fountain: document.getElementById('scene3-fountain'),
+            labelSqueeze: document.getElementById('scene3-label-squeeze'),
+            labelDissolve: document.getElementById('scene3-label-dissolve'),
+            labelPressure: document.getElementById('scene3-label-pressure'),
+            labelOpen: document.getElementById('scene3-label-open'),
+            labelFountain: document.getElementById('scene3-label-fountain'),
+            labelAlkaline: document.getElementById('scene3-label-alkaline'),
+            pistonA: document.getElementById('scene3-piston-a'),
+            waterLevel: document.getElementById('scene3-water-level'),
+            btnPrevText: document.getElementById('scene3-btn-prev-text'),
+            btnNextText: document.getElementById('scene3-btn-next-text')
+        };
+        
+        // 显示/隐藏工具函数
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene3-hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hide(el) {
+            if (el) {
+                el.classList.add('scene3-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            
+            // 步骤 0：初始状态
+            if (currentStep === 0) {
+                hide(elements.waterDrop);
+                hide(elements.pressureArrow);
+                hide(elements.flowArrow);
+                hide(elements.tubeFlow);
+                hide(elements.fountain);
+                hide(elements.labelSqueeze);
+                hide(elements.labelDissolve);
+                hide(elements.labelPressure);
+                hide(elements.labelOpen);
+                hide(elements.labelFountain);
+                hide(elements.labelAlkaline);
+                elements.bottleB.setAttribute('fill-opacity', '0.2');
+                elements.bottleB.setAttribute('fill', '#2e7d32');
+                elements.pistonA.setAttribute('fill', '#ff9800');
+                elements.waterLevel.setAttribute('y', '450');
+                elements.waterLevel.setAttribute('height', '40');
+            }
+            // 步骤 1：挤入水
+            else if (currentStep === 1) {
+                show(elements.waterDrop);
+                hide(elements.pressureArrow);
+                hide(elements.flowArrow);
+                hide(elements.tubeFlow);
+                hide(elements.fountain);
+                show(elements.labelSqueeze);
+                hide(elements.labelDissolve);
+                hide(elements.labelPressure);
+                hide(elements.labelOpen);
+                hide(elements.labelFountain);
+                hide(elements.labelAlkaline);
+            }
+            // 步骤 2：氨气溶解，压强减小
+            else if (currentStep === 2) {
+                hide(elements.waterDrop);
+                show(elements.pressureArrow);
+                hide(elements.flowArrow);
+                hide(elements.tubeFlow);
+                hide(elements.fountain);
+                hide(elements.labelSqueeze);
+                show(elements.labelDissolve);
+                show(elements.labelPressure);
+                hide(elements.labelOpen);
+                hide(elements.labelFountain);
+                hide(elements.labelAlkaline);
+                elements.bottleB.setAttribute('fill-opacity', '0.1');
+            }
+            // 步骤 3：打开活塞，水被吸入
+            else if (currentStep === 3) {
+                hide(elements.waterDrop);
+                hide(elements.pressureArrow);
+                show(elements.flowArrow);
+                show(elements.tubeFlow);
+                hide(elements.fountain);
+                hide(elements.labelSqueeze);
+                show(elements.labelDissolve);
+                show(elements.labelPressure);
+                show(elements.labelOpen);
+                hide(elements.labelFountain);
+                hide(elements.labelAlkaline);
+                elements.pistonA.setAttribute('fill', '#4caf50');
+                elements.waterLevel.setAttribute('y', '460');
+                elements.waterLevel.setAttribute('height', '30');
+            }
+            // 步骤 4：喷泉形成，酚酞变红
+            else if (currentStep === 4) {
+                hide(elements.waterDrop);
+                hide(elements.pressureArrow);
+                show(elements.flowArrow);
+                show(elements.tubeFlow);
+                show(elements.fountain);
+                hide(elements.labelSqueeze);
+                show(elements.labelDissolve);
+                show(elements.labelPressure);
+                show(elements.labelOpen);
+                show(elements.labelFountain);
+                show(elements.labelAlkaline);
+                elements.pistonA.setAttribute('fill', '#4caf50');
+                elements.bottleB.setAttribute('fill', '#c62828');
+                elements.bottleB.setAttribute('fill-opacity', '0.4');
+                elements.waterLevel.setAttribute('y', '475');
+                elements.waterLevel.setAttribute('height', '15');
+            }
+            
+            // 更新按钮状态
+            elements.btnPrevText.textContent = currentStep > 0 ? '◀ 上一步' : '◀ 上一步';
+            elements.btnPrevText.style.opacity = currentStep > 0 ? '1' : '0.5';
+            elements.btnNextText.textContent = currentStep < totalSteps ? '下一步 ▶' : '完成';
+            elements.btnNextText.style.opacity = currentStep < totalSteps ? '1' : '0.5';
+        }
+        
+        // 点击区域检测
+        function checkClick(x, y) {
+            const svg = document.getElementById('scene3-svg');
+            const rect = svg.getBoundingClientRect();
+            const svgX = x - rect.left;
+            const svgY = y - rect.top;
+            
+            // 上一步按钮区域 (80, 455) - (180, 490)
+            if (svgX >= 80 && svgX <= 180 && svgY >= 455 && svgY <= 490) {
+                if (currentStep > 0) {
+                    currentStep--;
+                    updateScene();
+                }
+                return;
+            }
+            
+            // 下一步按钮区域 (620, 455) - (720, 490)
+            if (svgX >= 620 && svgX <= 720 && svgY >= 455 && svgY <= 490) {
+                if (currentStep < totalSteps) {
+                    currentStep++;
+                    updateScene();
+                }
+                return;
+            }
+        }
+        
+        // 事件监听
+        document.getElementById('scene3-svg').addEventListener('click', function(e) {
+            checkClick(e.clientX, e.clientY);
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

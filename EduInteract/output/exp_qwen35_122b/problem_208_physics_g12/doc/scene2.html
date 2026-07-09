@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 离子在电场中的偏转</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-btn-prev, #scene2-btn-next { padding: 8px 20px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 6px; background: #f5f5f5; }
+        #scene2-btn-prev:hover, #scene2-btn-next:hover { background: #e0e0e0; }
+        #scene2-btn-prev:disabled, #scene2-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { padding: 8px 16px; font-size: 14px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 坐标表对照：
+                上金属板：(150,80)-(650,90) | 下金属板：(150,130)-(650,140)
+                入射虚线：(150,105)-(650,105) | 偏转轨迹：(150,105)→(650,130)
+                电场箭头：(250,95)-(250,125), (450,95)-(450,125)
+                射出点：(650,130) | 射出速度：(650,130)-(719.3,170)
+                水平分量 vx：(650,130)-(730,130) | 竖直分量 vy：(730,130)-(730,170)
+                角度弧线：圆心 (650,130), r=40, 0°到 30°
+                标签：+(400,65), -(400,155), v(140,95), E(230,110), vx=v(690,155), vy(745,145), v'(740,175), θ=30°(675,125)
+            -->
+            
+            <!-- 上金属板 -->
+            <rect id="scene2-plate-top" x="150" y="80" width="500" height="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <!-- 下金属板 -->
+            <rect id="scene2-plate-bottom" x="150" y="130" width="500" height="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 上板"+"标签 -->
+            <text id="scene2-label-plus" x="400" y="65" font-size="16" fill="#000000" text-anchor="middle">+</text>
+            <!-- 下板"-"标签 -->
+            <text id="scene2-label-minus" x="400" y="155" font-size="16" fill="#000000" text-anchor="middle">−</text>
+            
+            <!-- 入射虚线 -->
+            <line id="scene2-incident-line" x1="150" y1="105" x2="650" y2="105" stroke="#999999" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 初速度"v"标签 -->
+            <text id="scene2-label-v" x="140" y="95" font-size="14" fill="#000000" text-anchor="end">v</text>
+            
+            <!-- 电场箭头（步骤 1 显示） -->
+            <g id="scene2-electric-field" style="display: none;">
+                <defs>
+                    <marker id="arrowhead-E" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+                        <path d="M0,0 L8,4 L0,8" fill="#c62828"/>
+                    </marker>
+                </defs>
+                <line x1="250" y1="95" x2="250" y2="125" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-E)"/>
+                <line x1="450" y1="95" x2="450" y2="125" stroke="#c62828" stroke-width="2" marker-end="url(#arrowhead-E)"/>
+            </g>
+            
+            <!-- 电场"E"标签（步骤 1 显示）- 调整位置避免与轨迹重叠 -->
+            <text id="scene2-label-E" x="230" y="110" font-size="14" fill="#000000" text-anchor="end" style="display: none;">E</text>
+            
+            <!-- 偏转轨迹（步骤 1 显示）- 抛物线用二次贝塞尔曲线，控制点下移避免与 E 标签重叠 -->
+            <path id="scene2-trajectory" d="M 150 105 Q 400 118 650 130" fill="none" stroke="#1565c0" stroke-width="2" style="display: none;"/>
+            
+            <!-- 射出点（步骤 2 显示） -->
+            <circle id="scene2-exit-point" cx="650" cy="130" r="4" fill="#c62828" style="display: none;"/>
+            
+            <!-- 射出速度矢量（步骤 2 显示）- 与水平成 30°角 -->
+            <g id="scene2-velocity-exit" style="display: none;">
+                <defs>
+                    <marker id="arrowhead-v" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+                        <path d="M0,0 L8,4 L0,8" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+                <!-- v' = 80px 长度，30°角：x = 650 + 80*cos(30°) ≈ 719.3, y = 130 + 80*sin(30°) = 170 -->
+                <line x1="650" y1="130" x2="719.3" y2="170" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowhead-v)"/>
+            </g>
+            
+            <!-- v'标签（步骤 2 显示）- 调整位置避免与 vy 重叠 -->
+            <text id="scene2-label-v-exit" x="740" y="175" font-size="14" fill="#000000" style="display: none;">v'</text>
+            
+            <!-- 速度分量（步骤 3 显示） -->
+            <g id="scene2-velocity-components" style="display: none;">
+                <defs>
+                    <marker id="arrowhead-vx" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+                        <path d="M0,0 L6,3 L0,6" fill="#888888"/>
+                    </marker>
+                </defs>
+                <!-- 水平分量 vx -->
+                <line x1="650" y1="130" x2="730" y2="130" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arrowhead-vx)"/>
+                <!-- 竖直分量 vy -->
+                <line x1="730" y1="130" x2="730" y2="170" stroke="#888888" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arrowhead-vx)"/>
+            </g>
+            
+            <!-- vx 标签（步骤 3 显示）- 调整位置避免与线和角度标签重叠 -->
+            <text id="scene2-label-vx" x="690" y="155" font-size="14" fill="#000000" text-anchor="middle" style="display: none;">v_x = v</text>
+            
+            <!-- vy 标签（步骤 3 显示）- 调整位置避免与 v'重叠 -->
+            <text id="scene2-label-vy" x="745" y="145" font-size="14" fill="#000000" text-anchor="start" style="display: none;">v_y</text>
+            
+            <!-- 角度弧线（步骤 4 显示） -->
+            <g id="scene2-angle" style="display: none;">
+                <!-- 角度弧线：圆心 (650,130), r=40, 从 0°到 30° -->
+                <!-- 弧线路径：从 (690,130) 到 (650+40*cos(30°), 130+40*sin(30°)) = (684.6, 150) -->
+                <path d="M 690 130 A 40 40 0 0 1 684.6 150" fill="none" stroke="#c62828" stroke-width="1.5"/>
+            </g>
+            
+            <!-- θ=30°标签（步骤 4 显示）- 调整位置避免与 vx 和弧线重叠 -->
+            <text id="scene2-label-angle" x="675" y="125" font-size="14" fill="#000000" text-anchor="middle" style="display: none;">θ=30°</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 离子在电场中的偏转
+        
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+        
+        // 元素 ID 映射
+        const elementsByStep = {
+            0: {
+                show: ['scene2-plate-top', 'scene2-plate-bottom', 'scene2-label-plus', 'scene2-label-minus', 
+                       'scene2-incident-line', 'scene2-label-v'],
+                hide: ['scene2-electric-field', 'scene2-label-E', 'scene2-trajectory', 'scene2-exit-point',
+                       'scene2-velocity-exit', 'scene2-label-v-exit', 'scene2-velocity-components',
+                       'scene2-label-vx', 'scene2-label-vy', 'scene2-angle', 'scene2-label-angle']
+            },
+            1: {
+                show: ['scene2-plate-top', 'scene2-plate-bottom', 'scene2-label-plus', 'scene2-label-minus',
+                       'scene2-incident-line', 'scene2-label-v', 'scene2-electric-field', 'scene2-label-E',
+                       'scene2-trajectory'],
+                hide: ['scene2-exit-point', 'scene2-velocity-exit', 'scene2-label-v-exit',
+                       'scene2-velocity-components', 'scene2-label-vx', 'scene2-label-vy',
+                       'scene2-angle', 'scene2-label-angle']
+            },
+            2: {
+                show: ['scene2-plate-top', 'scene2-plate-bottom', 'scene2-label-plus', 'scene2-label-minus',
+                       'scene2-incident-line', 'scene2-label-v', 'scene2-electric-field', 'scene2-label-E',
+                       'scene2-trajectory', 'scene2-exit-point', 'scene2-velocity-exit', 'scene2-label-v-exit'],
+                hide: ['scene2-velocity-components', 'scene2-label-vx', 'scene2-label-vy',
+                       'scene2-angle', 'scene2-label-angle']
+            },
+            3: {
+                show: ['scene2-plate-top', 'scene2-plate-bottom', 'scene2-label-plus', 'scene2-label-minus',
+                       'scene2-incident-line', 'scene2-label-v', 'scene2-electric-field', 'scene2-label-E',
+                       'scene2-trajectory', 'scene2-exit-point', 'scene2-velocity-exit', 'scene2-label-v-exit',
+                       'scene2-velocity-components', 'scene2-label-vx', 'scene2-label-vy'],
+                hide: ['scene2-angle', 'scene2-label-angle']
+            },
+            4: {
+                show: ['scene2-plate-top', 'scene2-plate-bottom', 'scene2-label-plus', 'scene2-label-minus',
+                       'scene2-incident-line', 'scene2-label-v', 'scene2-electric-field', 'scene2-label-E',
+                       'scene2-trajectory', 'scene2-exit-point', 'scene2-velocity-exit', 'scene2-label-v-exit',
+                       'scene2-velocity-components', 'scene2-label-vx', 'scene2-label-vy',
+                       'scene2-angle', 'scene2-label-angle'],
+                hide: []
+            }
+        };
+        
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            const stepConfig = elementsByStep[currentStep];
+            
+            // 先隐藏所有元素
+            stepConfig.hide.forEach(id => hideElement(id));
+            
+            // 再显示需要的元素
+            stepConfig.show.forEach(id => showElement(id));
+            
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === TOTAL_STEPS - 1);
+        }
+        
+        // 事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

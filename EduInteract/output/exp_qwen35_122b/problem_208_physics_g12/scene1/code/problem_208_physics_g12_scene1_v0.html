@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>速度选择器原理 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #1565c0; border-radius: 4px; background: #ffffff; color: #1565c0; transition: all 0.2s; }
+        .scene1-btn:hover:not(:disabled) { background: #1565c0; color: #ffffff; }
+        .scene1-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .scene1-hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 标题 -->
+            <text id="scene1-title" x="50" y="45" font-size="20" font-weight="bold" fill="#000000">速度选择器原理</text>
+            
+            <!-- 上金属板 -->
+            <rect id="scene1-plate-top" x="150" y="100" width="500" height="15" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 下金属板 -->
+            <rect id="scene1-plate-bottom" x="150" y="185" width="500" height="15" fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 上接线柱 -->
+            <line id="scene1-terminal-top" x1="400" y1="60" x2="400" y2="100" stroke="#000000" stroke-width="2"/>
+            <!-- 下接线柱 -->
+            <line id="scene1-terminal-bottom" x1="400" y1="200" x2="400" y2="240" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 上板"+"标签 -->
+            <text id="scene1-label-plus" x="390" y="50" font-size="16" fill="#000000">+</text>
+            <!-- 下板"-"标签 -->
+            <text id="scene1-label-minus" x="390" y="255" font-size="16" fill="#000000">-</text>
+            
+            <!-- 离子轨迹虚线 -->
+            <line id="scene1-trajectory" x1="100" y1="150" x2="700" y2="150" stroke="#000000" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 离子 -->
+            <circle id="scene1-ion" cx="400" cy="150" r="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+            <text id="scene1-label-q" x="415" y="145" font-size="14" fill="#000000">q</text>
+            
+            <!-- 速度矢量 v -->
+            <g id="scene1-velocity">
+                <line x1="400" y1="150" x2="500" y2="150" stroke="#2e7d32" stroke-width="2"/>
+                <polygon points="500,150 490,145 490,155" fill="#2e7d32"/>
+                <text x="450" y="135" font-size="14" fill="#2e7d32">v</text>
+            </g>
+            
+            <!-- 电场 E 箭头（步骤 1 显示）- 移到更右侧 -->
+            <g id="scene1-field-E" class="scene1-hidden">
+                <line x1="680" y1="120" x2="680" y2="180" stroke="#c62828" stroke-width="2"/>
+                <polygon points="680,180 675,170 685,170" fill="#c62828"/>
+                <text x="690" y="150" font-size="14" fill="#c62828">E</text>
+            </g>
+            
+            <!-- 磁场×符号组（步骤 2 显示）- 调整位置避免与标签重叠 -->
+            <g id="scene1-field-B" class="scene1-hidden">
+                <!-- 磁场符号分布在板间区域，避开离子和标签位置 -->
+                <!-- 左侧区域 (x < 80) -->
+                <text x="60" y="125" font-size="14" fill="#000000">×</text>
+                <text x="60" y="145" font-size="14" fill="#000000">×</text>
+                <text x="60" y="165" font-size="14" fill="#000000">×</text>
+                <!-- 右侧区域 (x > 520) -->
+                <text x="540" y="125" font-size="14" fill="#000000">×</text>
+                <text x="580" y="125" font-size="14" fill="#000000">×</text>
+                <text x="620" y="125" font-size="14" fill="#000000">×</text>
+                <text x="540" y="145" font-size="14" fill="#000000">×</text>
+                <text x="580" y="145" font-size="14" fill="#000000">×</text>
+                <text x="620" y="145" font-size="14" fill="#000000">×</text>
+                <text x="540" y="165" font-size="14" fill="#000000">×</text>
+                <text x="580" y="165" font-size="14" fill="#000000">×</text>
+                <text x="620" y="165" font-size="14" fill="#000000">×</text>
+                <text x="650" y="145" font-size="14" fill="#000000">B₀</text>
+            </g>
+            
+            <!-- 电场力 F_E 箭头（步骤 3 显示）- 调整位置 -->
+            <g id="scene1-force-E" class="scene1-hidden">
+                <line x1="400" y1="150" x2="400" y2="220" stroke="#c62828" stroke-width="2"/>
+                <polygon points="400,220 395,210 405,210" fill="#c62828"/>
+                <text x="415" y="185" font-size="14" fill="#c62828">F_E = qE</text>
+            </g>
+            
+            <!-- 洛伦兹力 F_B 箭头（步骤 3 显示）- 调整位置，移到更左侧 -->
+            <g id="scene1-force-B" class="scene1-hidden">
+                <line x1="400" y1="150" x2="400" y2="80" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="400,80 395,90 405,90" fill="#1565c0"/>
+                <text x="70" y="115" font-size="14" fill="#1565c0">F_B = qvB₀</text>
+            </g>
+            
+            <!-- 平衡条件框（步骤 4 显示）- 调整位置和文本，增加行间距，移到更右侧 -->
+            <rect id="scene1-balance-box" x="600" y="280" width="170" height="150" fill="#e3f2fd" fill-opacity="0.2" stroke="#1565c0" stroke-width="2" class="scene1-hidden"/>
+            <text id="scene1-balance-text" x="615" y="310" font-size="14" fill="#1565c0" class="scene1-hidden">平衡条件：</text>
+            <text id="scene1-balance-f1" x="615" y="345" font-size="14" fill="#1565c0" class="scene1-hidden">F_E = F_B</text>
+            <text id="scene1-balance-f2" x="615" y="380" font-size="14" fill="#1565c0" class="scene1-hidden">qE = qvB₀</text>
+            <text id="scene1-balance-f3" x="615" y="415" font-size="14" fill="#1565c0" class="scene1-hidden">B₀ = E/v</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 速度选择器原理
+        // 布局坐标表对照：
+        // 上金属板：(150,100)-(650,115)
+        // 下金属板：(150,185)-(650,200)
+        // 离子轨迹：(100,150)-(700,150)
+        // 离子：(400,150) 半径 10
+        // 速度矢量 v：(400,150)-(500,150)
+        // 电场 E：(680,120)-(680,180) - 移到更右侧
+        // 磁场×符号：左右两侧分布，避开中间区域
+        // 电场力 F_E：(400,150)-(400,220)
+        // 洛伦兹力 F_B：(400,150)-(400,80) - 标签移到更左侧
+        // 平衡条件框：(600,280)-(770,430) - 移到更右侧
+        
+        const currentStepMax = 4;
+        let currentStep = 0;
+        
+        // 元素 ID 映射
+        const elements = {
+            // 步骤 0 基础元素
+            step0: ['scene1-plate-top', 'scene1-plate-bottom', 'scene1-terminal-top', 'scene1-terminal-bottom',
+                    'scene1-label-plus', 'scene1-label-minus', 'scene1-trajectory', 'scene1-ion', 'scene1-label-q', 'scene1-velocity'],
+            // 步骤 1 新增
+            step1: ['scene1-field-E'],
+            // 步骤 2 新增
+            step2: ['scene1-field-B'],
+            // 步骤 3 新增
+            step3: ['scene1-force-E', 'scene1-force-B'],
+            // 步骤 4 新增
+            step4: ['scene1-balance-box', 'scene1-balance-text', 'scene1-balance-f1', 'scene1-balance-f2', 'scene1-balance-f3']
+        };
+        
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 隐藏所有步骤元素
+            for (let i = 1; i <= currentStepMax; i++) {
+                elements['step' + i].forEach(id => hide(id));
+            }
+            
+            // 根据当前步骤显示对应元素
+            for (let i = 1; i <= currentStep; i++) {
+                elements['step' + i].forEach(id => show(id));
+            }
+            
+            // 步骤 4 特殊处理：高亮受力箭头
+            if (currentStep === 4) {
+                const forceE = document.getElementById('scene1-force-E');
+                const forceB = document.getElementById('scene1-force-B');
+                if (forceE) forceE.style.strokeWidth = '3';
+                if (forceB) forceB.style.strokeWidth = '3';
+            } else {
+                const forceE = document.getElementById('scene1-force-E');
+                const forceB = document.getElementById('scene1-force-B');
+                if (forceE) forceE.style.strokeWidth = '2';
+                if (forceB) forceB.style.strokeWidth = '2';
+            }
+            
+            // 更新按钮状态
+            const btnPrev = document.getElementById('scene1-btn-prev');
+            const btnNext = document.getElementById('scene1-btn-next');
+            
+            if (btnPrev) btnPrev.disabled = (currentStep === 0);
+            if (btnNext) btnNext.disabled = (currentStep === currentStepMax);
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

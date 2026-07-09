@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景 2：时间计算与太阳直射点坐标</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #ffffff; color: #1565c0; cursor: pointer; transition: all 0.2s; }
+        .scene2-btn:hover { background: #1565c0; color: #ffffff; }
+        .scene2-btn:disabled { border-color: #cccccc; color: #cccccc; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333333; font-weight: bold; }
+        .scene2-highlight { animation: scene2-flash 1s ease-in-out 3; }
+        @keyframes scene2-flash {
+            0%, 100% { stroke: #c62828; stroke-width: 2; }
+            50% { stroke: #ffeb3b; stroke-width: 4; }
+        }
+        .scene2-fade-in { animation: scene2-fadeIn 0.3s ease-out; }
+        @keyframes scene2-fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 定义 -->
+            <defs>
+                <linearGradient id="scene2-night-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:0.5" />
+                    <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:0" />
+                </linearGradient>
+            </defs>
+            
+            <!-- 地球椭圆轮廓 -->
+            <ellipse id="scene2-earth" cx="400" cy="250" rx="150" ry="75" fill="none" stroke="#333333" stroke-width="2"/>
+            
+            <!-- 夜半球填充 -->
+            <path id="scene2-night-hemisphere" d="M 250,250 A 150,75 0 0,1 250,175 A 150,75 0 0,0 250,250 Z" fill="url(#scene2-night-gradient)"/>
+            
+            <!-- 晨昏线 -->
+            <path id="scene2-terminator" d="M 250,175 Q 280,250 250,325" fill="none" stroke="#333333" stroke-width="2"/>
+            
+            <!-- 赤道线 -->
+            <line id="scene2-equator" x1="250" y1="250" x2="550" y2="250" stroke="#888880" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 0°经线 -->
+            <line id="scene2-line-0deg" x1="280" y1="180" x2="280" y2="320" stroke="#c62828" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-0deg" x="255" y="165" font-size="14" fill="#c62828" opacity="0">0°</text>
+            
+            <!-- 120°E 经线 -->
+            <line id="scene2-line-120e" x1="520" y1="200" x2="520" y2="300" stroke="#1565c0" stroke-width="2" opacity="0"/>
+            <text id="scene2-label-120e" x="535" y="185" font-size="14" fill="#1565c0" opacity="0">120°E</text>
+            
+            <!-- 辅助经线 -->
+            <line id="scene2-line-aid1" x1="350" y1="190" x2="350" y2="310" stroke="#888880" stroke-width="1" stroke-dasharray="3,3" opacity="0"/>
+            <line id="scene2-line-aid2" x1="450" y1="210" x2="450" y2="290" stroke="#888880" stroke-width="1" stroke-dasharray="3,3" opacity="0"/>
+            
+            <!-- 太阳直射经线（12:00 经线） -->
+            <line id="scene2-line-solar" x1="500" y1="175" x2="500" y2="325" stroke="#c62828" stroke-width="2" opacity="0"/>
+            
+            <!-- A 点 -->
+            <circle id="scene2-circle-A" cx="280" cy="200" r="6" fill="#1565c0" opacity="0"/>
+            <text id="scene2-label-A" x="265" y="185" font-size="14" fill="#1565c0" opacity="0">A</text>
+            
+            <!-- B 点 -->
+            <circle id="scene2-circle-B" cx="380" cy="250" r="6" fill="#1565c0" opacity="0"/>
+            <text id="scene2-label-B" x="390" y="235" font-size="14" fill="#1565c0" opacity="0">B</text>
+            
+            <!-- C 点 -->
+            <circle id="scene2-circle-C" cx="480" cy="300" r="6" fill="#1565c0" opacity="0"/>
+            <text id="scene2-label-C" x="490" y="285" font-size="14" fill="#1565c0" opacity="0">C</text>
+            
+            <!-- O 点（太阳） -->
+            <circle id="scene2-circle-O" cx="720" cy="380" r="6" fill="#000000"/>
+            <text id="scene2-label-O" x="730" y="395" font-size="14" fill="#000000">O</text>
+            
+            <!-- 太阳直射点（移到地球外部右侧，避免与椭圆重叠） -->
+            <circle id="scene2-circle-solar-point" cx="580" cy="180" r="10" fill="#c62828" opacity="0"/>
+            <text id="scene2-label-solar-point" x="595" y="180" font-size="14" fill="#c62828" opacity="0">太阳直射点</text>
+            
+            <!-- 时间点标签（6:00 下移，与计算文字拉开间距） -->
+            <text id="scene2-label-6am" x="300" y="345" font-size="14" fill="#2e7d32" opacity="0">6:00</text>
+            <text id="scene2-label-12pm" x="500" y="165" font-size="14" fill="#2e7d32" opacity="0">12:00</text>
+            <text id="scene2-label-6pm" x="550" y="345" font-size="14" fill="#2e7d32" opacity="0">18:00</text>
+            <text id="scene2-label-0am" x="200" y="250" font-size="14" fill="#2e7d32" opacity="0">0:00</text>
+            
+            <!-- 晨线/昏线标注（移到地球外部左侧，与 0:00 拉开间距） -->
+            <text id="scene2-label-morning" x="160" y="220" font-size="12" fill="#2e7d32" opacity="0">晨线</text>
+            <text id="scene2-label-evening" x="160" y="280" font-size="12" fill="#2e7d32" opacity="0">昏线</text>
+            
+            <!-- 计算过程文字（增加行间距至 30px，整体下移） -->
+            <text id="scene2-calc-0deg" x="320" y="375" font-size="14" fill="#333333" opacity="0">0°经线地方时 = 6:00</text>
+            <text id="scene2-calc-beijing" x="320" y="405" font-size="14" fill="#333333" opacity="0">120°E 地方时 = 14:00</text>
+            <text id="scene2-calc-latitude" x="320" y="435" font-size="14" fill="#333333" opacity="0">太阳直射点纬度 = 23°26′N</text>
+            
+            <!-- 结论文字 -->
+            <text id="scene2-conclusion" x="280" y="460" font-size="16" fill="#c62828" font-weight="bold" opacity="0">太阳直射点坐标：(90°W, 23°26′N)</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/7</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：时间计算与太阳直射点坐标确定
+        // 布局坐标表（参考）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地球椭圆 | ellipse | 中心 (400,250) | 300×150 | - | 主轮廓 |
+        // | 夜半球填充 | path | 椭圆左半部分 | - | - | 半透明黑色 30% |
+        // | 晨昏线 | path | (250,180)-(550,320) | 约 424px | - | 实线，区分晨昏 |
+        // | 0°经线 | line | (280,180)-(280,320) | 140px 高 | 左上方 | 红色高亮 |
+        // | 120°E 经线 | line | (520,200)-(520,300) | 100px 高 | 右上方 | 蓝色高亮 |
+        // | A 点 | circle | (280,200) | 6px 直径 | 左上方 | 蓝色实心 |
+        // | B 点 | circle | (380,250) | 6px 直径 | 右上方 | 蓝色实心 |
+        // | C 点 | circle | (480,300) | 6px 直径 | 右上方 | 蓝色实心 |
+        // | O 点 | circle | (720,380) | 6px 直径 | 右下方 | 黑色实心 |
+        // | 太阳直射点 | circle | (580,180) | 10px 直径 | 右上方 | 红色实心（移到地球外部） |
+        
+        const TOTAL_STEPS = 7;
+        let currentStep = 0;
+        
+        // 元素显示配置（每个步骤需要显示的元素 ID 列表）
+        const stepElements = {
+            0: [],  // 初始状态：只显示基础图形（地球、夜半球、晨昏线、赤道、O 点）
+            1: ['scene2-line-0deg', 'scene2-label-0deg', 'scene2-label-6am', 'scene2-label-6pm', 'scene2-label-0am', 'scene2-label-morning', 'scene2-label-evening'],
+            2: ['scene2-line-solar', 'scene2-label-12pm', 'scene2-circle-solar-point', 'scene2-label-solar-point'],
+            3: ['scene2-line-aid1', 'scene2-calc-0deg'],
+            4: ['scene2-line-120e', 'scene2-label-120e', 'scene2-calc-beijing'],
+            5: ['scene2-line-aid2', 'scene2-calc-latitude'],
+            6: ['scene2-conclusion']
+        };
+        
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                el.classList.add('scene2-fade-in');
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 300);
+                el.classList.remove('scene2-fade-in');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === TOTAL_STEPS - 1);
+            
+            // 显示当前步骤的元素
+            const elementsToShow = stepElements[currentStep] || [];
+            elementsToShow.forEach(elId => {
+                show(elId);
+            });
+            
+            // 特殊处理：步骤 4 时 120°E 经线闪烁高亮
+            if (currentStep === 4) {
+                const line120e = document.getElementById('scene2-line-120e');
+                if (line120e) {
+                    line120e.classList.add('scene2-highlight');
+                }
+            }
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

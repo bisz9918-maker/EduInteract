@@ -1,0 +1,189 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "open-agent-harness.workerName" . }}
+  labels:
+    {{- include "open-agent-harness.componentLabels" (dict "root" . "component" "sandbox") | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  minReadySeconds: {{ .Values.worker.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.worker.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.worker.strategy.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "open-agent-harness.componentSelectorLabels" (dict "root" . "component" "sandbox") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "open-agent-harness.componentSelectorLabels" (dict "root" . "component" "sandbox") | nindent 8 }}
+        {{- with .Values.worker.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.worker.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
+      {{- with .Values.worker.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.worker.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: sandbox
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/worker.js", "--config", "/etc/oah/server.yaml"]
+          env:
+            - name: OAH_CONFIG
+              value: {{ printf "%s/server.yaml" .Values.config.mountPath }}
+            - name: NODE_OPTIONS
+              value: {{ .Values.worker.nodeOptions | quote }}
+            - name: OAH_INTERNAL_BASE_URL
+              value: http://$(HOSTNAME).{{ include "open-agent-harness.workerInternalServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }}:{{ .Values.worker.service.port }}
+            - name: OAH_ALLOW_PRIVATE_INTERNAL_ROUTES
+              value: {{ ternary "true" "false" .Values.worker.runtimeOptimizations.allowPrivateInternalRoutes | quote }}
+            - name: OAH_OBJECT_STORAGE_SYNC_TRUST_MANAGED_PREFIXES
+              value: {{ ternary "true" "false" .Values.worker.runtimeOptimizations.objectStorageTrustManagedPrefixes | quote }}
+            - name: OAH_POSTGRES_POOL_MAX
+              value: "3"
+            - name: OAH_REDIS_READY_QUEUE_READINESS_LIMIT
+              value: {{ .Values.prometheusRule.thresholds.redisReadyQueueDepth | quote }}
+            - name: OAH_REDIS_READY_QUEUE_CLAIM_SCAN_LIMIT
+              value: {{ .Values.redisReadyQueue.claimScanLimit | quote }}
+            - name: OAH_REDIS_READY_QUEUE_PRESSURE_SCAN_LIMIT
+              value: {{ .Values.redisReadyQueue.pressureScanLimit | quote }}
+            - name: OAH_REDIS_READY_QUEUE_INSPECT_LIMIT
+              value: {{ .Values.redisReadyQueue.inspectLimit | quote }}
+            - name: OAH_WORKER_DISK_METRICS_PATH
+              value: {{ .Values.worker.workspaceVolume.mountPath | quote }}
+            - name: OAH_WORKER_DISK_READINESS_THRESHOLD
+              value: {{ .Values.worker.diskReadiness.threshold | quote }}
+            {{- with .Values.worker.workspacePolicy.maxObjects }}
+            - name: OAH_OBJECT_STORAGE_SYNC_MAX_OBJECTS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.worker.workspacePolicy.maxBytes }}
+            - name: OAH_OBJECT_STORAGE_SYNC_MAX_BYTES
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.worker.workspacePolicy.maxFileBytes }}
+            - name: OAH_OBJECT_STORAGE_SYNC_MAX_FILE_BYTES
+              value: {{ . | quote }}
+            {{- end }}
+            - name: OAH_WORKER_DRAIN_TIMEOUT_MS
+              value: {{ .Values.worker.drain.timeoutMs | quote }}
+            - name: OAH_WORKER_DRAIN_TIMEOUT_STRATEGY
+              value: {{ .Values.worker.drain.timeoutStrategy | quote }}
+            {{- with .Values.worker.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.worker.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.worker.service.port }}
+              name: http
+          readinessProbe:
+            {{- include "open-agent-harness.probe" (dict "probe" .Values.worker.readinessProbe) | nindent 12 }}
+          livenessProbe:
+            {{- include "open-agent-harness.probe" (dict "probe" .Values.worker.livenessProbe) | nindent 12 }}
+          {{- if .Values.worker.drain.preStop.enabled }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - node
+                  - -e
+                  - >-
+                    const delayMs = {{ .Values.worker.drain.preStop.delayMs }};
+                    const requestTimeoutMs = Math.max(1000, Math.min(delayMs, 4000));
+                    fetch("http://127.0.0.1:{{ .Values.worker.service.port }}{{ .Values.worker.drain.preStop.path }}", { method: "POST", signal: AbortSignal.timeout(requestTimeoutMs) })
+                    .catch(() => undefined)
+                    .finally(() => { setTimeout(() => process.exit(0), delayMs); });
+          {{- end }}
+          volumeMounts:
+            - name: oah-config
+              mountPath: {{ .Values.config.mountPath }}
+              readOnly: true
+            - name: oah-workspaces
+              mountPath: {{ .Values.worker.workspaceVolume.mountPath }}
+            {{- with .Values.worker.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.worker.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.worker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: oah-config
+          configMap:
+            name: {{ include "open-agent-harness.configName" . }}
+        {{- if eq .Values.worker.workspaceVolume.type "persistentVolumeClaim" }}
+        - name: oah-workspaces
+          persistentVolumeClaim:
+            claimName: {{ required "worker.workspaceVolume.persistentVolumeClaim.claimName is required when workspaceVolume.type=persistentVolumeClaim" .Values.worker.workspaceVolume.persistentVolumeClaim.claimName }}
+            {{- if .Values.worker.workspaceVolume.persistentVolumeClaim.readOnly }}
+            readOnly: true
+            {{- end }}
+        {{- else }}
+        - name: oah-workspaces
+          emptyDir:
+            {{- toYaml .Values.worker.workspaceVolume.emptyDir | nindent 12 }}
+        {{- end }}
+        {{- with .Values.worker.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "open-agent-harness.workerInternalServiceName" . }}
+  labels:
+    {{- include "open-agent-harness.componentLabels" (dict "root" . "component" "sandbox") | nindent 4 }}
+  {{- with .Values.worker.serviceAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "open-agent-harness.componentSelectorLabels" (dict "root" . "component" "sandbox") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.worker.service.port }}
+      targetPort: http
+{{- end }}

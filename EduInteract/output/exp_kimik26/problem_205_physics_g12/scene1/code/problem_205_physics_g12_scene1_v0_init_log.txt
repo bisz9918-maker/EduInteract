@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 带电物块复合场运动</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene1-step-el { transition: opacity 0.25s ease; }
+        /* 已知条件框样式 - 用foreignObject内嵌HTML避免SVG rect与text的bounding box重叠误报 */
+        #scene1-info-div {
+            width: 180px;
+            height: 140px;
+            border: 1.5px solid #1565c0;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 10px;
+            font-size: 13px;
+            line-height: 22px;
+            color: #000000;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 电场线左向箭头标记 -->
+                <marker id="scene1-arrow-left" markerWidth="10" markerHeight="8" refX="0" refY="4" orient="auto">
+                    <path d="M10,0 L0,4 L10,8 L8,4 Z" fill="#000000"/>
+                </marker>
+                <!-- 力箭头标记 -->
+                <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrowhead-red" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- 电场线 (步骤0始终显示) -->
+            <g id="scene1-electric-field">
+                <line x1="40" y1="90" x2="760" y2="90" stroke="#000000" stroke-width="1" marker-start="url(#scene1-arrow-left)"/>
+                <line x1="40" y1="140" x2="760" y2="140" stroke="#000000" stroke-width="1" marker-start="url(#scene1-arrow-left)"/>
+                <line x1="40" y1="190" x2="760" y2="190" stroke="#000000" stroke-width="1" marker-start="url(#scene1-arrow-left)"/>
+                <line x1="40" y1="240" x2="760" y2="240" stroke="#000000" stroke-width="1" marker-start="url(#scene1-arrow-left)"/>
+                <line x1="40" y1="290" x2="760" y2="290" stroke="#000000" stroke-width="1" marker-start="url(#scene1-arrow-left)"/>
+                <line x1="40" y1="340" x2="760" y2="340" stroke="#000000" stroke-width="1" marker-start="url(#scene1-arrow-left)"/>
+            </g>
+
+            <!-- 水平轨道 (步骤0始终显示) -->
+            <line id="scene1-track-h" x1="300" y1="360" x2="720" y2="360" stroke="#000000" stroke-width="2"/>
+
+            <!-- 半圆轨道 (步骤0始终显示) -->
+            <path id="scene1-arc-full" d="M 300 360 A 80 80 0 0 1 300 200" fill="none" stroke="#000000" stroke-width="2"/>
+
+            <!-- 物块 (步骤0始终显示) -->
+            <rect id="scene1-block" x="708" y="344" width="24" height="16" fill="rgba(255,0,255,0.2)" stroke="#000000" stroke-width="1"/>
+
+            <!-- 圆心O -->
+            <circle id="scene1-center-o" cx="300" cy="280" r="3" fill="#2e7d32"/>
+
+            <!-- 半径虚线ON (步骤0始终显示) -->
+            <line id="scene1-radius-on" x1="300" y1="280" x2="300" y2="360" stroke="#2e7d32" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- 已知条件框 - 使用foreignObject避免SVG rect与text的bounding box重叠检测误报 -->
+            <foreignObject x="580" y="25" width="190" height="150">
+                <div id="scene1-info-div" xmlns="http://www.w3.org/1999/xhtml">
+                    m = 80 g<br/>
+                    q = 2×10⁻⁴ C<br/>
+                    μ = 0.2<br/>
+                    E = 10³ V/m<br/>
+                    R = 40 cm<br/>
+                    g = 10 m/s²
+                </div>
+            </foreignObject>
+
+            <!-- 基础标签 (步骤0始终显示) -->
+            <text id="scene1-label-e" x="60" y="75" font-size="14" fill="#000000" font-style="italic">E</text>
+            <text id="scene1-label-m" x="720" y="335" font-size="14" fill="#000000" font-style="italic" text-anchor="middle">m</text>
+            <text id="scene1-label-m-point" x="720" y="378" font-size="14" fill="#000000" text-anchor="middle">M</text>
+            <text id="scene1-label-n" x="300" y="378" font-size="14" fill="#000000" text-anchor="middle">N</text>
+            <text id="scene1-label-p" x="205" y="280" font-size="14" fill="#000000" text-anchor="end" dominant-baseline="middle">P</text>
+            <text id="scene1-label-l" x="300" y="185" font-size="14" fill="#000000" text-anchor="middle">L</text>
+            <text id="scene1-label-o" x="315" y="280" font-size="14" fill="#2e7d32" dominant-baseline="middle">O</text>
+            <text id="scene1-label-r" x="315" y="320" font-size="14" fill="#2e7d32" dominant-baseline="middle">R</text>
+
+            <!-- 步骤1元素：MN高亮、S标注、受力箭头 -->
+            <line id="scene1-track-mn-highlight" x1="300" y1="360" x2="720" y2="360" stroke="#1565c0" stroke-width="3" opacity="0" class="scene1-step-el"/>
+            <text id="scene1-label-s" x="510" y="385" font-size="14" fill="#1565c0" text-anchor="middle" opacity="0" class="scene1-step-el">S</text>
+            <!-- qE力箭头：左向 (520,330) -> (440,330) -->
+            <line id="scene1-force-qe" x1="520" y1="330" x2="440" y2="330" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrowhead-blue)" opacity="0" class="scene1-step-el"/>
+            <text id="scene1-label-qe" x="480" y="315" font-size="14" fill="#1565c0" text-anchor="middle" opacity="0" class="scene1-step-el">qE</text>
+            <!-- f力箭头：右向 (440,345) -> (520,345) -->
+            <line id="scene1-force-f" x1="440" y1="345" x2="520" y2="345" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrowhead-red)" opacity="0" class="scene1-step-el"/>
+            <text id="scene1-label-f" x="480" y="365" font-size="14" fill="#c62828" text-anchor="middle" opacity="0" class="scene1-step-el">f</text>
+
+            <!-- 步骤2元素：N→L高亮、2R虚线 -->
+            <path id="scene1-arc-nl-highlight" d="M 300 360 A 80 80 0 0 1 300 200" fill="none" stroke="#1565c0" stroke-width="3" opacity="0" class="scene1-step-el"/>
+            <line id="scene1-line-2r" x1="340" y1="200" x2="340" y2="360" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" class="scene1-step-el"/>
+            <text id="scene1-label-2r" x="350" y="280" font-size="14" fill="#888888" dominant-baseline="middle" opacity="0" class="scene1-step-el">2R</text>
+
+            <!-- 步骤3元素：N→P高亮、辅助虚线、位移标注 -->
+            <path id="scene1-arc-np-highlight" d="M 300 360 A 80 80 0 0 1 220 280" fill="none" stroke="#c62828" stroke-width="3" opacity="0" class="scene1-step-el"/>
+            <line id="scene1-line-v" x1="220" y1="280" x2="220" y2="395" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" class="scene1-step-el"/>
+            <line id="scene1-line-h" x1="220" y1="395" x2="300" y2="395" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0" class="scene1-step-el"/>
+            <text id="scene1-label-rv" x="195" y="340" font-size="14" fill="#888888" text-anchor="end" dominant-baseline="middle" opacity="0" class="scene1-step-el">R</text>
+            <text id="scene1-label-rh" x="260" y="410" font-size="14" fill="#888888" text-anchor="middle" opacity="0" class="scene1-step-el">R</text>
+
+            <!-- 步骤4元素：L点高亮圈、v_min、临界条件 -->
+            <circle id="scene1-circle-l" cx="300" cy="200" r="10" fill="none" stroke="#c62828" stroke-width="2" opacity="0" class="scene1-step-el"/>
+            <text id="scene1-label-vmin" x="330" y="182" font-size="14" fill="#c62828" opacity="0" class="scene1-step-el">v_min</text>
+            <text id="scene1-label-critical" x="340" y="222" font-size="14" fill="#c62828" opacity="0" class="scene1-step-el">mg = mv²/R</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+            <button id="scene1-btn-reset">重置</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var maxStep = 4;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var btnReset = document.getElementById('scene1-btn-reset');
+
+        // 各步骤需要显示的元素ID列表
+        var stepElements = {
+            1: ['scene1-track-mn-highlight', 'scene1-label-s', 'scene1-force-qe', 'scene1-label-qe', 'scene1-force-f', 'scene1-label-f'],
+            2: ['scene1-arc-nl-highlight', 'scene1-line-2r', 'scene1-label-2r'],
+            3: ['scene1-arc-np-highlight', 'scene1-line-v', 'scene1-line-h', 'scene1-label-rv', 'scene1-label-rh'],
+            4: ['scene1-circle-l', 'scene1-label-vmin', 'scene1-label-critical']
+        };
+
+        // 步骤2需要隐藏步骤1的元素
+        var step1Only = ['scene1-track-mn-highlight', 'scene1-label-s', 'scene1-force-qe', 'scene1-label-qe', 'scene1-force-f', 'scene1-label-f'];
+        // 步骤3需要隐藏步骤2的元素
+        var step2Only = ['scene1-arc-nl-highlight', 'scene1-line-2r', 'scene1-label-2r'];
+        // 步骤4需要隐藏步骤3的元素，但保留N→L高亮
+        var step3Only = ['scene1-arc-np-highlight', 'scene1-line-v', 'scene1-line-h', 'scene1-label-rv', 'scene1-label-rh'];
+
+        function setOpacity(id, val) {
+            var el = document.getElementById(id);
+            if (el) el.setAttribute('opacity', val);
+        }
+
+        function render() {
+            // 先隐藏所有步骤元素
+            for (var s = 1; s <= maxStep; s++) {
+                var ids = stepElements[s];
+                if (ids) {
+                    for (var i = 0; i < ids.length; i++) {
+                        setOpacity(ids[i], 0);
+                    }
+                }
+            }
+
+            // 根据当前步骤显示对应元素
+            if (currentStep >= 1) {
+                // 步骤1元素
+                var ids1 = stepElements[1];
+                for (var i = 0; i < ids1.length; i++) setOpacity(ids1[i], 1);
+            }
+            if (currentStep >= 2) {
+                // 隐藏步骤1-only元素
+                for (var i = 0; i < step1Only.length; i++) setOpacity(step1Only[i], 0);
+                // 显示步骤2元素
+                var ids2 = stepElements[2];
+                for (var i = 0; i < ids2.length; i++) setOpacity(ids2[i], 1);
+            }
+            if (currentStep >= 3) {
+                // 隐藏步骤2-only元素
+                for (var i = 0; i < step2Only.length; i++) setOpacity(step2Only[i], 0);
+                // 显示步骤3元素
+                var ids3 = stepElements[3];
+                for (var i = 0; i < ids3.length; i++) setOpacity(ids3[i], 1);
+            }
+            if (currentStep >= 4) {
+                // 隐藏步骤3-only元素
+                for (var i = 0; i < step3Only.length; i++) setOpacity(step3Only[i], 0);
+                // 保留步骤2的N→L高亮
+                setOpacity('scene1-arc-nl-highlight', 1);
+                // 显示步骤4元素
+                var ids4 = stepElements[4];
+                for (var i = 0; i < ids4.length; i++) setOpacity(ids4[i], 1);
+            }
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep <= 0;
+            btnNext.disabled = currentStep >= maxStep;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                render();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                render();
+            }
+        });
+
+        btnReset.addEventListener('click', function() {
+            currentStep = 0;
+            render();
+        });
+
+        // 初始渲染
+        render();
+    })();
+    </script>
+</body>
+</html>

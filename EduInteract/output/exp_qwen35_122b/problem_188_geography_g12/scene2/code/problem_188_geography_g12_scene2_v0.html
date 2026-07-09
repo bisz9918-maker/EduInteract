@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点回归运动示意图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #1565c0;
+            background: #fff;
+            color: #1565c0;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        .scene2-btn:hover { background: #e3f2fd; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #333;
+            background: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 标题 -->
+            <text x="400" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">太阳直射点的回归运动示意图</text>
+            
+            <!-- 信息框背景（放在最底层） -->
+            <rect x="570" y="80" width="210" height="320" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" rx="5" id="scene2-info-box-bg"/>
+            
+            <!-- 信息框标题和内容（放在 rect 之后，确保文字在背景之上） -->
+            <text x="585" y="105" font-size="16" font-weight="bold" fill="#1565c0" id="scene2-info-title">地理现象分析</text>
+            <text x="585" y="135" font-size="13" fill="#333" id="scene2-info-content">
+                <tspan x="585" dy="0">点击「下一步」开始讲解</tspan>
+            </text>
+            
+            <!-- 赤道线 -->
+            <line x1="80" y1="250" x2="550" y2="250" stroke="#000" stroke-width="2" id="scene2-赤道线"/>
+            <text x="560" y="255" font-size="14" fill="#333">赤道</text>
+            
+            <!-- 北回归线 -->
+            <line x1="80" y1="150" x2="550" y2="150" stroke="#000" stroke-width="1" stroke-dasharray="5,5" id="scene2-北回归线"/>
+            <text x="560" y="155" font-size="14" fill="#333">北回归线</text>
+            
+            <!-- 南回归线 -->
+            <line x1="80" y1="350" x2="550" y2="350" stroke="#000" stroke-width="1" stroke-dasharray="5,5" id="scene2-南回归线"/>
+            <text x="560" y="355" font-size="14" fill="#333">南回归线</text>
+            
+            <!-- 运动轨迹 -->
+            <polyline points="100,250 220,150 340,250 460,350 550,280" 
+                      fill="none" stroke="#1976d2" stroke-width="2" id="scene2-轨迹"/>
+            
+            <!-- 四个关键点 -->
+            <circle cx="100" cy="250" r="6" fill="#d32f2f" id="scene2-point1"/>
+            <text x="85" y="235" font-size="14" fill="#333" id="scene2-label1">①</text>
+            
+            <circle cx="220" cy="150" r="6" fill="#d32f2f" id="scene2-point2"/>
+            <text x="215" y="130" font-size="14" fill="#333" id="scene2-label2">②</text>
+            
+            <circle cx="340" cy="250" r="6" fill="#d32f2f" id="scene2-point3"/>
+            <text x="355" y="230" font-size="14" fill="#333" id="scene2-label3">③</text>
+            
+            <circle cx="460" cy="350" r="6" fill="#d32f2f" id="scene2-point4"/>
+            <text x="455" y="370" font-size="14" fill="#333" id="scene2-label4">④</text>
+            
+            <!-- 高亮外圈（初始隐藏） -->
+            <circle cx="100" cy="250" r="10" fill="none" stroke="#2e7d32" stroke-width="3" 
+                    id="scene2-highlight-circle1" style="display: none; opacity: 0; transition: opacity 0.3s;"/>
+            <circle cx="220" cy="150" r="10" fill="none" stroke="#2e7d32" stroke-width="3" 
+                    id="scene2-highlight-circle2" style="display: none; opacity: 0; transition: opacity 0.3s;"/>
+            <circle cx="340" cy="250" r="10" fill="none" stroke="#2e7d32" stroke-width="3" 
+                    id="scene2-highlight-circle3" style="display: none; opacity: 0; transition: opacity 0.3s;"/>
+            <circle cx="460" cy="350" r="10" fill="none" stroke="#2e7d32" stroke-width="3" 
+                    id="scene2-highlight-circle4" style="display: none; opacity: 0; transition: opacity 0.3s;"/>
+            
+            <!-- 极夜阴影区（初始隐藏） -->
+            <rect x="80" y="80" width="470" height="70" fill="#c62828" opacity="0.15" 
+                  id="scene2-polar-night" style="display: none;"/>
+        </svg>
+        
+        <!-- 导航按钮 -->
+        <div id="scene2-controls">
+            <button class="scene2-btn" id="scene2-prev-btn" disabled>◀ 上一步</button>
+            <button class="scene2-btn" id="scene2-next-btn">下一步 ▶</button>
+        </div>
+        <div id="scene2-step-indicator">步骤 1/5</div>
+    </div>
+    
+    <script>
+    (function() {
+        // 布局坐标表对照：
+        // 赤道线：(80,250)-(550,250)
+        // 北回归线：(80,150)-(550,150)
+        // 南回归线：(80,350)-(550,350)
+        // 点①：(100,250) 春分
+        // 点②：(220,150) 夏至
+        // 点③：(340,250) 秋分
+        // 点④：(460,350) 冬至
+        // 信息框：(570,80)-(780,400)
+        
+        const scene2 = {
+            currentStep: 0,
+            totalSteps: 5,
+            
+            // 各步骤信息框内容（使用 tspan 换行）
+            stepContents: [
+                ['点击「下一步」开始讲解'],
+                ['②点：夏至（6 月 22 日前后）', '• 北半球昼最长，日出最早', '• 北回归线及其以北地区', '  正午太阳高度达一年中最大值'],
+                ['④点：冬至（12 月 22 日前后）', '• 太阳直射南回归线', '• 正午太阳高度由南回归线', '  向南北两侧降低', '• 南回归线及其以南地区', '  正午太阳高度达一年中最大值', '• 北极圈及其以北出现极夜'],
+                ['夏至日后太阳直射点移动', '• 该日以后，太阳直射点', '  向南移动', '• 从北回归线移向赤道'],
+                ['①点和③点：春分与秋分', '• ①：春分（3 月 21 日前后）', '• ③：秋分（9 月 23 日前后）', '• 太阳直射赤道', '• 全球昼夜平分']
+            ],
+            
+            // 初始化
+            init: function() {
+                this.bindEvents();
+                this.updateScene();
+            },
+            
+            // 绑定事件
+            bindEvents: function() {
+                document.getElementById('scene2-prev-btn').addEventListener('click', () => this.prevStep());
+                document.getElementById('scene2-next-btn').addEventListener('click', () => this.nextStep());
+            },
+            
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    this.currentStep--;
+                    this.updateScene();
+                }
+            },
+            
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    this.currentStep++;
+                    this.updateScene();
+                }
+            },
+            
+            // 更新场景
+            updateScene: function() {
+                this.updateHighlight();
+                this.updateInfoBox();
+                this.updatePolarNight();
+                this.updateButtons();
+                this.updateIndicator();
+            },
+            
+            // 更新高亮
+            updateHighlight: function() {
+                // 隐藏所有高亮
+                for (let i = 1; i <= 4; i++) {
+                    const circle = document.getElementById('scene2-highlight-circle' + i);
+                    circle.style.display = 'none';
+                    circle.style.opacity = '0';
+                }
+                
+                // 根据步骤显示对应高亮
+                if (this.currentStep === 1) {
+                    this.showHighlight(2);
+                } else if (this.currentStep === 2) {
+                    this.showHighlight(4);
+                } else if (this.currentStep === 3) {
+                    this.showHighlight(2);
+                } else if (this.currentStep === 4) {
+                    this.showHighlight(1);
+                    this.showHighlight(3);
+                }
+            },
+            
+            showHighlight: function(pointNum) {
+                const circle = document.getElementById('scene2-highlight-circle' + pointNum);
+                circle.style.display = 'block';
+                setTimeout(() => {
+                    circle.style.opacity = '1';
+                }, 10);
+            },
+            
+            // 更新信息框
+            updateInfoBox: function() {
+                const contentEl = document.getElementById('scene2-info-content');
+                const lines = this.stepContents[this.currentStep];
+                
+                // 清空原有内容
+                while (contentEl.firstChild) {
+                    contentEl.removeChild(contentEl.firstChild);
+                }
+                
+                // 添加所有行
+                for (let i = 0; i < lines.length; i++) {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', '585');
+                    tspan.setAttribute('dy', i === 0 ? '0' : '18');
+                    tspan.textContent = lines[i];
+                    contentEl.appendChild(tspan);
+                }
+            },
+            
+            // 更新极夜阴影
+            updatePolarNight: function() {
+                const polarNight = document.getElementById('scene2-polar-night');
+                if (this.currentStep === 2) {
+                    polarNight.style.display = 'block';
+                } else {
+                    polarNight.style.display = 'none';
+                }
+            },
+            
+            // 更新按钮状态
+            updateButtons: function() {
+                const prevBtn = document.getElementById('scene2-prev-btn');
+                const nextBtn = document.getElementById('scene2-next-btn');
+                
+                prevBtn.disabled = (this.currentStep === 0);
+                nextBtn.disabled = (this.currentStep === this.totalSteps - 1);
+            },
+            
+            // 更新步骤指示器
+            updateIndicator: function() {
+                const indicator = document.getElementById('scene2-step-indicator');
+                indicator.textContent = '步骤 ' + (this.currentStep + 1) + '/' + this.totalSteps;
+            }
+        };
+        
+        // 初始化场景
+        scene2.init();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A 的简谐运动过程与振幅确定</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            width: 90px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .scene2-btn:not(:disabled):hover {
+            background: #e0e0e0;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene2-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* 平滑过渡 */
+        .scene2-transition {
+            transition: all 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 墙面 -->
+            <rect id="scene2-wall" x="60" y="150" width="20" height="100" fill="#cccccc" stroke="#666666" stroke-width="2"/>
+            
+            <!-- 弹簧（折线路径，动态更新） -->
+            <polyline id="scene2-spring" points="80,190 90,180 100,190 110,180 120,190 130,180 140,190 150,180 160,190 170,180 180,190 190,180 200,190" 
+                      fill="none" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 水平面 -->
+            <line id="scene2-surface" x1="60" y1="210" x2="500" y2="210" stroke="#666666" stroke-width="2"/>
+            
+            <!-- 物体 A -->
+            <rect id="scene2-blockA" x="200" y="170" width="60" height="40" fill="#ffcdd2" stroke="#c62828" stroke-width="2" class="scene2-transition"/>
+            <text id="scene2-blockA-label" x="230" y="195" text-anchor="middle" font-size="16" fill="#c62828" font-weight="bold">A</text>
+            
+            <!-- 初始位置虚线 -->
+            <line id="scene2-dash-initial" x1="200" y1="150" x2="200" y2="250" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" class="scene2-visible"/>
+            <text id="scene2-label-initial" x="200" y="130" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">初始位置</text>
+            
+            <!-- 平衡位置虚线 -->
+            <line id="scene2-dash-equilibrium" x1="320" y1="150" x2="320" y2="250" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5" class="scene2-hidden"/>
+            <text id="scene2-label-equilibrium" x="320" y="130" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">平衡位置</text>
+            
+            <!-- 最大压缩虚线 -->
+            <line id="scene2-dash-compressed" x1="440" y1="150" x2="440" y2="250" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5" class="scene2-hidden"/>
+            <text id="scene2-label-compressed" x="440" y="130" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">最大压缩</text>
+            
+            <!-- x₀ 标注 -->
+            <text id="scene2-label-x0" x="260" y="230" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">x₀</text>
+            
+            <!-- 振幅双箭头（步骤 4 显示） -->
+            <defs>
+                <marker id="scene2-arrow-start" markerWidth="10" markerHeight="10" refX="0" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10" fill="#c62828" stroke="#c62828" stroke-width="1"/>
+                </marker>
+                <marker id="scene2-arrow-end" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10" fill="#c62828" stroke="#c62828" stroke-width="1"/>
+                </marker>
+            </defs>
+            <line id="scene2-arrow-amplitude" x1="200" y1="270" x2="320" y2="270" stroke="#c62828" stroke-width="2" 
+                  marker-start="url(#scene2-arrow-start)" marker-end="url(#scene2-arrow-end)" class="scene2-hidden"/>
+            <text id="scene2-label-A" x="260" y="285" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold" class="scene2-hidden">A</text>
+            <text id="scene2-label-eq" x="260" y="305" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold" class="scene2-hidden">A = x₀</text>
+            
+            <!-- 振动轨迹箭头（步骤 2 显示） -->
+            <line id="scene2-arrow-vibration" x1="200" y1="330" x2="440" y2="330" stroke="#c62828" stroke-width="3" 
+                  marker-start="url(#scene2-arrow-start)" marker-end="url(#scene2-arrow-end)" class="scene2-hidden"/>
+            <text id="scene2-label-vibration" x="320" y="355" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold" class="scene2-hidden">周期 T</text>
+            
+            <!-- 数轴基线（步骤 4 显示） -->
+            <line id="scene2-axis" x1="150" y1="390" x2="500" y2="390" stroke="#888888" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-axis-tick-initial" x1="200" y1="385" x2="200" y2="395" stroke="#c62828" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-axis-tick-equilibrium" x1="320" y1="385" x2="320" y2="395" stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+            <line id="scene2-axis-tick-compressed" x1="440" y1="385" x2="440" y2="395" stroke="#2e7d32" stroke-width="2" class="scene2-hidden"/>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: A 的简谐运动过程与振幅确定
+        // 布局坐标表对照：
+        // | 元素 | 位置 | 备注 |
+        // |------|------|------|
+        // | 墙面 | (60,150)-(80,250) | 灰色填充 |
+        // | 弹簧 | (80,190)-(200~440,190) | 折线，颜色随步骤变化 |
+        // | 物体 A | (200/320/440,170)-(260/380/500,210) | 60×40，颜色随步骤变化 |
+        // | 初始位置虚线 | (200,150)-(200,250) | 红色 |
+        // | 平衡位置虚线 | (320,150)-(320,250) | 蓝色 |
+        // | 最大压缩虚线 | (440,150)-(440,250) | 绿色 |
+        // | 初始位置标签 | (200,130) | 红色 |
+        // | 平衡位置标签 | (320,130) | 蓝色 |
+        // | 最大压缩标签 | (440,130) | 绿色 |
+        // | x₀标注 | (260,230) | 红色 |
+        // | 振幅双箭头 | (200,270)-(320,270) | 红色，步骤 4 |
+        // | 振幅标签 A | (260,285) | 步骤 4 |
+        // | 等式标签 | (260,305) | 步骤 4 |
+        // | 振动轨迹箭头 | (200,330)-(440,330) | 步骤 2 |
+        // | 周期 T 标签 | (320,355) | 步骤 4 |
+        // | 数轴基线 | (150,390)-(500,390) | 步骤 4 |
+        // | 数轴刻度 | 200/320/440,385-395 | 步骤 4 |
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const spring = document.getElementById('scene2-spring');
+        const blockA = document.getElementById('scene2-blockA');
+        const blockALabel = document.getElementById('scene2-blockA-label');
+        
+        // 位置虚线
+        const dashInitial = document.getElementById('scene2-dash-initial');
+        const dashEquilibrium = document.getElementById('scene2-dash-equilibrium');
+        const dashCompressed = document.getElementById('scene2-dash-compressed');
+        
+        // 位置标签
+        const labelInitial = document.getElementById('scene2-label-initial');
+        const labelEquilibrium = document.getElementById('scene2-label-equilibrium');
+        const labelCompressed = document.getElementById('scene2-label-compressed');
+        
+        // x₀ 标注
+        const labelX0 = document.getElementById('scene2-label-x0');
+        
+        // 振幅相关（步骤 4）
+        const arrowAmplitude = document.getElementById('scene2-arrow-amplitude');
+        const labelA = document.getElementById('scene2-label-A');
+        const labelEq = document.getElementById('scene2-label-eq');
+        
+        // 振动轨迹（步骤 2）
+        const arrowVibration = document.getElementById('scene2-arrow-vibration');
+        const labelVibration = document.getElementById('scene2-label-vibration');
+        
+        // 数轴（步骤 4）
+        const axis = document.getElementById('scene2-axis');
+        const axisTickInitial = document.getElementById('scene2-axis-tick-initial');
+        const axisTickEquilibrium = document.getElementById('scene2-axis-tick-equilibrium');
+        const axisTickCompressed = document.getElementById('scene2-axis-tick-compressed');
+        
+        // 按钮
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        // 生成弹簧折线路径
+        function generateSpringPoints(endX) {
+            const startX = 80;
+            const centerY = 190;
+            const amplitude = 10;
+            const segments = 12;
+            const segmentLength = (endX - startX) / segments;
+            let points = `${startX},${centerY}`;
+            for (let i = 1; i <= segments; i++) {
+                const x = startX + i * segmentLength;
+                const y = centerY + (i % 2 === 1 ? -amplitude : amplitude);
+                points += ` ${x},${y}`;
+            }
+            return points;
+        }
+        
+        // 更新弹簧位置和颜色
+        function updateSpring(endX, color) {
+            spring.setAttribute('points', generateSpringPoints(endX));
+            spring.setAttribute('stroke', color);
+        }
+        
+        // 更新物体 A 位置和颜色
+        function updateBlockA(x, color, fillColor) {
+            blockA.setAttribute('x', x);
+            blockA.setAttribute('fill', fillColor);
+            blockA.setAttribute('stroke', color);
+            blockALabel.setAttribute('x', x + 30);
+            blockALabel.setAttribute('fill', color);
+        }
+        
+        // 显示/隐藏元素工具函数
+        function show(el) {
+            el.classList.remove('scene2-hidden');
+            el.classList.add('scene2-visible');
+        }
+        
+        function hide(el) {
+            el.classList.remove('scene2-visible');
+            el.classList.add('scene2-hidden');
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+        }
+        
+        // 步骤状态管理
+        function setStep(step) {
+            currentStep = step;
+            
+            // 步骤 0：初始状态
+            if (step === 0) {
+                updateSpring(200, '#c62828');
+                updateBlockA(200, '#c62828', '#ffcdd2');
+                show(dashInitial);
+                show(labelInitial);
+                show(labelX0);
+                hide(dashEquilibrium);
+                hide(labelEquilibrium);
+                hide(dashCompressed);
+                hide(labelCompressed);
+                hide(arrowVibration);
+                hide(labelVibration);
+                hide(arrowAmplitude);
+                hide(labelA);
+                hide(labelEq);
+                hide(axis);
+                hide(axisTickInitial);
+                hide(axisTickEquilibrium);
+                hide(axisTickCompressed);
+            }
+            // 步骤 1：平衡位置
+            else if (step === 1) {
+                updateSpring(320, '#1565c0');
+                updateBlockA(320, '#1565c0', '#bbdefb');
+                show(dashInitial);
+                show(labelInitial);
+                show(labelX0);
+                show(dashEquilibrium);
+                show(labelEquilibrium);
+                hide(dashCompressed);
+                hide(labelCompressed);
+                hide(arrowVibration);
+                hide(labelVibration);
+                hide(arrowAmplitude);
+                hide(labelA);
+                hide(labelEq);
+                hide(axis);
+                hide(axisTickInitial);
+                hide(axisTickEquilibrium);
+                hide(axisTickCompressed);
+            }
+            // 步骤 2：振动轨迹
+            else if (step === 2) {
+                updateSpring(200, '#c62828');
+                updateBlockA(200, '#c62828', '#ffcdd2');
+                show(dashInitial);
+                show(labelInitial);
+                show(labelX0);
+                show(dashEquilibrium);
+                show(labelEquilibrium);
+                hide(dashCompressed);
+                hide(labelCompressed);
+                show(arrowVibration);
+                show(labelVibration);
+                hide(arrowAmplitude);
+                hide(labelA);
+                hide(labelEq);
+                hide(axis);
+                hide(axisTickInitial);
+                hide(axisTickEquilibrium);
+                hide(axisTickCompressed);
+            }
+            // 步骤 3：最大压缩
+            else if (step === 3) {
+                updateSpring(440, '#2e7d32');
+                updateBlockA(440, '#2e7d32', '#c8e6c9');
+                show(dashInitial);
+                show(labelInitial);
+                show(labelX0);
+                show(dashEquilibrium);
+                show(labelEquilibrium);
+                show(dashCompressed);
+                show(labelCompressed);
+                show(arrowVibration);
+                show(labelVibration);
+                hide(arrowAmplitude);
+                hide(labelA);
+                hide(labelEq);
+                hide(axis);
+                hide(axisTickInitial);
+                hide(axisTickEquilibrium);
+                hide(axisTickCompressed);
+            }
+            // 步骤 4：振幅总结
+            else if (step === 4) {
+                updateSpring(440, '#2e7d32');
+                updateBlockA(440, '#2e7d32', '#c8e6c9');
+                show(dashInitial);
+                show(labelInitial);
+                show(labelX0);
+                show(dashEquilibrium);
+                show(labelEquilibrium);
+                show(dashCompressed);
+                show(labelCompressed);
+                show(arrowVibration);
+                show(labelVibration);
+                show(arrowAmplitude);
+                show(labelA);
+                show(labelEq);
+                show(axis);
+                show(axisTickInitial);
+                show(axisTickEquilibrium);
+                show(axisTickCompressed);
+            }
+            
+            updateButtons();
+        }
+        
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                setStep(currentStep - 1);
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                setStep(currentStep + 1);
+            }
+        });
+        
+        // 初始化
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

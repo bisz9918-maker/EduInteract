@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球面最短距离与大圆航线</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 6px 18px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene2-controls button:hover { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #666; min-width: 80px; text-align: center; }
+        .scene2-fade { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 步骤0：基础图元素 -->
+            <!-- 30°N纬线圈 -->
+            <circle id="scene2-lat30" cx="400" cy="240" r="180" fill="none" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 四条主经线（从圆心辐射至圆边） -->
+            <!-- 45°E：从圆心到上方圆边 -->
+            <line id="scene2-meridian-45e" x1="400" y1="240" x2="400" y2="60" stroke="#000000" stroke-width="1.5"/>
+            <!-- 135°E：从圆心到左方圆边 -->
+            <line id="scene2-meridian-135e" x1="400" y1="240" x2="220" y2="240" stroke="#000000" stroke-width="1.5"/>
+            <!-- 45°W：从圆心到右方圆边 -->
+            <line id="scene2-meridian-45w" x1="400" y1="240" x2="580" y2="240" stroke="#000000" stroke-width="1.5"/>
+            <!-- 135°W：从圆心到下方圆边 -->
+            <line id="scene2-meridian-135w" x1="400" y1="240" x2="400" y2="420" stroke="#000000" stroke-width="1.5"/>
+            
+            <!-- 北极点 -->
+            <circle id="scene2-north-pole" cx="400" cy="240" r="3" fill="#000000"/>
+            
+            <!-- A点（蓝色） -->
+            <circle id="scene2-point-a" cx="226" cy="193" r="5" fill="#1565c0"/>
+            <text id="scene2-label-a" x="205" y="188" font-size="16" fill="#000000" font-family="Microsoft YaHei, sans-serif">A</text>
+            
+            <!-- B点（红色） -->
+            <circle id="scene2-point-b" cx="574" cy="193" r="5" fill="#c62828"/>
+            <text id="scene2-label-b" x="585" y="188" font-size="16" fill="#000000" font-family="Microsoft YaHei, sans-serif">B</text>
+            
+            <!-- 经度标签 -->
+            <text id="scene2-label-45e" x="385" y="55" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">45°E</text>
+            <text id="scene2-label-135e" x="185" y="245" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">135°E</text>
+            <text id="scene2-label-45w" x="585" y="245" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">45°W</text>
+            <text id="scene2-label-135w" x="385" y="435" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">135°W</text>
+            
+            <!-- 30°N标签 -->
+            <text id="scene2-label-30n" x="620" y="205" font-size="14" fill="#000000" font-family="Microsoft YaHei, sans-serif">30°N</text>
+            
+            <!-- 步骤1：纬线路径（灰色虚线） -->
+            <path id="scene2-lat-path" d="M 226 193 A 180 180 0 0 1 574 193" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="6,4" opacity="0" class="scene2-fade"/>
+            <text id="scene2-label-lat-path" x="50" y="445" font-size="16" fill="#888888" font-family="Microsoft YaHei, sans-serif" opacity="0" class="scene2-fade">沿纬线飞行（非最短距离）</text>
+            
+            <!-- 步骤2：大圆劣弧（红色实线）与M点 -->
+            <path id="scene2-great-circle" d="M 226 193 Q 400 143 574 193" fill="none" stroke="#c62828" stroke-width="2.5" opacity="0" class="scene2-fade"/>
+            <circle id="scene2-point-m" cx="400" cy="168" r="5" fill="#2e7d32" opacity="0" class="scene2-fade"/>
+            <!-- M标签放在圆上方，避免与纬线圈bounding box重叠 -->
+            <text id="scene2-label-m" x="435" y="50" font-size="16" fill="#2e7d32" font-family="Microsoft YaHei, sans-serif" opacity="0" class="scene2-fade">M</text>
+            <text id="scene2-label-great-circle" x="50" y="100" font-size="16" fill="#c62828" font-family="Microsoft YaHei, sans-serif" opacity="0" class="scene2-fade">大圆劣弧 = 球面最短距离</text>
+            
+            <!-- 步骤3：航向箭头与方向标注 -->
+            <!-- A端航向箭头：指向西北 -->
+            <g id="scene2-arrow-a" opacity="0" class="scene2-fade">
+                <line x1="235" y1="192" x2="262" y2="188" stroke="#2e7d32" stroke-width="2"/>
+                <polygon points="262,188 256,184 256,192" fill="#2e7d32"/>
+            </g>
+            <!-- 西北标签左移避免与A重叠 -->
+            <text id="scene2-label-nw" x="140" y="185" font-size="16" fill="#2e7d32" font-family="Microsoft YaHei, sans-serif" opacity="0" class="scene2-fade">西北</text>
+            
+            <!-- B端航向箭头：指向西南 -->
+            <g id="scene2-arrow-b" opacity="0" class="scene2-fade">
+                <line x1="565" y1="192" x2="538" y2="188" stroke="#2e7d32" stroke-width="2"/>
+                <polygon points="538,188 544,184 544,192" fill="#2e7d32"/>
+            </g>
+            <text id="scene2-label-sw" x="640" y="185" font-size="16" fill="#2e7d32" font-family="Microsoft YaHei, sans-serif" opacity="0" class="scene2-fade">西南</text>
+            
+            <!-- 步骤3总结文字 -->
+            <text id="scene2-label-summary" x="450" y="445" font-size="16" fill="#2e7d32" font-family="Microsoft YaHei, sans-serif" opacity="0" class="scene2-fade">先向西北，再向西南</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1 / 4</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：球面最短距离与大圆航线航向变化
+        
+        // 状态变量
+        let currentStep = 0; // 0~3
+        
+        // 各步骤控制的元素ID列表
+        const stepElements = {
+            0: [], // 步骤0只显示基础元素（默认始终显示）
+            1: ['scene2-lat-path', 'scene2-label-lat-path'],
+            2: ['scene2-great-circle', 'scene2-point-m', 'scene2-label-m', 'scene2-label-great-circle'],
+            3: ['scene2-arrow-a', 'scene2-label-nw', 'scene2-arrow-b', 'scene2-label-sw', 'scene2-label-summary']
+        };
+        
+        // 获取元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 统一设置元素显示/隐藏
+        function setElementVisibility(id, visible) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (visible) {
+                el.style.opacity = '1';
+                el.style.display = '';
+            } else {
+                el.style.opacity = '0';
+                // 对于path/text/circle等SVG元素，opacity=0即可隐藏
+            }
+        }
+        
+        // 渲染当前步骤
+        function renderStep() {
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + ' / 4';
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === 3);
+            
+            // 遍历所有步骤元素，决定显示或隐藏
+            for (let step = 1; step <= 3; step++) {
+                const ids = stepElements[step];
+                const shouldShow = (step <= currentStep);
+                ids.forEach(id => setElementVisibility(id, shouldShow));
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 3) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始化渲染
+        renderStep();
+        
+    })();
+    </script>
+</body>
+</html>

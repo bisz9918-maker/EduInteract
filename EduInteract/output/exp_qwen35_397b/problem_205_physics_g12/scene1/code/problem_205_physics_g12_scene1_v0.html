@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电物块在复合场中运动 - 受力分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1976d2;
+            color: white;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover {
+            background: #1565c0;
+        }
+        .scene1-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-status {
+            padding: 8px 16px;
+            font-size: 14px;
+            color: #333;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        /* 向量标签样式 */
+        .scene1-force-label {
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .scene1-label {
+            font-size: 14px;
+        }
+        /* 动画过渡 */
+        .scene1-fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+        }
+        .scene1-visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-left" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#888888"/>
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene1-arrow-gray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10 Z" fill="#888888"/>
+                </marker>
+            </defs>
+
+            <!-- 电场线 (6 条) -->
+            <g id="scene1-efield-group">
+                <line id="scene1-efield-1" x1="750" y1="80" x2="50" y2="80" stroke="#888888" stroke-width="1.5" marker-end="url(#scene1-arrow-left)"/>
+                <line id="scene1-efield-2" x1="750" y1="150" x2="50" y2="150" stroke="#888888" stroke-width="1.5" marker-end="url(#scene1-arrow-left)"/>
+                <line id="scene1-efield-3" x1="750" y1="220" x2="50" y2="220" stroke="#888888" stroke-width="1.5" marker-end="url(#scene1-arrow-left)"/>
+                <line id="scene1-efield-4" x1="750" y1="300" x2="50" y2="300" stroke="#888888" stroke-width="1.5" marker-end="url(#scene1-arrow-left)"/>
+                <line id="scene1-efield-5" x1="750" y1="380" x2="50" y2="380" stroke="#888888" stroke-width="1.5" marker-end="url(#scene1-arrow-left)"/>
+                <line id="scene1-efield-6" x1="750" y1="450" x2="50" y2="450" stroke="#888888" stroke-width="1.5" marker-end="url(#scene1-arrow-left)"/>
+            </g>
+
+            <!-- 电场 E 标签 -->
+            <text id="scene1-label-E" x="60" y="65" font-size="16px" fill="#000000" font-weight="bold">E</text>
+
+            <!-- 半圆轨道 NL -->
+            <path id="scene1-track-semicircle" d="M 200,420 A 120,120 0 0,1 200,180" fill="none" stroke="#000000" stroke-width="3"/>
+
+            <!-- 水平轨道 MN -->
+            <line id="scene1-track-horizontal" x1="200" y1="420" x2="680" y2="420" stroke="#000000" stroke-width="3"/>
+
+            <!-- 半径 R 标注 -->
+            <line id="scene1-radius-line" x1="200" y1="300" x2="200" y2="180" stroke="#666666" stroke-width="1" stroke-dasharray="4,4"/>
+            <text id="scene1-label-R" x="210" y="245" font-size="13px" fill="#666666">R</text>
+
+            <!-- 位置标签 -->
+            <text id="scene1-label-M" x="660" y="445" font-size="14px" fill="#000000" class="scene1-label">M</text>
+            <text id="scene1-label-N" x="185" y="445" font-size="14px" fill="#000000" class="scene1-label">N</text>
+            <text id="scene1-label-P" x="40" y="305" font-size="14px" fill="#000000" class="scene1-label">P</text>
+            <text id="scene1-label-L" x="210" y="175" font-size="14px" fill="#000000" class="scene1-label">L</text>
+
+            <!-- 物块 (位于 M 点) -->
+            <rect id="scene1-block" x="630" y="400" width="30" height="30" fill="#c62828" opacity="0.7"/>
+
+            <!-- 质量 m 标签 -->
+            <text id="scene1-label-m" x="670" y="415" font-size="13px" fill="#000000">m</text>
+
+            <!-- MN 段受力向量组 (步骤 1 显示) -->
+            <g id="scene1-forces-mn" class="scene1-fade-in" style="opacity: 0; visibility: hidden;">
+                <!-- 重力 mg (红色，向下) -->
+                <line id="scene1-force-mg" x1="645" y1="415" x2="645" y2="465" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arrow-red)"/>
+                <text id="scene1-label-mg" x="650" y="485" font-size="13px" fill="#c62828" class="scene1-force-label">mg</text>
+
+                <!-- 电场力 qE (蓝色，向左) -->
+                <line id="scene1-force-qe" x1="645" y1="415" x2="595" y2="415" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-blue)"/>
+                <text id="scene1-label-qe" x="560" y="405" font-size="13px" fill="#1565c0" class="scene1-force-label">qE</text>
+
+                <!-- 摩擦力 f (绿色，向右) -->
+                <line id="scene1-force-f" x1="645" y1="415" x2="685" y2="415" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene1-arrow-green)"/>
+                <text id="scene1-label-f" x="690" y="405" font-size="13px" fill="#2e7d32" class="scene1-force-label">f</text>
+
+                <!-- 支持力 N (灰色，向上) -->
+                <line id="scene1-force-n" x1="645" y1="415" x2="645" y2="365" stroke="#888888" stroke-width="2" marker-end="url(#scene1-arrow-gray)"/>
+                <text id="scene1-label-N-force" x="655" y="355" font-size="13px" fill="#888888" class="scene1-force-label">N</text>
+            </g>
+
+            <!-- NL 段受力向量组 (步骤 2 显示，在 P 点) -->
+            <g id="scene1-forces-nl" class="scene1-fade-in" style="opacity: 0; visibility: hidden;">
+                <!-- P 点物块 (临时显示) -->
+                <rect id="scene1-block-p" x="65" y="285" width="30" height="30" fill="#c62828" opacity="0.7"/>
+
+                <!-- 重力 mg (红色，向下) -->
+                <line id="scene1-force-mg-p" x1="80" y1="300" x2="80" y2="350" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arrow-red)"/>
+                <text id="scene1-label-mg-p" x="85" y="370" font-size="13px" fill="#c62828" class="scene1-force-label">mg</text>
+
+                <!-- 电场力 qE (蓝色，向左) -->
+                <line id="scene1-force-qe-p" x1="80" y1="300" x2="30" y2="300" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-blue)"/>
+                <text id="scene1-label-qe-p" x="5" y="290" font-size="13px" fill="#1565c0" class="scene1-force-label">qE</text>
+
+                <!-- 支持力 N (灰色，指向圆心，向右) -->
+                <line id="scene1-force-n-p" x1="80" y1="300" x2="130" y2="300" stroke="#888888" stroke-width="2.5" marker-end="url(#scene1-arrow-gray)"/>
+                <text id="scene1-label-N-p" x="135" y="305" font-size="13px" fill="#888888" class="scene1-force-label">N</text>
+            </g>
+
+            <!-- 已知条件标签 (步骤 3 显示) -->
+            <g id="scene1-conditions" class="scene1-fade-in" style="opacity: 0; visibility: hidden;">
+                <text id="scene1-cond-m" x="635" y="385" font-size="12px" fill="#000000">m=80g</text>
+                <text id="scene1-cond-q" x="620" y="455" font-size="12px" fill="#000000">q=2×10⁻⁴C</text>
+                <text id="scene1-cond-mu" x="420" y="445" font-size="12px" fill="#000000">μ=0.2</text>
+                <text id="scene1-cond-R" x="215" y="260" font-size="12px" fill="#000000">R=40cm</text>
+                <text id="scene1-cond-E" x="60" y="95" font-size="12px" fill="#000000">E=10³V/m</text>
+                <text id="scene1-cond-g" x="700" y="485" font-size="12px" fill="#000000">g=10m/s²</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-status">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：带电物块在复合场中运动 - 受力分析
+
+        let currentState = 0;
+        const totalStates = 4;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const statusSpan = document.getElementById('scene1-status');
+
+        // 元素引用
+        const forcesMn = document.getElementById('scene1-forces-mn');
+        const forcesNl = document.getElementById('scene1-forces-nl');
+        const conditions = document.getElementById('scene1-conditions');
+        const trackHorizontal = document.getElementById('scene1-track-horizontal');
+        const trackSemicircle = document.getElementById('scene1-track-semicircle');
+
+        // 显示/隐藏工具函数 (SVG 元素使用 visibility)
+        function showElement(el) {
+            el.style.visibility = 'visible';
+            // 使用 requestAnimationFrame 确保 visibility 生效后再设置 opacity
+            requestAnimationFrame(function() {
+                el.style.opacity = '1';
+            });
+        }
+
+        function hideElement(el) {
+            el.style.opacity = '0';
+            setTimeout(function() {
+                el.style.visibility = 'hidden';
+            }, 300);
+        }
+
+        // 更新场景状态
+        function updateScene() {
+            // 更新状态指示器
+            statusSpan.textContent = '步骤 ' + (currentState + 1) + '/4';
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalStates - 1);
+
+            // 重置所有特殊显示
+            trackHorizontal.setAttribute('stroke-width', '3');
+            trackSemicircle.setAttribute('stroke-width', '3');
+            hideElement(forcesMn);
+            hideElement(forcesNl);
+            hideElement(conditions);
+
+            // 根据当前状态显示对应内容
+            switch (currentState) {
+                case 0:
+                    // 初始状态：仅显示基础装置
+                    break;
+
+                case 1:
+                    // MN 段受力分析
+                    trackHorizontal.setAttribute('stroke-width', '5');
+                    showElement(forcesMn);
+                    break;
+
+                case 2:
+                    // NL 段受力特点
+                    trackSemicircle.setAttribute('stroke-width', '5');
+                    showElement(forcesNl);
+                    break;
+
+                case 3:
+                    // 关键位置标注与物理量汇总
+                    showElement(conditions);
+                    break;
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalStates - 1) {
+                currentState++;
+                updateScene();
+            }
+        });
+
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

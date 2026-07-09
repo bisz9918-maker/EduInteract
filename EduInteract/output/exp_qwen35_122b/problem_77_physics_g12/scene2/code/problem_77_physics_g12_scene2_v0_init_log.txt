@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 方波电压波形与粒子入射时刻关系</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 15px; z-index: 10; }
+        #scene2-slider-track { width: 300px; height: 6px; background: #e0e0e0; border-radius: 3px; position: relative; cursor: pointer; }
+        #scene2-slider-handle { width: 24px; height: 24px; background: #1976d2; border-radius: 50%; position: absolute; top: -9px; left: 0; cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        #scene2-slider-handle:active { cursor: grabbing; background: #1565c0; }
+        #scene2-t0-display { font-size: 16px; font-weight: bold; color: #1976d2; min-width: 80px; text-align: center; }
+        .scene2-axis-label { font-size: 14px; font-weight: bold; fill: #000000; }
+        .scene2-tick-label { font-size: 12px; fill: #333333; }
+        .scene2-waveform { stroke: #000000; stroke-width: 2; fill: none; }
+        .scene2-accel-line { stroke-width: 2; fill: none; }
+        .scene2-highlight-rect { fill: rgba(46, 125, 50, 0.1); stroke: #2e7d32; stroke-width: 2; }
+        .scene2-t0-line { stroke: #ff5722; stroke-width: 2; stroke-dasharray: 5,5; }
+        .scene2-voltage-positive { fill: rgba(21, 101, 192, 0.15); }
+        .scene2-voltage-negative { fill: rgba(198, 40, 40, 0.15); }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500">
+            <!-- ===== 电压波形图区 ===== -->
+            <!-- 背景矩形：(80,70)-(700,170)，留出边缘空间，不覆盖刻度标签 -->
+            <defs>
+                <clipPath id="scene2-voltage-clip">
+                    <rect x="80" y="70" width="620" height="100"/>
+                </clipPath>
+            </defs>
+            
+            <!-- 电压图背景 -->
+            <rect x="80" y="70" width="620" height="100" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+            
+            <!-- 电压横轴 (90,170)-(690,170) -->
+            <line x1="90" y1="170" x2="690" y2="170" stroke="#000000" stroke-width="2"/>
+            <!-- 电压纵轴 (90,70)-(90,170) -->
+            <line x1="90" y1="70" x2="90" y2="170" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 轴标签（完全移出背景矩形） -->
+            <text x="55" y="55" class="scene2-axis-label">U</text>
+            <text x="700" y="175" class="scene2-axis-label">t</text>
+            
+            <!-- 纵轴刻度标签（完全移出背景矩形左侧） -->
+            <text x="75" y="80" class="scene2-tick-label">U₀</text>
+            <text x="85" y="175" class="scene2-tick-label">0</text>
+            <text x="65" y="135" class="scene2-tick-label">-U₀</text>
+            
+            <!-- 横轴刻度标签（完全移出背景矩形下方） -->
+            <text x="86" y="195" class="scene2-tick-label">0</text>
+            <text x="290" y="195" class="scene2-tick-label">2T/3</text>
+            <text x="475" y="195" class="scene2-tick-label">T</text>
+            <text x="655" y="195" class="scene2-tick-label">5T/3</text>
+            <text x="690" y="195" class="scene2-tick-label">2T</text>
+            
+            <!-- 方波填充区域 -->
+            <!-- 0~2T/3: U=+U₀ -->
+            <rect x="90" y="80" width="193" height="90" class="scene2-voltage-positive"/>
+            <!-- 2T/3~T: U=-U₀ -->
+            <rect x="283" y="120" width="97" height="50" class="scene2-voltage-negative"/>
+            <!-- T~5T/3: U=+U₀ -->
+            <rect x="380" y="80" width="203" height="90" class="scene2-voltage-positive"/>
+            <!-- 5T/3~2T: U=-U₀ -->
+            <rect x="583" y="120" width="107" height="50" class="scene2-voltage-negative"/>
+            
+            <!-- 方波主线 -->
+            <polyline id="scene2-waveform" points="90,80 283,80 283,120 380,120 380,80 583,80 583,120 690,120" class="scene2-waveform"/>
+            
+            <!-- 高亮区间矩形 (动态) -->
+            <rect id="scene2-highlight-rect" class="scene2-highlight-rect"/>
+            
+            <!-- 入射时刻竖线 (动态) -->
+            <line id="scene2-t0-line" class="scene2-t0-line" x1="90" y1="70" x2="90" y2="170"/>
+            <text id="scene2-t0-label" x="95" y="75" class="scene2-tick-label" fill="#ff5722" font-weight="bold">t₀</text>
+            
+            <!-- ===== 加速度图区 ===== -->
+            <!-- 背景矩形：(80,250)-(700,400) -->
+            <rect x="80" y="250" width="620" height="150" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+            
+            <!-- 加速度横轴 (90,390)-(690,390) -->
+            <line id="scene2-accel-axis-h" x1="90" y1="390" x2="690" y2="390" stroke="#000000" stroke-width="2"/>
+            <!-- 加速度纵轴 (90,260)-(90,390) -->
+            <line id="scene2-accel-axis-v" x1="90" y1="260" x2="90" y2="390" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 轴标签（完全移出背景矩形） -->
+            <text x="55" y="255" class="scene2-axis-label">a</text>
+            
+            <!-- 加速度折线 (动态) -->
+            <polyline id="scene2-accel-graph" class="scene2-accel-line" stroke="#888880"/>
+            
+            <!-- 加速度图刻度标签（完全移出背景矩形） -->
+            <text x="86" y="410" class="scene2-tick-label">0</text>
+            <text x="60" y="320" class="scene2-tick-label" fill="#c62828">+a</text>
+            <text x="60" y="365" class="scene2-tick-label" fill="#1565c0">-a</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <span id="scene2-t0-display">t₀ = 0</span>
+            <div id="scene2-slider-track">
+                <div id="scene2-slider-handle"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // ===== Scene 2 实现 =====
+        // 坐标映射：时间 t∈[0,2T] 映射到 x∈[90,690]
+        // 比例因子：px_per_T = 300 (因为 T 对应 300px)
+        // 电压跳变点：2T/3≈290, T=390, 5T/3≈590
+        
+        const px_per_T = 300;
+        const x_origin = 90;
+        const voltage_y_positive = 80;
+        const voltage_y_negative = 120;
+        const voltage_y_zero = 170;
+        const accel_y_positive = 320;
+        const accel_y_negative = 360;
+        const accel_y_zero = 390;
+        
+        // 状态变量
+        let t0 = 0;  // 入射时刻，范围 [0, T)
+        let isDragging = false;
+        
+        // DOM 元素
+        const sliderTrack = document.getElementById('scene2-slider-track');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+        const t0Display = document.getElementById('scene2-t0-display');
+        const highlightRect = document.getElementById('scene2-highlight-rect');
+        const t0Line = document.getElementById('scene2-t0-line');
+        const t0Label = document.getElementById('scene2-t0-label');
+        const accelGraph = document.getElementById('scene2-accel-graph');
+        
+        // 时间转像素坐标
+        function timeToX(t) {
+            return x_origin + t * px_per_T;
+        }
+        
+        // 像素坐标转时间
+        function xToTime(x) {
+            return (x - x_origin) / px_per_T;
+        }
+        
+        // 更新 UI
+        function updateUI() {
+            const x_t0 = timeToX(t0);
+            const x_t0_plus_T = timeToX(t0 + 1);
+            
+            // 更新高亮区间矩形
+            highlightRect.setAttribute('x', x_t0);
+            highlightRect.setAttribute('y', 70);
+            highlightRect.setAttribute('width', x_t0_plus_T - x_t0);
+            highlightRect.setAttribute('height', 100);
+            
+            // 更新入射时刻竖线
+            t0Line.setAttribute('x1', x_t0);
+            t0Line.setAttribute('y1', 70);
+            t0Line.setAttribute('x2', x_t0);
+            t0Line.setAttribute('y2', 170);
+            
+            // 更新 t₀标签位置（避免与 U 标签重叠）
+            if (x_t0 < 110) {
+                t0Label.setAttribute('x', x_t0 - 25);
+                t0Label.setAttribute('y', 75);
+            } else {
+                t0Label.setAttribute('x', x_t0 + 5);
+                t0Label.setAttribute('y', 75);
+            }
+            
+            // 更新滑块手柄位置
+            const sliderLeft = (t0 / 1) * 300;
+            sliderHandle.style.left = sliderLeft + 'px';
+            
+            // 更新 t₀显示
+            if (t0 < 0.01) {
+                t0Display.textContent = 't₀ = 0';
+            } else if (t0 >= 0.99) {
+                t0Display.textContent = 't₀ = T';
+            } else {
+                t0Display.textContent = 't₀ = ' + t0.toFixed(2) + 'T';
+            }
+            
+            // 更新加速度图
+            updateAccelerationGraph();
+        }
+        
+        // 更新加速度图
+        function updateAccelerationGraph() {
+            const points = [];
+            const t_start = t0;
+            const t_end = t0 + 1;
+            
+            // 计算加速度分段点
+            // 电压波形周期：0~2T/3: +U₀, 2T/3~T: -U₀, T~5T/3: +U₀, 5T/3~2T: -U₀
+            // 加速度与电压成正比，方向相反（正电荷）
+            
+            let current_t = t_start;
+            let current_a = getAcceleration(t_start);
+            
+            points.push({ t: t_start, a: current_a });
+            
+            // 找到所有跳变点
+            const jumpPoints = [];
+            for (let k = 0; k < 4; k++) {
+                const t_jump1 = k * 1 + 2/3;  // 2T/3, T+2T/3, ...
+                const t_jump2 = k * 1 + 1;    // T, 2T, ...
+                if (t_jump1 > t_start && t_jump1 < t_end) jumpPoints.push(t_jump1);
+                if (t_jump2 > t_start && t_jump2 < t_end) jumpPoints.push(t_jump2);
+            }
+            jumpPoints.sort((a, b) => a - b);
+            jumpPoints.push(t_end);
+            
+            // 构建加速度折线
+            for (const t_jump of jumpPoints) {
+                const a_before = getAcceleration(t_jump - 0.001);
+                const a_after = getAcceleration(t_jump + 0.001);
+                
+                const x_before = timeToX(t_jump);
+                const x_after = timeToX(t_jump);
+                
+                // 添加跳变前的点
+                points.push({ t: t_jump, a: a_before, x: x_before });
+                // 添加跳变后的点
+                points.push({ t: t_jump, a: a_after, x: x_after });
+                
+                current_t = t_jump;
+                current_a = a_after;
+            }
+            
+            // 添加终点
+            points.push({ t: t_end, a: getAcceleration(t_end - 0.001) });
+            
+            // 构建 SVG polyline
+            let svgPoints = '';
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                const x = timeToX(p.t);
+                const y = p.a > 0 ? accel_y_positive : accel_y_negative;
+                
+                if (i === 0) {
+                    svgPoints += x + ',' + y;
+                } else {
+                    // 如果是跳变点，先画垂直线
+                    const prevP = points[i - 1];
+                    const prevY = prevP.a > 0 ? accel_y_positive : accel_y_negative;
+                    if (Math.abs(p.t - prevP.t) < 0.01 && prevY !== y) {
+                        svgPoints += ',' + x + ',' + prevY + ' ' + x + ',' + y;
+                    } else {
+                        svgPoints += ',' + x + ',' + y;
+                    }
+                }
+            }
+            
+            accelGraph.setAttribute('points', svgPoints);
+            
+            // 设置颜色：向下加速度（正值）为红色，向上加速度（负值）为蓝色
+            accelGraph.setAttribute('stroke', '#888880');
+        }
+        
+        // 获取时刻 t 的加速度方向（简化模型）
+        function getAcceleration(t) {
+            // 归一化到 [0, 2) 周期
+            const t_norm = t % 2;
+            
+            if (t_norm < 2/3) {
+                return 1;  // 向下加速度（正值）
+            } else if (t_norm < 1) {
+                return -1; // 向上加速度（负值）
+            } else if (t_norm < 5/3) {
+                return 1;  // 向下加速度（正值）
+            } else {
+                return -1; // 向上加速度（负值）
+            }
+        }
+        
+        // 滑块交互
+        function handleSliderMove(clientX) {
+            const rect = sliderTrack.getBoundingClientRect();
+            let x = clientX - rect.left;
+            x = Math.max(0, Math.min(300, x));
+            t0 = x / 300;  // 映射到 [0, 1]
+            t0 = Math.max(0, Math.min(0.999, t0));
+            updateUI();
+        }
+        
+        sliderHandle.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        sliderTrack.addEventListener('mousedown', function(e) {
+            handleSliderMove(e.clientX);
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.clientX);
+            }
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+        
+        // 触摸支持
+        sliderHandle.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        sliderTrack.addEventListener('touchstart', function(e) {
+            handleSliderMove(e.touches[0].clientX);
+            isDragging = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (isDragging) {
+                handleSliderMove(e.touches[0].clientX);
+            }
+        });
+        
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+        
+        // 初始化
+        updateUI();
+    })();
+    </script>
+</body>
+</html>

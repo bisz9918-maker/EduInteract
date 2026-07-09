@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene3-info { font-size: 16px; fill: #333; }
+        .scene3-label { font-size: 14px; fill: #000; }
+        .scene3-title { font-size: 20px; font-weight: bold; fill: #000; }
+        input[type=range] { width: 300px; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <defs>
+                <marker id="scene3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+            </defs>
+            
+            <!-- 信息面板 -->
+            <text x="20" y="40" class="scene3-title">正午太阳高度角的周年变化</text>
+            <text x="20" y="75" class="scene3-info" id="scene3-info-lat">太阳直射点纬度：23.5°S</text>
+            <text x="20" y="105" class="scene3-info" id="scene3-info-h">A点正午太阳高度角：90.0°</text>
+
+            <!-- 地球基础结构 -->
+            <!-- 地轴 -->
+            <line x1="200" y1="60" x2="200" y2="400" stroke="#000000" stroke-width="1" stroke-dasharray="4,4" />
+            <text x="180" y="50" class="scene3-label" text-anchor="middle">N</text>
+            <text x="180" y="420" class="scene3-label" text-anchor="middle">S</text>
+            
+            <!-- 地球右半圆 -->
+            <path d="M 200 60 A 160 160 0 0 1 200 380" fill="none" stroke="#000000" stroke-width="2" />
+            
+            <!-- 纬线 -->
+            <!-- 赤道 -->
+            <line x1="200" y1="220" x2="360" y2="220" stroke="#000000" stroke-width="1" />
+            <text x="170" y="225" class="scene3-label" text-anchor="end">0°</text>
+            
+            <!-- 北回归线 -->
+            <line x1="200" y1="156.2" x2="346.7" y2="156.2" stroke="#000000" stroke-width="1" stroke-dasharray="4,4" />
+            <text x="140" y="161" class="scene3-label" text-anchor="end">23.5°N</text>
+            
+            <!-- 南回归线 -->
+            <line x1="200" y1="283.8" x2="346.7" y2="283.8" stroke="#000000" stroke-width="1" stroke-dasharray="4,4" />
+            <text x="140" y="288" class="scene3-label" text-anchor="end">23.5°S</text>
+
+            <!-- A点及地平面 -->
+            <line x1="298.9" y1="393.8" x2="394.5" y2="173.8" stroke="#1565c0" stroke-width="3" />
+            <circle cx="346.7" cy="283.8" r="4" fill="#1565c0" />
+            <text x="315" y="305" class="scene3-label" fill="#1565c0">A</text>
+
+            <!-- 太阳光线组 -->
+            <g id="scene3-rays">
+                <!-- 北光线 -->
+                <line id="scene3-ray-n" x1="746.7" y1="156.2" x2="346.7" y2="156.2" stroke="#c62828" stroke-width="2" marker-end="url(#scene3-arrow)" />
+                <!-- 中光线 -->
+                <line id="scene3-ray-m" x1="760" y1="220" x2="360" y2="220" stroke="#c62828" stroke-width="2" marker-end="url(#scene3-arrow)" />
+                <text id="scene3-ray-label" x="740" y="190" class="scene3-label" fill="#c62828" text-anchor="end">太阳光线</text>
+                <!-- 南光线 (直达A点) -->
+                <line id="scene3-ray-s" x1="746.7" y1="283.8" x2="346.7" y2="283.8" stroke="#c62828" stroke-width="2" marker-end="url(#scene3-arrow)" />
+            </g>
+
+            <!-- 高度角标注 -->
+            <path id="scene3-angle-arc" d="" fill="none" stroke="#2e7d32" stroke-width="2" />
+            <text id="scene3-angle-text" x="0" y="0" class="scene3-label" fill="#2e7d32" font-weight="bold">H = 90.0°</text>
+        </svg>
+
+        <div id="scene3-controls">
+            <span style="font-size: 14px;">23.5°N</span>
+            <input type="range" id="scene3-slider" min="0" max="100" value="100">
+            <span style="font-size: 14px;">23.5°S</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const slider = document.getElementById('scene3-slider');
+        const rayN = document.getElementById('scene3-ray-n');
+        const rayM = document.getElementById('scene3-ray-m');
+        const rayS = document.getElementById('scene3-ray-s');
+        const rayLabel = document.getElementById('scene3-ray-label');
+        const angleArc = document.getElementById('scene3-angle-arc');
+        const angleText = document.getElementById('scene3-angle-text');
+        const infoLat = document.getElementById('scene3-info-lat');
+        const infoH = document.getElementById('scene3-info-h');
+
+        // 常量定义
+        const R = 160;
+        const CX = 200;
+        const CY = 220;
+        const RAY_LENGTH = 400;
+        const A_LAT = -23.5; // A点纬度 23.5°S
+        const A_X = 346.7;
+        const A_Y = 283.8;
+        
+        // 地平面倾角 (A点切线角度)
+        // A点在圆上的角度为 23.5° (向下为正)
+        // 切线角度为 23.5° - 90° = -66.5°
+        const PLANE_ANGLE_RAD = (A_LAT - 90) * Math.PI / 180;
+
+        function updateScene() {
+            const val = parseInt(slider.value);
+            // val: 0 -> 23.5°N, 100 -> 23.5°S
+            // lat: 23.5 -> -23.5
+            const lat = 23.5 - (val / 100) * 47;
+            const latRad = lat * Math.PI / 180;
+
+            // 更新信息面板
+            const latStr = lat > 0 ? `${lat.toFixed(1)}°N` : (lat < 0 ? `${Math.abs(lat).toFixed(1)}°S` : `0.0°`);
+            infoLat.textContent = `太阳直射点纬度：${latStr}`;
+
+            // 计算光线方向向量 (指向地球)
+            // 直射点纬度为 lat，光线从右向左射入
+            // 太阳光线与赤道面的夹角为 lat
+            // 光线方向向量: dx = -cos(lat), dy = sin(lat) (SVG y轴向下)
+            const dx = -Math.cos(latRad);
+            const dy = Math.sin(latRad);
+
+            // 更新光线起点
+            // 北光线终点: (346.7, 156.2)
+            rayN.setAttribute('x1', 346.7 - RAY_LENGTH * dx);
+            rayN.setAttribute('y1', 156.2 - RAY_LENGTH * dy);
+            
+            // 中光线终点: (360, 220)
+            const mX1 = 360 - RAY_LENGTH * dx;
+            const mY1 = 220 - RAY_LENGTH * dy;
+            rayM.setAttribute('x1', mX1);
+            rayM.setAttribute('y1', mY1);
+            
+            // 太阳光线标签位置，根据光线倾角动态调整，避免与光线重叠
+            // 放在中光线起点附近，向上偏移
+            rayLabel.setAttribute('x', mX1 - 20);
+            rayLabel.setAttribute('y', mY1 - 20);
+
+            // 南光线终点: (346.7, 283.8)
+            rayS.setAttribute('x1', A_X - RAY_LENGTH * dx);
+            rayS.setAttribute('y1', A_Y - RAY_LENGTH * dy);
+
+            // 计算高度角 H
+            // H = 90° - |A点纬度 - 直射点纬度|
+            const H = 90 - Math.abs(A_LAT - lat);
+            infoH.textContent = `A点正午太阳高度角：${H.toFixed(1)}°`;
+            angleText.textContent = `H = ${H.toFixed(1)}°`;
+
+            // 绘制高度角圆弧
+            // 起点：地平面方向 (向右上方)
+            // 终点：光线反方向 (向右上方)
+            const arcRadius = 40;
+            
+            // 地平面方向向量 (向右上方)
+            // 角度为 -66.5°
+            const planeDx = Math.cos(PLANE_ANGLE_RAD);
+            const planeDy = Math.sin(PLANE_ANGLE_RAD);
+            
+            const startX = A_X + arcRadius * planeDx;
+            const startY = A_Y + arcRadius * planeDy;
+
+            // 光线反方向向量
+            // 角度为 -lat
+            const rayRevRad = -latRad;
+            const rayRevDx = Math.cos(rayRevRad);
+            const rayRevDy = Math.sin(rayRevRad);
+            
+            const endX = A_X + arcRadius * rayRevDx;
+            const endY = A_Y + arcRadius * rayRevDy;
+
+            // 绘制圆弧
+            // sweep-flag: 1 (顺时针，从地平面到光线)
+            angleArc.setAttribute('d', `M ${startX} ${startY} A ${arcRadius} ${arcRadius} 0 0 1 ${endX} ${endY}`);
+
+            // 更新文本位置 (角平分线方向)
+            const midRad = (PLANE_ANGLE_RAD + rayRevRad) / 2;
+            const textDist = 105; // 进一步增加距离避免与光线重叠
+            angleText.setAttribute('x', A_X + textDist * Math.cos(midRad) - 20);
+            angleText.setAttribute('y', A_Y + textDist * Math.sin(midRad) + 5);
+        }
+
+        slider.addEventListener('input', updateScene);
+        updateScene(); // 初始化
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>带电粒子在三段电场区域的运动轨迹</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene1-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene1-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            position: absolute;
+            bottom: 15px;
+            right: 20px;
+            font-size: 14px;
+            color: #333;
+        }
+        /* 轨迹动画 */
+        .scene1-trajectory {
+            stroke: #c62828;
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            transition: stroke-dashoffset 0.8s ease-out;
+        }
+        .scene1-trajectory.visible {
+            stroke-dashoffset: 0;
+        }
+        /* 元素显隐 */
+        .scene1-hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .scene1-visible {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头和填充图案 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#333" />
+                </marker>
+                <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#1565c0" />
+                </marker>
+                <pattern id="scene1-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="#2e7d32" stroke-width="2" />
+                </pattern>
+            </defs>
+
+            <!-- 尺寸标注 -->
+            <!-- d=8cm 竖直标注 (左侧) -->
+            <g id="scene1-dim-d" class="scene1-visible">
+                <line x1="60" y1="210" x2="60" y2="290" stroke="#333" stroke-width="1.5" marker-start="url(#scene1-arrowhead)" marker-end="url(#scene1-arrowhead)" />
+                <text id="scene1-text-dim-d" x="30" y="255" font-size="14" fill="#333" text-anchor="middle">d=8cm</text>
+            </g>
+
+            <!-- l=8cm 水平标注 (下板下方) -->
+            <g id="scene1-dim-l" class="scene1-visible">
+                <line x1="80" y1="310" x2="280" y2="310" stroke="#333" stroke-width="1.5" marker-start="url(#scene1-arrowhead)" marker-end="url(#scene1-arrowhead)" />
+                <text id="scene1-text-dim-l" x="180" y="328" font-size="14" fill="#333" text-anchor="middle">l=8cm</text>
+            </g>
+
+            <!-- L=12cm 水平标注 (顶部) -->
+            <g id="scene1-dim-L" class="scene1-visible">
+                <line x1="280" y1="130" x2="520" y2="130" stroke="#333" stroke-width="1.5" marker-start="url(#scene1-arrowhead)" marker-end="url(#scene1-arrowhead)" />
+                <text id="scene1-text-dim-L" x="400" y="120" font-size="14" fill="#333" text-anchor="middle">L=12cm</text>
+            </g>
+
+            <!-- 中心线 RO -->
+            <line id="scene1-center-line" x1="50" y1="250" x2="750" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene1-visible" />
+
+            <!-- 金属板 A (上板) -->
+            <line id="scene1-plate-A" x1="80" y1="210" x2="280" y2="210" stroke="#000000" stroke-width="3" class="scene1-visible" />
+            <text id="scene1-text-A" x="100" y="195" font-size="16" fill="#333" text-anchor="middle" class="scene1-visible">A</text>
+
+            <!-- 金属板 B (下板) -->
+            <line id="scene1-plate-B" x1="80" y1="290" x2="280" y2="290" stroke="#000000" stroke-width="3" class="scene1-visible" />
+            <text id="scene1-text-B" x="100" y="310" font-size="16" fill="#333" text-anchor="middle" class="scene1-visible">B</text>
+
+            <!-- 界面 MN (竖直虚线) -->
+            <line id="scene1-boundary-MN" x1="280" y1="150" x2="280" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene1-visible" />
+            <text id="scene1-text-M" x="290" y="145" font-size="14" fill="#333" class="scene1-visible">M</text>
+            <text id="scene1-text-N" x="290" y="360" font-size="14" fill="#333" class="scene1-visible">N</text>
+
+            <!-- 界面 PS (竖直虚线) -->
+            <line id="scene1-boundary-PS" x1="520" y1="100" x2="520" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" class="scene1-visible" />
+            <text id="scene1-text-P" x="530" y="95" font-size="14" fill="#333" class="scene1-visible">P</text>
+            <text id="scene1-text-S" x="530" y="410" font-size="14" fill="#333" class="scene1-visible">S</text>
+
+            <!-- 入射点 R -->
+            <circle id="scene1-point-R" cx="50" cy="250" r="5" fill="none" stroke="#333" stroke-width="1.5" class="scene1-visible" />
+            <text id="scene1-text-R" x="35" y="255" font-size="14" fill="#333" text-anchor="middle" class="scene1-visible">R</text>
+
+            <!-- 初速度 v0 箭头 -->
+            <g id="scene1-velocity-v0" class="scene1-visible">
+                <line x1="55" y1="250" x2="100" y2="250" stroke="#333" stroke-width="1.5" marker-end="url(#scene1-arrowhead)" />
+                <text id="scene1-text-v0" x="78" y="240" font-size="14" fill="#333" text-anchor="middle">v₀</text>
+            </g>
+
+            <!-- 点电荷 Q -->
+            <circle id="scene1-charge-Q" cx="620" cy="250" r="8" fill="#1565c0" class="scene1-visible" />
+            <text id="scene1-text-O" x="620" y="235" font-size="14" fill="#333" text-anchor="middle" class="scene1-visible">O</text>
+            <text id="scene1-text-Q" x="620" y="220" font-size="12" fill="#1565c0" text-anchor="middle" class="scene1-visible">Q</text>
+
+            <!-- 荧光屏 EF -->
+            <g id="scene1-screen-EF" class="scene1-visible">
+                <line x1="650" y1="250" x2="750" y2="250" stroke="#2e7d32" stroke-width="5" />
+                <line x1="650" y1="250" x2="750" y2="255" stroke="#2e7d32" stroke-width="1" stroke-dasharray="3,3" />
+                <text id="scene1-text-E" x="650" y="235" font-size="14" fill="#333" text-anchor="middle" class="scene1-visible">E</text>
+                <text id="scene1-text-F" x="740" y="235" font-size="14" fill="#333" text-anchor="middle" class="scene1-visible">F</text>
+            </g>
+
+            <!-- 轨迹：抛物线段 (R 到 MN) -->
+            <!-- 从 (50,250) 到 (280,265) 的抛物线，控制点在中间下方 -->
+            <path id="scene1-trajectory-parabola" 
+                  d="M 50 250 Q 165 255 280 265" 
+                  class="scene1-trajectory scene1-hidden" />
+
+            <!-- 轨迹：直线段 (MN 到 PS) -->
+            <!-- 从 (280,265) 到 (520,300) -->
+            <line id="scene1-trajectory-line" 
+                  x1="280" y1="265" x2="520" y2="300" 
+                  class="scene1-trajectory scene1-hidden" />
+
+            <!-- 轨迹：圆弧段 (PS 到荧光屏) -->
+            <!-- 从 (520,300) 到 (700,250) 的圆弧，圆心在 (620,250) 附近 -->
+            <path id="scene1-trajectory-arc" 
+                  d="M 520 300 A 80 80 0 0 1 700 250" 
+                  class="scene1-trajectory scene1-hidden" />
+
+            <!-- 角度θ标注 (在 MN 出射点处) -->
+            <g id="scene1-label-theta" class="scene1-hidden">
+                <path d="M 270 265 A 15 15 0 0 1 283 268" stroke="#c62828" stroke-width="1.5" fill="none" />
+                <text x="290" y="280" font-size="14" fill="#c62828">θ</text>
+            </g>
+
+            <!-- 偏离距离 y 标注 (PS 界面处) -->
+            <g id="scene1-label-y" class="scene1-hidden">
+                <line x1="520" y1="250" x2="520" y2="300" stroke="#1565c0" stroke-width="1.5" marker-start="url(#scene1-arrowhead-blue)" marker-end="url(#scene1-arrowhead-blue)" />
+                <text x="535" y="280" font-size="14" fill="#1565c0">y</text>
+            </g>
+
+            <!-- 控件栏 -->
+            <div id="scene1-controls">
+                <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+                <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+            </div>
+            <div id="scene1-step-indicator">步骤 1/5</div>
+        </svg>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 带电粒子在三段电场区域的运动轨迹
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 每步显示的元素配置
+        const stepConfig = [
+            // 步骤 0: 初始状态 - 仅装置结构
+            {
+                visible: ['scene1-dim-d', 'scene1-dim-l', 'scene1-dim-L', 'scene1-center-line', 
+                          'scene1-plate-A', 'scene1-plate-B', 'scene1-boundary-MN', 'scene1-boundary-PS',
+                          'scene1-point-R', 'scene1-velocity-v0', 'scene1-charge-Q', 'scene1-screen-EF',
+                          'scene1-text-A', 'scene1-text-B', 'scene1-text-M', 'scene1-text-N',
+                          'scene1-text-P', 'scene1-text-S', 'scene1-text-R', 'scene1-text-v0',
+                          'scene1-text-O', 'scene1-text-Q', 'scene1-text-E', 'scene1-text-F',
+                          'scene1-text-dim-d', 'scene1-text-dim-l', 'scene1-text-dim-L'],
+                hidden: ['scene1-trajectory-parabola', 'scene1-trajectory-line', 'scene1-trajectory-arc',
+                         'scene1-label-theta', 'scene1-label-y']
+            },
+            // 步骤 1: 抛物线轨迹
+            {
+                visible: ['scene1-dim-d', 'scene1-dim-l', 'scene1-dim-L', 'scene1-center-line',
+                          'scene1-plate-A', 'scene1-plate-B', 'scene1-boundary-MN', 'scene1-boundary-PS',
+                          'scene1-point-R', 'scene1-velocity-v0', 'scene1-charge-Q', 'scene1-screen-EF',
+                          'scene1-text-A', 'scene1-text-B', 'scene1-text-M', 'scene1-text-N',
+                          'scene1-text-P', 'scene1-text-S', 'scene1-text-R', 'scene1-text-v0',
+                          'scene1-text-O', 'scene1-text-Q', 'scene1-text-E', 'scene1-text-F',
+                          'scene1-text-dim-d', 'scene1-text-dim-l', 'scene1-text-dim-L',
+                          'scene1-trajectory-parabola'],
+                hidden: ['scene1-trajectory-line', 'scene1-trajectory-arc', 'scene1-label-theta', 'scene1-label-y']
+            },
+            // 步骤 2: 直线轨迹 + θ角
+            {
+                visible: ['scene1-dim-d', 'scene1-dim-l', 'scene1-dim-L', 'scene1-center-line',
+                          'scene1-plate-A', 'scene1-plate-B', 'scene1-boundary-MN', 'scene1-boundary-PS',
+                          'scene1-point-R', 'scene1-velocity-v0', 'scene1-charge-Q', 'scene1-screen-EF',
+                          'scene1-text-A', 'scene1-text-B', 'scene1-text-M', 'scene1-text-N',
+                          'scene1-text-P', 'scene1-text-S', 'scene1-text-R', 'scene1-text-v0',
+                          'scene1-text-O', 'scene1-text-Q', 'scene1-text-E', 'scene1-text-F',
+                          'scene1-text-dim-d', 'scene1-text-dim-l', 'scene1-text-dim-L',
+                          'scene1-trajectory-parabola', 'scene1-trajectory-line', 'scene1-label-theta'],
+                hidden: ['scene1-trajectory-arc', 'scene1-label-y']
+            },
+            // 步骤 3: 圆弧轨迹 + y 标注
+            {
+                visible: ['scene1-dim-d', 'scene1-dim-l', 'scene1-dim-L', 'scene1-center-line',
+                          'scene1-plate-A', 'scene1-plate-B', 'scene1-boundary-MN', 'scene1-boundary-PS',
+                          'scene1-point-R', 'scene1-velocity-v0', 'scene1-charge-Q', 'scene1-screen-EF',
+                          'scene1-text-A', 'scene1-text-B', 'scene1-text-M', 'scene1-text-N',
+                          'scene1-text-P', 'scene1-text-S', 'scene1-text-R', 'scene1-text-v0',
+                          'scene1-text-O', 'scene1-text-Q', 'scene1-text-E', 'scene1-text-F',
+                          'scene1-text-dim-d', 'scene1-text-dim-l', 'scene1-text-dim-L',
+                          'scene1-trajectory-parabola', 'scene1-trajectory-line', 'scene1-trajectory-arc',
+                          'scene1-label-theta', 'scene1-label-y'],
+                hidden: []
+            },
+            // 步骤 4: 完整轨迹 + 所有标注
+            {
+                visible: ['scene1-dim-d', 'scene1-dim-l', 'scene1-dim-L', 'scene1-center-line',
+                          'scene1-plate-A', 'scene1-plate-B', 'scene1-boundary-MN', 'scene1-boundary-PS',
+                          'scene1-point-R', 'scene1-velocity-v0', 'scene1-charge-Q', 'scene1-screen-EF',
+                          'scene1-text-A', 'scene1-text-B', 'scene1-text-M', 'scene1-text-N',
+                          'scene1-text-P', 'scene1-text-S', 'scene1-text-R', 'scene1-text-v0',
+                          'scene1-text-O', 'scene1-text-Q', 'scene1-text-E', 'scene1-text-F',
+                          'scene1-text-dim-d', 'scene1-text-dim-l', 'scene1-text-dim-L',
+                          'scene1-trajectory-parabola', 'scene1-trajectory-line', 'scene1-trajectory-arc',
+                          'scene1-label-theta', 'scene1-label-y'],
+                hidden: []
+            }
+        ];
+
+        // 工具函数：显示元素
+        function showElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                // 如果是轨迹，触发动画
+                if (el.classList.contains('scene1-trajectory')) {
+                    el.classList.add('visible');
+                }
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+                // 如果是轨迹，重置动画
+                if (el.classList.contains('scene1-trajectory')) {
+                    el.classList.remove('visible');
+                }
+            }
+        }
+
+        // 更新场景显示
+        function updateScene(step) {
+            const config = stepConfig[step];
+            
+            // 显示指定元素
+            config.visible.forEach(id => showElement(id));
+            
+            // 隐藏指定元素
+            config.hidden.forEach(id => hideElement(id));
+
+            // 更新按钮状态
+            const prevBtn = document.getElementById('scene1-btn-prev');
+            const nextBtn = document.getElementById('scene1-btn-next');
+            const indicator = document.getElementById('scene1-step-indicator');
+
+            prevBtn.disabled = (step === 0);
+            nextBtn.disabled = (step === totalSteps - 1);
+            indicator.textContent = `步骤 ${step + 1}/${totalSteps}`;
+
+            // 重置轨迹动画（强制重绘）
+            const trajectories = document.querySelectorAll('.scene1-trajectory');
+            trajectories.forEach(t => {
+                t.classList.remove('visible');
+                void t.offsetWidth; // 强制重绘
+                if (config.visible.includes(t.id)) {
+                    t.classList.add('visible');
+                }
+            });
+        }
+
+        // 事件绑定
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+
+        // 初始化
+        updateScene(currentStep);
+    })();
+    </script>
+</body>
+</html>

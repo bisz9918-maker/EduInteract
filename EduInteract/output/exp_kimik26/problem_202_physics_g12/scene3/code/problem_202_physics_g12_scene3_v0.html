@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 多解粒子轨迹族</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene3-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            background: #f5f5f5; border: 1px solid #cccccc; border-radius: 4px;
+            color: #333333; transition: opacity 0.3s;
+        }
+        #scene3-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #555; min-width: 80px; text-align: center; }
+
+        /* SVG 内部元素样式 */
+        .axis { stroke: #000; stroke-width: 1.5; fill: none; }
+        .field-line { stroke: #1565c0; stroke-width: 1; fill: none; }
+        .magnetic-cross { stroke: #1565c0; stroke-width: 1.2; opacity: 0.35; }
+        .trajectory { fill: none; stroke-width: 2; stroke-dasharray: 6,4; opacity: 0; transition: opacity 0.4s ease; }
+        .trajectory.dimmed { opacity: 0.25; }
+        .trajectory.active { opacity: 1; }
+        .emit-point { r: 4; fill: #fff; stroke-width: 2; opacity: 0.4; transition: all 0.4s ease; }
+        .emit-point.active { r: 5; opacity: 1; }
+        .end-point { r: 4; opacity: 0; transition: opacity 0.4s ease; }
+        .end-point.active { opacity: 1; }
+        .tick-mark { stroke-width: 1.5; opacity: 0; transition: opacity 0.4s ease; }
+        .tick-mark.active { opacity: 0.7; }
+        .label-text { font-size: 14px; fill: #333; opacity: 0; transition: opacity 0.4s ease; }
+        .label-text.active { opacity: 1; }
+        .label-text.dimmed { opacity: 0.25; }
+        .formula-box { opacity: 0; transition: opacity 0.5s ease; }
+        .formula-box.active { opacity: 1; }
+
+        /* 描边动画 */
+        .draw-anim {
+            stroke-dasharray: var(--path-len);
+            stroke-dashoffset: var(--path-len);
+            animation: drawPath 0.8s ease forwards;
+        }
+        @keyframes drawPath {
+            to { stroke-dashoffset: 0; }
+        }
+        .draw-anim-slow {
+            stroke-dasharray: var(--path-len);
+            stroke-dashoffset: var(--path-len);
+            animation: drawPath 1s ease forwards;
+        }
+        .draw-anim-slower {
+            stroke-dasharray: var(--path-len);
+            stroke-dashoffset: var(--path-len);
+            animation: drawPath 1.2s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="arrow-x" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <path d="M0,0 L8,3 L0,6 Z" fill="#000"/>
+                </marker>
+                <marker id="arrow-y" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <path d="M0,0 L8,3 L0,6 Z" fill="#000"/>
+                </marker>
+                <marker id="arrow-down" markerWidth="6" markerHeight="8" refX="3" refY="7" orient="auto">
+                    <path d="M0,0 L3,8 L6,0 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="arrow-up" markerWidth="6" markerHeight="8" refX="3" refY="1" orient="auto">
+                    <path d="M0,8 L3,0 L6,8 Z" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- 磁场区背景 -->
+            <rect x="400" y="100" width="120" height="320" fill="#e3f2fd" opacity="0.22"/>
+
+            <!-- 磁场叉号组 -->
+            <g id="scene3-magnetic-crosses"></g>
+
+            <!-- 坐标轴 -->
+            <line x1="160" y1="260" x2="515" y2="260" class="axis" marker-end="url(#arrow-x)"/>
+            <line x1="400" y1="420" x2="400" y2="105" class="axis" marker-end="url(#arrow-y)"/>
+
+            <!-- x=-2L 竖线 -->
+            <line x1="240" y1="100" x2="240" y2="420" stroke="#333" stroke-width="1.5"/>
+
+            <!-- 电场线 -->
+            <g id="scene3-electric-field">
+                <line x1="280" y1="110" x2="280" y2="250" class="field-line" marker-end="url(#arrow-down)"/>
+                <line x1="320" y1="110" x2="320" y2="250" class="field-line" marker-end="url(#arrow-down)"/>
+                <line x1="360" y1="110" x2="360" y2="250" class="field-line" marker-end="url(#arrow-down)"/>
+                <line x1="280" y1="410" x2="280" y2="270" class="field-line" marker-end="url(#arrow-up)"/>
+                <line x1="320" y1="410" x2="320" y2="270" class="field-line" marker-end="url(#arrow-up)"/>
+                <line x1="360" y1="410" x2="360" y2="270" class="field-line" marker-end="url(#arrow-up)"/>
+            </g>
+
+            <!-- 固定标签 -->
+            <text x="375" y="150" font-size="14" fill="#333">O</text>
+            <text x="620" y="100" font-size="14" fill="#333">x</text>
+            <text x="390" y="95" font-size="14" fill="#333">y</text>
+            <text x="240" y="88" font-size="13" fill="#333" text-anchor="middle">x=-2L</text>
+            <text x="460" y="90" font-size="14" fill="#1565c0">B</text>
+            <text x="320" y="180" font-size="14" fill="#1565c0">E</text>
+
+            <!-- A 点和 C 点 -->
+            <circle cx="240" cy="180" r="4" fill="#fff" stroke="#c62828" stroke-width="2"/>
+            <text x="240" y="155" font-size="14" fill="#333" text-anchor="middle">A</text>
+            <circle cx="240" cy="260" r="3" fill="#000"/>
+            <text x="220" y="265" font-size="14" fill="#333">C</text>
+
+            <!-- 发射点 -->
+            <circle id="scene3-emit-k1" cx="240" cy="180" class="emit-point" stroke="#c62828"/>
+            <circle id="scene3-emit-k2" cx="240" cy="240" class="emit-point" stroke="#1565c0"/>
+            <circle id="scene3-emit-k3" cx="240" cy="251" class="emit-point" stroke="#2e7d32"/>
+            <circle id="scene3-emit-k4" cx="240" cy="255" class="emit-point" stroke="#6a1b9a"/>
+
+            <!-- 终点 -->
+            <circle id="scene3-end-k1" cx="400" cy="340" class="end-point" fill="#c62828"/>
+            <circle id="scene3-end-k2" cx="400" cy="240" class="end-point" fill="#1565c0"/>
+            <circle id="scene3-end-k3" cx="400" cy="269" class="end-point" fill="#2e7d32"/>
+            <circle id="scene3-end-k4" cx="400" cy="255" class="end-point" fill="#6a1b9a"/>
+
+            <!-- 轨迹 -->
+            <path id="scene3-path-k1" class="trajectory" stroke="#c62828" d=""/>
+            <path id="scene3-path-k2" class="trajectory" stroke="#1565c0" d=""/>
+            <path id="scene3-path-k3" class="trajectory" stroke="#2e7d32" d=""/>
+            <path id="scene3-path-k4" class="trajectory" stroke="#6a1b9a" d=""/>
+
+            <!-- 水平位移竖线组 -->
+            <g id="scene3-ticks-k1" class="tick-mark" stroke="#c62828"></g>
+            <g id="scene3-ticks-k2" class="tick-mark" stroke="#1565c0"></g>
+            <g id="scene3-ticks-k3" class="tick-mark" stroke="#2e7d32"></g>
+            <g id="scene3-ticks-k4" class="tick-mark" stroke="#6a1b9a"></g>
+
+            <!-- 发射点标签（左侧，垂直分散） -->
+            <text id="scene3-label-y0-k1" x="180" y="170" class="label-text" text-anchor="end">y₀=L</text>
+            <text id="scene3-label-y0-k2" x="180" y="235" class="label-text" text-anchor="end">y₀=L/4</text>
+            <text id="scene3-label-y0-k3" x="180" y="280" class="label-text" text-anchor="end">y₀=L/9</text>
+            <text id="scene3-label-y0-k4" x="180" y="325" class="label-text" text-anchor="end">y₀=L/16</text>
+
+            <!-- 终点标签（磁场区右侧，y充分分散） -->
+            <text id="scene3-label-end-k1" x="525" y="338" class="label-text">-L</text>
+            <text id="scene3-label-end-k2" x="525" y="220" class="label-text">L/4</text>
+            <text id="scene3-label-end-k3" x="525" y="295" class="label-text">-L/9</text>
+            <text id="scene3-label-end-k4" x="525" y="253" class="label-text">L/16</text>
+
+            <!-- 轨迹旁标签（左侧，充分分散） -->
+            <text id="scene3-label-traj-k1" x="180" y="120" class="label-text">k=1</text>
+            <text id="scene3-label-traj-k2" x="180" y="440" class="label-text">k=2</text>
+            <text id="scene3-label-traj-k3" x="180" y="190" class="label-text">k=3</text>
+            <text id="scene3-label-traj-k4" x="180" y="458" class="label-text">k=4</text>
+
+            <!-- n 标注（底部，水平分散） -->
+            <text id="scene3-label-n-k1" x="260" y="455" class="label-text" text-anchor="middle">n=2</text>
+            <text id="scene3-label-n-k2" x="340" y="455" class="label-text" text-anchor="middle">n=4</text>
+            <text id="scene3-label-n-k3" x="420" y="455" class="label-text" text-anchor="middle">n=6</text>
+
+            <!-- 通式推导框（内含图例） -->
+            <g id="scene3-formula-box" class="formula-box">
+                <rect x="560" y="120" width="220" height="300" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1" rx="4"/>
+                <foreignObject x="560" y="120" width="220" height="300">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="padding:12px;font-size:13px;line-height:1.6;color:#333;font-family:Microsoft YaHei,PingFang SC,sans-serif;">
+                        <div style="font-weight:bold;margin-bottom:8px;">通式推导</div>
+                        <div>每个半周期水平位移：</div>
+                        <div style="text-align:center;margin:4px 0;">Δx = v₀t₁</div>
+                        <div>k=1 时，2Δx = 2L</div>
+                        <div>一般地，2k·Δx = 2L</div>
+                        <div style="text-align:center;margin:4px 0;">Δx = L/k</div>
+                        <div>竖直方向：</div>
+                        <div style="text-align:center;margin:4px 0;">y₀ = ½at₁² = L</div>
+                        <div>对一般 k：</div>
+                        <div style="text-align:center;margin:4px 0;font-size:15px;font-weight:bold;color:#c62828;">y₀ = L/k²</div>
+                        <div style="margin-top:8px;">(k = 1,2,3,...)</div>
+                        <div style="margin-top:8px;color:#1565c0;font-weight:bold;">k≥2 即为 AC 间所求位置</div>
+                        <div style="margin-top:12px;border-top:1px solid #ccc;padding-top:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;">
+                            <span><span style="color:#c62828;font-weight:bold;">━</span> k=1</span>
+                            <span><span style="color:#1565c0;font-weight:bold;">━</span> k=2</span>
+                            <span><span style="color:#2e7d32;font-weight:bold;">━</span> k=3</span>
+                            <span><span style="color:#6a1b9a;font-weight:bold;">━</span> k=4</span>
+                        </div>
+                    </div>
+                </foreignObject>
+            </g>
+        </svg>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 0/4</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现
+        const L = 80;
+        const OX = 400, OY = 260;
+        let currentStep = 0;
+
+        // 物理坐标转屏幕坐标
+        function toScreen(px, py) {
+            return { x: OX + px, y: OY - py };
+        }
+
+        // 生成磁场叉号
+        function generateMagneticCrosses() {
+            const g = document.getElementById('scene3-magnetic-crosses');
+            for (let x = 420; x <= 500; x += 20) {
+                for (let y = 120; y <= 400; y += 20) {
+                    const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line1.setAttribute('x1', x - 4); line1.setAttribute('y1', y - 4);
+                    line1.setAttribute('x2', x + 4); line1.setAttribute('y2', y + 4);
+                    line1.setAttribute('class', 'magnetic-cross');
+                    const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line2.setAttribute('x1', x - 4); line2.setAttribute('y1', y + 4);
+                    line2.setAttribute('x2', x + 4); line2.setAttribute('y2', y - 4);
+                    line2.setAttribute('class', 'magnetic-cross');
+                    g.appendChild(line1);
+                    g.appendChild(line2);
+                }
+            }
+        }
+
+        // 生成轨迹路径
+        function generateTrajectory(k) {
+            const points = [];
+            const keyPoints = getKeyPoints(k);
+            for (let i = 0; i < keyPoints.length - 1; i++) {
+                const p1 = keyPoints[i];
+                const p2 = keyPoints[i + 1];
+                const steps = 20;
+                for (let s = 0; s <= steps; s++) {
+                    const t = s / steps;
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const bx = p1.x + t * dx;
+                    const by = p1.y + t * dy;
+                    const bend = 4 * t * (1 - t);
+                    const bendDir = (i % 2 === 0) ? -1 : 1;
+                    const bendAmount = Math.abs(dx) * 0.25 * bendDir;
+                    const finalY = by + bend * bendAmount;
+                    points.push({ x: bx, y: finalY });
+                }
+            }
+            const unique = [];
+            let last = null;
+            for (const p of points) {
+                if (!last || Math.abs(p.x - last.x) > 0.5 || Math.abs(p.y - last.y) > 0.5) {
+                    unique.push(p);
+                    last = p;
+                }
+            }
+            return unique;
+        }
+
+        function getKeyPoints(k) {
+            const pts = [];
+            if (k === 1) {
+                pts.push(toScreen(-2*L, L));
+                pts.push(toScreen(-L, 0));
+                pts.push(toScreen(0, -L));
+            } else if (k === 2) {
+                pts.push(toScreen(-2*L, L/4));
+                pts.push(toScreen(-3*L/2, 0));
+                pts.push(toScreen(-L, -L/4));
+                pts.push(toScreen(-L/2, 0));
+                pts.push(toScreen(0, L/4));
+            } else if (k === 3) {
+                pts.push(toScreen(-2*L, L/9));
+                pts.push(toScreen(-5*L/3, 0));
+                pts.push(toScreen(-4*L/3, -L/9));
+                pts.push(toScreen(-L, 0));
+                pts.push(toScreen(-2*L/3, L/9));
+                pts.push(toScreen(-L/3, 0));
+                pts.push(toScreen(0, -L/9));
+            } else if (k === 4) {
+                pts.push(toScreen(-2*L, L/16));
+                pts.push(toScreen(-7*L/4, 0));
+                pts.push(toScreen(-3*L/2, -L/16));
+                pts.push(toScreen(-5*L/4, 0));
+                pts.push(toScreen(-L, L/16));
+                pts.push(toScreen(-3*L/4, 0));
+                pts.push(toScreen(-L/2, -L/16));
+                pts.push(toScreen(-L/4, 0));
+                pts.push(toScreen(0, L/16));
+            }
+            return pts;
+        }
+
+        function buildPathD(points) {
+            if (points.length === 0) return '';
+            let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+            for (let i = 1; i < points.length; i++) {
+                d += ` L ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)}`;
+            }
+            return d;
+        }
+
+        // 生成水平位移竖线
+        function generateTicks(k, color) {
+            const g = document.getElementById('scene3-ticks-k' + k);
+            g.innerHTML = '';
+            const dx = L / k;
+            for (let i = 1; i <= 2 * k; i++) {
+                const x = 240 + i * dx;
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x); line.setAttribute('y1', 257);
+                line.setAttribute('x2', x); line.setAttribute('y2', 263);
+                line.setAttribute('stroke', color);
+                line.setAttribute('stroke-width', '1.5');
+                g.appendChild(line);
+            }
+        }
+
+        // 初始化轨迹和竖线
+        function initPaths() {
+            for (let k = 1; k <= 4; k++) {
+                const pts = generateTrajectory(k);
+                const d = buildPathD(pts);
+                document.getElementById('scene3-path-k' + k).setAttribute('d', d);
+                const colors = ['#c62828', '#1565c0', '#2e7d32', '#6a1b9a'];
+                generateTicks(k, colors[k-1]);
+            }
+        }
+
+        function addClass(el, cls) {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (el) el.classList.add(cls);
+        }
+        function removeClass(el, cls) {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (el) el.classList.remove(cls);
+        }
+        function setOpacity(el, op) {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (el) el.style.opacity = op;
+        }
+
+        // 步骤渲染
+        function renderStep() {
+            const indicator = document.getElementById('scene3-step-indicator');
+            indicator.textContent = '步骤 ' + currentStep + '/4';
+            document.getElementById('scene3-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene3-btn-next').disabled = (currentStep === 4);
+
+            // 重置所有状态
+            for (let k = 1; k <= 4; k++) {
+                removeClass('scene3-emit-k' + k, 'active');
+                removeClass('scene3-end-k' + k, 'active');
+                removeClass('scene3-path-k' + k, 'active');
+                removeClass('scene3-path-k' + k, 'dimmed');
+                removeClass('scene3-ticks-k' + k, 'active');
+                removeClass('scene3-label-y0-k' + k, 'active');
+                removeClass('scene3-label-y0-k' + k, 'dimmed');
+                removeClass('scene3-label-end-k' + k, 'active');
+                removeClass('scene3-label-end-k' + k, 'dimmed');
+                removeClass('scene3-label-traj-k' + k, 'active');
+                removeClass('scene3-label-traj-k' + k, 'dimmed');
+                const path = document.getElementById('scene3-path-k' + k);
+                path.classList.remove('draw-anim', 'draw-anim-slow', 'draw-anim-slower');
+            }
+            for (let k = 1; k <= 3; k++) {
+                removeClass('scene3-label-n-k' + k, 'active');
+                removeClass('scene3-label-n-k' + k, 'dimmed');
+            }
+            removeClass('scene3-formula-box', 'active');
+
+            if (currentStep === 0) {
+                for (let k = 1; k <= 4; k++) {
+                    setOpacity('scene3-emit-k' + k, 0.4);
+                }
+            } else if (currentStep === 1) {
+                addClass('scene3-emit-k1', 'active');
+                addClass('scene3-path-k1', 'active');
+                addClass('scene3-end-k1', 'active');
+                addClass('scene3-ticks-k1', 'active');
+                addClass('scene3-label-y0-k1', 'active');
+                addClass('scene3-label-end-k1', 'active');
+                addClass('scene3-label-traj-k1', 'active');
+                addClass('scene3-label-n-k1', 'active');
+                const path = document.getElementById('scene3-path-k1');
+                const len = path.getTotalLength();
+                path.style.setProperty('--path-len', len);
+                path.classList.add('draw-anim');
+                for (let k = 2; k <= 4; k++) {
+                    setOpacity('scene3-emit-k' + k, 0.4);
+                }
+            } else if (currentStep === 2) {
+                addClass('scene3-path-k1', 'dimmed');
+                addClass('scene3-end-k1', 'dimmed');
+                addClass('scene3-ticks-k1', 'dimmed');
+                addClass('scene3-label-y0-k1', 'dimmed');
+                addClass('scene3-label-end-k1', 'dimmed');
+                addClass('scene3-label-traj-k1', 'dimmed');
+                addClass('scene3-label-n-k1', 'dimmed');
+                setOpacity('scene3-emit-k1', 0.4);
+                addClass('scene3-emit-k2', 'active');
+                addClass('scene3-path-k2', 'active');
+                addClass('scene3-end-k2', 'active');
+                addClass('scene3-ticks-k2', 'active');
+                addClass('scene3-label-y0-k2', 'active');
+                addClass('scene3-label-end-k2', 'active');
+                addClass('scene3-label-traj-k2', 'active');
+                addClass('scene3-label-n-k2', 'active');
+                const path = document.getElementById('scene3-path-k2');
+                const len = path.getTotalLength();
+                path.style.setProperty('--path-len', len);
+                path.classList.add('draw-anim-slow');
+                for (let k = 3; k <= 4; k++) {
+                    setOpacity('scene3-emit-k' + k, 0.4);
+                }
+            } else if (currentStep === 3) {
+                for (let k = 1; k <= 2; k++) {
+                    addClass('scene3-path-k' + k, 'dimmed');
+                    addClass('scene3-end-k' + k, 'dimmed');
+                    addClass('scene3-ticks-k' + k, 'dimmed');
+                    addClass('scene3-label-y0-k' + k, 'dimmed');
+                    addClass('scene3-label-end-k' + k, 'dimmed');
+                    addClass('scene3-label-traj-k' + k, 'dimmed');
+                    addClass('scene3-label-n-k' + k, 'dimmed');
+                    setOpacity('scene3-emit-k' + k, 0.4);
+                }
+                addClass('scene3-emit-k3', 'active');
+                addClass('scene3-path-k3', 'active');
+                addClass('scene3-end-k3', 'active');
+                addClass('scene3-ticks-k3', 'active');
+                addClass('scene3-label-y0-k3', 'active');
+                addClass('scene3-label-end-k3', 'active');
+                addClass('scene3-label-traj-k3', 'active');
+                addClass('scene3-label-n-k3', 'active');
+                const path = document.getElementById('scene3-path-k3');
+                const len = path.getTotalLength();
+                path.style.setProperty('--path-len', len);
+                path.classList.add('draw-anim-slower');
+                setOpacity('scene3-emit-k4', 0.4);
+            } else if (currentStep === 4) {
+                for (let k = 1; k <= 3; k++) {
+                    setOpacity('scene3-path-k' + k, 0.55);
+                    setOpacity('scene3-end-k' + k, 0.55);
+                    setOpacity('scene3-ticks-k' + k, 0.55);
+                    setOpacity('scene3-label-y0-k' + k, 0.55);
+                    setOpacity('scene3-label-end-k' + k, 0.55);
+                    setOpacity('scene3-label-traj-k' + k, 0.55);
+                    setOpacity('scene3-label-n-k' + k, 0.55);
+                    setOpacity('scene3-emit-k' + k, 0.55);
+                }
+                addClass('scene3-emit-k4', 'active');
+                addClass('scene3-path-k4', 'active');
+                addClass('scene3-end-k4', 'active');
+                addClass('scene3-ticks-k4', 'active');
+                addClass('scene3-label-y0-k4', 'active');
+                addClass('scene3-label-end-k4', 'active');
+                addClass('scene3-label-traj-k4', 'active');
+                const path = document.getElementById('scene3-path-k4');
+                const len = path.getTotalLength();
+                path.style.setProperty('--path-len', len);
+                path.classList.add('draw-anim-slow');
+                addClass('scene3-formula-box', 'active');
+            }
+        }
+
+        // 事件绑定
+        document.getElementById('scene3-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; renderStep(); }
+        });
+        document.getElementById('scene3-btn-next').addEventListener('click', function() {
+            if (currentStep < 4) { currentStep++; renderStep(); }
+        });
+
+        // 初始化
+        generateMagneticCrosses();
+        initPaths();
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

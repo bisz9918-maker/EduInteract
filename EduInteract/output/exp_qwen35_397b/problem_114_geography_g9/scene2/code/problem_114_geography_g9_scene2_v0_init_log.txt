@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点移动规律</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene2-slider-label {
+            font-size: 13px;
+            fill: #424242;
+        }
+        .scene2-date-display {
+            font-size: 16px;
+            fill: #1565c0;
+            font-weight: bold;
+        }
+        .scene2-counter-text {
+            font-size: 15px;
+            fill: #000000;
+        }
+        #scene2-slider-handle {
+            cursor: grab;
+        }
+        #scene2-slider-handle:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 地球侧视轮廓 -->
+            <ellipse id="scene2-earth-ellipse" cx="300" cy="225" rx="150" ry="125" fill="#e3f2fd" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 赤道线 -->
+            <line id="scene2-equator-line" x1="150" y1="225" x2="450" y2="225" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 北回归线 -->
+            <line id="scene2-tropic-north" x1="165" y1="165" x2="435" y2="165" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 南回归线 -->
+            <line id="scene2-tropic-south" x1="165" y1="285" x2="435" y2="285" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- A 点标记（北回归线与赤道之间，约 15°N） -->
+            <circle id="scene2-point-a" cx="300" cy="195" r="4" fill="#1565c0"/>
+            
+            <!-- B 点标记（南回归线与赤道之间，约 15°S） -->
+            <circle id="scene2-point-b" cx="300" cy="255" r="4" fill="#2e7d32"/>
+            
+            <!-- 太阳直射点（动态位置） -->
+            <circle id="scene2-sun-point" cx="300" cy="225" r="6" fill="#fdd835" opacity="0.9">
+                <animate attributeName="r" values="6;8;6" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+            
+            <!-- 直射光线（动态） -->
+            <line id="scene2-sun-ray" x1="300" y1="225" x2="300" y2="225" stroke="#fdd835" stroke-width="2" stroke-dasharray="4,4"/>
+            
+            <!-- 标签 -->
+            <text id="scene2-label-0" x="460" y="225" class="scene2-label">0°</text>
+            <text id="scene2-label-23n" x="460" y="165" class="scene2-label">23.5°N</text>
+            <text id="scene2-label-23s" x="460" y="285" class="scene2-label">23.5°S</text>
+            <text id="scene2-label-a-lat" x="320" y="185" class="scene2-label">A(15°N)</text>
+            <text id="scene2-label-b-lat" x="320" y="265" class="scene2-label">B(15°S)</text>
+            
+            <!-- 直射次数统计区背景 -->
+            <rect id="scene2-counter-bg" x="520" y="100" width="260" height="100" fill="#f5f5f5" rx="8" ry="8"/>
+            
+            <!-- 直射次数统计文字 -->
+            <text id="scene2-counter-a" x="540" y="140" class="scene2-counter-text">A 点已直射：0 次</text>
+            <text id="scene2-counter-b" x="540" y="170" class="scene2-counter-text">B 点已直射：0 次</text>
+            
+            <!-- 当前日期显示 -->
+            <text id="scene2-date-display" x="400" y="370" class="scene2-date-display" text-anchor="middle">当前日期：3 月 21 日 春分</text>
+            
+            <!-- 日期滑块轨道 -->
+            <rect id="scene2-slider-track" x="150" y="400" width="500" height="20" fill="#bdbdbd" rx="10" ry="10"/>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene2-slider-handle" cx="150" cy="410" r="10" fill="#1565c0"/>
+            
+            <!-- 滑块刻度标签 -->
+            <text id="scene2-label-spring" x="150" y="435" class="scene2-slider-label" text-anchor="middle">春分</text>
+            <text id="scene2-label-summer" x="317" y="435" class="scene2-slider-label" text-anchor="middle">夏至</text>
+            <text id="scene2-label-autumn" x="483" y="435" class="scene2-slider-label" text-anchor="middle">秋分</text>
+            <text id="scene2-label-winter" x="650" y="435" class="scene2-slider-label" text-anchor="middle">冬至</text>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 太阳直射点移动规律与 A、B 点直射次数判断
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地球侧视轮廓 | 椭圆 | (150,100)-(450,350) | 300×250 | - | 左侧主图 |
+        // | 赤道线 | 虚线 | (150,225)-(450,225) | 300×2 | - | 水平中线 |
+        // | 北回归线 | 实线 | (165,165)-(435,165) | 270×2 | - | 赤道上方 |
+        // | 南回归线 | 实线 | (165,285)-(435,285) | 270×2 | - | 赤道下方 |
+        // | A 点标记 | 圆点 | (300,195) | 8×8 | 右上方 | 北回归线与赤道之间 |
+        // | B 点标记 | 圆点 | (300,255) | 8×8 | 右下方 | 南回归线与赤道之间 |
+        // | 太阳直射点 | 圆点 | (300,动态 y) | 12×12 | - | 随滑块移动 |
+        // | 直射光线 | 虚线 | (300,动态 y)-(300,225) | 动态 | - | 连接直射点与赤道 |
+        // | 0°标签 | text | (460,225) | ~30×16 | 右侧 | 赤道标签 |
+        // | 23.5°N 标签 | text | (460,165) | ~45×16 | 右侧 | 北回归线标签 |
+        // | 23.5°S 标签 | text | (460,285) | ~45×16 | 右侧 | 南回归线标签 |
+        // | A 点纬度标签 | text | (320,185) | ~40×16 | 右上方 | A 点旁 |
+        // | B 点纬度标签 | text | (320,265) | ~40×16 | 右下方 | B 点旁 |
+        // | 直射次数统计区 | rect | (520,100)-(780,200) | 260×100 | - | 右侧统计面板 |
+        // | A 点直射次数 | text | (540,140) | ~120×20 | - | "A 点已直射：X 次" |
+        // | B 点直射次数 | text | (540,170) | ~120×20 | - | "B 点已直射：X 次" |
+        // | 日期滑块轨道 | rect | (150,400)-(650,420) | 500×20 | - | 底部滑块 |
+        // | 滑块手柄 | circle | (动态 x,410) | 16×16 | - | 可拖拽 |
+        // | 春分刻度 | text | (150,435) | ~50×14 | 下方 | 3.21 |
+        // | 夏至刻度 | text | (317,435) | ~50×14 | 下方 | 6.22 |
+        // | 秋分刻度 | text | (483,435) | ~50×14 | 下方 | 9.23 |
+        // | 冬至刻度 | text | (650,435) | ~50×14 | 下方 | 12.22 |
+        // | 当前日期显示 | text | (400,370) | ~100×20 | - | 显示当前滑块对应日期 |
+        
+        // 常量定义
+        const SLIDER_MIN_X = 150;
+        const SLIDER_MAX_X = 650;
+        const SLIDER_Y = 410;
+        const EARTH_CENTER_Y = 225;
+        const TROPIC_OFFSET = 60; // 回归线距赤道的像素距离
+        const POINT_A_Y = 195; // A 点 y 坐标（15°N）
+        const POINT_B_Y = 255; // B 点 y 坐标（15°S）
+        
+        // 状态变量
+        let sliderPosition = 0; // 0~1，0=春分，0.25=夏至，0.5=秋分，0.75=冬至，1=春分
+        let counterA = 0;
+        let counterB = 0;
+        let lastSliderPosition = 0;
+        let isDragging = false;
+        
+        // DOM 元素
+        const sunPoint = document.getElementById('scene2-sun-point');
+        const sunRay = document.getElementById('scene2-sun-ray');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+        const dateDisplay = document.getElementById('scene2-date-display');
+        const counterAText = document.getElementById('scene2-counter-a');
+        const counterBText = document.getElementById('scene2-counter-b');
+        const pointA = document.getElementById('scene2-point-a');
+        const pointB = document.getElementById('scene2-point-b');
+        const sliderTrack = document.getElementById('scene2-slider-track');
+        
+        // 计算直射点 y 坐标（正弦运动）
+        // sliderPosition: 0→春分(赤道), 0.25→夏至(北回归线), 0.5→秋分(赤道), 0.75→冬至(南回归线), 1→春分
+        function calculateSunY(pos) {
+            // 使用正弦函数：y = 225 + 60 * sin(pos * 2π - π/2)
+            // pos=0: sin(-π/2)=-1 → y=225-60=165 (北回归线) - 需要调整
+            // 调整公式使 pos=0 对应赤道
+            // pos=0→y=225, pos=0.25→y=165, pos=0.5→y=225, pos=0.75→y=285, pos=1→y=225
+            // 使用：y = 225 - 60 * sin(pos * 2π)
+            // pos=0: sin(0)=0 → y=225 ✓
+            // pos=0.25: sin(π/2)=1 → y=225-60=165 ✓
+            // pos=0.5: sin(π)=0 → y=225 ✓
+            // pos=0.75: sin(3π/2)=-1 → y=225+60=285 ✓
+            // pos=1: sin(2π)=0 → y=225 ✓
+            return EARTH_CENTER_Y - TROPIC_OFFSET * Math.sin(pos * 2 * Math.PI);
+        }
+        
+        // 计算日期和节气
+        function getDateAndSolarTerm(pos) {
+            const days = Math.round(pos * 365);
+            let month = 3, day = 21;
+            let term = '春分';
+            
+            if (days < 93) { // 春分→夏至 (约 93 天)
+                const d = days;
+                month = 3 + Math.floor(d / 30);
+                day = 21 + (d % 30);
+                if (month > 6) { month = 6; day = 22; }
+                term = '春分→夏至';
+            } else if (days < 186) { // 夏至→秋分 (约 93 天)
+                const d = days - 93;
+                month = 6 + Math.floor(d / 30);
+                day = 22 + (d % 30);
+                if (month > 9) { month = 9; day = 23; }
+                term = '夏至→秋分';
+            } else if (days < 278) { // 秋分→冬至 (约 92 天)
+                const d = days - 186;
+                month = 9 + Math.floor(d / 30);
+                day = 23 + (d % 30);
+                if (month > 12) { month = 12; day = 22; }
+                term = '秋分→冬至';
+            } else { // 冬至→春分 (约 87 天)
+                const d = days - 278;
+                month = 12 + Math.floor(d / 30);
+                day = 22 + (d % 30);
+                if (month > 12) { 
+                    month = (d / 30) | 0;
+                    day = 21 + (d % 30);
+                    if (month > 3) { month = 3; day = 21; }
+                }
+                term = '冬至→春分';
+            }
+            
+            // 简化：直接返回关键节气
+            if (pos < 0.05 || pos > 0.95) term = '春分';
+            else if (pos >= 0.2 && pos < 0.3) term = '夏至';
+            else if (pos >= 0.45 && pos < 0.55) term = '秋分';
+            else if (pos >= 0.7 && pos < 0.8) term = '冬至';
+            else if (pos < 0.25) term = '春分→夏至';
+            else if (pos < 0.5) term = '夏至→秋分';
+            else if (pos < 0.75) term = '秋分→冬至';
+            else term = '冬至→春分';
+            
+            return { month, day, term };
+        }
+        
+        // 检查并更新直射次数
+        function checkAndCount(sunY, prevSunY) {
+            const threshold = 5; // 纬度差阈值
+            
+            // 检查 A 点 (y=195)
+            const distA = Math.abs(sunY - POINT_A_Y);
+            const prevDistA = Math.abs(prevSunY - POINT_A_Y);
+            if (prevDistA > threshold && distA <= threshold) {
+                counterA++;
+                counterAText.textContent = `A 点已直射：${counterA} 次`;
+                // 高亮 A 点
+                pointA.setAttribute('r', '8');
+                pointA.setAttribute('fill', '#fdd835');
+                setTimeout(() => {
+                    pointA.setAttribute('r', '4');
+                    pointA.setAttribute('fill', '#1565c0');
+                }, 500);
+            }
+            
+            // 检查 B 点 (y=255)
+            const distB = Math.abs(sunY - POINT_B_Y);
+            const prevDistB = Math.abs(prevSunY - POINT_B_Y);
+            if (prevDistB > threshold && distB <= threshold) {
+                counterB++;
+                counterBText.textContent = `B 点已直射：${counterB} 次`;
+                // 高亮 B 点
+                pointB.setAttribute('r', '8');
+                pointB.setAttribute('fill', '#fdd835');
+                setTimeout(() => {
+                    pointB.setAttribute('r', '4');
+                    pointB.setAttribute('fill', '#2e7d32');
+                }, 500);
+            }
+        }
+        
+        // 更新视图
+        function updateView() {
+            const sunY = calculateSunY(sliderPosition);
+            const handleX = SLIDER_MIN_X + sliderPosition * (SLIDER_MAX_X - SLIDER_MIN_X);
+            
+            // 更新太阳直射点位置
+            sunPoint.setAttribute('cy', sunY);
+            
+            // 更新直射光线
+            sunRay.setAttribute('x1', 300);
+            sunRay.setAttribute('y1', sunY);
+            sunRay.setAttribute('x2', 300);
+            sunRay.setAttribute('y2', EARTH_CENTER_Y);
+            
+            // 更新滑块手柄位置
+            sliderHandle.setAttribute('cx', handleX);
+            
+            // 更新日期显示
+            const { month, day, term } = getDateAndSolarTerm(sliderPosition);
+            dateDisplay.textContent = `当前日期：${month}月${day}日 ${term}`;
+            
+            // 检查直射次数
+            const prevSunY = calculateSunY(lastSliderPosition);
+            checkAndCount(sunY, prevSunY);
+            
+            lastSliderPosition = sliderPosition;
+        }
+        
+        // 重置计数器
+        function resetCounters() {
+            counterA = 0;
+            counterB = 0;
+            counterAText.textContent = 'A 点已直射：0 次';
+            counterBText.textContent = 'B 点已直射：0 次';
+        }
+        
+        // 鼠标/触摸事件处理
+        function handleStart(e) {
+            isDragging = true;
+            resetCounters();
+            e.preventDefault();
+        }
+        
+        function handleMove(e) {
+            if (!isDragging) return;
+            
+            let clientX;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+            } else {
+                clientX = e.clientX;
+            }
+            
+            const rect = sliderTrack.getBoundingClientRect();
+            let newX = clientX - rect.left;
+            newX = Math.max(0, Math.min(newX, rect.width));
+            
+            sliderPosition = newX / rect.width;
+            updateView();
+        }
+        
+        function handleEnd() {
+            isDragging = false;
+        }
+        
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', handleStart);
+        sliderHandle.addEventListener('touchstart', handleStart);
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove);
+        
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchend', handleEnd);
+        
+        // 初始化视图
+        updateView();
+        
+    })();
+    </script>
+</body>
+</html>

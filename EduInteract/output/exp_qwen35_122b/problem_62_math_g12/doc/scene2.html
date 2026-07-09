@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 四面体平面截割验证</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene2-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scene2-label { font-size: 14px; fill: #333; }
+        .scene2-title { font-size: 16px; font-weight: bold; fill: #333; }
+        .scene2-conclusion { font-size: 14px; }
+        .scene2-true { fill: #2e7d32; font-weight: bold; }
+        .scene2-false { fill: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 四面体 ABCD -->
+            <!-- 棱线（被遮挡的 BD 用虚线） -->
+            <line id="scene2-edge-ab" x1="400" y1="80" x2="150" y2="350" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-edge-ac" x1="400" y1="80" x2="350" y2="400" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-edge-ad" x1="400" y1="80" x2="600" y2="320" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-edge-bc" x1="150" y1="350" x2="350" y2="400" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-edge-cd" x1="350" y1="400" x2="600" y2="320" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-edge-bd" x1="150" y1="350" x2="600" y2="320" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 顶点标签 -->
+            <text id="scene2-label-a" class="scene2-label" x="400" y="65" text-anchor="middle">A</text>
+            <text id="scene2-label-b" class="scene2-label" x="135" y="350" text-anchor="end">B</text>
+            <text id="scene2-label-c" class="scene2-label" x="350" y="420" text-anchor="middle">C</text>
+            <text id="scene2-label-d" class="scene2-label" x="615" y="320" text-anchor="start">D</text>
+            
+            <!-- 中点 E、F -->
+            <circle id="scene2-point-e" cx="275" cy="215" r="4" fill="#1565c0"/>
+            <circle id="scene2-point-f" cx="475" cy="360" r="4" fill="#1565c0"/>
+            <!-- E 标签：向左上方移动，远离线段 AB 和 EF -->
+            <text id="scene2-label-e" class="scene2-label" x="160" y="140" text-anchor="end">E</text>
+            <!-- F 标签：向右下方移动，远离线段 CD -->
+            <text id="scene2-label-f" class="scene2-label" x="580" y="440" text-anchor="start">F</text>
+            
+            <!-- 线段 EF -->
+            <line id="scene2-line-ef" x1="275" y1="215" x2="475" y2="360" stroke="#1565c0" stroke-width="3"/>
+            
+            <!-- 点 G、H -->
+            <circle id="scene2-point-g" cx="250" cy="365" r="4" fill="#333"/>
+            <circle id="scene2-point-h" cx="500" cy="240" r="4" fill="#333"/>
+            <!-- G 标签：向下移动，远离线段 BC -->
+            <text id="scene2-label-g" class="scene2-label" x="250" y="455" text-anchor="middle">G</text>
+            <!-- H 标签：向上移动，远离线段 AD 和 EH -->
+            <text id="scene2-label-h" class="scene2-label" x="500" y="150" text-anchor="middle">H</text>
+            
+            <!-- 步骤 1：三线共点元素（初始隐藏） -->
+            <line id="scene2-line-gf-extend" x1="250" y1="365" x2="425" y2="340" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <line id="scene2-line-eh-extend" x1="275" y1="215" x2="425" y2="340" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <line id="scene2-line-bd-extend" x1="150" y1="350" x2="425" y2="340" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <circle id="scene2-point-p" cx="425" cy="340" r="5" fill="#c62828" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <text id="scene2-label-p" class="scene2-label" x="440" y="355" text-anchor="start" style="display: none; opacity: 0; transition: opacity 0.3s ease;">P</text>
+            
+            <!-- 步骤 2：平行情况元素（初始隐藏） -->
+            <line id="scene2-line-gf-parallel" x1="250" y1="365" x2="475" y2="360" stroke="#2e7d32" stroke-width="3" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <line id="scene2-line-eh-parallel" x1="275" y1="215" x2="500" y2="240" stroke="#2e7d32" stroke-width="3" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <line id="scene2-line-bd-parallel" x1="150" y1="350" x2="600" y2="320" stroke="#2e7d32" stroke-width="3" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <!-- 平行标记 // -->
+            <g id="scene2-parallel-markers" style="display: none; opacity: 0; transition: opacity 0.3s ease;">
+                <line x1="350" y1="362" x2="360" y2="358" stroke="#2e7d32" stroke-width="2"/>
+                <line x1="355" y1="365" x2="365" y2="361" stroke="#2e7d32" stroke-width="2"/>
+                <line x1="385" y1="227" x2="395" y2="223" stroke="#2e7d32" stroke-width="2"/>
+                <line x1="390" y1="230" x2="400" y2="226" stroke="#2e7d32" stroke-width="2"/>
+                <line x1="375" y1="340" x2="385" y2="336" stroke="#2e7d32" stroke-width="2"/>
+                <line x1="380" y1="343" x2="390" y2="339" stroke="#2e7d32" stroke-width="2"/>
+            </g>
+            
+            <!-- 步骤 3：面积相等元素（初始隐藏） -->
+            <polygon id="scene2-triangle-efg" points="275,215 475,360 250,365" fill="#1565c0" fill-opacity="0.25" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            <polygon id="scene2-triangle-efh" points="275,215 475,360 500,240" fill="#2e7d32" fill-opacity="0.25" style="display: none; opacity: 0; transition: opacity 0.3s ease;"/>
+            
+            <!-- 左侧结论标签 -->
+            <text id="scene2-conclusion-1" class="scene2-conclusion" x="50" y="100" style="display: none; opacity: 0; transition: opacity 0.3s ease;">①三线共点</text>
+            <text id="scene2-conclusion-2" class="scene2-conclusion" x="50" y="140" style="display: none; opacity: 0; transition: opacity 0.3s ease;">②平行情况</text>
+            <text id="scene2-conclusion-4" class="scene2-conclusion" x="50" y="180" style="display: none; opacity: 0; transition: opacity 0.3s ease;">④面积相等</text>
+            
+            <!-- 右侧面积标注和判定 -->
+            <text id="scene2-area-label" class="scene2-conclusion" x="550" y="100" style="display: none; opacity: 0; transition: opacity 0.3s ease;">S△EFG = S△EFH</text>
+            <text id="scene2-check-1" class="scene2-true" x="680" y="100" text-anchor="middle" style="display: none; opacity: 0; transition: opacity 0.3s ease;">✓</text>
+            <text id="scene2-check-2" class="scene2-true" x="680" y="140" text-anchor="middle" style="display: none; opacity: 0; transition: opacity 0.3s ease;">✓</text>
+            <text id="scene2-check-3" class="scene2-false" x="680" y="180" text-anchor="middle" style="display: none; opacity: 0; transition: opacity 0.3s ease;">✗</text>
+            <text id="scene2-check-4" class="scene2-true" x="680" y="220" text-anchor="middle" style="display: none; opacity: 0; transition: opacity 0.3s ease;">✓</text>
+            
+            <!-- 步骤 4：结论汇总标题 -->
+            <text id="scene2-summary-title" class="scene2-title" x="50" y="260" style="display: none; opacity: 0; transition: opacity 0.3s ease;">结论汇总</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn">◀ 上一步</button>
+            <button id="scene2-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 四面体平面截割验证
+        // 布局坐标表：
+        // 顶点 A(400, 80), B(150, 350), C(350, 400), D(600, 320)
+        // 中点 E(275, 215) - AB 中点, F(475, 360) - CD 中点
+        // 点 G(250, 365) - BC 上的点, H(500, 240) - AD 上的点
+        // 交点 P(425, 340) - 三线共点
+        
+        const currentStepMax = 4;
+        let currentStep = 0;
+        
+        // 工具函数：显示元素（同时处理 display 和 opacity）
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.display = '';
+                requestAnimationFrame(() => {
+                    el.style.opacity = '1';
+                });
+            }
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    el.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 重置所有步骤相关元素的显示状态
+            const stepElements = [
+                // 步骤 1 元素
+                'scene2-line-gf-extend', 'scene2-line-eh-extend', 'scene2-line-bd-extend',
+                'scene2-point-p', 'scene2-label-p',
+                'scene2-conclusion-1', 'scene2-check-1',
+                // 步骤 2 元素
+                'scene2-line-gf-parallel', 'scene2-line-eh-parallel', 'scene2-line-bd-parallel',
+                'scene2-parallel-markers', 'scene2-conclusion-2', 'scene2-check-2',
+                // 步骤 3 元素
+                'scene2-triangle-efg', 'scene2-triangle-efh',
+                'scene2-area-label', 'scene2-conclusion-4', 'scene2-check-4',
+                // 步骤 4 元素
+                'scene2-check-3', 'scene2-summary-title'
+            ];
+            
+            stepElements.forEach(id => hide(id));
+            
+            // 根据当前步骤显示对应元素
+            if (currentStep >= 1) {
+                show('scene2-line-gf-extend');
+                show('scene2-line-eh-extend');
+                show('scene2-line-bd-extend');
+                show('scene2-point-p');
+                show('scene2-label-p');
+                show('scene2-conclusion-1');
+                show('scene2-check-1');
+            }
+            
+            if (currentStep >= 2) {
+                // 隐藏步骤 1 元素
+                hide('scene2-line-gf-extend');
+                hide('scene2-line-eh-extend');
+                hide('scene2-line-bd-extend');
+                hide('scene2-point-p');
+                hide('scene2-label-p');
+                
+                show('scene2-line-gf-parallel');
+                show('scene2-line-eh-parallel');
+                show('scene2-line-bd-parallel');
+                show('scene2-parallel-markers');
+                show('scene2-conclusion-2');
+                show('scene2-check-2');
+            }
+            
+            if (currentStep >= 3) {
+                show('scene2-triangle-efg');
+                show('scene2-triangle-efh');
+                show('scene2-area-label');
+                show('scene2-conclusion-4');
+                show('scene2-check-4');
+            }
+            
+            if (currentStep >= 4) {
+                show('scene2-check-3');
+                show('scene2-summary-title');
+            }
+            
+            // 更新按钮状态
+            document.getElementById('scene2-prev-btn').disabled = (currentStep === 0);
+            document.getElementById('scene2-next-btn').disabled = (currentStep === currentStepMax);
+        }
+        
+        // 按钮事件绑定
+        document.getElementById('scene2-prev-btn').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        document.getElementById('scene2-next-btn').addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

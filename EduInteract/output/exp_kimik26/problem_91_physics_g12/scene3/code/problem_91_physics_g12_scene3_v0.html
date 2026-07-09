@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - C球隔离受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene3-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        #scene3-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene3-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene3-step-indicator { font-size: 13px; color: #666; min-width: 70px; text-align: center; }
+        .scene3-fade { transition: opacity 200ms ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 箭头标记定义 -->
+                <marker id="scene3-arrow-blue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene3-arrow-purple" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#6a1b9a"/>
+                </marker>
+                <marker id="scene3-arrow-black" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#000000"/>
+                </marker>
+                <marker id="scene3-arrow-green" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 三角形虚线连线 -->
+            <line id="scene3-line-ab" x1="140" y1="120" x2="140" y2="380" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0.3"/>
+            <line id="scene3-line-ac" x1="140" y1="120" x2="365" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0.3"/>
+            <line id="scene3-line-bc" x1="140" y1="380" x2="365" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5" opacity="0.3"/>
+
+            <!-- A球 -->
+            <circle id="scene3-ball-a" cx="140" cy="120" r="16" fill="#ffffff" stroke="#888888" stroke-width="2" opacity="0.3"/>
+            <text id="scene3-label-a" x="110" y="105" font-size="16" fill="#888888" font-family="Arial, sans-serif" opacity="0.3">A</text>
+
+            <!-- B球 -->
+            <circle id="scene3-ball-b" cx="140" cy="380" r="16" fill="#ffffff" stroke="#888888" stroke-width="2" opacity="0.3"/>
+            <text id="scene3-label-b" x="110" y="385" font-size="16" fill="#888888" font-family="Arial, sans-serif" opacity="0.3">B</text>
+
+            <!-- C球 -->
+            <circle id="scene3-ball-c" cx="365" cy="250" r="16" fill="#ffffff" stroke="#000000" stroke-width="3"/>
+            <text id="scene3-label-c" x="390" y="250" font-size="16" fill="#000000" font-family="Arial, sans-serif">C</text>
+
+            <!-- 角度弧（上：CA与水平线夹角） -->
+            <path id="scene3-arc-upper" d="M 335,250 A 30,30 0 0,0 339.02,235" fill="none" stroke="#000000" stroke-width="1.2"/>
+            <text id="scene3-angle-upper" x="390" y="215" font-size="14" fill="#000000" font-family="Arial, sans-serif">30°</text>
+
+            <!-- 角度弧（下：CB与水平线夹角） -->
+            <path id="scene3-arc-lower" d="M 335,250 A 30,30 0 0,1 339.02,265" fill="none" stroke="#000000" stroke-width="1.2"/>
+            <text id="scene3-angle-lower" x="390" y="310" font-size="14" fill="#000000" font-family="Arial, sans-serif">30°</text>
+
+            <!-- F_AC 箭头（从C沿CA方向指向A） -->
+            <line id="scene3-force-ac" class="scene3-fade" x1="351" y1="242" x2="264" y2="192" stroke="#1565c0" stroke-width="2.5" stroke-linecap="round" marker-end="url(#scene3-arrow-blue)" opacity="0"/>
+            <text id="scene3-label-fac" class="scene3-fade" x="440" y="125" font-size="14" fill="#1565c0" font-family="Arial, sans-serif" opacity="0">F_AC</text>
+
+            <!-- F_BC 箭头（从C沿CB方向指向B） -->
+            <line id="scene3-force-bc" class="scene3-fade" x1="351" y1="258" x2="264" y2="308" stroke="#1565c0" stroke-width="2.5" stroke-linecap="round" marker-end="url(#scene3-arrow-blue)" opacity="0"/>
+            <text id="scene3-label-fbc" class="scene3-fade" x="440" y="340" font-size="14" fill="#1565c0" font-family="Arial, sans-serif" opacity="0">F_BC</text>
+
+            <!-- 等力标注 -->
+            <text id="scene3-label-equal" class="scene3-fade" x="40" y="250" font-size="14" fill="#1565c0" font-family="Arial, sans-serif" opacity="0">F_AC=F_BC</text>
+
+            <!-- 竖直投影虚线 -->
+            <line id="scene3-proj-upper" class="scene3-fade" x1="264" y1="192" x2="264" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0"/>
+            <line id="scene3-proj-lower" class="scene3-fade" x1="264" y1="308" x2="264" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" opacity="0"/>
+
+            <!-- 抵消标记 -->
+            <text id="scene3-label-cancel" class="scene3-fade" x="40" y="285" font-size="14" fill="#888888" font-family="Arial, sans-serif" opacity="0">⊗</text>
+
+            <!-- 合力F_库箭头（水平向左） -->
+            <line id="scene3-force-fk" class="scene3-fade" x1="349" y1="250" x2="176" y2="250" stroke="#6a1b9a" stroke-width="3" stroke-linecap="round" marker-end="url(#scene3-arrow-purple)" opacity="0"/>
+            <text id="scene3-label-fk" class="scene3-fade" x="370" y="170" font-size="14" fill="#6a1b9a" font-family="Arial, sans-serif" opacity="0">F_库</text>
+            <text id="scene3-formula-fk" class="scene3-fade" x="370" y="280" font-size="14" fill="#6a1b9a" font-family="Arial, sans-serif" opacity="0">F_库=2F_AC·cos30°</text>
+
+            <!-- 外力F箭头（水平向右） -->
+            <line id="scene3-force-f" class="scene3-fade" x1="381" y1="250" x2="641" y2="250" stroke="#000000" stroke-width="3" stroke-linecap="round" marker-end="url(#scene3-arrow-black)" opacity="0"/>
+            <text id="scene3-label-f" class="scene3-fade" x="490" y="185" font-size="14" fill="#000000" font-family="Arial, sans-serif" opacity="0">F</text>
+
+            <!-- 加速度a箭头（水平向右，在C球上方） -->
+            <line id="scene3-force-a" class="scene3-fade" x1="365" y1="226" x2="425" y2="226" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" marker-end="url(#scene3-arrow-green)" opacity="0"/>
+            <text id="scene3-label-a" class="scene3-fade" x="440" y="160" font-size="14" fill="#2e7d32" font-family="Arial, sans-serif" opacity="0">a</text>
+
+            <!-- 牛顿方程 -->
+            <text id="scene3-formula-newton" class="scene3-fade" x="520" y="380" font-size="16" fill="#000000" font-family="Arial, sans-serif" opacity="0">F - F_库 = ma</text>
+
+            <!-- 结果公式 -->
+            <text id="scene3-formula-result" class="scene3-fade" x="520" y="410" font-size="16" fill="#2e7d32" font-family="Arial, sans-serif" font-weight="bold" opacity="0">F = 3√3 kq²/r²</text>
+        </svg>
+
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev">◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 0/7</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现：C球隔离受力分析分步导航
+        // 坐标表（根据Playwright自检优化后的最终布局）：
+        // A标签(110,105) B标签(110,385) C标签(390,250)
+        // 上30°(390,215) 下30°(390,310)
+        // F_AC标签(440,125) F_BC标签(440,340)
+        // F_AC=F_BC(40,250) ⊗(40,285)
+        // F_库标签(370,170) F_库公式(370,280)
+        // F标签(490,185) a标签(440,160)
+        // 牛顿方程(520,380) 结果公式(520,410)
+
+        let currentStep = 0;
+        const totalSteps = 7;
+
+        // 每步需要显示的元素ID列表
+        const stepElements = [
+            // Step 0: 基础框架（A/B/C球、连线、角度）——这些元素默认已显示，不需要额外控制
+            [],
+            // Step 1: F_AC
+            ['scene3-force-ac', 'scene3-label-fac'],
+            // Step 2: F_BC + 等力标注
+            ['scene3-force-bc', 'scene3-label-fbc', 'scene3-label-equal'],
+            // Step 3: 竖直投影 + 抵消标记
+            ['scene3-proj-upper', 'scene3-proj-lower', 'scene3-label-cancel'],
+            // Step 4: 合力F_库
+            ['scene3-force-fk', 'scene3-label-fk', 'scene3-formula-fk'],
+            // Step 5: 外力F + 加速度a
+            ['scene3-force-f', 'scene3-label-f', 'scene3-force-a', 'scene3-label-a'],
+            // Step 6: 牛顿方程
+            ['scene3-formula-newton'],
+            // Step 7: 结果公式
+            ['scene3-formula-result']
+        ];
+
+        // 所有可能被控制的元素ID（用于统一重置）
+        const allControlledIds = [
+            'scene3-force-ac', 'scene3-label-fac',
+            'scene3-force-bc', 'scene3-label-fbc', 'scene3-label-equal',
+            'scene3-proj-upper', 'scene3-proj-lower', 'scene3-label-cancel',
+            'scene3-force-fk', 'scene3-label-fk', 'scene3-formula-fk',
+            'scene3-force-f', 'scene3-label-f', 'scene3-force-a', 'scene3-label-a',
+            'scene3-formula-newton', 'scene3-formula-result'
+        ];
+
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const indicator = document.getElementById('scene3-step-indicator');
+
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                // 延迟后设置display:none，让过渡动画完成
+                setTimeout(function() {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 200);
+            }
+        }
+
+        function renderStep() {
+            // 更新指示器
+            indicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            if (currentStep === totalSteps) {
+                btnNext.textContent = '完成';
+            } else {
+                btnNext.textContent = '下一步 ▶';
+            }
+
+            // 先隐藏所有受控元素
+            allControlledIds.forEach(function(id) {
+                hideElement(id);
+            });
+
+            // 显示当前步骤及之前所有步骤的元素（累积显示）
+            for (let s = 1; s <= currentStep; s++) {
+                stepElements[s].forEach(function(id) {
+                    showElement(id);
+                });
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

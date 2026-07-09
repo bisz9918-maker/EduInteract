@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经线圈与互补经线</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-label {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene3-label-complement {
+            font-size: 12px;
+            fill: #c62828;
+        }
+        .scene3-formula {
+            font-size: 11px;
+            fill: #555555;
+        }
+        .scene3-legend {
+            font-size: 11px;
+        }
+        .scene3-slider-label {
+            font-size: 12px;
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 地球侧视圆 - 向下移动，留出顶部标签空间 -->
+            <circle id="scene3-earth-circle" cx="400" cy="320" r="85" fill="#f0f8ff" fill-opacity="0.2" stroke="#333333" stroke-width="2"/>
+            
+            <!-- 0°经线（本初子午线） -->
+            <line id="scene3-meridian-0" x1="400" y1="235" x2="400" y2="405" stroke="#999999" stroke-width="1.5"/>
+            
+            <!-- 180°经线（虚线） -->
+            <line id="scene3-meridian-180" x1="400" y1="235" x2="400" y2="405" stroke="#999999" stroke-width="1.5" stroke-dasharray="5,5"/>
+            
+            <!-- 经线圈（绿色虚线椭圆） -->
+            <ellipse id="scene3-circle-indicator" cx="400" cy="320" rx="85" ry="85" fill="none" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 当前经线（蓝色） -->
+            <line id="scene3-meridian-current" x1="400" y1="235" x2="400" y2="405" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 互补经线（红色） -->
+            <line id="scene3-meridian-complement" x1="400" y1="235" x2="400" y2="405" stroke="#c62828" stroke-width="2"/>
+            
+            <!-- 顶部标签 - 调整 y 坐标，确保间距≥12px，距边缘≥20px -->
+            <!-- y=20: 顶部标签基线，文字高度约 17px (14px 字号)，所以上边缘约 11px -->
+            <text id="scene3-label-current" x="400" y="20" text-anchor="middle" class="scene3-label" font-weight="bold">当前经线：0°</text>
+            <!-- y=42: 与上一个标签间距 22px (42-20=22)，满足≥12px -->
+            <text id="scene3-label-complement" x="400" y="42" text-anchor="middle" class="scene3-label-complement">互补经线：180°</text>
+            <!-- y=63: 与上一个标签间距 21px (63-42=21)，满足≥12px -->
+            <text id="scene3-formula" x="400" y="63" text-anchor="middle" class="scene3-formula">互补经线和为 180°，东西经相反</text>
+            
+            <!-- 图例区 - 移到右侧，文字放在右侧，增加行间距 -->
+            <g id="scene3-legend" transform="translate(560,290)">
+                <line x1="0" y1="9" x2="20" y2="9" stroke="#1565c0" stroke-width="2"/>
+                <text x="26" y="13" class="scene3-legend">当前经线</text>
+                <line x1="0" y1="28" x2="20" y2="28" stroke="#c62828" stroke-width="2"/>
+                <text x="26" y="32" class="scene3-legend">互补经线</text>
+                <line x1="0" y1="47" x2="20" y2="47" stroke="#2e7d32" stroke-width="2" stroke-dasharray="3,3"/>
+                <text x="26" y="51" class="scene3-legend">经线圈</text>
+            </g>
+            
+            <!-- 滑块轨道 - 放在底部，留出刻度空间 -->
+            <line id="scene3-slider-track" x1="200" y1="450" x2="600" y2="450" stroke="#888888" stroke-width="4"/>
+            
+            <!-- 滑块刻度标签 - 放在轨道下方，确保不超出底部边界 -->
+            <text id="scene3-slider-0" x="200" y="470" text-anchor="middle" class="scene3-slider-label">0°</text>
+            <text id="scene3-slider-180" x="600" y="470" text-anchor="middle" class="scene3-slider-label">180°</text>
+            <text id="scene3-slider-east" x="200" y="433" text-anchor="middle" class="scene3-slider-label">东经</text>
+            <text id="scene3-slider-west" x="600" y="433" text-anchor="middle" class="scene3-slider-label">西经</text>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene3-slider-handle" cx="200" cy="450" r="8" fill="#1565c0" stroke="#ffffff" stroke-width="2" style="cursor: pointer"/>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3: 经线圈与互补经线交互
+        
+        // 常量定义
+        const CENTER_X = 400;
+        const CENTER_Y = 320;
+        const EARTH_RADIUS = 85;
+        const SLIDER_START_X = 200;
+        const SLIDER_END_X = 600;
+        const SLIDER_RANGE = SLIDER_END_X - SLIDER_START_X;
+        
+        // 状态变量
+        let currentLongitude = 0; // 当前经度 (0-180)
+        let isDragging = false;
+        
+        // DOM 元素
+        const meridianCurrent = document.getElementById('scene3-meridian-current');
+        const meridianComplement = document.getElementById('scene3-meridian-complement');
+        const labelCurrent = document.getElementById('scene3-label-current');
+        const labelComplement = document.getElementById('scene3-label-complement');
+        const sliderHandle = document.getElementById('scene3-slider-handle');
+        
+        // 计算经线在侧视图中的位置
+        // 经线角度转换为 x 偏移（考虑透视效果）
+        function calculateMeridianPosition(longitude) {
+            // 经度角度转弧度
+            const angleRad = (longitude / 180) * Math.PI;
+            // x 偏移 = radius * sin(角度)
+            const xOffset = EARTH_RADIUS * Math.sin(angleRad);
+            return xOffset;
+        }
+        
+        // 更新经线位置
+        function updateMeridians(longitude) {
+            const complementLongitude = 180 - longitude;
+            
+            // 计算当前经线的 x 偏移
+            const xOffsetCurrent = calculateMeridianPosition(longitude);
+            // 互补经线在对面
+            const xOffsetComplement = -xOffsetCurrent;
+            
+            // 更新当前经线（蓝色）
+            meridianCurrent.setAttribute('x1', CENTER_X + xOffsetCurrent);
+            meridianCurrent.setAttribute('y1', CENTER_Y - EARTH_RADIUS);
+            meridianCurrent.setAttribute('x2', CENTER_X + xOffsetCurrent);
+            meridianCurrent.setAttribute('y2', CENTER_Y + EARTH_RADIUS);
+            
+            // 更新互补经线（红色）
+            meridianComplement.setAttribute('x1', CENTER_X + xOffsetComplement);
+            meridianComplement.setAttribute('y1', CENTER_Y - EARTH_RADIUS);
+            meridianComplement.setAttribute('x2', CENTER_X + xOffsetComplement);
+            meridianComplement.setAttribute('y2', CENTER_Y + EARTH_RADIUS);
+            
+            // 确定东西经标识
+            let currentLabel, complementLabel;
+            if (longitude === 0) {
+                currentLabel = '0°';
+                complementLabel = '180°';
+            } else if (longitude === 180) {
+                currentLabel = '180°';
+                complementLabel = '0°';
+            } else {
+                currentLabel = longitude + '°E';
+                complementLabel = complementLongitude + '°W';
+            }
+            
+            // 更新标签
+            labelCurrent.textContent = '当前经线：' + currentLabel;
+            labelComplement.textContent = '互补经线：' + complementLabel;
+            
+            // 更新滑块手柄位置
+            const handleX = SLIDER_START_X + (longitude / 180) * SLIDER_RANGE;
+            sliderHandle.setAttribute('cx', handleX);
+        }
+        
+        // 滑块拖动处理
+        function handleMouseDown(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            
+            const svg = document.getElementById('scene3-svg');
+            const rect = svg.getBoundingClientRect();
+            let clientX = e.clientX;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+            }
+            
+            // 计算滑块位置
+            let handleX = clientX - rect.left;
+            handleX = Math.max(SLIDER_START_X, Math.min(SLIDER_END_X, handleX));
+            
+            // 计算经度值
+            currentLongitude = ((handleX - SLIDER_START_X) / SLIDER_RANGE) * 180;
+            currentLongitude = Math.round(currentLongitude);
+            
+            // 更新显示
+            updateMeridians(currentLongitude);
+        }
+        
+        function handleMouseUp() {
+            isDragging = false;
+        }
+        
+        // 事件绑定
+        sliderHandle.addEventListener('mousedown', handleMouseDown);
+        sliderHandle.addEventListener('touchstart', handleMouseDown);
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('touchmove', handleMouseMove);
+        
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('touchend', handleMouseUp);
+        
+        // 初始化
+        updateMeridians(0);
+        
+    })();
+    </script>
+</body>
+</html>

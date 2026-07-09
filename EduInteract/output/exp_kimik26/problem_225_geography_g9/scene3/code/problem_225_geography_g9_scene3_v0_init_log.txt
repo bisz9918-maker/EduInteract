@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 半球与纬度带划分</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+
+        /* 按钮样式 */
+        #scene3-btn-prev, #scene3-btn-next {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #scene3-btn-prev:hover:not(:disabled), #scene3-btn-next:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+        #scene3-btn-prev:disabled, #scene3-btn-next:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene3-step-text {
+            font-size: 13px;
+            color: #333;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* 表格行高亮 */
+        .scene3-table-row { cursor: default; }
+        .scene3-table-row:hover text { fill: #1565c0; }
+        .scene3-table-row.active text { fill: #1565c0; font-weight: bold; }
+
+        /* 点高亮动画 */
+        @keyframes scene3-pulse {
+            0%, 100% { r: 5; stroke-width: 0; }
+            50% { r: 8; stroke-width: 3; }
+        }
+        .scene3-point-highlight {
+            animation: scene3-pulse 0.8s ease-in-out infinite;
+            stroke: #ff5722;
+            fill: #ff5722;
+        }
+
+        /* 淡入过渡 */
+        .scene3-fade { transition: opacity 0.4s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- ========== 底图：经纬网 ========== -->
+            <!-- 外框（四条边线） -->
+            <line id="scene3-frame-top" x1="80" y1="60" x2="480" y2="60" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-frame-bottom" x1="80" y1="360" x2="480" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-frame-left" x1="80" y1="60" x2="80" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-frame-right" x1="480" y1="60" x2="480" y2="360" stroke="#000" stroke-width="0.5"/>
+
+            <!-- 经线 -->
+            <line id="scene3-meridian-120e" x1="80" y1="60" x2="80" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-meridian-140e" x1="160" y1="60" x2="160" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-meridian-160e" x1="240" y1="60" x2="240" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-meridian-180" x1="320" y1="60" x2="320" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-meridian-160w" x1="400" y1="60" x2="400" y2="360" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-meridian-140w" x1="480" y1="60" x2="480" y2="360" stroke="#000" stroke-width="0.5"/>
+
+            <!-- 纬线 -->
+            <line id="scene3-parallel-80n" x1="80" y1="60" x2="480" y2="60" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-parallel-60n" x1="80" y1="120" x2="480" y2="120" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-parallel-40n" x1="80" y1="180" x2="480" y2="180" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-parallel-20n" x1="80" y1="240" x2="480" y2="240" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-parallel-0" x1="80" y1="300" x2="480" y2="300" stroke="#000" stroke-width="0.5"/>
+            <line id="scene3-parallel-20s" x1="80" y1="360" x2="480" y2="360" stroke="#000" stroke-width="0.5"/>
+
+            <!-- 经度标注（顶部） -->
+            <text id="scene3-label-120e" x="80" y="50" text-anchor="middle" font-size="11" fill="#000">120°E</text>
+            <text id="scene3-label-140e" x="160" y="50" text-anchor="middle" font-size="11" fill="#000">140°E</text>
+            <text id="scene3-label-160e" x="240" y="50" text-anchor="middle" font-size="11" fill="#000">160°E</text>
+            <text id="scene3-label-180" x="320" y="50" text-anchor="middle" font-size="11" fill="#000">180°</text>
+            <text id="scene3-label-160w" x="400" y="50" text-anchor="middle" font-size="11" fill="#000">160°W</text>
+            <text id="scene3-label-140w" x="480" y="50" text-anchor="middle" font-size="11" fill="#000">140°W</text>
+
+            <!-- 纬度标注（左侧） -->
+            <text id="scene3-label-80n" x="72" y="64" text-anchor="end" font-size="11" fill="#000">80°N</text>
+            <text id="scene3-label-60n" x="72" y="124" text-anchor="end" font-size="11" fill="#000">60°N</text>
+            <text id="scene3-label-40n" x="72" y="184" text-anchor="end" font-size="11" fill="#000">40°N</text>
+            <text id="scene3-label-20n" x="72" y="244" text-anchor="end" font-size="11" fill="#000">20°N</text>
+            <text id="scene3-label-0" x="72" y="304" text-anchor="end" font-size="11" fill="#000">0°</text>
+            <text id="scene3-label-20s" x="72" y="364" text-anchor="end" font-size="11" fill="#000">20°S</text>
+
+            <!-- ========== 步骤1：赤道与南北半球 ========== -->
+            <!-- 赤道线（绿色粗实线） -->
+            <line id="scene3-equator-line" class="scene3-fade" x1="80" y1="300" x2="480" y2="300" stroke="#2e7d32" stroke-width="3" opacity="0"/>
+            <text id="scene3-equator-label" class="scene3-fade" x="490" y="295" font-size="11" fill="#2e7d32" opacity="0">赤道 0°</text>
+
+            <!-- 北半球填充 -->
+            <rect id="scene3-north-fill" class="scene3-fade" x="80" y="60" width="400" height="240" fill="#1565c0" opacity="0"/>
+            <!-- 南半球填充 -->
+            <rect id="scene3-south-fill" class="scene3-fade" x="80" y="300" width="400" height="60" fill="#2e7d32" opacity="0"/>
+
+            <!-- 步骤1图例标签（放在右侧远离点标签） -->
+            <text id="scene3-legend-north" class="scene3-fade" x="560" y="80" font-size="11" fill="#1565c0" opacity="0">北半球</text>
+            <text id="scene3-legend-south" class="scene3-fade" x="560" y="110" font-size="11" fill="#2e7d32" opacity="0">南半球</text>
+
+            <!-- ========== 步骤2：东西半球分界线 ========== -->
+            <!-- 160°E经线（红色虚线） -->
+            <line id="scene3-line-160e" class="scene3-fade" x1="240" y1="60" x2="240" y2="360" stroke="#c62828" stroke-width="2" stroke-dasharray="8,4" opacity="0"/>
+            <!-- 20°W经线（红色虚线，图外左侧） -->
+            <line id="scene3-line-20w" class="scene3-fade" x1="60" y1="60" x2="60" y2="360" stroke="#c62828" stroke-width="2" stroke-dasharray="8,4" opacity="0"/>
+
+            <!-- 20°W标签（放在左侧安全位置） -->
+            <text id="scene3-label-20w-red" class="scene3-fade" x="55" y="260" text-anchor="start" font-size="11" fill="#c62828" opacity="0">20°W</text>
+
+            <!-- 东半球填充 -->
+            <rect id="scene3-east-fill" class="scene3-fade" x="80" y="60" width="160" height="300" fill="#1565c0" opacity="0"/>
+            <!-- 西半球填充 -->
+            <rect id="scene3-west-fill" class="scene3-fade" x="240" y="60" width="240" height="300" fill="#c62828" opacity="0"/>
+
+            <!-- 步骤2图例标签 -->
+            <text id="scene3-legend-east" class="scene3-fade" x="560" y="140" font-size="11" fill="#1565c0" opacity="0">东半球</text>
+            <text id="scene3-legend-west" class="scene3-fade" x="560" y="170" font-size="11" fill="#c62828" opacity="0">西半球</text>
+
+            <!-- ========== 步骤3：纬度带分界线 ========== -->
+            <!-- 30°N纬线 -->
+            <line id="scene3-line-30n" class="scene3-fade" x1="80" y1="210" x2="480" y2="210" stroke="#7b1fa2" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
+            <!-- 30°S纬线 -->
+            <line id="scene3-line-30s" class="scene3-fade" x1="80" y1="330" x2="480" y2="330" stroke="#7b1fa2" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
+            <!-- 60°N纬线（紫色虚线覆盖） -->
+            <line id="scene3-line-60n-purple" class="scene3-fade" x1="80" y1="120" x2="480" y2="120" stroke="#7b1fa2" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
+            <!-- 60°S纬线（图外下方） -->
+            <line id="scene3-line-60s" class="scene3-fade" x1="80" y1="420" x2="480" y2="420" stroke="#7b1fa2" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
+
+            <!-- 纬度带标签（放在网格右侧，避免与填充和图例重叠） -->
+            <text id="scene3-label-60n-purple" class="scene3-fade" x="490" y="124" font-size="11" fill="#7b1fa2" opacity="0">60°N</text>
+            <text id="scene3-label-30n-purple" class="scene3-fade" x="490" y="214" font-size="11" fill="#7b1fa2" opacity="0">30°N</text>
+            <text id="scene3-label-30s-purple" class="scene3-fade" x="490" y="334" font-size="11" fill="#7b1fa2" opacity="0">30°S</text>
+            <text id="scene3-label-60s-purple" class="scene3-fade" x="490" y="424" font-size="11" fill="#7b1fa2" opacity="0">60°S</text>
+
+            <!-- 纬度带填充 -->
+            <rect id="scene3-lat-fill-low1" class="scene3-fade" x="80" y="210" width="400" height="90" fill="#ffeb3b" opacity="0"/>
+            <rect id="scene3-lat-fill-low2" class="scene3-fade" x="80" y="300" width="400" height="30" fill="#ffeb3b" opacity="0"/>
+            <rect id="scene3-lat-fill-mid1" class="scene3-fade" x="80" y="120" width="400" height="90" fill="#ff9800" opacity="0"/>
+            <rect id="scene3-lat-fill-mid2" class="scene3-fade" x="80" y="330" width="400" height="90" fill="#ff9800" opacity="0"/>
+            <rect id="scene3-lat-fill-high1" class="scene3-fade" x="80" y="60" width="400" height="60" fill="#9c27b0" opacity="0"/>
+            <rect id="scene3-lat-fill-high2" class="scene3-fade" x="80" y="420" width="400" height="60" fill="#9c27b0" opacity="0"/>
+
+            <!-- 步骤3图例标签（放在右侧远离其他元素） -->
+            <text id="scene3-legend-low" class="scene3-fade" x="560" y="200" font-size="11" fill="#f57f17" opacity="0">低纬度</text>
+            <text id="scene3-legend-mid" class="scene3-fade" x="560" y="230" font-size="11" fill="#e65100" opacity="0">中纬度</text>
+            <text id="scene3-legend-high" class="scene3-fade" x="560" y="260" font-size="11" fill="#7b1fa2" opacity="0">高纬度</text>
+
+            <!-- ========== 四点（始终显示在最上层） ========== -->
+            <circle id="scene3-point-a" cx="160" cy="60" r="5" fill="#000"/>
+            <circle id="scene3-point-b" cx="480" cy="180" r="5" fill="#000"/>
+            <circle id="scene3-point-c" cx="160" cy="240" r="5" fill="#000"/>
+            <circle id="scene3-point-d" cx="480" cy="360" r="5" fill="#000"/>
+
+            <!-- 点标签（放在网格外侧，避免与填充和表格重叠） -->
+            <text id="scene3-label-a" x="500" y="45" text-anchor="end" font-size="12" fill="#000" font-weight="bold">A</text>
+            <text id="scene3-label-b" x="500" y="180" text-anchor="end" font-size="12" fill="#000" font-weight="bold">B</text>
+            <text id="scene3-label-c" x="500" y="245" text-anchor="end" font-size="12" fill="#000" font-weight="bold">C</text>
+            <text id="scene3-label-d" x="500" y="365" text-anchor="end" font-size="12" fill="#000" font-weight="bold">D</text>
+
+            <!-- ========== 步骤4-5：汇总表格 ========== -->
+            <g id="scene3-summary-table" class="scene3-fade" opacity="0">
+                <!-- 表头文字 -->
+                <text x="545" y="103" text-anchor="middle" font-size="12" fill="#000" font-weight="bold">点</text>
+                <text x="605" y="103" text-anchor="middle" font-size="12" fill="#000" font-weight="bold">南北半球</text>
+                <text x="675" y="103" text-anchor="middle" font-size="12" fill="#000" font-weight="bold">东西半球</text>
+                <text x="735" y="103" text-anchor="middle" font-size="12" fill="#000" font-weight="bold">纬度带</text>
+
+                <!-- 表格边框（全部使用line） -->
+                <!-- 外框 -->
+                <line x1="520" y1="80" x2="780" y2="80" stroke="#333" stroke-width="1"/>
+                <line x1="520" y1="275" x2="780" y2="275" stroke="#333" stroke-width="1"/>
+                <line x1="520" y1="80" x2="520" y2="275" stroke="#333" stroke-width="1"/>
+                <line x1="780" y1="80" x2="780" y2="275" stroke="#333" stroke-width="1"/>
+                <!-- 竖线 -->
+                <line x1="575" y1="80" x2="575" y2="275" stroke="#333" stroke-width="0.5"/>
+                <line x1="635" y1="80" x2="635" y2="275" stroke="#333" stroke-width="0.5"/>
+                <line x1="715" y1="80" x2="715" y2="275" stroke="#333" stroke-width="0.5"/>
+                <!-- 横线 -->
+                <line x1="520" y1="115" x2="780" y2="115" stroke="#333" stroke-width="0.5"/>
+                <line x1="520" y1="155" x2="780" y2="155" stroke="#333" stroke-width="0.5"/>
+                <line x1="520" y1="195" x2="780" y2="195" stroke="#333" stroke-width="0.5"/>
+                <line x1="520" y1="235" x2="780" y2="235" stroke="#333" stroke-width="0.5"/>
+
+                <!-- A行 -->
+                <g id="scene3-table-row-a" class="scene3-table-row">
+                    <text x="545" y="142" text-anchor="middle" font-size="12" fill="#000">A</text>
+                    <text x="605" y="142" text-anchor="middle" font-size="12" fill="#000">北半球</text>
+                    <text x="675" y="142" text-anchor="middle" font-size="12" fill="#000">东半球</text>
+                    <text x="735" y="142" text-anchor="middle" font-size="12" fill="#000">高纬度</text>
+                </g>
+                <!-- B行 -->
+                <g id="scene3-table-row-b" class="scene3-table-row">
+                    <text x="545" y="182" text-anchor="middle" font-size="12" fill="#000">B</text>
+                    <text x="605" y="182" text-anchor="middle" font-size="12" fill="#000">北半球</text>
+                    <text x="675" y="182" text-anchor="middle" font-size="12" fill="#000">西半球</text>
+                    <text x="735" y="182" text-anchor="middle" font-size="12" fill="#000">中纬度</text>
+                </g>
+                <!-- C行 -->
+                <g id="scene3-table-row-c" class="scene3-table-row">
+                    <text x="545" y="222" text-anchor="middle" font-size="12" fill="#000">C</text>
+                    <text x="605" y="222" text-anchor="middle" font-size="12" fill="#000">北半球</text>
+                    <text x="675" y="222" text-anchor="middle" font-size="12" fill="#000">东半球</text>
+                    <text x="735" y="222" text-anchor="middle" font-size="12" fill="#000">低纬度</text>
+                </g>
+                <!-- D行 -->
+                <g id="scene3-table-row-d" class="scene3-table-row">
+                    <text x="545" y="262" text-anchor="middle" font-size="12" fill="#000">D</text>
+                    <text x="605" y="262" text-anchor="middle" font-size="12" fill="#000">南半球</text>
+                    <text x="675" y="262" text-anchor="middle" font-size="12" fill="#000">西半球</text>
+                    <text x="735" y="262" text-anchor="middle" font-size="12" fill="#000">低纬度</text>
+                </g>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene3-step-text">步骤 1/6</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现
+        var currentStep = 0;
+        var totalSteps = 6;
+
+        // 元素引用
+        var btnPrev = document.getElementById('scene3-btn-prev');
+        var btnNext = document.getElementById('scene3-btn-next');
+        var stepText = document.getElementById('scene3-step-text');
+
+        // 各步骤需要显示的元素ID列表
+        var stepElements = {
+            0: [], // 步骤0：纯底图，无额外元素
+            1: [ // 步骤1：赤道+南北半球
+                'scene3-equator-line', 'scene3-equator-label',
+                'scene3-north-fill', 'scene3-south-fill',
+                'scene3-legend-north', 'scene3-legend-south'
+            ],
+            2: [ // 步骤2：东西半球（保留步骤1元素，新增步骤2元素）
+                'scene3-equator-line', 'scene3-equator-label',
+                'scene3-north-fill', 'scene3-south-fill',
+                'scene3-legend-north', 'scene3-legend-south',
+                'scene3-line-160e', 'scene3-line-20w',
+                'scene3-label-20w-red',
+                'scene3-east-fill', 'scene3-west-fill',
+                'scene3-legend-east', 'scene3-legend-west'
+            ],
+            3: [ // 步骤3：纬度带（保留步骤1-2元素，新增步骤3元素）
+                'scene3-equator-line', 'scene3-equator-label',
+                'scene3-north-fill', 'scene3-south-fill',
+                'scene3-legend-north', 'scene3-legend-south',
+                'scene3-line-160e', 'scene3-line-20w',
+                'scene3-label-20w-red',
+                'scene3-east-fill', 'scene3-west-fill',
+                'scene3-legend-east', 'scene3-legend-west',
+                'scene3-line-30n', 'scene3-line-30s', 'scene3-line-60n-purple', 'scene3-line-60s',
+                'scene3-label-60n-purple', 'scene3-label-30n-purple', 'scene3-label-30s-purple', 'scene3-label-60s-purple',
+                'scene3-lat-fill-low1', 'scene3-lat-fill-low2', 'scene3-lat-fill-mid1', 'scene3-lat-fill-mid2',
+                'scene3-lat-fill-high1', 'scene3-lat-fill-high2',
+                'scene3-legend-low', 'scene3-legend-mid', 'scene3-legend-high'
+            ],
+            4: [ // 步骤4：隐藏填充，显示表格，保留分界线
+                'scene3-equator-line', 'scene3-equator-label',
+                'scene3-line-160e', 'scene3-line-20w',
+                'scene3-label-20w-red',
+                'scene3-line-30n', 'scene3-line-30s', 'scene3-line-60n-purple', 'scene3-line-60s',
+                'scene3-label-60n-purple', 'scene3-label-30n-purple', 'scene3-label-30s-purple', 'scene3-label-60s-purple',
+                'scene3-summary-table'
+            ],
+            5: [ // 步骤5：表格可点击，保留分界线
+                'scene3-equator-line', 'scene3-equator-label',
+                'scene3-line-160e', 'scene3-line-20w',
+                'scene3-label-20w-red',
+                'scene3-line-30n', 'scene3-line-30s', 'scene3-line-60n-purple', 'scene3-line-60s',
+                'scene3-label-60n-purple', 'scene3-label-30n-purple', 'scene3-label-30s-purple', 'scene3-label-60s-purple',
+                'scene3-summary-table'
+            ]
+        };
+
+        // 所有可切换的元素ID（去重）
+        var allToggleIds = [];
+        for (var s in stepElements) {
+            stepElements[s].forEach(function(id) {
+                if (allToggleIds.indexOf(id) === -1) {
+                    allToggleIds.push(id);
+                }
+            });
+        }
+
+        // 获取元素
+        function getEl(id) {
+            return document.getElementById(id);
+        }
+
+        // 显示/隐藏元素
+        function showEl(id) {
+            var el = getEl(id);
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        function hideEl(id) {
+            var el = getEl(id);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(function() {
+                    if (el.style.opacity === '0') {
+                        el.style.display = 'none';
+                    }
+                }, 400);
+            }
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            var showIds = stepElements[currentStep] || [];
+
+            // 先隐藏所有可切换元素
+            allToggleIds.forEach(function(id) {
+                if (showIds.indexOf(id) === -1) {
+                    hideEl(id);
+                }
+            });
+
+            // 再显示当前步骤需要的元素
+            showIds.forEach(function(id) {
+                showEl(id);
+            });
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+            stepText.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+
+            // 步骤5：启用表格行点击
+            var tableRows = ['scene3-table-row-a', 'scene3-table-row-b', 'scene3-table-row-c', 'scene3-table-row-d'];
+            tableRows.forEach(function(rowId) {
+                var row = getEl(rowId);
+                if (row) {
+                    if (currentStep === 5) {
+                        row.style.cursor = 'pointer';
+                    } else {
+                        row.style.cursor = 'default';
+                        row.classList.remove('active');
+                    }
+                }
+            });
+
+            // 清除点高亮
+            ['scene3-point-a', 'scene3-point-b', 'scene3-point-c', 'scene3-point-d'].forEach(function(pid) {
+                var p = getEl(pid);
+                if (p) p.classList.remove('scene3-point-highlight');
+            });
+        }
+
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 表格行点击事件
+        function setupTableRow(rowId, pointId) {
+            var row = getEl(rowId);
+            if (row) {
+                row.addEventListener('click', function() {
+                    if (currentStep !== 5) return;
+
+                    // 清除所有行激活状态
+                    ['scene3-table-row-a', 'scene3-table-row-b', 'scene3-table-row-c', 'scene3-table-row-d'].forEach(function(rid) {
+                        var r = getEl(rid);
+                        if (r) r.classList.remove('active');
+                    });
+                    // 清除所有点高亮
+                    ['scene3-point-a', 'scene3-point-b', 'scene3-point-c', 'scene3-point-d'].forEach(function(pid) {
+                        var p = getEl(pid);
+                        if (p) p.classList.remove('scene3-point-highlight');
+                    });
+
+                    // 激活当前行和对应点
+                    row.classList.add('active');
+                    var point = getEl(pointId);
+                    if (point) point.classList.add('scene3-point-highlight');
+                });
+            }
+        }
+
+        setupTableRow('scene3-table-row-a', 'scene3-point-a');
+        setupTableRow('scene3-table-row-b', 'scene3-point-b');
+        setupTableRow('scene3-table-row-c', 'scene3-point-c');
+        setupTableRow('scene3-table-row-d', 'scene3-point-d');
+
+        // 初始化：先隐藏所有可切换元素
+        allToggleIds.forEach(function(id) {
+            var el = getEl(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        });
+
+        // 渲染初始状态
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

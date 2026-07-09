@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆锥曲线分类 - 场景 2</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 三维图区背景（缩小，给标签留空间） -->
+            <rect id="scene2-3d-bg" x="30" y="30" width="460" height="320" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+            
+            <!-- 圆锥底面椭圆（透视） -->
+            <ellipse id="scene2-cone-base" cx="270" cy="280" rx="130" ry="50" fill="#1565c0" fill-opacity="0.15" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 圆锥母线（左） -->
+            <line id="scene2-cone-left" x1="270" y1="60" x2="140" y2="280" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 圆锥母线（右） -->
+            <line id="scene2-cone-right" x1="270" y1="60" x2="400" y2="280" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 圆锥顶点 P -->
+            <circle id="scene2-cone-vertex" cx="270" cy="60" r="4" fill="#1565c0"/>
+            
+            <!-- 垂足 O -->
+            <circle id="scene2-foot-o" cx="270" cy="280" r="3" fill="#1565c0"/>
+            
+            <!-- PO 垂线 -->
+            <line id="scene2-po-line" x1="270" y1="60" x2="270" y2="280" stroke="#1565c0" stroke-width="1" stroke-dasharray="4,4"/>
+            
+            <!-- 截面平面（平行四边形）- 缩小范围避免与标签重叠 -->
+            <polygon id="scene2-plane" points="120,180 380,200 360,260 100,240" fill="#e0e0e0" fill-opacity="0.2" stroke="#999" stroke-width="1"/>
+            
+            <!-- 动态截线 - 限制在平面范围内 -->
+            <path id="scene2-section-curve" d="" fill="none" stroke="#c62828" stroke-width="3"/>
+            
+            <!-- P 点标签（移到三维图区左侧外部，x=110 确保不重叠且满足边缘距离≥20px） -->
+            <text id="scene2-label-p" x="110" y="65" font-size="14" fill="#000">P</text>
+            
+            <!-- O 点标签（移到三维图区左侧外部，x=110 确保不重叠且满足边缘距离≥20px） -->
+            <text id="scene2-label-o" x="110" y="285" font-size="14" fill="#000">O</text>
+            
+            <!-- 平面 M 标签（移到三维图区右侧外部） -->
+            <text id="scene2-label-m" x="500" y="210" font-size="14" fill="#000">M</text>
+            
+            <!-- 俯视图区背景 -->
+            <rect id="scene2-topview-bg" x="520" y="30" width="240" height="160" fill="#fafafa" stroke="#ccc" stroke-width="1"/>
+            
+            <!-- 俯视图圆心 O -->
+            <circle id="scene2-topview-center" cx="640" cy="110" r="3" fill="#000"/>
+            
+            <!-- 俯视图截线 -->
+            <path id="scene2-topview-curve" d="" fill="none" stroke="#c62828" stroke-width="3"/>
+            
+            <!-- α滑块轨道 -->
+            <line id="scene2-alpha-track" x1="530" y1="230" x2="730" y2="230" stroke="#888" stroke-width="4"/>
+            
+            <!-- α滑块手柄 -->
+            <circle id="scene2-alpha-slider" cx="610" cy="230" r="12" fill="#000" cursor="pointer"/>
+            
+            <!-- β滑块轨道 -->
+            <line id="scene2-beta-track" x1="530" y1="280" x2="730" y2="280" stroke="#888" stroke-width="4"/>
+            
+            <!-- β滑块手柄 -->
+            <circle id="scene2-beta-slider" cx="650" cy="280" r="12" fill="#000" cursor="pointer"/>
+            
+            <!-- α标签 -->
+            <text id="scene2-label-alpha" x="530" y="215" font-size="14" fill="#000">α=</text>
+            
+            <!-- α数值标签 -->
+            <text id="scene2-alpha-value" x="570" y="215" font-size="14" fill="#000" font-weight="bold">30°</text>
+            
+            <!-- β标签 -->
+            <text id="scene2-label-beta" x="530" y="265" font-size="14" fill="#000">β=</text>
+            
+            <!-- β数值标签 -->
+            <text id="scene2-beta-value" x="570" y="265" font-size="14" fill="#000" font-weight="bold">45°</text>
+            
+            <!-- α+β标签 -->
+            <text id="scene2-label-sum" x="530" y="320" font-size="14" fill="#000">α+β=</text>
+            
+            <!-- α+β数值标签 -->
+            <text id="scene2-sum-value" x="590" y="320" font-size="14" fill="#000" font-weight="bold">75°</text>
+            
+            <!-- 曲线类型标签 -->
+            <text id="scene2-curve-type" x="530" y="355" font-size="16" fill="#c62828" font-weight="bold">双曲线</text>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 圆锥曲线分类动态演示
+        // 布局坐标表（修复后）：
+        // 三维图区：(30,30)-(490,350), 460×320
+        // 圆锥顶点 P：(270,60)
+        // 圆锥底面中心 O：(270,280), 半径 130px
+        // 截面平面：(120,180)-(380,200)-(360,260)-(100,240)
+        // 俯视图区：(520,30)-(760,190), 240×160
+        // α滑块：(530,230)-(730,230), 范围 0°-60°, 初始 30°
+        // β滑块：(530,280)-(730,280), 范围 30°-90°, 初始 45°
+        // 标签位置：P(110,65), O(110,285), M(500,210) - 移到区域外部避免重叠，满足边缘距离≥20px
+        
+        const svg = document.getElementById('scene2-svg');
+        
+        // 状态变量
+        let alpha = 30;  // 0-60
+        let beta = 45;   // 30-90
+        
+        // DOM 元素引用
+        const elements = {
+            sectionCurve: document.getElementById('scene2-section-curve'),
+            topviewCurve: document.getElementById('scene2-topview-curve'),
+            alphaSlider: document.getElementById('scene2-alpha-slider'),
+            betaSlider: document.getElementById('scene2-beta-slider'),
+            alphaValue: document.getElementById('scene2-alpha-value'),
+            betaValue: document.getElementById('scene2-beta-value'),
+            sumValue: document.getElementById('scene2-sum-value'),
+            curveType: document.getElementById('scene2-curve-type')
+        };
+        
+        // 颜色映射
+        const curveColors = {
+            'circle': '#2e7d32',
+            'line': '#000000',
+            'parabola': '#1565c0',
+            'ellipse': '#1565c0',
+            'hyperbola': '#c62828'
+        };
+        
+        // 曲线类型判定
+        function getCurveType(alpha, beta) {
+            const sum = alpha + beta;
+            if (alpha === 0) return 'circle';
+            if (beta === 90) return 'line';
+            if (Math.abs(sum - 90) < 1) return 'parabola';
+            if (sum > 90) return 'ellipse';
+            return 'hyperbola';
+        }
+        
+        // 绘制三维图截线（限制在平面范围内）
+        function draw3DCurve(type, alpha, beta, centerX, centerY) {
+            const sum = alpha + beta;
+            let path = '';
+            
+            // 平面范围：x: 100-380, y: 180-260
+            // 中心点约 (240, 220)
+            const plotCenterX = 240;
+            const plotCenterY = 220;
+            const maxX = 130;  // 从中心到边缘的最大 x 范围
+            const maxY = 40;   // 从中心到边缘的最大 y 范围
+            
+            switch(type) {
+                case 'circle':
+                    // 圆：在平面内绘制椭圆（透视）
+                    const r = Math.min(maxX, maxY) * 0.8;
+                    path = `M ${plotCenterX - r},${plotCenterY} 
+                            A ${r},${r * 0.4} 0 1,1 ${plotCenterX + r},${plotCenterY} 
+                            A ${r},${r * 0.4} 0 1,1 ${plotCenterX - r},${plotCenterY} Z`;
+                    break;
+                    
+                case 'line':
+                    // 直线：水平线
+                    path = `M ${plotCenterX - maxX + 10},${plotCenterY} L ${plotCenterX + maxX - 10},${plotCenterY}`;
+                    break;
+                    
+                case 'parabola':
+                    // 抛物线：开口向右
+                    const parabolaScale = 0.8;
+                    path = `M ${plotCenterX},${plotCenterY} `;
+                    for (let y = -maxY + 5; y <= maxY - 5; y += 3) {
+                        const x = parabolaScale * y * y / maxY;
+                        if (x < maxX - 10) {
+                            path += `L ${plotCenterX + x},${plotCenterY + y} `;
+                        }
+                    }
+                    break;
+                    
+                case 'ellipse':
+                    // 椭圆：根据α+β计算长短轴
+                    const a = (maxX - 10) * 0.9;
+                    const bFactor = 1 - (sum - 90) / 120;
+                    const b = Math.max((maxY - 5) * bFactor * 0.8, 5);
+                    path = `M ${plotCenterX - a},${plotCenterY} 
+                            A ${a},${b} 0 1,1 ${plotCenterX + a},${plotCenterY} 
+                            A ${a},${b} 0 1,1 ${plotCenterX - a},${plotCenterY} Z`;
+                    break;
+                    
+                case 'hyperbola':
+                    // 双曲线：两支，限制在平面范围内
+                    const k = (90 - sum) / 60 + 0.5;
+                    // 左支
+                    path = `M ${plotCenterX - maxX + 10},${plotCenterY - maxY + 10} `;
+                    for (let x = -maxX + 10; x <= -20; x += 3) {
+                        const y = k * Math.sqrt(x * x / 50 + 1) * (maxY - 5);
+                        if (Math.abs(y) < maxY - 5) {
+                            path += `L ${plotCenterX + x},${plotCenterY - y} `;
+                        }
+                    }
+                    for (let x = -maxX + 10; x <= -20; x += 3) {
+                        const y = k * Math.sqrt(x * x / 50 + 1) * (maxY - 5);
+                        if (Math.abs(y) < maxY - 5) {
+                            path += `L ${plotCenterX + x},${plotCenterY + y} `;
+                        }
+                    }
+                    // 右支
+                    path += `M ${plotCenterX + 20},${plotCenterY - maxY + 10} `;
+                    for (let x = 20; x <= maxX - 10; x += 3) {
+                        const y = k * Math.sqrt(x * x / 50 + 1) * (maxY - 5);
+                        if (Math.abs(y) < maxY - 5) {
+                            path += `L ${plotCenterX + x},${plotCenterY - y} `;
+                        }
+                    }
+                    for (let x = 20; x <= maxX - 10; x += 3) {
+                        const y = k * Math.sqrt(x * x / 50 + 1) * (maxY - 5);
+                        if (Math.abs(y) < maxY - 5) {
+                            path += `L ${plotCenterX + x},${plotCenterY + y} `;
+                        }
+                    }
+                    break;
+            }
+            
+            return path;
+        }
+        
+        // 绘制俯视图截线（2D 简化）
+        function drawTopviewCurve(type, alpha, beta, centerX, centerY) {
+            const sum = alpha + beta;
+            let path = '';
+            
+            const plotMaxX = 90;
+            const plotMaxY = 70;
+            
+            switch(type) {
+                case 'circle':
+                    const r = Math.min(plotMaxX, plotMaxY) * 0.7;
+                    path = `M ${centerX - r},${centerY} 
+                            A ${r},${r} 0 1,1 ${centerX + r},${centerY} 
+                            A ${r},${r} 0 1,1 ${centerX - r},${centerY} Z`;
+                    break;
+                    
+                case 'line':
+                    path = `M ${centerX - plotMaxX + 5},${centerY} L ${centerX + plotMaxX - 5},${centerY}`;
+                    break;
+                    
+                case 'parabola':
+                    const pvScale = 0.5;
+                    path = `M ${centerX},${centerY} `;
+                    for (let y = -plotMaxY + 5; y <= plotMaxY - 5; y += 3) {
+                        const x = pvScale * y * y / plotMaxY;
+                        if (x < plotMaxX - 5) {
+                            path += `L ${centerX + x},${centerY + y} `;
+                        }
+                    }
+                    break;
+                    
+                case 'ellipse':
+                    const ea = (plotMaxX - 5) * 0.85;
+                    const ebFactor = 1 - (sum - 90) / 120;
+                    const eb = Math.max((plotMaxY - 5) * ebFactor * 0.7, 8);
+                    path = `M ${centerX - ea},${centerY} 
+                            A ${ea},${eb} 0 1,1 ${centerX + ea},${centerY} 
+                            A ${ea},${eb} 0 1,1 ${centerX - ea},${centerY} Z`;
+                    break;
+                    
+                case 'hyperbola':
+                    const hk = (90 - sum) / 60 + 0.5;
+                    // 左支
+                    path = `M ${centerX - plotMaxX + 5},${centerY - plotMaxY + 5} `;
+                    for (let x = -plotMaxX + 5; x <= -15; x += 3) {
+                        const y = hk * Math.sqrt(x * x / 40 + 1) * (plotMaxY - 5);
+                        if (Math.abs(y) < plotMaxY - 5) {
+                            path += `L ${centerX + x},${centerY - y} `;
+                        }
+                    }
+                    for (let x = -plotMaxX + 5; x <= -15; x += 3) {
+                        const y = hk * Math.sqrt(x * x / 40 + 1) * (plotMaxY - 5);
+                        if (Math.abs(y) < plotMaxY - 5) {
+                            path += `L ${centerX + x},${centerY + y} `;
+                        }
+                    }
+                    // 右支
+                    path += `M ${centerX + 15},${centerY - plotMaxY + 5} `;
+                    for (let x = 15; x <= plotMaxX - 5; x += 3) {
+                        const y = hk * Math.sqrt(x * x / 40 + 1) * (plotMaxY - 5);
+                        if (Math.abs(y) < plotMaxY - 5) {
+                            path += `L ${centerX + x},${centerY - y} `;
+                        }
+                    }
+                    for (let x = 15; x <= plotMaxX - 5; x += 3) {
+                        const y = hk * Math.sqrt(x * x / 40 + 1) * (plotMaxY - 5);
+                        if (Math.abs(y) < plotMaxY - 5) {
+                            path += `L ${centerX + x},${centerY + y} `;
+                        }
+                    }
+                    break;
+            }
+            
+            return path;
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            const type = getCurveType(alpha, beta);
+            const sum = alpha + beta;
+            const color = curveColors[type];
+            
+            // 更新曲线
+            const curvePath = draw3DCurve(type, alpha, beta, 270, 280);
+            const topviewPath = drawTopviewCurve(type, alpha, beta, 640, 110);
+            
+            elements.sectionCurve.setAttribute('d', curvePath);
+            elements.sectionCurve.setAttribute('stroke', color);
+            
+            elements.topviewCurve.setAttribute('d', topviewPath);
+            elements.topviewCurve.setAttribute('stroke', color);
+            
+            // 更新数值显示
+            elements.alphaValue.textContent = alpha + '°';
+            elements.betaValue.textContent = beta + '°';
+            elements.sumValue.textContent = sum + '°';
+            
+            // 更新曲线类型标签
+            const typeNames = {
+                'circle': '圆',
+                'line': '直线',
+                'parabola': '抛物线',
+                'ellipse': '椭圆',
+                'hyperbola': '双曲线'
+            };
+            elements.curveType.textContent = typeNames[type];
+            elements.curveType.setAttribute('fill', color);
+            
+            // 更新滑块位置
+            const alphaTrackLen = 200;
+            const betaTrackLen = 200;
+            const alphaPos = 530 + (alpha / 60) * alphaTrackLen;
+            const betaPos = 530 + ((beta - 30) / 60) * betaTrackLen;
+            
+            elements.alphaSlider.setAttribute('cx', alphaPos);
+            elements.betaSlider.setAttribute('cx', betaPos);
+        }
+        
+        // 滑块拖拽逻辑
+        let dragging = null;
+        
+        function handleSliderMove(clientX) {
+            if (!dragging) return;
+            
+            const trackStart = 530;
+            const trackLen = 200;
+            const relativeX = Math.max(0, Math.min(trackLen, clientX - trackStart));
+            
+            if (dragging === 'alpha') {
+                alpha = Math.round((relativeX / trackLen) * 60);
+            } else if (dragging === 'beta') {
+                beta = Math.round(30 + (relativeX / trackLen) * 60);
+            }
+            
+            updateDisplay();
+        }
+        
+        // 鼠标事件
+        elements.alphaSlider.addEventListener('mousedown', (e) => {
+            dragging = 'alpha';
+            e.preventDefault();
+        });
+        
+        elements.betaSlider.addEventListener('mousedown', (e) => {
+            dragging = 'beta';
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (dragging) {
+                handleSliderMove(e.clientX);
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            dragging = null;
+        });
+        
+        // 触摸事件
+        elements.alphaSlider.addEventListener('touchstart', (e) => {
+            dragging = 'alpha';
+            e.preventDefault();
+        });
+        
+        elements.betaSlider.addEventListener('touchstart', (e) => {
+            dragging = 'beta';
+            e.preventDefault();
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (dragging && e.touches.length > 0) {
+                handleSliderMove(e.touches[0].clientX);
+            }
+        }, { passive: false });
+        
+        document.addEventListener('touchend', () => {
+            dragging = null;
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

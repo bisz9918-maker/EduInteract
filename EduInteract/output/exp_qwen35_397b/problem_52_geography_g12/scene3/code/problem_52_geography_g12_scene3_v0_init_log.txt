@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点与正午太阳高度计算</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene3-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene3-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene3-fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+        .scene3-visible {
+            opacity: 1;
+        }
+        .scene3-hidden {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg id="scene3-svg" width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene3-title" x="400" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#000000">
+                太阳直射点与正午太阳高度计算
+            </text>
+
+            <!-- ========== 左侧光照图区 ========== -->
+            <!-- 太阳 -->
+            <circle id="scene3-sun" cx="80" cy="200" r="30" fill="#FFD54F" stroke="#F57F17" stroke-width="2"/>
+            <text id="scene3-sun-label" x="80" y="165" text-anchor="middle" font-size="14" fill="#000000" class="scene3-fade-in">太阳</text>
+
+            <!-- 太阳光线（直射） -->
+            <line id="scene3-sunray-direct" x1="110" y1="200" x2="210" y2="200" stroke="#1565c0" stroke-width="3" class="scene3-fade-in"/>
+            <polygon id="scene3-sunray-direct-arrow" points="210,200 200,195 200,205" fill="#1565c0" class="scene3-fade-in"/>
+
+            <!-- 地球 -->
+            <circle id="scene3-earth" cx="250" cy="200" r="40" fill="#4FC3F7" stroke="#0288D1" stroke-width="2"/>
+
+            <!-- 地轴（虚线） -->
+            <line id="scene3-axis" x1="250" y1="140" x2="250" y2="260" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            <text id="scene3-axis-n" x="250" y="130" text-anchor="middle" font-size="12" fill="#888888" class="scene3-fade-in">N</text>
+            <text id="scene3-axis-s" x="250" y="275" text-anchor="middle" font-size="12" fill="#888888" class="scene3-fade-in">S</text>
+
+            <!-- 赤道（虚线） -->
+            <line id="scene3-equator" x1="210" y1="200" x2="290" y2="200" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            <text id="scene3-equator-label" x="295" y="205" font-size="12" fill="#888888" class="scene3-fade-in">赤道</text>
+
+            <!-- 南回归线（红色弧线，步骤1显示） -->
+            <path id="scene3-tropic" d="M 215,232 A 40,40 0 0,1 285,232" fill="none" stroke="#c62828" stroke-width="3" class="scene3-fade-in"/>
+            <text id="scene3-tropic-label" x="295" y="238" font-size="13" fill="#c62828" font-weight="bold" class="scene3-fade-in">23°26'S</text>
+
+            <!-- 直射点（红色圆点，步骤1显示） -->
+            <circle id="scene3-direct-point" cx="250" cy="235" r="5" fill="#c62828" class="scene3-fade-in"/>
+            <text id="scene3-direct-label" x="260" y="250" font-size="11" fill="#c62828" class="scene3-fade-in">直射点</text>
+
+            <!-- 北京位置（绿色圆点，步骤2显示） -->
+            <!-- 39°N 对应 y 偏移：40 * sin(39°) ≈ 25px 向上 -->
+            <circle id="scene3-beijing-point" cx="250" cy="160" r="5" fill="#2e7d32" class="scene3-fade-in"/>
+            <text id="scene3-beijing-label" x="265" y="155" font-size="12" fill="#2e7d32" font-weight="bold" class="scene3-fade-in">北京 39°N</text>
+
+            <!-- 北京光线（蓝色射线，步骤2显示） -->
+            <line id="scene3-beijing-ray" x1="180" y1="145" x2="245" y2="160" stroke="#1565c0" stroke-width="2" class="scene3-fade-in"/>
+            <polygon id="scene3-beijing-ray-arrow" points="245,160 235,158 238,165" fill="#1565c0" class="scene3-fade-in"/>
+
+            <!-- 北京地平线（切线，步骤2显示） -->
+            <line id="scene3-horizon" x1="220" y1="160" x2="280" y2="160" stroke="#000000" stroke-width="2" class="scene3-fade-in"/>
+
+            <!-- 太阳高度角 H 弧线（绿色，步骤2显示） -->
+            <path id="scene3-angle-arc" d="M 235,160 A 15,15 0 0,0 245,150" fill="none" stroke="#2e7d32" stroke-width="2" class="scene3-fade-in"/>
+            <text id="scene3-angle-label" x="242" y="148" font-size="14" fill="#2e7d32" font-weight="bold" class="scene3-fade-in">H</text>
+
+            <!-- ========== 右侧公转轨道图区（步骤3显示） ========== -->
+            <!-- 公转轨道椭圆 -->
+            <ellipse id="scene3-orbit" cx="500" cy="250" rx="120" ry="90" fill="none" stroke="#000000" stroke-width="2" class="scene3-fade-in"/>
+
+            <!-- 太阳（轨道中心） -->
+            <circle id="scene3-orbit-sun" cx="500" cy="250" r="15" fill="#FFD54F" stroke="#F57F17" stroke-width="2" class="scene3-fade-in"/>
+            <text id="scene3-orbit-sun-label" x="500" y="230" text-anchor="middle" font-size="12" fill="#000000" class="scene3-fade-in">太阳</text>
+
+            <!-- 冬至点（右侧） -->
+            <circle id="scene3-winter-point" cx="620" cy="250" r="6" fill="#c62828" class="scene3-fade-in"/>
+            <text id="scene3-winter-label" x="620" y="235" text-anchor="middle" font-size="11" fill="#c62828" font-weight="bold" class="scene3-fade-in">冬至</text>
+            <text id="scene3-winter-date" x="620" y="222" text-anchor="middle" font-size="10" fill="#c62828" class="scene3-fade-in">12/22</text>
+
+            <!-- 近日点（右侧偏外） -->
+            <circle id="scene3-perihelion" cx="635" cy="265" r="4" fill="#c62828" class="scene3-fade-in"/>
+            <text id="scene3-perihelion-label" x="635" y="285" text-anchor="middle" font-size="10" fill="#c62828" class="scene3-fade-in">近日点</text>
+            <text id="scene3-perihelion-date" x="635" y="297" text-anchor="middle" font-size="9" fill="#c62828" class="scene3-fade-in">1月初</text>
+
+            <!-- 远日点（左侧） -->
+            <circle id="scene3-aphelion" cx="365" cy="265" r="4" fill="#1565c0" class="scene3-fade-in"/>
+            <text id="scene3-aphelion-label" x="365" y="285" text-anchor="middle" font-size="10" fill="#1565c0" class="scene3-fade-in">远日点</text>
+            <text id="scene3-aphelion-date" x="365" y="297" text-anchor="middle" font-size="9" fill="#1565c0" class="scene3-fade-in">7月初</text>
+
+            <!-- 夏至点（左侧） -->
+            <circle id="scene3-summer-point" cx="380" cy="250" r="6" fill="#1565c0" class="scene3-fade-in"/>
+            <text id="scene3-summer-label" x="380" y="235" text-anchor="middle" font-size="11" fill="#1565c0" font-weight="bold" class="scene3-fade-in">夏至</text>
+
+            <!-- 春分点（顶部） -->
+            <circle id="scene3-spring-point" cx="500" cy="160" r="5" fill="#2e7d32" class="scene3-fade-in"/>
+            <text id="scene3-spring-label" x="500" y="145" text-anchor="middle" font-size="11" fill="#2e7d32" class="scene3-fade-in">春分</text>
+
+            <!-- 秋分点（底部） -->
+            <circle id="scene3-autumn-point" cx="500" cy="340" r="5" fill="#2e7d32" class="scene3-fade-in"/>
+            <text id="scene3-autumn-label" x="500" y="360" text-anchor="middle" font-size="11" fill="#2e7d32" class="scene3-fade-in">秋分</text>
+
+            <!-- 公转方向箭头 -->
+            <path id="scene3-orbit-arrow" d="M 520,165 Q 530,180 535,200" fill="none" stroke="#000000" stroke-width="1.5" marker-end="url(#scene3-arrowhead)" class="scene3-fade-in"/>
+            <defs>
+                <marker id="scene3-arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                    <polygon points="0,0 10,3 0,6" fill="#000000"/>
+                </marker>
+            </defs>
+
+            <!-- ========== 公式区 ========== -->
+            <rect id="scene3-formula-bg" x="50" y="415" width="700" height="70" fill="#f5f5f5" stroke="#dddddd" stroke-width="1" rx="5" class="scene3-fade-in"/>
+            <text id="scene3-formula-text" x="400" y="440" text-anchor="middle" font-size="14" fill="#000000" class="scene3-fade-in">
+                冬至日（12 月 22 日前后）→ 太阳直射南回归线（23°26'S）
+            </text>
+            <text id="scene3-formula-text2" x="400" y="465" text-anchor="middle" font-size="13" fill="#2e7d32" class="scene3-fade-in">
+            </text>
+
+            <!-- ========== 控件栏 ========== -->
+            <rect id="scene3-controls-bg" x="250" y="485" width="300" height="25" fill="#ffffff" stroke="#cccccc" stroke-width="1" rx="5"/>
+            <text id="scene3-step-indicator" x="400" y="502" text-anchor="middle" font-size="13" fill="#000000">步骤 1/4</text>
+        </svg>
+
+        <!-- 按钮 -->
+        <button id="scene3-prev-btn" style="position: absolute; left: 260px; bottom: 8px; padding: 6px 16px; font-size: 14px; cursor: pointer;">◀ 上一步</button>
+        <button id="scene3-next-btn" style="position: absolute; right: 260px; bottom: 8px; padding: 6px 16px; font-size: 14px; cursor: pointer;">下一步 ▶</button>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3: 太阳直射点与正午太阳高度计算
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 |
+        // | 太阳 | 圆形 | (80,200) | 60×60 | 上方 |
+        // | 地球 | 圆形 | (250,200) | 80×80 | - |
+        // | 南回归线 | 弧线 | (250,235) 附近 | 60×8 | 右侧 |
+        // | 直射点 | 圆点 | (250,235) | 8×8 | 右下方 |
+        // | 北京位置 | 圆点 | (250,160) | 8×8 | 右上方 |
+        // | 公转轨道 | 椭圆 | (500,250) 中心 | 240×180 | - |
+        // | 公式区背景 | 矩形 | (50,415)-(750,485) | 700×70 | - |
+        // | 控件栏 | 按钮组 | 底部 | 300×25 | - |
+
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        // 元素可见性控制函数
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+                el.classList.add('scene3-visible');
+                el.classList.remove('scene3-hidden');
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+                el.classList.remove('scene3-visible');
+                el.classList.add('scene3-hidden');
+            }
+        }
+
+        // 获取所有需要控制的元素
+        const elements = {
+            // 步骤1显示的元素（南回归线、直射点）
+            step1: [
+                document.getElementById('scene3-tropic'),
+                document.getElementById('scene3-tropic-label'),
+                document.getElementById('scene3-direct-point'),
+                document.getElementById('scene3-direct-label')
+            ],
+            // 步骤2显示的元素（北京位置、光线、高度角）
+            step2: [
+                document.getElementById('scene3-beijing-point'),
+                document.getElementById('scene3-beijing-label'),
+                document.getElementById('scene3-beijing-ray'),
+                document.getElementById('scene3-beijing-ray-arrow'),
+                document.getElementById('scene3-horizon'),
+                document.getElementById('scene3-angle-arc'),
+                document.getElementById('scene3-angle-label')
+            ],
+            // 步骤3显示的元素（公转轨道图）
+            step3: [
+                document.getElementById('scene3-orbit'),
+                document.getElementById('scene3-orbit-sun'),
+                document.getElementById('scene3-orbit-sun-label'),
+                document.getElementById('scene3-winter-point'),
+                document.getElementById('scene3-winter-label'),
+                document.getElementById('scene3-winter-date'),
+                document.getElementById('scene3-perihelion'),
+                document.getElementById('scene3-perihelion-label'),
+                document.getElementById('scene3-perihelion-date'),
+                document.getElementById('scene3-aphelion'),
+                document.getElementById('scene3-aphelion-label'),
+                document.getElementById('scene3-aphelion-date'),
+                document.getElementById('scene3-summer-point'),
+                document.getElementById('scene3-summer-label'),
+                document.getElementById('scene3-spring-point'),
+                document.getElementById('scene3-spring-label'),
+                document.getElementById('scene3-autumn-point'),
+                document.getElementById('scene3-autumn-label'),
+                document.getElementById('scene3-orbit-arrow')
+            ],
+            // 公式文本
+            formulaText: document.getElementById('scene3-formula-text'),
+            formulaText2: document.getElementById('scene3-formula-text2'),
+            stepIndicator: document.getElementById('scene3-step-indicator'),
+            prevBtn: document.getElementById('scene3-prev-btn'),
+            nextBtn: document.getElementById('scene3-next-btn')
+        };
+
+        // 更新步骤显示
+        function updateStep() {
+            // 更新步骤指示器
+            elements.stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            elements.prevBtn.disabled = currentStep === 0;
+            elements.prevBtn.style.opacity = currentStep === 0 ? '0.5' : '1';
+            elements.prevBtn.style.cursor = currentStep === 0 ? 'not-allowed' : 'pointer';
+
+            elements.nextBtn.disabled = currentStep === totalSteps - 1;
+            elements.nextBtn.style.opacity = currentStep === totalSteps - 1 ? '0.5' : '1';
+            elements.nextBtn.style.cursor = currentStep === totalSteps - 1 ? 'not-allowed' : 'pointer';
+
+            // 根据步骤显示/隐藏元素
+            // 步骤0：只显示基础框架（太阳、地球、地轴、赤道）
+            // 步骤1：+ 南回归线、直射点
+            // 步骤2：+ 北京位置、光线、高度角
+            // 步骤3：+ 公转轨道图
+
+            // 步骤1元素
+            if (currentStep >= 1) {
+                elements.step1.forEach(el => show(el));
+            } else {
+                elements.step1.forEach(el => hide(el));
+            }
+
+            // 步骤2元素
+            if (currentStep >= 2) {
+                elements.step2.forEach(el => show(el));
+            } else {
+                elements.step2.forEach(el => hide(el));
+            }
+
+            // 步骤3元素
+            if (currentStep >= 3) {
+                elements.step3.forEach(el => show(el));
+            } else {
+                elements.step3.forEach(el => hide(el));
+            }
+
+            // 更新公式文本
+            if (currentStep === 0) {
+                elements.formulaText.textContent = '冬至日（12 月 22 日前后）→ 太阳直射南回归线（23°26\'S）';
+                elements.formulaText2.textContent = '';
+            } else if (currentStep === 1) {
+                elements.formulaText.textContent = '正午太阳高度公式：H = 90° - |φ - δ|';
+                elements.formulaText2.textContent = '北京：H = 90° - |39°N - (-23°26\'|) = 90° - 62°26\' = 27°34\'';
+            } else if (currentStep === 2) {
+                elements.formulaText.textContent = '正午太阳高度公式：H = 90° - |φ - δ|';
+                elements.formulaText2.textContent = '北京：H = 90° - |39°N - (-23°26\'|) = 90° - 62°26\' = 27°34\'';
+            } else if (currentStep === 3) {
+                elements.formulaText.textContent = '12 月 22 日接近近日点（1 月初），地球距太阳较近';
+                elements.formulaText2.textContent = '';
+            }
+        }
+
+        // 按钮事件绑定
+        elements.prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        elements.nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化：隐藏所有步骤相关元素，只显示基础框架
+        function init() {
+            // 初始隐藏所有步骤元素
+            elements.step1.forEach(el => hide(el));
+            elements.step2.forEach(el => hide(el));
+            elements.step3.forEach(el => hide(el));
+
+            // 初始显示基础元素
+            show(document.getElementById('scene3-sun'));
+            show(document.getElementById('scene3-sun-label'));
+            show(document.getElementById('scene3-sunray-direct'));
+            show(document.getElementById('scene3-sunray-direct-arrow'));
+            show(document.getElementById('scene3-earth'));
+            show(document.getElementById('scene3-axis'));
+            show(document.getElementById('scene3-axis-n'));
+            show(document.getElementById('scene3-axis-s'));
+            show(document.getElementById('scene3-equator'));
+            show(document.getElementById('scene3-equator-label'));
+            show(document.getElementById('scene3-formula-bg'));
+            show(document.getElementById('scene3-formula-text'));
+            show(document.getElementById('scene3-formula-text2'));
+            show(document.getElementById('scene3-controls-bg'));
+            show(document.getElementById('scene3-step-indicator'));
+            show(elements.prevBtn);
+            show(elements.nextBtn);
+
+            currentStep = 0;
+            updateStep();
+        }
+
+        // 页面加载完成后初始化
+        init();
+    })();
+    </script>
+</body>
+</html>

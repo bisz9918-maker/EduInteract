@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>血液循环路径与血液成分变化对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 10px 20px; font-size: 16px; cursor: pointer; border: 2px solid #000; border-radius: 5px; background: #e0e0e0; }
+        .scene1-btn:hover { background: #d0d0d0; }
+        .scene1-btn:disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
+        .scene1-highlight { stroke: #2e7d32; stroke-width: 3; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 血管甲（入血管） -->
+            <line id="scene1-arrow-a" x1="80" y1="250" x2="280" y2="250" stroke="#000" stroke-width="6"/>
+            <polygon id="scene1-arrowhead-a" points="280,250 265,245 265,255" fill="#000"/>
+            
+            <!-- 乙结构（中央矩形） -->
+            <rect id="scene1-rect-b" x="280" y="200" width="240" height="100" fill="#e0e0e0" stroke="#000" stroke-width="2"/>
+            
+            <!-- 血管丙（出血管） -->
+            <line id="scene1-arrow-c" x1="520" y1="250" x2="720" y2="250" stroke="#000" stroke-width="6"/>
+            <polygon id="scene1-arrowhead-c" points="720,250 705,245 705,255" fill="#000"/>
+            
+            <!-- 标签 -->
+            <text id="scene1-label-a" x="150" y="220" font-size="20" text-anchor="middle">甲</text>
+            <text id="scene1-label-b" x="400" y="245" font-size="20" text-anchor="middle">乙</text>
+            <text id="scene1-label-c" x="620" y="220" font-size="20" text-anchor="middle">丙</text>
+            
+            <!-- 动态标签（根据步骤显示） -->
+            <text id="scene1-label-arterial" x="150" y="200" font-size="14" text-anchor="middle" style="display: none;">动脉血</text>
+            <text id="scene1-label-venous" x="620" y="200" font-size="14" text-anchor="middle" style="display: none;">静脉血</text>
+            <text id="scene1-label-nutrient" x="400" y="270" font-size="14" text-anchor="middle" style="display: none;">营养物质吸收↑</text>
+            <text id="scene1-label-insulin" x="400" y="270" font-size="14" text-anchor="middle" style="display: none;">胰岛素分泌↑</text>
+            
+            <!-- 选项高亮框 -->
+            <rect id="scene1-highlight-a" x="50" y="350" width="340" height="60" fill="none" stroke="none" stroke-width="3" style="display: none;"/>
+            <rect id="scene1-highlight-d" x="410" y="350" width="340" height="60" fill="none" stroke="none" stroke-width="3" style="display: none;"/>
+            
+            <!-- 说明文字区 -->
+            <text id="scene1-text-desc" x="400" y="380" font-size="16" text-anchor="middle" fill="#333"></text>
+            
+            <!-- 步骤指示器 -->
+            <text id="scene1-text-step" x="400" y="420" font-size="14" text-anchor="middle" fill="#666"></text>
+            
+            <!-- 控件栏 -->
+            <g id="scene1-controls">
+                <rect id="scene1-btn-prev-bg" x="280" y="445" width="110" height="40" fill="#e0e0e0" stroke="#000" stroke-width="2" rx="5"/>
+                <text id="scene1-btn-prev-text" x="335" y="470" font-size="14" text-anchor="middle">◀ 上一步</text>
+                <rect id="scene1-btn-next-bg" x="410" y="445" width="110" height="40" fill="#e0e0e0" stroke="#000" stroke-width="2" rx="5"/>
+                <text id="scene1-btn-next-text" x="465" y="470" font-size="14" text-anchor="middle">下一步 ▶</text>
+            </g>
+        </svg>
+    </div>
+    <script>
+    (function() {
+        // Scene 1: 血液循环路径与不同器官的血液成分变化对比
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 血管甲（入血管） | 箭头线段 | (80,250)-(280,250) | 200×6 | - | 左侧入血管 |
+        // | 甲标签 | text | (150,220) | ~20×16 | 上方 | 在血管甲上方 |
+        // | 乙结构（中央矩形） | 矩形 | (280,200)-(520,300) | 240×100 | - | 中央结构 |
+        // | 乙标签 | text | (400,245) | ~20×16 | 居中 | 在矩形内部居中 |
+        // | 血管丙（出血管） | 箭头线段 | (520,250)-(720,250) | 200×6 | - | 右侧出血管 |
+        // | 丙标签 | text | (620,220) | ~20×16 | 上方 | 在血管丙上方 |
+        // | 步骤 0-5 说明区 | text | (50,350)-(750,420) | 700×70 | - | 底部说明文字区 |
+        // | 控件栏 | 按钮组 | (280,445)-(520,485) | 240×40 | - | SVG 内底部 |
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 颜色定义
+        const COLORS = {
+            arterial: '#1565c0',  // 动脉血（蓝色）
+            venous: '#c62828',     // 静脉血（红色）
+            neutral: '#e0e0e0',    // 中性（灰色）
+            highlight: '#2e7d32'   // 高亮（绿色）
+        };
+
+        // 步骤数据
+        const stepData = [
+            {
+                step: 0,
+                labelB: '乙',
+                bloodA: 'neutral',
+                bloodC: 'neutral',
+                desc: '基础血流模型：甲→乙→丙，箭头表示血流方向',
+                stepText: '步骤 0/5',
+                showArterial: false,
+                showVenous: false,
+                showNutrient: false,
+                showInsulin: false,
+                highlightA: false,
+                highlightD: false
+            },
+            {
+                step: 1,
+                labelB: 'A. 毛细血管网',
+                bloodA: 'arterial',
+                bloodC: 'venous',
+                desc: '若乙为毛细血管网：动脉血→毛细血管→静脉血，氧气减少，二氧化碳增加',
+                stepText: '步骤 1/5',
+                showArterial: true,
+                showVenous: true,
+                showNutrient: false,
+                showInsulin: false,
+                highlightA: true,
+                highlightD: false
+            },
+            {
+                step: 2,
+                labelB: 'B. 小肠',
+                bloodA: 'arterial',
+                bloodC: 'venous',
+                desc: '若乙为小肠：动脉血→小肠→静脉血，氧气减少，但营养物质增加',
+                stepText: '步骤 2/5',
+                showArterial: true,
+                showVenous: true,
+                showNutrient: true,
+                showInsulin: false,
+                highlightA: false,
+                highlightD: false
+            },
+            {
+                step: 3,
+                labelB: 'C. 肾小球',
+                bloodA: 'arterial',
+                bloodC: 'arterial',
+                desc: '若乙为肾小球：入球小动脉→肾小球→出球小动脉，丙仍为动脉血管，血液仍为动脉血',
+                stepText: '步骤 3/5',
+                showArterial: true,
+                showVenous: false,
+                showNutrient: false,
+                showInsulin: false,
+                highlightA: false,
+                highlightD: false
+            },
+            {
+                step: 4,
+                labelB: 'D. 胰岛',
+                bloodA: 'arterial',
+                bloodC: 'venous',
+                desc: '若乙为胰岛：当血糖增多时，胰岛分泌胰岛素增加，丙内胰岛素含量增加',
+                stepText: '步骤 4/5',
+                showArterial: true,
+                showVenous: true,
+                showNutrient: false,
+                showInsulin: true,
+                highlightA: false,
+                highlightD: true
+            },
+            {
+                step: 5,
+                labelB: '正确选项：A、D',
+                bloodA: 'arterial',
+                bloodC: 'venous',
+                desc: '总结：A 正确（毛细血管网动脉血变静脉血）；B 错误（小肠含氧量减少）；C 错误（肾小球出球仍为动脉血）；D 正确（胰岛分泌胰岛素进入血液）',
+                stepText: '步骤 5/5',
+                showArterial: true,
+                showVenous: true,
+                showNutrient: false,
+                showInsulin: false,
+                highlightA: true,
+                highlightD: true
+            }
+        ];
+
+        // 获取 DOM 元素
+        const elements = {
+            arrowA: document.getElementById('scene1-arrow-a'),
+            arrowheadA: document.getElementById('scene1-arrowhead-a'),
+            rectB: document.getElementById('scene1-rect-b'),
+            arrowC: document.getElementById('scene1-arrow-c'),
+            arrowheadC: document.getElementById('scene1-arrowhead-c'),
+            labelA: document.getElementById('scene1-label-a'),
+            labelB: document.getElementById('scene1-label-b'),
+            labelC: document.getElementById('scene1-label-c'),
+            labelArterial: document.getElementById('scene1-label-arterial'),
+            labelVenous: document.getElementById('scene1-label-venous'),
+            labelNutrient: document.getElementById('scene1-label-nutrient'),
+            labelInsulin: document.getElementById('scene1-label-insulin'),
+            highlightA: document.getElementById('scene1-highlight-a'),
+            highlightD: document.getElementById('scene1-highlight-d'),
+            textDesc: document.getElementById('scene1-text-desc'),
+            textStep: document.getElementById('scene1-text-step'),
+            btnPrevBg: document.getElementById('scene1-btn-prev-bg'),
+            btnPrevText: document.getElementById('scene1-btn-prev-text'),
+            btnNextBg: document.getElementById('scene1-btn-next-bg'),
+            btnNextText: document.getElementById('scene1-btn-next-text')
+        };
+
+        // 显示/隐藏工具函数
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // 更新场景
+        function updateScene(step) {
+            const data = stepData[step];
+
+            // 更新乙结构标签
+            elements.labelB.textContent = data.labelB;
+
+            // 更新血液颜色
+            elements.arrowA.style.stroke = COLORS[data.bloodA];
+            elements.arrowheadA.style.fill = COLORS[data.bloodA];
+            elements.arrowC.style.stroke = COLORS[data.bloodC];
+            elements.arrowheadC.style.fill = COLORS[data.bloodC];
+            elements.rectB.style.fill = data.bloodA === 'arterial' ? '#bbdefb' : (data.bloodC === 'venous' ? '#ffcdd2' : '#e0e0e0');
+
+            // 更新动态标签显示
+            data.showArterial ? show(elements.labelArterial) : hide(elements.labelArterial);
+            data.showVenous ? show(elements.labelVenous) : hide(elements.labelVenous);
+            data.showNutrient ? show(elements.labelNutrient) : hide(elements.labelNutrient);
+            data.showInsulin ? show(elements.labelInsulin) : hide(elements.labelInsulin);
+
+            // 更新高亮框
+            if (data.highlightA) {
+                show(elements.highlightA);
+                elements.highlightA.style.stroke = COLORS.highlight;
+                elements.highlightA.setAttribute('fill', 'rgba(46, 125, 50, 0.1)');
+            } else {
+                hide(elements.highlightA);
+            }
+
+            if (data.highlightD) {
+                show(elements.highlightD);
+                elements.highlightD.style.stroke = COLORS.highlight;
+                elements.highlightD.setAttribute('fill', 'rgba(46, 125, 50, 0.1)');
+            } else {
+                hide(elements.highlightD);
+            }
+
+            // 更新说明文字
+            elements.textDesc.textContent = data.desc;
+            elements.textStep.textContent = data.stepText;
+
+            // 更新按钮状态
+            elements.btnPrevBg.style.opacity = step === 0 ? '0.5' : '1';
+            elements.btnPrevText.style.opacity = step === 0 ? '0.5' : '1';
+            elements.btnNextBg.style.opacity = step === totalSteps ? '0.5' : '1';
+            elements.btnNextText.style.opacity = step === totalSteps ? '0.5' : '1';
+        }
+
+        // 上一步按钮点击
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        }
+
+        // 下一步按钮点击
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        }
+
+        // 绑定事件
+        elements.btnPrevBg.addEventListener('click', prevStep);
+        elements.btnNextBg.addEventListener('click', nextStep);
+
+        // 初始化
+        updateScene(currentStep);
+    })();
+    </script>
+</body>
+</html>

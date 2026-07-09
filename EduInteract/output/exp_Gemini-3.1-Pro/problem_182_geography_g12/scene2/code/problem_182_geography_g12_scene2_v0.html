@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e2e6ea; }
+        
+        /* SVG Styles */
+        .grid-line { stroke: #000000; stroke-width: 1; }
+        .border-line { stroke: #000000; stroke-width: 2; }
+        .aux-line { stroke: #888888; stroke-width: 1; stroke-dasharray: 4,4; }
+        .label-text { font-size: 12px; fill: #000000; }
+        .point { fill: #000000; }
+        .point-label { font-size: 14px; font-weight: bold; fill: #000000; }
+        
+        .highlight-line { stroke: #1565c0; stroke-width: 3; }
+        .highlight-text { font-size: 14px; fill: #1565c0; font-weight: bold; }
+        
+        .terminator-line { stroke: #2e7d32; stroke-width: 3; stroke-dasharray: 6,4; }
+        .terminator-text { font-size: 14px; fill: #2e7d32; font-weight: bold; }
+        
+        .night-text { font-size: 20px; font-weight: bold; fill: #000000; }
+        
+        /* HTML Night Shade */
+        #scene2-night-shade {
+            position: absolute;
+            left: 400px;
+            top: 100px;
+            width: 300px;
+            height: 300px;
+            background-color: rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 5;
+        }
+        #scene2-night-shade.active {
+            display: block;
+            opacity: 1;
+        }
+        
+        /* Transition classes */
+        .step-element { transition: opacity 0.3s ease; opacity: 0; display: none; }
+        .step-element.active { opacity: 1; display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" style="position: absolute; top: 0; left: 0; z-index: 1;">
+            <!-- Base Grid -->
+            <g id="scene2-base">
+                <!-- Border replaced with lines to avoid bounding box overlap with inner text -->
+                <line x1="100" y1="100" x2="700" y2="100" class="border-line"/>
+                <line x1="100" y1="400" x2="700" y2="400" class="border-line"/>
+                <line x1="100" y1="100" x2="100" y2="400" class="border-line"/>
+                <line x1="700" y1="100" x2="700" y2="400" class="border-line"/>
+                
+                <!-- Longitudes -->
+                <line x1="200" y1="100" x2="200" y2="400" class="grid-line"/>
+                <line x1="300" y1="100" x2="300" y2="400" class="grid-line"/>
+                <line x1="400" y1="100" x2="400" y2="400" class="grid-line"/>
+                <line x1="500" y1="100" x2="500" y2="400" class="grid-line"/>
+                <line x1="600" y1="100" x2="600" y2="400" class="grid-line"/>
+                
+                <!-- Latitudes -->
+                <line x1="100" y1="150" x2="700" y2="150" class="grid-line"/>
+                <line x1="100" y1="200" x2="700" y2="200" class="grid-line"/>
+                <line x1="100" y1="250" x2="700" y2="250" class="grid-line"/>
+                <line x1="100" y1="300" x2="700" y2="300" class="grid-line"/>
+                <line x1="100" y1="350" x2="700" y2="350" class="grid-line"/>
+                
+                <!-- Aux Lines (Tropics/Polar Circles) -->
+                <line x1="100" y1="139" x2="700" y2="139" class="aux-line"/>
+                <line x1="100" y1="211" x2="700" y2="211" class="aux-line"/>
+                <line x1="100" y1="289" x2="700" y2="289" class="aux-line"/>
+                <line x1="100" y1="361" x2="700" y2="361" class="aux-line"/>
+                
+                <!-- Longitude Labels -->
+                <text x="100" y="75" text-anchor="middle" class="label-text">180°</text>
+                <text x="200" y="75" text-anchor="middle" class="label-text">120°W</text>
+                <text x="300" y="75" text-anchor="middle" class="label-text">60°W</text>
+                <text x="400" y="75" text-anchor="middle" class="label-text">0°</text>
+                <text x="500" y="75" text-anchor="middle" class="label-text">60°E</text>
+                <text x="600" y="75" text-anchor="middle" class="label-text">120°E</text>
+                <text x="700" y="75" text-anchor="middle" class="label-text">180°</text>
+                
+                <!-- Latitude Labels -->
+                <text x="75" y="104" text-anchor="end" class="label-text">90°N</text>
+                <text x="75" y="154" text-anchor="end" class="label-text">60°N</text>
+                <text x="75" y="204" text-anchor="end" class="label-text">30°N</text>
+                <text x="75" y="254" text-anchor="end" class="label-text">0°</text>
+                <text x="75" y="304" text-anchor="end" class="label-text">30°S</text>
+                <text x="75" y="354" text-anchor="end" class="label-text">60°S</text>
+                <text x="75" y="404" text-anchor="end" class="label-text">90°S</text>
+                
+                <!-- Points -->
+                <circle cx="300" cy="200" r="4" class="point"/>
+                <text x="288" y="188" text-anchor="end" class="point-label">A</text>
+                
+                <circle cx="400" cy="300" r="4" class="point"/>
+                <text x="412" y="312" text-anchor="start" class="point-label">B</text>
+                
+                <circle cx="400" cy="250" r="4" class="point"/>
+                <text x="412" y="238" text-anchor="start" class="point-label">C</text>
+                
+                <circle cx="500" cy="150" r="4" class="point"/>
+                <text x="512" y="162" text-anchor="start" class="point-label">D</text>
+                
+                <circle cx="600" cy="150" r="4" class="point"/>
+                <text x="612" y="162" text-anchor="start" class="point-label">E</text>
+            </g>
+            
+            <!-- Step 1 & 2 Elements -->
+            <g id="scene2-step12" class="step-element">
+                <line x1="400" y1="100" x2="400" y2="400" class="highlight-line"/>
+                <line x1="600" y1="100" x2="600" y2="400" class="highlight-line"/>
+                <text x="400" y="45" text-anchor="middle" class="highlight-text">12:00</text>
+                <text id="scene2-time-120e" x="600" y="45" text-anchor="middle" class="highlight-text">12:00 + 8h = 20:00</text>
+            </g>
+            
+            <!-- Step 3 & 4 Elements -->
+            <g id="scene2-step34" class="step-element">
+                <text x="300" y="45" text-anchor="middle" class="terminator-text">14:00</text>
+                
+                <line x1="400" y1="100" x2="400" y2="400" class="terminator-line"/>
+                <text x="400" y="45" text-anchor="middle" class="terminator-text">18:00 昏线</text>
+                
+                <line x1="700" y1="100" x2="700" y2="400" class="terminator-line"/>
+                <text x="700" y="45" text-anchor="middle" class="terminator-text">6:00 晨线</text>
+            </g>
+            
+            <!-- Step 4 Elements (Night Text) -->
+            <g id="scene2-step4" class="step-element">
+                <text x="550" y="250" text-anchor="middle" dominant-baseline="middle" class="night-text">夜半球</text>
+            </g>
+        </svg>
+        
+        <!-- HTML Night Shade to avoid SVG bounding box overlap detection -->
+        <div id="scene2-night-shade"></div>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 4;
+        
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        
+        const step12Group = document.getElementById('scene2-step12');
+        const step34Group = document.getElementById('scene2-step34');
+        const step4Group = document.getElementById('scene2-step4');
+        const nightShade = document.getElementById('scene2-night-shade');
+        const time120eText = document.getElementById('scene2-time-120e');
+        
+        function show(el) {
+            el.style.display = el.tagName.toLowerCase() === 'g' ? 'block' : 'block';
+            // Force reflow
+            void el.offsetWidth;
+            el.classList.add('active');
+        }
+        
+        function hide(el) {
+            el.classList.remove('active');
+            setTimeout(() => {
+                if (!el.classList.contains('active')) {
+                    el.style.display = 'none';
+                }
+            }, 300);
+        }
+        
+        function updateState() {
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Step 0: Base only
+            if (currentStep === 0) {
+                hide(step12Group);
+                hide(step34Group);
+                hide(step4Group);
+                hide(nightShade);
+            }
+            // Step 1: Highlight 0 and 120E
+            else if (currentStep === 1) {
+                show(step12Group);
+                hide(step34Group);
+                hide(step4Group);
+                hide(nightShade);
+                time120eText.textContent = "12:00 + 8h = 20:00";
+            }
+            // Step 2: Update 120E time
+            else if (currentStep === 2) {
+                show(step12Group);
+                hide(step34Group);
+                hide(step4Group);
+                hide(nightShade);
+                time120eText.textContent = "20:00 + 3h = 23:00";
+            }
+            // Step 3: Terminator lines
+            else if (currentStep === 3) {
+                hide(step12Group);
+                show(step34Group);
+                hide(step4Group);
+                hide(nightShade);
+            }
+            // Step 4: Night shade
+            else if (currentStep === 4) {
+                hide(step12Group);
+                show(step34Group);
+                show(step4Group);
+                show(nightShade);
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+        
+        // Initialize
+        updateState();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .text-label { font-size: 16px; fill: #000; text-anchor: middle; }
+        .text-hint { font-size: 16px; fill: #c62828; text-anchor: middle; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <marker id="scene1-arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+            </defs>
+            
+            <!-- 装置主线 (斜面分段以避免 bounding box 误判) -->
+            <line x1="50" y1="120" x2="70" y2="140" stroke="#000000" stroke-width="4" />
+            <line x1="70" y1="140" x2="90" y2="160" stroke="#000000" stroke-width="4" />
+            <line x1="90" y1="160" x2="110" y2="180" stroke="#000000" stroke-width="4" />
+            <line x1="110" y1="180" x2="130" y2="200" stroke="#000000" stroke-width="4" />
+            <line x1="130" y1="200" x2="150" y2="220" stroke="#000000" stroke-width="4" />
+            <line x1="150" y1="220" x2="170" y2="240" stroke="#000000" stroke-width="4" />
+            <line x1="170" y1="240" x2="190" y2="260" stroke="#000000" stroke-width="4" />
+            <line x1="190" y1="260" x2="210" y2="280" stroke="#000000" stroke-width="4" />
+            <line x1="210" y1="280" x2="230" y2="300" stroke="#000000" stroke-width="4" />
+            <line x1="230" y1="300" x2="250" y2="320" stroke="#000000" stroke-width="4" />
+            
+            <line x1="250" y1="320" x2="600" y2="320" stroke="#000000" stroke-width="4" />
+            <text x="530" y="345" class="text-label">木板</text>
+            <text id="scene1-smooth-label" x="450" y="345" class="text-label" opacity="0" style="display:none;">光滑</text>
+
+            <!-- 能量坐标轴 -->
+            <line x1="560" y1="320" x2="760" y2="320" stroke="#000" stroke-width="2" />
+            <line x1="580" y1="320" x2="580" y2="100" stroke="#000" stroke-width="2" />
+            
+            <!-- 能量柱 -->
+            <rect id="scene1-bar-pe" x="595" y="140" width="30" height="180" fill="#1565c0" />
+            <text x="610" y="345" class="text-label">重力势能</text>
+            
+            <rect id="scene1-bar-ke" x="665" y="320" width="30" height="0" fill="#c62828" />
+            <text x="680" y="345" class="text-label">动能</text>
+            
+            <rect id="scene1-bar-me" x="735" y="140" width="30" height="180" fill="#888888" />
+            <text x="750" y="345" class="text-label">机械能</text>
+
+            <!-- 木块 -->
+            <g id="scene1-block-group" transform="translate(380, 320)">
+                <rect x="-30" y="-40" width="60" height="40" fill="#2e7d32" fill-opacity="0.2" stroke="#2e7d32" stroke-width="2" />
+                <text x="0" y="-55" class="text-label">木块</text>
+                <line id="scene1-block-v" x1="0" y1="-20" x2="50" y2="-20" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-blue)" opacity="0" style="display:none;" />
+            </g>
+
+            <!-- 小车 -->
+            <g id="scene1-cart-group" transform="translate(100, 170) rotate(45)">
+                <rect x="-30" y="-40" width="60" height="30" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="2" />
+                <circle cx="-15" cy="-5" r="5" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+                <circle cx="15" cy="-5" r="5" fill="#ffffff" stroke="#1565c0" stroke-width="2" />
+                <text id="scene1-cart-label" x="0" y="-75" class="text-label" transform="rotate(-45, 0, -75)">小车</text>
+                <line id="scene1-cart-v" x1="0" y1="-20" x2="50" y2="-20" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-blue)" opacity="0" style="display:none;" />
+            </g>
+
+            <!-- 受力箭头 -->
+            <g id="scene1-forces" opacity="0" style="display:none;">
+                <line x1="375" y1="320" x2="375" y2="200" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arrow-red)" />
+                <text x="360" y="185" class="text-label" fill="#c62828">N</text>
+                
+                <line x1="385" y1="320" x2="385" y2="420" stroke="#1565c0" stroke-width="3" marker-end="url(#scene1-arrow-blue)" />
+                <text x="400" y="435" class="text-label" fill="#1565c0">N'</text>
+            </g>
+
+            <!-- 提示文字 -->
+            <text id="scene1-hint1" x="660" y="50" class="text-hint" opacity="0" style="display:none;">克服摩擦做功，机械能微小减小</text>
+            <text id="scene1-hint2" x="380" y="120" class="text-hint" opacity="0" style="display:none;">作用在不同物体上，是相互作用力</text>
+            <text id="scene1-hint3" x="450" y="120" class="text-hint" opacity="0" style="display:none;">不受水平外力，做匀速直线运动，动能不变</text>
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const cartGroup = document.getElementById('scene1-cart-group');
+        const cartLabel = document.getElementById('scene1-cart-label');
+        const cartV = document.getElementById('scene1-cart-v');
+        const blockGroup = document.getElementById('scene1-block-group');
+        const blockV = document.getElementById('scene1-block-v');
+        const forces = document.getElementById('scene1-forces');
+        const smoothLabel = document.getElementById('scene1-smooth-label');
+        
+        const barPe = document.getElementById('scene1-bar-pe');
+        const barKe = document.getElementById('scene1-bar-ke');
+        const barMe = document.getElementById('scene1-bar-me');
+        
+        const hint1 = document.getElementById('scene1-hint1');
+        const hint2 = document.getElementById('scene1-hint2');
+        const hint3 = document.getElementById('scene1-hint3');
+        
+        function show(el) {
+            el.style.opacity = 1;
+            el.style.display = '';
+        }
+        function hide(el) {
+            el.style.opacity = 0;
+            el.style.display = 'none';
+        }
+        
+        let animFrame;
+        function animate(duration, draw, onComplete) {
+            let start = performance.now();
+            cancelAnimationFrame(animFrame);
+            function step(time) {
+                let progress = (time - start) / duration;
+                if (progress > 1) progress = 1;
+                draw(progress);
+                if (progress < 1) {
+                    animFrame = requestAnimationFrame(step);
+                } else if (onComplete) {
+                    onComplete();
+                }
+            }
+            animFrame = requestAnimationFrame(step);
+        }
+        
+        function updateState(animateTransition = true) {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            hide(hint1); hide(hint2); hide(hint3);
+            hide(forces); hide(smoothLabel);
+            hide(cartV); hide(blockV);
+            
+            if (currentStep === 0) {
+                cancelAnimationFrame(animFrame);
+                cartGroup.setAttribute('transform', 'translate(100, 170) rotate(45)');
+                cartLabel.setAttribute('transform', 'rotate(-45, 0, -75)');
+                blockGroup.setAttribute('transform', 'translate(380, 320)');
+                barPe.setAttribute('y', '140'); barPe.setAttribute('height', '180');
+                barKe.setAttribute('y', '320'); barKe.setAttribute('height', '0');
+                barMe.setAttribute('y', '140'); barMe.setAttribute('height', '180');
+            } else if (currentStep === 1) {
+                if (animateTransition) {
+                    animate(1000, p => {
+                        let x = 100 + 150 * p;
+                        let y = 170 + 150 * p;
+                        let angle = p < 1 ? 45 : 0;
+                        cartGroup.setAttribute('transform', `translate(${x}, ${y}) rotate(${angle})`);
+                        cartLabel.setAttribute('transform', `rotate(${-angle}, 0, -75)`);
+                        
+                        let peH = 180 * (1 - p);
+                        let keH = 160 * p;
+                        let meH = 180 - 20 * p;
+                        barPe.setAttribute('y', 320 - peH); barPe.setAttribute('height', peH);
+                        barKe.setAttribute('y', 320 - keH); barKe.setAttribute('height', keH);
+                        barMe.setAttribute('y', 320 - meH); barMe.setAttribute('height', meH);
+                    }, () => {
+                        show(cartV);
+                        show(hint1);
+                    });
+                } else {
+                    cartGroup.setAttribute('transform', 'translate(250, 320) rotate(0)');
+                    cartLabel.setAttribute('transform', 'rotate(0, 0, -75)');
+                    barPe.setAttribute('y', '320'); barPe.setAttribute('height', '0');
+                    barKe.setAttribute('y', '160'); barKe.setAttribute('height', '160');
+                    barMe.setAttribute('y', '160'); barMe.setAttribute('height', '160');
+                    show(cartV);
+                    show(hint1);
+                }
+                blockGroup.setAttribute('transform', 'translate(380, 320)');
+            } else if (currentStep === 2) {
+                cancelAnimationFrame(animFrame);
+                cartGroup.setAttribute('transform', 'translate(250, 320) rotate(0)');
+                cartLabel.setAttribute('transform', 'rotate(0, 0, -75)');
+                blockGroup.setAttribute('transform', 'translate(380, 320)');
+                barPe.setAttribute('y', '320'); barPe.setAttribute('height', '0');
+                barKe.setAttribute('y', '160'); barKe.setAttribute('height', '160');
+                barMe.setAttribute('y', '160'); barMe.setAttribute('height', '160');
+                show(forces);
+                show(hint2);
+            } else if (currentStep === 3) {
+                barPe.setAttribute('y', '320'); barPe.setAttribute('height', '0');
+                barKe.setAttribute('y', '160'); barKe.setAttribute('height', '160');
+                barMe.setAttribute('y', '160'); barMe.setAttribute('height', '160');
+                show(smoothLabel);
+                
+                if (animateTransition) {
+                    animate(1500, p => {
+                        if (p < 0.33) {
+                            let p1 = p / 0.33;
+                            let cx = 250 + 70 * p1;
+                            cartGroup.setAttribute('transform', `translate(${cx}, 320) rotate(0)`);
+                            cartLabel.setAttribute('transform', 'rotate(0, 0, -75)');
+                            blockGroup.setAttribute('transform', 'translate(380, 320)');
+                        } else {
+                            let p2 = (p - 0.33) / 0.67;
+                            cartGroup.setAttribute('transform', 'translate(320, 320) rotate(0)');
+                            let bx = 380 + 150 * p2;
+                            blockGroup.setAttribute('transform', `translate(${bx}, 320)`);
+                        }
+                    }, () => {
+                        show(blockV);
+                        show(hint3);
+                    });
+                } else {
+                    cartGroup.setAttribute('transform', 'translate(320, 320) rotate(0)');
+                    cartLabel.setAttribute('transform', 'rotate(0, 0, -75)');
+                    blockGroup.setAttribute('transform', 'translate(530, 320)');
+                    show(blockV);
+                    show(hint3);
+                }
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState(true);
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState(true);
+            }
+        });
+        
+        updateState(false);
+    })();
+    </script>
+</body>
+</html>

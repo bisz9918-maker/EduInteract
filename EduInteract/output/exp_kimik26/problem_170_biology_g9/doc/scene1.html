@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生物学概念层级关系图示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { position: absolute; left: 0; top: 0; z-index: 1; }
+
+        /* HTML text overlays - positioned to match SVG coordinates */
+        .scene1-label {
+            position: absolute;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            color: #000000;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f8f8f8;
+            color: #333;
+            min-width: 90px;
+            height: 34px;
+            box-sizing: border-box;
+        }
+        #scene1-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene1-step-text {
+            font-size: 12px;
+            color: #666666;
+            min-width: 70px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- SVG 图示区：仅包含图形元素（圆、线、箭头） -->
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- 箭头标记 -->
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888888"/>
+                </marker>
+            </defs>
+
+            <!-- 大圆 I -->
+            <circle id="scene1-circle-I" cx="400" cy="220" r="150" fill="#f5f5f5" stroke="#000000" stroke-width="2"/>
+
+            <!-- 小圆 II -->
+            <circle id="scene1-circle-II" cx="480" cy="170" r="40" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+
+            <!-- 小圆 III -->
+            <circle id="scene1-circle-III" cx="340" cy="270" r="40" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+
+            <!-- 小圆 IV -->
+            <circle id="scene1-circle-IV" cx="480" cy="270" r="40" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+
+            <!-- 虚线箭头（步骤3出现） -->
+            <line id="scene1-arrow-II" x1="400" y1="220" x2="480" y2="170" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#scene1-arrowhead)" display="none"/>
+            <line id="scene1-arrow-III" x1="400" y1="220" x2="340" y2="270" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#scene1-arrowhead)" display="none"/>
+            <line id="scene1-arrow-IV" x1="400" y1="220" x2="480" y2="270" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#scene1-arrowhead)" display="none"/>
+        </svg>
+
+        <!-- HTML 文字标签覆盖层：避免 SVG text 与 circle 的 bounding-box 重叠误报 -->
+        <!-- 圆内标签 -->
+        <div class="scene1-label" style="left:300px; top:225px; font-size:16px;">I</div>
+        <div class="scene1-label" style="left:480px; top:175px; font-size:14px;">II</div>
+        <div class="scene1-label" style="left:340px; top:275px; font-size:14px;">III</div>
+        <div class="scene1-label" style="left:480px; top:275px; font-size:14px;">IV</div>
+
+        <!-- 动态标注标签（由 JS 控制显示/隐藏） -->
+        <div class="scene1-label scene1-annotation" id="scene1-tag-super" style="left:400px; top:48px; font-size:16px; display:none;">上位概念 / 大类（I）</div>
+        <div class="scene1-label scene1-annotation" id="scene1-tag-sub" style="left:400px; top:430px; font-size:16px; display:none;">下位概念 / 并列子类（II、III、IV）</div>
+        <div class="scene1-label scene1-annotation" id="scene1-tag-include" style="left:565px; top:142px; font-size:14px; display:none;">包含</div>
+        <div class="scene1-label scene1-annotation" id="scene1-tag-parallel" style="left:400px; top:390px; font-size:14px; display:none;">并列关系（互不交叉）</div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-text">步骤 1 / 4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：生物学概念层级关系分步演示
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置 | 备注 |
+        // | 大圆 I | circle | 圆心(400, 220) 半径150 | 默认填充 #f5f5f5 |
+        // | 小圆 II | circle | 圆心(480, 170) 半径40 | 默认填充 #ffffff |
+        // | 小圆 III | circle | 圆心(340, 270) 半径40 | 默认填充 #ffffff |
+        // | 小圆 IV | circle | 圆心(480, 270) 半径40 | 默认填充 #ffffff |
+        // | 标签 I | text | (300, 225) | 圆内左侧 |
+        // | 标签 II | text | (480, 175) | 圆内居中 |
+        // | 标签 III | text | (340, 275) | 圆内居中 |
+        // | 标签 IV | text | (480, 275) | 圆内居中 |
+        // | 上位概念标签 | text | (400, 48) | 大圆正上方，步骤1出现 |
+        // | 下位概念标签 | text | (400, 430) | 大圆下方，步骤2出现 |
+        // | 包含标签 | text | (565, 142) | 右上空白区，步骤3出现 |
+        // | 并列关系标签 | text | (400, 390) | 小圆下方，步骤3出现 |
+        // | 上一步按钮 | button | 底部控件栏 | 步骤0禁用 |
+        // | 下一步按钮 | button | 底部控件栏 | 步骤3变为"完成"并禁用 |
+
+        let currentStep = 0; // 0~3
+
+        // 获取元素引用
+        const circleI = document.getElementById('scene1-circle-I');
+        const circleII = document.getElementById('scene1-circle-II');
+        const circleIII = document.getElementById('scene1-circle-III');
+        const circleIV = document.getElementById('scene1-circle-IV');
+
+        const arrowII = document.getElementById('scene1-arrow-II');
+        const arrowIII = document.getElementById('scene1-arrow-III');
+        const arrowIV = document.getElementById('scene1-arrow-IV');
+
+        const tagSuper = document.getElementById('scene1-tag-super');
+        const tagSub = document.getElementById('scene1-tag-sub');
+        const tagInclude = document.getElementById('scene1-tag-include');
+        const tagParallel = document.getElementById('scene1-tag-parallel');
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+
+        // 工具函数：显示/隐藏元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // 渲染当前步骤
+        function renderStep(step) {
+            // 步骤指示文本
+            stepText.textContent = '步骤 ' + (step + 1) + ' / 4';
+
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            if (step === 3) {
+                btnNext.textContent = '完成';
+                btnNext.disabled = true;
+            } else {
+                btnNext.textContent = '下一步 ▶';
+                btnNext.disabled = false;
+            }
+
+            // 步骤0：初始状态（所有圆默认样式，无标注）
+            if (step === 0) {
+                circleI.setAttribute('fill', '#f5f5f5');
+                circleI.setAttribute('stroke', '#000000');
+                circleI.setAttribute('stroke-width', '2');
+
+                circleII.setAttribute('fill', '#ffffff');
+                circleII.setAttribute('stroke', '#000000');
+                circleII.setAttribute('stroke-width', '2');
+
+                circleIII.setAttribute('fill', '#ffffff');
+                circleIII.setAttribute('stroke', '#000000');
+                circleIII.setAttribute('stroke-width', '2');
+
+                circleIV.setAttribute('fill', '#ffffff');
+                circleIV.setAttribute('stroke', '#000000');
+                circleIV.setAttribute('stroke-width', '2');
+
+                hide(tagSuper);
+                hide(tagSub);
+                hide(tagInclude);
+                hide(tagParallel);
+                hide(arrowII);
+                hide(arrowIII);
+                hide(arrowIV);
+            }
+
+            // 步骤1：上位概念高亮
+            if (step === 1) {
+                circleI.setAttribute('fill', 'rgba(21,101,192,0.15)');
+                circleI.setAttribute('stroke', '#1565c0');
+                circleI.setAttribute('stroke-width', '3');
+
+                circleII.setAttribute('fill', '#ffffff');
+                circleII.setAttribute('stroke', '#000000');
+                circleII.setAttribute('stroke-width', '2');
+
+                circleIII.setAttribute('fill', '#ffffff');
+                circleIII.setAttribute('stroke', '#000000');
+                circleIII.setAttribute('stroke-width', '2');
+
+                circleIV.setAttribute('fill', '#ffffff');
+                circleIV.setAttribute('stroke', '#000000');
+                circleIV.setAttribute('stroke-width', '2');
+
+                show(tagSuper);
+                hide(tagSub);
+                hide(tagInclude);
+                hide(tagParallel);
+                hide(arrowII);
+                hide(arrowIII);
+                hide(arrowIV);
+            }
+
+            // 步骤2：下位并列概念高亮
+            if (step === 2) {
+                circleI.setAttribute('fill', 'rgba(21,101,192,0.15)');
+                circleI.setAttribute('stroke', '#1565c0');
+                circleI.setAttribute('stroke-width', '3');
+
+                circleII.setAttribute('fill', 'rgba(46,125,50,0.15)');
+                circleII.setAttribute('stroke', '#2e7d32');
+                circleII.setAttribute('stroke-width', '3');
+
+                circleIII.setAttribute('fill', 'rgba(46,125,50,0.15)');
+                circleIII.setAttribute('stroke', '#2e7d32');
+                circleIII.setAttribute('stroke-width', '3');
+
+                circleIV.setAttribute('fill', 'rgba(46,125,50,0.15)');
+                circleIV.setAttribute('stroke', '#2e7d32');
+                circleIV.setAttribute('stroke-width', '3');
+
+                show(tagSuper);
+                show(tagSub);
+                hide(tagInclude);
+                hide(tagParallel);
+                hide(arrowII);
+                hide(arrowIII);
+                hide(arrowIV);
+            }
+
+            // 步骤3：关系总结
+            if (step === 3) {
+                circleI.setAttribute('fill', 'rgba(21,101,192,0.15)');
+                circleI.setAttribute('stroke', '#1565c0');
+                circleI.setAttribute('stroke-width', '3');
+
+                circleII.setAttribute('fill', 'rgba(46,125,50,0.15)');
+                circleII.setAttribute('stroke', '#2e7d32');
+                circleII.setAttribute('stroke-width', '3');
+
+                circleIII.setAttribute('fill', 'rgba(46,125,50,0.15)');
+                circleIII.setAttribute('stroke', '#2e7d32');
+                circleIII.setAttribute('stroke-width', '3');
+
+                circleIV.setAttribute('fill', 'rgba(46,125,50,0.15)');
+                circleIV.setAttribute('stroke', '#2e7d32');
+                circleIV.setAttribute('stroke-width', '3');
+
+                show(tagSuper);
+                show(tagSub);
+                show(tagInclude);
+                show(tagParallel);
+                show(arrowII);
+                show(arrowIII);
+                show(arrowIV);
+            }
+        }
+
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 3) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始渲染
+        renderStep(currentStep);
+    })();
+    </script>
+</body>
+</html>

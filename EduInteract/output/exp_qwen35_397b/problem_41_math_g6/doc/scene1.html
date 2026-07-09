@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小亮散步影子变化</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 地面线 -->
+            <line id="scene1-ground" x1="50" y1="400" x2="750" y2="400" stroke="#000000" stroke-width="3"/>
+            
+            <!-- A 点标记和标签 -->
+            <circle id="scene1-point-a" cx="80" cy="400" r="3" fill="#000000"/>
+            <text id="scene1-label-a" x="70" y="420" font-size="14" text-anchor="middle" fill="#000000">A</text>
+            
+            <!-- B 点标记和标签 -->
+            <circle id="scene1-point-b" cx="720" cy="400" r="3" fill="#000000"/>
+            <text id="scene1-label-b" x="710" y="420" font-size="14" text-anchor="middle" fill="#000000">B</text>
+            
+            <!-- 路灯杆 -->
+            <line id="scene1-lamp-pole" x1="550" y1="150" x2="550" y2="400" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 灯头支架（贝塞尔曲线） -->
+            <path id="scene1-lamp-arm" d="M 550 150 Q 565 140 580 130" stroke="#000000" stroke-width="2" fill="none"/>
+            
+            <!-- 灯泡 -->
+            <circle id="scene1-lamp-bulb" cx="575" cy="125" r="10" fill="#ffd54f" stroke="#000000" stroke-width="1"/>
+            <text id="scene1-label-light" x="560" y="100" font-size="14" text-anchor="middle" fill="#000000">光源</text>
+            
+            <!-- 路灯垂足标记 -->
+            <circle id="scene1-lamp-base" cx="550" cy="400" r="2" fill="#888888"/>
+            <line id="scene1-lamp-dash" x1="550" y1="400" x2="550" y2="405" stroke="#888888" stroke-width="1" stroke-dasharray="2,2"/>
+            
+            <!-- 最短位置高亮（初始隐藏） -->
+            <circle id="scene1-min-marker" cx="550" cy="400" r="8" fill="none" stroke="#ffd54f" stroke-width="2" opacity="0"/>
+            <text id="scene1-label-min" x="550" y="375" font-size="12" text-anchor="middle" fill="#ffd54f" opacity="0">最短</text>
+            
+            <!-- 小亮人形组 -->
+            <g id="scene1-person">
+                <!-- 身体 -->
+                <rect id="scene1-person-body" x="85" y="350" width="30" height="50" fill="#1565c0"/>
+                <!-- 头部 -->
+                <circle id="scene1-person-head" cx="100" cy="340" r="10" fill="#1565c0"/>
+            </g>
+            
+            <!-- 光线（灯泡→头顶→影子端点） -->
+            <polyline id="scene1-light-ray" points="" stroke="#c62828" stroke-width="1.5" fill="none" stroke-dasharray="4,2"/>
+            
+            <!-- 影子填充区 -->
+            <polygon id="scene1-shadow-fill" points="" fill="#c62828" opacity="0.2"/>
+            
+            <!-- 影子线段 -->
+            <line id="scene1-shadow-line" x1="0" y1="400" x2="0" y2="400" stroke="#000000" stroke-width="4"/>
+            
+            <!-- 影子长度数值 -->
+            <text id="scene1-label-shadow-length" x="0" y="430" font-size="12" text-anchor="middle" fill="#000000"></text>
+            
+            <!-- 滑块轨道 -->
+            <line id="scene1-slider-track" x1="200" y1="460" x2="600" y2="460" stroke="#888888" stroke-width="6"/>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene1-slider-handle" cx="200" cy="460" r="8" fill="#1565c0" stroke="#000000" stroke-width="1" style="cursor: pointer"/>
+            
+            <!-- 滑块标签 -->
+            <text id="scene1-label-slider" x="400" y="485" font-size="14" text-anchor="middle" fill="#000000">小亮位置：A ←→ B</text>
+        </svg>
+        
+        <div id="scene1-controls"></div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：小亮从 A 到 B 运动过程中影子长度的连续变化
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 地面线 | 线段 | (50,400)-(750,400) | 700×3 | - | 水平贯穿 |
+        // | A 点标记 | 圆点 | (80,400) | 6×6 | 左下方 | 起点 |
+        // | A 标签 | text | (70,420) | ~12×16 | 下方 | A 点正下方 |
+        // | B 点标记 | 圆点 | (720,400) | 6×6 | 右下方 | 终点 |
+        // | B 标签 | text | (710,420) | ~12×16 | 下方 | B 点正下方 |
+        // | 路灯杆 | 线段 | (550,150)-(550,400) | 4×250 | - | 垂直 |
+        // | 灯头支架 | 弧线 | (550,150)-(580,130) | 30×20 | - | 弯曲支架 |
+        // | 灯泡 | 圆形 | (575,125) | 20×20 | - | 发光源 |
+        // | 光源标签 | text | (560,100) | ~40×16 | 上方 | 灯泡上方 |
+        // | 路灯垂足 | 圆点 | (550,400) | 4×4 | - | 路灯正下方地面点 |
+        // | 小亮人形 | 组合图形 | 动态 x 坐标 | 30×60 | - | 可拖拽，高度固定 |
+        // | 光线 | 折线 | 灯泡→头顶→地面 | 动态 | - | 红色虚线带箭头 |
+        // | 影子线段 | 线段 | (人形脚部 x,400)-(影子端点 x,400) | 动态长度×4 | - | 加粗黑色 |
+        // | 影子填充区 | 多边形 | 人形脚部到影子端点 | 动态 | - | 红色半透明 |
+        // | 影子长度数值 | text | 动态位置 | ~30×16 | 下方 | 影子线段下方中央 |
+        // | 滑块轨道 | 线段 | (200,460)-(600,460) | 400×6 | - | 底部控件 |
+        // | 滑块手柄 | 圆形 | 动态 x 坐标 | 16×16 | - | 可拖拽 |
+        // | 滑块标签 | text | (400,485) | ~120×16 | - | "小亮位置：A ←→ B" |
+        // | 最短位置标记 | 圆点 | (550,400) | 8×8 | 上方 | 路灯正下方，高亮用 |
+        // | 最短提示文本 | text | (550,375) | ~60×14 | 上方 | "最短"（经过时显示） |
+        
+        // 常量定义
+        const LAMP_X = 575;  // 灯泡 x 坐标
+        const LAMP_Y = 125;  // 灯泡 y 坐标
+        const LAMP_POLE_X = 550;  // 路灯杆 x 坐标
+        const GROUND_Y = 400;  // 地面 y 坐标
+        const PERSON_HEIGHT = 60;  // 小亮高度
+        const PERSON_WIDTH = 30;  // 小亮宽度
+        const PERSON_HEAD_Y = GROUND_Y - PERSON_HEIGHT;  // 小亮头顶 y 坐标 (340)
+        const PERSON_FOOT_Y = GROUND_Y;  // 小亮脚部 y 坐标 (400)
+        const LAMP_HEIGHT = GROUND_Y - LAMP_Y;  // 灯泡高度 275
+        const SHADOW_FACTOR = PERSON_HEIGHT / (LAMP_HEIGHT - PERSON_HEIGHT);  // 60/215 ≈ 0.279
+        
+        // 小亮位置范围
+        const PERSON_MIN_X = 100;  // A 点右侧
+        const PERSON_MAX_X = 700;  // B 点左侧
+        const SLIDER_MIN_X = 200;  // 滑块轨道左端
+        const SLIDER_MAX_X = 600;  // 滑块轨道右端
+        
+        // DOM 元素
+        const personGroup = document.getElementById('scene1-person');
+        const personBody = document.getElementById('scene1-person-body');
+        const personHead = document.getElementById('scene1-person-head');
+        const lightRay = document.getElementById('scene1-light-ray');
+        const shadowFill = document.getElementById('scene1-shadow-fill');
+        const shadowLine = document.getElementById('scene1-shadow-line');
+        const shadowLengthLabel = document.getElementById('scene1-label-shadow-length');
+        const sliderHandle = document.getElementById('scene1-slider-handle');
+        const minMarker = document.getElementById('scene1-min-marker');
+        const minLabel = document.getElementById('scene1-label-min');
+        
+        // 当前小亮位置
+        let personX = PERSON_MIN_X;
+        
+        // 计算影子端点
+        function calculateShadowEnd(px) {
+            const distanceFromPole = px - LAMP_POLE_X;
+            const shadowLength = Math.abs(distanceFromPole) * SHADOW_FACTOR;
+            
+            if (px < LAMP_POLE_X) {
+                // 小亮在路灯左侧，影子向左
+                return { x: px - shadowLength, length: shadowLength, direction: 'left' };
+            } else if (px > LAMP_POLE_X) {
+                // 小亮在路灯右侧，影子向右
+                return { x: px + shadowLength, length: shadowLength, direction: 'right' };
+            } else {
+                // 小亮在路灯正下方，影子长度为 0
+                return { x: px, length: 0, direction: 'none' };
+            }
+        }
+        
+        // 更新场景
+        function updateScene() {
+            // 更新小亮位置
+            const personBodyX = personX - PERSON_WIDTH / 2;
+            personBody.setAttribute('x', personBodyX);
+            personHead.setAttribute('cx', personX);
+            
+            // 计算影子
+            const shadow = calculateShadowEnd(personX);
+            const headX = personX;
+            const headY = PERSON_HEAD_Y;
+            
+            // 更新光线（灯泡→头顶→影子端点）
+            const rayPoints = `${LAMP_X},${LAMP_Y} ${headX},${headY} ${shadow.x},${GROUND_Y}`;
+            lightRay.setAttribute('points', rayPoints);
+            
+            // 更新影子填充区（三角形：头顶、脚部、影子端点）
+            const fillPoints = `${headX},${headY} ${personX},${GROUND_Y} ${shadow.x},${GROUND_Y}`;
+            shadowFill.setAttribute('points', fillPoints);
+            
+            // 更新影子线段
+            shadowLine.setAttribute('x1', personX);
+            shadowLine.setAttribute('x2', shadow.x);
+            
+            // 更新影子长度数值标签
+            const labelX = (personX + shadow.x) / 2;
+            shadowLengthLabel.setAttribute('x', labelX);
+            shadowLengthLabel.setAttribute('y', 430);
+            shadowLengthLabel.textContent = shadow.length.toFixed(0);
+            
+            // 更新最短位置高亮
+            const distanceFromCenter = Math.abs(personX - LAMP_POLE_X);
+            if (distanceFromCenter < 15) {
+                minMarker.setAttribute('opacity', '1');
+                minLabel.setAttribute('opacity', '1');
+            } else {
+                minMarker.setAttribute('opacity', '0');
+                minLabel.setAttribute('opacity', '0');
+            }
+        }
+        
+        // 滑块拖拽处理
+        let isDragging = false;
+        
+        function startDrag(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function doDrag(e) {
+            if (!isDragging) return;
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const rect = sliderHandle.getBoundingClientRect();
+            const svgRect = document.getElementById('scene1-svg').getBoundingClientRect();
+            
+            // 计算滑块在 SVG 中的 x 坐标
+            let sliderX = clientX - svgRect.left;
+            sliderX = Math.max(SLIDER_MIN_X, Math.min(SLIDER_MAX_X, sliderX));
+            
+            // 映射到小亮位置
+            const ratio = (sliderX - SLIDER_MIN_X) / (SLIDER_MAX_X - SLIDER_MIN_X);
+            personX = PERSON_MIN_X + ratio * (PERSON_MAX_X - PERSON_MIN_X);
+            
+            // 更新滑块手柄位置
+            sliderHandle.setAttribute('cx', sliderX);
+            
+            // 更新场景
+            updateScene();
+        }
+        
+        function endDrag() {
+            isDragging = false;
+        }
+        
+        // 事件绑定
+        sliderHandle.addEventListener('mousedown', startDrag);
+        sliderHandle.addEventListener('touchstart', startDrag);
+        
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('touchmove', doDrag);
+        
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点的回归运动</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-label {
+            font-size: 12px;
+            fill: #000000;
+        }
+        .scene2-title {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #000000;
+        }
+        .scene2-date-text, .scene2-latitude-text {
+            font-size: 14px;
+            fill: #000000;
+        }
+        .scene2-slider-label {
+            font-size: 12px;
+            fill: #666666;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene2-title" x="400" y="40" text-anchor="middle" class="scene2-title">太阳直射点的回归运动</text>
+            
+            <!-- 日期显示框 -->
+            <rect id="scene2-date-rect" x="100" y="55" width="180" height="40" fill="#fff3e0" stroke="#ffb74d" stroke-width="1"/>
+            <text id="scene2-date-text" x="190" y="80" text-anchor="middle" class="scene2-date-text">春分 3.21</text>
+            
+            <!-- 纬度显示框 -->
+            <rect id="scene2-latitude-rect" x="520" y="55" width="180" height="40" fill="#fff3e0" stroke="#ffb74d" stroke-width="1"/>
+            <text id="scene2-latitude-text" x="610" y="80" text-anchor="middle" class="scene2-latitude-text">直射纬度：0°</text>
+            
+            <!-- 地球轮廓 -->
+            <circle id="scene2-earth" cx="400" cy="250" r="120" fill="#e3f2fd" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 北回归线（虚线） -->
+            <line id="scene2-tropic-n" x1="280" y1="198" x2="520" y2="198" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 赤道线（实线） -->
+            <line id="scene2-equator" x1="280" y1="250" x2="520" y2="250" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 南回归线（虚线） -->
+            <line id="scene2-tropic-s" x1="280" y1="302" x2="520" y2="302" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 纬度标签 -->
+            <text id="scene2-label-n" x="535" y="203" class="scene2-label">23°26'N</text>
+            <text id="scene2-label-0" x="535" y="255" class="scene2-label">0°</text>
+            <text id="scene2-label-s" x="535" y="307" class="scene2-label">23°26'S</text>
+            
+            <!-- 太阳光线（箭头） -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#ff9800"/>
+                </marker>
+            </defs>
+            <line id="scene2-sun-ray" x1="650" y1="250" x2="528" y2="250" stroke="#ff9800" stroke-width="3" marker-end="url(#scene2-arrowhead)"/>
+            
+            <!-- 太阳直射点（带光晕） -->
+            <circle id="scene2-sun-point-glow" cx="520" cy="250" r="15" fill="#ffcdd2" opacity="0.6"/>
+            <circle id="scene2-sun-point" cx="520" cy="250" r="8" fill="#c62828"/>
+            
+            <!-- 滑块轨道 -->
+            <rect id="scene2-slider-track" x="100" y="435" width="600" height="12" fill="#e0e0e0" rx="5"/>
+            
+            <!-- 滑块刻度标签 -->
+            <text id="scene2-slider-spring" x="100" y="472" text-anchor="middle" class="scene2-slider-label">春分</text>
+            <text id="scene2-slider-summer" x="300" y="472" text-anchor="middle" class="scene2-slider-label">夏至</text>
+            <text id="scene2-slider-autumn" x="500" y="472" text-anchor="middle" class="scene2-slider-label">秋分</text>
+            <text id="scene2-slider-winter" x="700" y="472" text-anchor="middle" class="scene2-slider-label">冬至</text>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene2-slider-handle" cx="100" cy="441" r="14" fill="#c62828" style="cursor: pointer"/>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 太阳直射点的回归运动
+        // 布局坐标表参考：
+        // | 元素 | 位置/范围 | 备注 |
+        // |------|-----------|------|
+        // | 地球轮廓 | 圆心 (400,250), r=120 | 中央主图 |
+        // | 赤道线 | (280,250)-(520,250) | 穿过圆心 |
+        // | 北回归线 | y=198 (虚线) | 250-52 |
+        // | 南回归线 | y=302 (虚线) | 250+52 |
+        // | 太阳直射点 | 动态位置 (520, y) | 沿右侧表面移动 |
+        // | 滑块轨道 | (100,435)-(700,447) | 底部控制条 |
+        // | 滑块手柄 | 动态 x, y=441 | 沿轨道拖动 |
+        // | 刻度标签 | y=472 | 轨道下方 25px |
+        
+        const sliderTrack = document.getElementById('scene2-slider-track');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+        const sunPoint = document.getElementById('scene2-sun-point');
+        const sunPointGlow = document.getElementById('scene2-sun-point-glow');
+        const sunRay = document.getElementById('scene2-sun-ray');
+        const dateText = document.getElementById('scene2-date-text');
+        const latitudeText = document.getElementById('scene2-latitude-text');
+        
+        // 滑块参数
+        const trackStartX = 100;
+        const trackEndX = 700;
+        const trackWidth = trackEndX - trackStartX;
+        const handleY = 441;
+        
+        // 直射点参数（地球右侧表面 x=520）
+        const直射点X = 520;
+        const centerY = 250;
+        const amplitude = 52; // 回归线偏移量
+        
+        // 当前滑块位置（0-100%）
+        let sliderPercentage = 0;
+        let isDragging = false;
+        
+        // 计算直射点 Y 坐标（正弦函数模拟回归运动）
+        // 0%: 春分 (y=250), 25%: 夏至 (y=198), 50%: 秋分 (y=250), 75%: 冬至 (y=302)
+        function calculateDirectPointY(percentage) {
+            // 使用正弦函数：y = 250 - 52 * sin(percentage * 2π)
+            // percentage=0: sin(0)=0 → y=250 (春分，正确)
+            // percentage=0.25: sin(π/2)=1 → y=250-52=198 (夏至，正确)
+            // percentage=0.5: sin(π)=0 → y=250 (秋分，正确)
+            // percentage=0.75: sin(3π/2)=-1 → y=250+52=302 (冬至，正确)
+            return centerY - amplitude * Math.sin(percentage * 2 * Math.PI);
+        }
+        
+        // 简化版本：只显示关键节气
+        function getSimpleDateAndSeason(percentage) {
+            // 找到最近的节气
+            const positions = [
+                { p: 0, name: '春分 3.21', lat: '0°' },
+                { p: 0.25, name: '夏至 6.22', lat: '23°26\'N' },
+                { p: 0.5, name: '秋分 9.23', lat: '0°' },
+                { p: 0.75, name: '冬至 12.22', lat: '23°26\'S' }
+            ];
+            
+            // 找到最近的节气
+            let nearest = positions[0];
+            let minDist = Math.abs(percentage - positions[0].p);
+            for (let i = 1; i < positions.length; i++) {
+                const dist = Math.abs(percentage - positions[i].p);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = positions[i];
+                }
+            }
+            
+            // 如果在节气附近（±3%），显示节气名称
+            if (minDist < 0.03) {
+                return nearest;
+            }
+            
+            // 否则显示大致日期
+            const daysInYear = 365;
+            const dayOfYear = Math.round(percentage * daysInYear);
+            const months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            const monthNames = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+            let month = 2; // 从 3 月开始（春分）
+            let day = dayOfYear;
+            while (day > months[month] && month < 12) {
+                day -= months[month];
+                month++;
+            }
+            if (month >= 12) {
+                month = 2;
+                day = dayOfYear - 334;
+            }
+            
+            // 计算纬度
+            const latRad = percentage * 2 * Math.PI;
+            const latDeg = -23.43 * Math.sin(latRad);
+            const latStr = latDeg >= 0 ? 
+                `${Math.abs(latDeg).toFixed(1)}°N` : 
+                `${Math.abs(latDeg).toFixed(1)}°S`;
+            
+            return { date: `${monthNames[month]}月${day}日`, latitude: latStr };
+        }
+        
+        // 更新直射点位置
+        function updateDirectPoint(percentage) {
+            const y = calculateDirectPointY(percentage);
+            
+            // 更新直射点位置
+            sunPoint.setAttribute('cx', 直射点X);
+            sunPoint.setAttribute('cy', y);
+            sunPointGlow.setAttribute('cx', 直射点X);
+            sunPointGlow.setAttribute('cy', y);
+            
+            // 更新太阳光线（从右侧射向直射点）
+            const rayStartX = 直射点X + 80;
+            sunRay.setAttribute('x1', rayStartX);
+            sunRay.setAttribute('y1', y);
+            sunRay.setAttribute('x2', 直射点X + 8);
+            sunRay.setAttribute('y2', y);
+            
+            // 更新显示文本
+            const info = getSimpleDateAndSeason(percentage);
+            dateText.textContent = info.date;
+            latitudeText.textContent = `直射纬度：${info.latitude}`;
+        }
+        
+        // 更新滑块手柄位置
+        function updateSliderHandle(percentage) {
+            const handleX = trackStartX + percentage * trackWidth;
+            sliderHandle.setAttribute('cx', handleX);
+        }
+        
+        // 主更新函数
+        function update(percentage) {
+            sliderPercentage = percentage;
+            updateSliderHandle(percentage);
+            updateDirectPoint(percentage);
+        }
+        
+        // 鼠标/触摸事件处理
+        function handleStart(e) {
+            isDragging = true;
+            handleMove(e);
+        }
+        
+        function handleMove(e) {
+            if (!isDragging) return;
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const rect = sliderTrack.getBoundingClientRect();
+            let x = clientX - rect.left;
+            
+            // 限制在轨道范围内
+            x = Math.max(0, Math.min(trackWidth, x));
+            
+            const percentage = x / trackWidth;
+            update(percentage);
+        }
+        
+        function handleEnd() {
+            isDragging = false;
+        }
+        
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', handleStart);
+        sliderHandle.addEventListener('touchstart', handleStart);
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove);
+        
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchend', handleEnd);
+        
+        // 点击轨道跳转
+        sliderTrack.addEventListener('click', function(e) {
+            const rect = sliderTrack.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            x = Math.max(0, Math.min(trackWidth, x));
+            const percentage = x / trackWidth;
+            update(percentage);
+        });
+        
+        // 初始化：春分位置
+        update(0);
+        
+    })();
+    </script>
+</body>
+</html>

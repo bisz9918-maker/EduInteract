@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCR 循环过程</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            background: #1565c0;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover {
+            background: #0d47a1;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #424242;
+            min-width: 80px;
+            text-align: center;
+        }
+        .dna-chain {
+            stroke: #000000;
+            stroke-width: 3;
+            fill: none;
+        }
+        .primer {
+            stroke: #1565c0;
+            stroke-width: 5;
+            fill: none;
+        }
+        .new-chain {
+            stroke: #2e7d32;
+            stroke-width: 5;
+            fill: none;
+        }
+        .temp-label {
+            fill: #c62828;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .stage-title {
+            fill: #424242;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .main-title {
+            fill: #212121;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .chain-label {
+            fill: #616161;
+            font-size: 12px;
+        }
+        .process-arrow {
+            stroke: #888888;
+            stroke-width: 2;
+            fill: none;
+        }
+        .direction-arrow {
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 主标题 -->
+            <text id="scene1-title" x="400" y="35" text-anchor="middle" class="main-title">PCR 循环过程</text>
+
+            <!-- 阶段 0: 初始状态 (y=60-130) -->
+            <g id="scene1-stage0-group" class="stage-group">
+                <text x="100" y="75" class="stage-title">初始状态</text>
+                <!-- a 链 (上链 5'→3') -->
+                <line id="scene1-chain-a0" x1="150" y1="95" x2="350" y2="95" class="dna-chain"/>
+                <text x="135" y="90" class="chain-label">5'</text>
+                <text x="355" y="90" class="chain-label">3'</text>
+                <!-- b 链 (下链 3'→5') -->
+                <line id="scene1-chain-b0" x1="150" y1="115" x2="350" y2="115" class="dna-chain"/>
+                <text x="135" y="110" class="chain-label">3'</text>
+                <text x="355" y="110" class="chain-label">5'</text>
+                <!-- 引物Ⅰ -->
+                <line id="scene1-primer1" x1="400" y1="95" x2="480" y2="95" class="primer"/>
+                <text x="440" y="80" text-anchor="middle" class="chain-label">引物Ⅰ</text>
+                <!-- 引物Ⅱ -->
+                <line id="scene1-primer2" x1="400" y1="115" x2="480" y2="115" class="primer"/>
+                <text x="440" y="135" text-anchor="middle" class="chain-label">引物Ⅱ</text>
+            </g>
+
+            <!-- 过程箭头 1 -->
+            <g id="scene1-arrow1-group" class="arrow-group" style="display:none;">
+                <line x1="380" y1="125" x2="380" y2="140" class="process-arrow"/>
+                <polygon points="380,145 375,135 385,135" class="direction-arrow"/>
+            </g>
+
+            <!-- 阶段 1: 95℃变性 (y=140-210) -->
+            <g id="scene1-stage1-group" class="stage-group" style="display:none;">
+                <text x="100" y="155" class="stage-title">95℃变性</text>
+                <!-- a 链 (分离后上链) -->
+                <line x1="150" y1="175" x2="350" y2="175" class="dna-chain"/>
+                <text x="135" y="170" class="chain-label">5'</text>
+                <text x="355" y="170" class="chain-label">3'</text>
+                <!-- b 链 (分离后下链) -->
+                <line x1="150" y1="195" x2="350" y2="195" class="dna-chain"/>
+                <text x="135" y="190" class="chain-label">3'</text>
+                <text x="355" y="190" class="chain-label">5'</text>
+                <!-- 温度标签 -->
+                <text id="scene1-temp-95" x="360" y="185" class="temp-label">95℃</text>
+            </g>
+
+            <!-- 过程箭头 2 -->
+            <g id="scene1-arrow2-group" class="arrow-group" style="display:none;">
+                <line x1="380" y1="205" x2="380" y2="220" class="process-arrow"/>
+                <polygon points="380,225 375,215 385,215" class="direction-arrow"/>
+            </g>
+
+            <!-- 阶段 2: 55℃复性 (y=220-290) -->
+            <g id="scene1-stage2-group" class="stage-group" style="display:none;">
+                <text x="100" y="235" class="stage-title">55℃复性</text>
+                <!-- a 链 (上模板链) -->
+                <line x1="150" y1="255" x2="350" y2="255" class="dna-chain"/>
+                <text x="135" y="250" class="chain-label">5'</text>
+                <text x="355" y="250" class="chain-label">3'</text>
+                <!-- 引物Ⅰ结合到 a 链 5'端 -->
+                <line x1="150" y1="248" x2="210" y2="248" class="primer"/>
+                <!-- b 链 (下模板链) -->
+                <line x1="150" y1="275" x2="350" y2="275" class="dna-chain"/>
+                <text x="135" y="270" class="chain-label">3'</text>
+                <text x="355" y="270" class="chain-label">5'</text>
+                <!-- 引物Ⅱ结合到 b 链 3'端 (从右侧结合) -->
+                <line x1="290" y1="268" x2="350" y2="268" class="primer"/>
+                <!-- 温度标签 -->
+                <text id="scene1-temp-55" x="360" y="265" class="temp-label">55℃</text>
+            </g>
+
+            <!-- 过程箭头 3 -->
+            <g id="scene1-arrow3-group" class="arrow-group" style="display:none;">
+                <line x1="380" y1="285" x2="380" y2="300" class="process-arrow"/>
+                <polygon points="380,305 375,295 385,295" class="direction-arrow"/>
+            </g>
+
+            <!-- 阶段 3: 72℃延伸 (y=300-370) -->
+            <g id="scene1-stage3-group" class="stage-group" style="display:none;">
+                <text x="100" y="315" class="stage-title">72℃延伸</text>
+                <!-- a 链 + 新链 1 -->
+                <line x1="150" y1="335" x2="350" y2="335" class="dna-chain"/>
+                <text x="135" y="330" class="chain-label">5'</text>
+                <text x="355" y="330" class="chain-label">3'</text>
+                <!-- 新链 1 (从引物Ⅰ位置延伸) -->
+                <line x1="210" y1="328" x2="350" y2="328" class="new-chain"/>
+                <!-- b 链 + 新链 2 -->
+                <line x1="150" y1="355" x2="350" y2="355" class="dna-chain"/>
+                <text x="135" y="350" class="chain-label">3'</text>
+                <text x="355" y="350" class="chain-label">5'</text>
+                <!-- 新链 2 (从引物Ⅱ位置延伸) -->
+                <line x1="150" y1="348" x2="290" y2="348" class="new-chain"/>
+                <!-- 温度标签 -->
+                <text id="scene1-temp-72" x="360" y="345" class="temp-label">72℃</text>
+            </g>
+
+            <!-- 过程箭头 4 -->
+            <g id="scene1-arrow4-group" class="arrow-group" style="display:none;">
+                <line x1="380" y1="365" x2="380" y2="380" class="process-arrow"/>
+                <polygon points="380,385 375,375 385,375" class="direction-arrow"/>
+            </g>
+
+            <!-- 阶段 4: 循环结果 (y=380-430) -->
+            <g id="scene1-stage4-group" class="stage-group" style="display:none;">
+                <text x="100" y="395" class="stage-title">循环结果</text>
+                <!-- DNA 产物 1 (上双链) -->
+                <line x1="150" y1="410" x2="300" y2="410" class="dna-chain"/>
+                <line x1="210" y1="403" x2="300" y2="403" class="new-chain"/>
+                <text x="135" y="405" class="chain-label">5'</text>
+                <text x="305" y="405" class="chain-label">3'</text>
+                <!-- DNA 产物 2 (下双链) -->
+                <line x1="150" y1="425" x2="300" y2="425" class="dna-chain"/>
+                <line x1="150" y1="418" x2="240" y2="418" class="new-chain"/>
+                <text x="135" y="420" class="chain-label">3'</text>
+                <text x="305" y="420" class="chain-label">5'</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // PCR 循环过程 - Scene 1 实现
+
+        // 状态管理
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 阶段分组
+        const stageGroups = [
+            document.getElementById('scene1-stage0-group'),
+            document.getElementById('scene1-stage1-group'),
+            document.getElementById('scene1-stage2-group'),
+            document.getElementById('scene1-stage3-group'),
+            document.getElementById('scene1-stage4-group')
+        ];
+
+        // 箭头分组
+        const arrowGroups = [
+            document.getElementById('scene1-arrow1-group'),
+            document.getElementById('scene1-arrow2-group'),
+            document.getElementById('scene1-arrow3-group'),
+            document.getElementById('scene1-arrow4-group')
+        ];
+
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+        }
+
+        // 显示/隐藏元素工具函数
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            // 隐藏所有阶段
+            stageGroups.forEach((group, index) => {
+                if (index === currentStep) {
+                    show(group);
+                } else {
+                    hide(group);
+                }
+            });
+
+            // 显示到当前步骤为止的所有箭头
+            arrowGroups.forEach((arrow, index) => {
+                if (index < currentStep) {
+                    show(arrow);
+                } else {
+                    hide(arrow);
+                }
+            });
+
+            updateButtons();
+        }
+
+        // 上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        // 下一步
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

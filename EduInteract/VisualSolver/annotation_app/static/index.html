@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>人工评估打分</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['\\(', '\\)'], ['$', '$']], displayMath: [['\\[', '\\]'], ['$$', '$$']] },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 姓名弹窗 ── */
+#name-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999;
+}
+#name-box {
+  background: #fff; border-radius: 12px; padding: 36px 40px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  display: flex; flex-direction: column; gap: 14px; min-width: 320px;
+}
+#name-box h2 { font-size: 1.1rem; color: #1a1a2e; }
+#name-box p { font-size: .85rem; color: #718096; }
+#name-input {
+  border: 2px solid #e2e8f0; border-radius: 8px;
+  padding: 9px 12px; font-size: .95rem; outline: none;
+}
+#name-input:focus { border-color: #3182ce; }
+#name-confirm {
+  padding: 10px; background: #3182ce; color: #fff;
+  border: none; border-radius: 8px; font-size: .95rem; font-weight: 700; cursor: pointer;
+}
+#name-confirm:hover { background: #2b6cb0; }
+
+/* ── 顶栏 ── */
+#topbar {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+#topbar h1 { font-size: 1rem; font-weight: 600; }
+#annotator-badge {
+  font-size: .8rem; background: #2d3748; border-radius: 20px;
+  padding: 3px 10px; color: #90cdf4;
+}
+#progress-text { font-size: .85rem; color: #a0aec0; margin-left: auto; }
+#progress-bar-wrap { width: 160px; height: 8px; background: #2d3748; border-radius: 4px; }
+#progress-bar { height: 100%; background: #48bb78; border-radius: 4px; width: 0%; transition: width .3s; }
+
+/* ── 主体三栏 ── */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── 左侧列表 ── */
+#sidebar {
+  width: 260px;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+#sidebar-header {
+  padding: 10px 12px;
+  font-size: .75rem;
+  font-weight: 700;
+  color: #718096;
+  background: #f7fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+#sidebar-list { overflow-y: auto; flex: 1; }
+.sidebar-item {
+  padding: 9px 12px;
+  font-size: .75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.sidebar-item:hover { background: #ebf4ff; }
+.sidebar-item.active { background: #bee3f8; font-weight: 600; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; flex-shrink: 0; }
+.sidebar-item.done .dot { background: #48bb78; }
+
+/* ── 中间文档 ── */
+#doc-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 28px;
+  background: #fafafa;
+}
+#doc-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #bee3f8;
+  word-break: break-all;
+}
+#doc-content {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  line-height: 1.8;
+  font-size: .9rem;
+}
+#doc-content img { max-width: 100%; margin: 10px 0; display: block; border: 1px solid #e2e8f0; border-radius: 4px; }
+#doc-content h1, #doc-content h2, #doc-content h3 { margin: .8em 0 .4em; }
+#doc-content p { margin: .5em 0; }
+#doc-content ul, #doc-content ol { padding-left: 1.5em; margin: .4em 0; }
+#doc-content table { border-collapse: collapse; width: 100%; margin: .6em 0; }
+#doc-content th, #doc-content td { border: 1px solid #cbd5e0; padding: 5px 8px; font-size: .85rem; }
+#doc-content th { background: #edf2f7; }
+#doc-content code { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 4px; font-size: .85em; }
+#doc-content pre code { display: block; padding: 10px; overflow-x: auto; }
+#placeholder { color: #a0aec0; text-align: center; padding-top: 80px; font-size: .95rem; }
+
+/* ── 右侧评分 ── */
+#score-panel {
+  width: 290px;
+  background: #fff;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+#score-header {
+  padding: 12px 14px;
+  font-size: .85rem;
+  font-weight: 700;
+  background: #f7fafc;
+  border-bottom: 1px solid #e2e8f0;
+  color: #2d3748;
+  flex-shrink: 0;
+}
+#dim-list { overflow-y: auto; flex: 1; }
+.dim-block { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; }
+.dim-name { font-size: .82rem; font-weight: 600; color: #2d3748; margin-bottom: 3px; }
+.dim-key { font-size: .68rem; color: #a0aec0; font-family: monospace; margin-bottom: 5px; }
+.auto-score { font-size: .73rem; color: #718096; margin-bottom: 7px; }
+.btn-group { display: flex; gap: 5px; }
+.score-btn {
+  flex: 1; padding: 7px 0;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f7fafc;
+  font-size: .9rem; font-weight: 700;
+  cursor: pointer; color: #4a5568;
+  transition: all .15s;
+}
+.score-btn:hover { border-color: #90cdf4; background: #ebf8ff; }
+.score-btn.sel-0   { background: #fed7d7; border-color: #fc8181; color: #c53030; }
+.score-btn.sel-05  { background: #fefcbf; border-color: #f6e05e; color: #744210; }
+.score-btn.sel-1   { background: #c6f6d5; border-color: #68d391; color: #22543d; }
+
+#action-bar {
+  padding: 12px 14px;
+  border-top: 2px solid #e2e8f0;
+  display: flex; flex-direction: column; gap: 8px;
+  flex-shrink: 0;
+}
+#btn-save {
+  padding: 10px; background: #3182ce; color: #fff;
+  border: none; border-radius: 8px;
+  font-size: .9rem; font-weight: 700; cursor: pointer;
+}
+#btn-save:hover { background: #2b6cb0; }
+#btn-save:disabled { background: #a0aec0; cursor: default; }
+#btn-next {
+  padding: 8px; background: #f7fafc; color: #2d3748;
+  border: 2px solid #e2e8f0; border-radius: 8px;
+  font-size: .85rem; font-weight: 600; cursor: pointer;
+}
+#btn-next:hover { background: #edf2f7; }
+#save-msg { font-size: .75rem; color: #48bb78; text-align: center; min-height: 1em; }
+</style>
+</head>
+<body>
+
+<!-- 姓名输入弹窗 -->
+<div id="name-modal">
+  <div id="name-box">
+    <h2>欢迎使用人工评估打分系统</h2>
+    <p>请输入您的姓名，打分结果将与姓名一起保存。</p>
+    <input id="name-input" type="text" placeholder="请输入姓名" maxlength="30" />
+    <button id="name-confirm">开始打分</button>
+  </div>
+</div>
+
+<div id="topbar">
+  <h1>人工评估打分系统</h1>
+  <span id="annotator-badge">评分者: —</span>
+  <span id="progress-text">加载中...</span>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">文档列表 (<span id="total-count">0</span>)</div>
+    <div id="sidebar-list"></div>
+  </div>
+
+  <div id="doc-panel">
+    <div id="placeholder">← 从左侧选择文档开始打分</div>
+    <div id="doc-title" style="display:none"></div>
+    <div id="doc-content" style="display:none"></div>
+  </div>
+
+  <div id="score-panel">
+    <div id="score-header">评分（0 / 0.5 / 1）</div>
+    <div id="dim-list"></div>
+    <div id="action-bar">
+      <button id="btn-save" disabled>保存打分</button>
+      <button id="btn-next">下一条 →</button>
+      <div id="save-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var KEYS = [];
+var DIMS = [];
+var annotations = {};
+var currentKey = null;
+var currentScores = {};
+var annotatorName = '';
+
+// ── 姓名弹窗 ──────────────────────────────────────────────────────────────────
+function setupNameModal() {
+  var modal = qs('#name-modal');
+  var input = qs('#name-input');
+  var btn = qs('#name-confirm');
+
+  input.focus();
+  function confirm() {
+    var name = input.value.trim();
+    if (!name) { input.style.borderColor = '#fc8181'; return; }
+    annotatorName = name;
+    applyName();
+    modal.style.display = 'none';
+    init();
+  }
+  btn.addEventListener('click', confirm);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirm(); });
+}
+
+function applyName() {
+  qs('#annotator-badge').textContent = '评分者: ' + annotatorName;
+}
+
+// ── 工具函数 ──────────────────────────────────────────────────────────────────
+function qs(sel) { return document.querySelector(sel); }
+
+function setProgress() {
+  var done = Object.keys(annotations).length;
+  var total = KEYS.length;
+  qs('#progress-text').textContent = done + ' / ' + total + ' 已完成';
+  qs('#progress-bar').style.width = (total ? (done / total * 100).toFixed(1) : 0) + '%';
+}
+
+// ── 侧边栏 ───────────────────────────────────────────────────────────────────
+// 去掉 key 末尾的模型名后缀，只保留题目 ID
+// 例：problem_26_biology_g12_gemini-3-pro-preview → problem_26_biology_g12
+var MODEL_NAMES = ['kimi-k25', 'claude-sonnet-4-5', 'gemini-3-pro-preview', 'gemini-3-pro-preview_workflow2', 'gpt-5', 'qwen3.5-35b'];
+
+// 存储已显示的问题ID及其计数，用于处理重复
+var displayedProblems = {};
+
+function displayKey(key) {
+  // 去掉模型名后缀
+  var baseKey = key;
+  for (var i = 0; i < MODEL_NAMES.length; i++) {
+    var suffix = '_' + MODEL_NAMES[i];
+    if (key.endsWith(suffix)) {
+      baseKey = key.slice(0, key.length - suffix.length);
+      break;
+    }
+  }
+
+  // 处理重复问题：如果已经有同样的baseKey，添加后缀
+  if (displayedProblems[baseKey] !== undefined) {
+    displayedProblems[baseKey]++;
+    return baseKey + '_' + String.fromCharCode(97 + displayedProblems[baseKey] - 1); // 添加字母后缀 a, b, c...
+  } else {
+    displayedProblems[baseKey] = 0;
+    return baseKey;
+  }
+}
+
+function buildSidebar() {
+  // 重置重复问题计数器
+  displayedProblems = {};
+
+  var list = qs('#sidebar-list');
+  list.innerHTML = '';
+  qs('#total-count').textContent = KEYS.length;
+  KEYS.forEach(function(key) {
+    var div = document.createElement('div');
+    div.className = 'sidebar-item' + (annotations[key] ? ' done' : '');
+    div.dataset.key = key;
+    var dot = document.createElement('span');
+    dot.className = 'dot';
+    var label = document.createElement('span');
+    label.textContent = displayKey(key);
+    div.appendChild(dot);
+    div.appendChild(label);
+    div.addEventListener('click', function() { selectKey(key); });
+    list.appendChild(div);
+  });
+}
+
+function refreshSidebarItem(key) {
+  var el = qs('.sidebar-item[data-key="' + key + '"]');
+  if (!el) return;
+  el.className = 'sidebar-item' +
+    (annotations[key] ? ' done' : '') +
+    (key === currentKey ? ' active' : '');
+}
+
+// ── 评分面板 ─────────────────────────────────────────────────────────────────
+function buildDimPanel() {
+  var list = qs('#dim-list');
+  list.innerHTML = '';
+  DIMS.forEach(function(dim) {
+    var block = document.createElement('div');
+    block.className = 'dim-block';
+    block.id = 'dim-' + dim.key;
+    block.innerHTML =
+      '<div class="dim-name">' + dim.name + '</div>' +
+      '<div class="dim-key">' + dim.key + '</div>' +
+      '<div class="auto-score" id="auto-' + dim.key + '">模型得分: —</div>' +
+      '<div class="btn-group">' +
+        '<button class="score-btn" data-dim="' + dim.key + '" data-val="0">0</button>' +
+        '<button class="score-btn" data-dim="' + dim.key + '" data-val="0.5">0.5</button>' +
+        '<button class="score-btn" data-dim="' + dim.key + '" data-val="1">1</button>' +
+      '</div>';
+    list.appendChild(block);
+  });
+
+  qs('#dim-list').addEventListener('click', function(e) {
+    var btn = e.target.closest('.score-btn');
+    if (!btn) return;
+    pickScore(btn.dataset.dim, parseFloat(btn.dataset.val));
+  });
+}
+
+function pickScore(dimKey, val) {
+  currentScores[dimKey] = val;
+  var cls = val === 0 ? 'sel-0' : val === 0.5 ? 'sel-05' : 'sel-1';
+  var btns = document.querySelectorAll('.score-btn[data-dim="' + dimKey + '"]');
+  btns.forEach(function(b) {
+    var bv = parseFloat(b.dataset.val);
+    b.className = 'score-btn' + (bv === val ? ' ' + cls : '');
+  });
+  checkReady();
+}
+
+function checkReady() {
+  var allSet = DIMS.every(function(d) { return currentScores[d.key] !== undefined; });
+  qs('#btn-save').disabled = !allSet;
+}
+
+function clearScores() {
+  currentScores = {};
+  document.querySelectorAll('.score-btn').forEach(function(b) { b.className = 'score-btn'; });
+  qs('#btn-save').disabled = true;
+  qs('#save-msg').textContent = '';
+}
+
+function fillSavedScores(key) {
+  clearScores();
+  var saved = annotations[key];
+  if (!saved) return;
+  var scores = saved.scores || saved;  // 兼容旧格式
+  DIMS.forEach(function(d) {
+    if (scores[d.key] !== undefined) pickScore(d.key, scores[d.key]);
+  });
+}
+
+// ── 选择文档 ─────────────────────────────────────────────────────────────────
+function selectKey(key) {
+  if (currentKey) refreshSidebarItem(currentKey);
+  currentKey = key;
+
+  // 侧边栏高亮
+  var el = qs('.sidebar-item[data-key="' + key + '"]');
+  if (el) { el.className = el.className.replace(' active','') + ' active'; el.scrollIntoView({block:'nearest'}); }
+
+  qs('#placeholder').style.display = 'none';
+  qs('#doc-title').style.display = 'block';
+  qs('#doc-content').style.display = 'block';
+  qs('#doc-title').textContent = displayKey(key);
+  qs('#doc-content').innerHTML = '<p style="color:#a0aec0">加载中...</p>';
+
+  fillSavedScores(key);
+
+  fetch(apiURL('api/doc/' + encodeURIComponent(key)))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      qs('#doc-title').textContent = displayKey(key);
+      qs('#doc-content').innerHTML = data.html;
+      // 重新渲染数学公式
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([qs('#doc-content')]);
+      }
+
+      DIMS.forEach(function(d) {
+        var autoEl = qs('#auto-' + d.key);
+        if (!autoEl) return;
+        var info = data.auto_scores[d.key];
+        autoEl.textContent = info ? ('模型得分: ' + parseFloat(info.score).toFixed(2)) : '模型得分: —';
+      });
+    })
+    .catch(function(err) {
+      qs('#doc-content').innerHTML = '<p style="color:red">加载失败: ' + err + '</p>';
+    });
+}
+
+// ── 保存 ──────────────────────────────────────────────────────────────────────
+qs('#btn-save').addEventListener('click', function() {
+  if (!currentKey) return;
+  var payload = { key: currentKey, scores: Object.assign({}, currentScores), annotator: annotatorName };
+  fetch(apiURL('api/annotate'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    annotations[currentKey] = Object.assign({}, currentScores);
+    refreshSidebarItem(currentKey);
+    setProgress();
+    qs('#save-msg').textContent = '✓ 已保存（共 ' + data.total_annotated + ' 条）';
+    setTimeout(function() { qs('#save-msg').textContent = ''; }, 2500);
+  });
+});
+
+// ── 下一条 ────────────────────────────────────────────────────────────────────
+qs('#btn-next').addEventListener('click', function() {
+  if (!currentKey) { if (KEYS.length) selectKey(KEYS[0]); return; }
+  var idx = KEYS.indexOf(currentKey);
+  var next = null;
+  // 找下一个未完成的
+  for (var i = idx + 1; i < KEYS.length; i++) {
+    if (!annotations[KEYS[i]]) { next = KEYS[i]; break; }
+  }
+  if (!next) {
+    for (var j = 0; j < idx; j++) {
+      if (!annotations[KEYS[j]]) { next = KEYS[j]; break; }
+    }
+  }
+  if (!next) next = KEYS[(idx + 1) % KEYS.length];
+  selectKey(next);
+});
+
+// 计算 base URL（兼容 nginx 子路径反向代理）
+var BASE = (function() {
+  var p = location.pathname;
+  // 去掉末尾的 index.html 或多余的斜杠，保留目录部分
+  return p.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+})();
+
+function apiURL(path) {
+  // path 形如 'api/keys' 或 'api/doc/xxx'
+  return BASE + '/' + path;
+}
+
+// ── 安全 fetch（返回文本不是JSON时给出明确报错）────────────────────────────────
+function fetchJSON(url) {
+  return fetch(url, { cache: 'no-store' }).then(function(r) {
+    return r.text().then(function(text) {
+      try {
+        return JSON.parse(text);
+      } catch(e) {
+        throw new Error('URL ' + url + ' 返回非JSON内容:\n' + text.slice(0, 200));
+      }
+    });
+  });
+}
+
+// ── 初始化 ────────────────────────────────────────────────────────────────────
+function init() {
+  Promise.all([
+    fetchJSON(apiURL('api/keys')),
+    fetchJSON(apiURL('api/annotations'))
+  ]).then(function(results) {
+    var keysData = results[0];
+    var annoData = results[1];
+
+    keysData.keys.forEach(function(k) { KEYS.push(k); });
+    keysData.dimensions.forEach(function(pair) {
+      DIMS.push({ key: pair[0], name: pair[1] });
+    });
+
+    annotations = annoData;
+
+    buildSidebar();
+    buildDimPanel();
+    setProgress();
+
+    var first = KEYS.find(function(k) { return !annotations[k]; }) || KEYS[0];
+    if (first) selectKey(first);
+
+  }).catch(function(err) {
+    alert('初始化失败: ' + err.message);
+  });
+}
+
+setupNameModal();
+</script>
+</body>
+</html>

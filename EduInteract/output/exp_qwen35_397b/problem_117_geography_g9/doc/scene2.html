@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>甲乙两地相对方向判断</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            width: 90px;
+            height: 38px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #scene2-btn-prev {
+            background: #e0e0e0;
+            color: #333;
+        }
+        #scene2-btn-prev:hover:not(:disabled) {
+            background: #bdbdbd;
+        }
+        #scene2-btn-next {
+            background: #1976d2;
+            color: #fff;
+        }
+        #scene2-btn-next:hover:not(:disabled) {
+            background: #1565c0;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #555;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene2-visible {
+            display: block;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头 marker -->
+            <defs>
+                <marker id="scene2-arrow-ns-head" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene2-arrow-ew-head" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrow-final-head" markerWidth="12" markerHeight="12" refX="11" refY="4" orient="auto">
+                    <path d="M0,0 L0,8 L11,4 z" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 北半球区域填充 -->
+            <ellipse id="scene2-north-hemisphere" cx="400" cy="220" rx="140" ry="140" 
+                     fill="#e3f2fd" fill-opacity="0.2" stroke="none" />
+            <clipPath id="scene2-north-clip">
+                <rect x="260" y="80" width="280" height="140" />
+            </clipPath>
+            <ellipse cx="400" cy="220" rx="140" ry="140" 
+                     fill="#e3f2fd" fill-opacity="0.2" clip-path="url(#scene2-north-clip)" />
+
+            <!-- 南半球区域填充 -->
+            <clipPath id="scene2-south-clip">
+                <rect x="260" y="220" width="280" height="140" />
+            </clipPath>
+            <ellipse cx="400" cy="220" rx="140" ry="140" 
+                     fill="#ffebee" fill-opacity="0.2" clip-path="url(#scene2-south-clip)" />
+
+            <!-- 地球轮廓 -->
+            <circle id="scene2-earth-circle" cx="400" cy="220" r="140" 
+                    fill="none" stroke="#000000" stroke-width="2" />
+
+            <!-- 赤道线 -->
+            <line id="scene2-equator-line" x1="260" y1="220" x2="540" y2="220" 
+                  stroke="#888888" stroke-width="2" stroke-dasharray="8,4" />
+
+            <!-- 半球标签 -->
+            <text id="scene2-label-north" x="400" y="90" text-anchor="middle" 
+                  font-size="12px" fill="#333333">北半球</text>
+            <text id="scene2-label-south" x="400" y="350" text-anchor="middle" 
+                  font-size="12px" fill="#333333">南半球</text>
+
+            <!-- 赤道标签 -->
+            <text id="scene2-label-equator" x="555" y="224" text-anchor="start" 
+                  font-size="12px" fill="#888888">赤道</text>
+
+            <!-- 甲点（南半球西经区） -->
+            <circle id="scene2-point-jia" cx="300" cy="300" r="6" fill="#c62828" />
+            <text id="scene2-label-jia" x="285" y="320" text-anchor="end" 
+                  font-size="13px" fill="#c62828">甲(40°W,30°S)</text>
+
+            <!-- 乙点（北半球东经区） -->
+            <circle id="scene2-point-yi" cx="500" cy="140" r="6" fill="#1565c0" />
+            <text id="scene2-label-yi" x="512" y="125" text-anchor="start" 
+                  font-size="13px" fill="#1565c0">乙(40°E,30°N)</text>
+
+            <!-- 步骤 1：南北方向箭头（从乙点垂直向下指向甲点纬度） -->
+            <g id="scene2-group-ns" class="scene2-hidden">
+                <line id="scene2-arrow-ns" x1="500" y1="140" x2="500" y2="300" 
+                      stroke="#2e7d32" stroke-width="2" 
+                      marker-end="url(#scene2-arrow-ns-head)" />
+                <text id="scene2-label-ns" x="515" y="224" text-anchor="start" 
+                      font-size="12px" fill="#2e7d32">南方</text>
+            </g>
+
+            <!-- 步骤 2：东西方向箭头（沿赤道从西经指向东经） -->
+            <g id="scene2-group-ew" class="scene2-hidden">
+                <line id="scene2-arrow-ew" x1="300" y1="220" x2="500" y2="220" 
+                      stroke="#1565c0" stroke-width="2" 
+                      marker-end="url(#scene2-arrow-ew-head)" />
+                <text id="scene2-label-ew" x="400" y="205" text-anchor="middle" 
+                      font-size="12px" fill="#1565c0">东方</text>
+            </g>
+
+            <!-- 步骤 3：综合方向箭头（从乙指向甲） -->
+            <g id="scene2-group-final" class="scene2-hidden">
+                <line id="scene2-arrow-final" x1="500" y1="140" x2="300" y2="300" 
+                      stroke="#c62828" stroke-width="3" 
+                      marker-end="url(#scene2-arrow-final-head)" />
+                <text id="scene2-label-final" x="380" y="245" text-anchor="start" 
+                      font-size="14px" fill="#c62828" font-weight="bold">西南方</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/3</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 甲乙两地相对方向判断
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 |
+        // |------|------|-----------|------|-------------|
+        // | 地球轮廓 | 圆形 | 圆心(400,220) | 半径 140 | - |
+        // | 赤道线 | 虚线 | (260,220)-(540,220) | 280×2 | - |
+        // | 北半球区域 | 半圆填充 | 圆心(400,220) 上半部分 | 半径 140 | #e3f2fd 20% |
+        // | 南半球区域 | 半圆填充 | 圆心(400,220) 下半部分 | 半径 140 | #ffebee 20% |
+        // | 甲点 | 实心圆 | (300,300) | 半径 6 | #c62828 |
+        // | 乙点 | 实心圆 | (500,140) | 半径 6 | #1565c0 |
+        // | 甲点标签 | text | (285,320) | ~80×16 | 左下 |
+        // | 乙点标签 | text | (510,120) | ~80×16 | 右上 |
+        // | 赤道标签 | text | (550,220) | ~30×16 | 右侧 |
+        // | 北半球标签 | text | (400,90) | ~40×16 | 上方 |
+        // | 南半球标签 | text | (400,350) | ~40×16 | 下方 |
+        // | 南北方向箭头 | 箭头 | (500,140)→(500,300) | 长 160 | #2e7d32 |
+        // | 东西方向箭头 | 箭头 | (300,220)→(500,220) | 长 200 | #1565c0 |
+        // | 综合方向箭头 | 箭头 | (500,140)→(300,300) | 斜向 | #c62828 |
+
+        let currentState = 0;
+        const totalSteps = 3;
+
+        // 工具函数：显示/隐藏元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        function hide(el) {
+            if (el) {
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新步骤显示
+        function updateStep() {
+            const groupNs = document.getElementById('scene2-group-ns');
+            const groupEw = document.getElementById('scene2-group-ew');
+            const groupFinal = document.getElementById('scene2-group-final');
+            const stepIndicator = document.getElementById('scene2-step-indicator');
+            const btnPrev = document.getElementById('scene2-btn-prev');
+            const btnNext = document.getElementById('scene2-btn-next');
+
+            // 根据当前状态显示/隐藏各组
+            if (currentState >= 1) {
+                show(groupNs);
+            } else {
+                hide(groupNs);
+            }
+
+            if (currentState >= 2) {
+                show(groupEw);
+            } else {
+                hide(groupEw);
+            }
+
+            if (currentState >= 3) {
+                show(groupFinal);
+                // 步骤 3：降低前两步箭头的透明度
+                const arrowNs = document.getElementById('scene2-arrow-ns');
+                const arrowEw = document.getElementById('scene2-arrow-ew');
+                if (arrowNs) arrowNs.style.opacity = '0.4';
+                if (arrowEw) arrowEw.style.opacity = '0.4';
+            } else {
+                hide(groupFinal);
+                // 恢复前两步箭头的透明度
+                const arrowNs = document.getElementById('scene2-arrow-ns');
+                const arrowEw = document.getElementById('scene2-arrow-ew');
+                if (arrowNs) arrowNs.style.opacity = '1';
+                if (arrowEw) arrowEw.style.opacity = '1';
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + currentState + '/' + totalSteps;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps);
+        }
+
+        // 事件处理
+        function handlePrev() {
+            if (currentState > 0) {
+                currentState--;
+                updateStep();
+            }
+        }
+
+        function handleNext() {
+            if (currentState < totalSteps) {
+                currentState++;
+                updateStep();
+            }
+        }
+
+        // 初始化
+        function init() {
+            const btnPrev = document.getElementById('scene2-btn-prev');
+            const btnNext = document.getElementById('scene2-btn-next');
+
+            btnPrev.addEventListener('click', handlePrev);
+            btnNext.addEventListener('click', handleNext);
+
+            // 初始状态
+            updateStep();
+        }
+
+        // 启动
+        init();
+    })();
+    </script>
+</body>
+</html>

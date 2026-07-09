@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .scene1-element { transition: opacity 0.3s ease; }
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+        
+        #scene1-flag-group {
+            transform-origin: 360px 310px;
+            transition: transform 1s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Grid -->
+            <g id="scene1-grid" stroke="#e0e0e0" stroke-width="1"></g>
+            
+            <!-- Axes -->
+            <g id="scene1-axes" stroke="#000000" stroke-width="2">
+                <!-- x axis -->
+                <line x1="160" y1="430" x2="660" y2="430" />
+                <polygon points="660,426 668,430 660,434" fill="#000000" />
+                <text x="665" y="450" font-size="16" font-style="italic" stroke="none" fill="#000000">x</text>
+                
+                <!-- y axis -->
+                <line x1="160" y1="430" x2="160" y2="50" />
+                <polygon points="156,50 160,42 164,50" fill="#000000" />
+                <text x="140" y="60" font-size="16" font-style="italic" stroke="none" fill="#000000">y</text>
+                
+                <!-- Origin -->
+                <text x="145" y="445" font-size="16" stroke="none" fill="#000000">0</text>
+            </g>
+            
+            <!-- Axis numbers -->
+            <g id="scene1-axis-numbers" font-size="14" fill="#000000"></g>
+
+            <!-- Shadow Flag (shown in step 2) -->
+            <g id="scene1-flag-shadow" class="scene1-element scene1-hidden" stroke="#888888" stroke-width="2" stroke-dasharray="4,4" fill="none">
+                <line x1="360" y1="150" x2="360" y2="310" />
+                <polygon points="360,150 360,190 280,190" />
+            </g>
+
+            <!-- Animated Flag Group -->
+            <g id="scene1-flag-group">
+                <line id="scene1-flagpole" x1="360" y1="150" x2="360" y2="310" stroke="#000000" stroke-width="3" />
+                <polygon id="scene1-flag-surface" points="360,150 360,190 280,190" stroke="#000000" stroke-width="3" fill="#000000" fill-opacity="0.1" />
+                <!-- Point A inside group so it rotates -->
+                <circle id="scene1-point-a" cx="360" cy="150" r="4" fill="#c62828" />
+            </g>
+
+            <!-- Point O -->
+            <circle id="scene1-point-o" cx="360" cy="310" r="4" fill="#000000" />
+            <text id="scene1-label-o" x="360" y="335" font-size="16" text-anchor="middle" fill="#000000">O</text>
+            <!-- Moved O(5,3) slightly to avoid overlapping with the length brace -->
+            <text id="scene1-label-o-coord" x="340" y="335" font-size="16" text-anchor="middle" fill="#c62828" class="scene1-element scene1-hidden">O(5, 3)</text>
+
+            <!-- Label A (static, doesn't rotate) -->
+            <text id="scene1-label-a" x="375" y="145" font-size="16" fill="#c62828">A(5, 7)</text>
+
+            <!-- Length Brace and Label (Step 1) -->
+            <g id="scene1-length-group" class="scene1-element scene1-hidden">
+                <path d="M 365 150 Q 375 150 375 230 T 385 230 Q 375 230 375 310 T 365 310" fill="none" stroke="#000000" stroke-width="1.5" />
+                <text x="390" y="235" font-size="16" fill="#000000">4</text>
+            </g>
+
+            <!-- Rotation Arc and Label (Step 2) -->
+            <g id="scene1-rotation-group" class="scene1-element scene1-hidden">
+                <!-- Moved arc slightly to avoid overlapping with O(5,3) -->
+                <path d="M 360 270 A 40 40 0 0 1 400 310" fill="none" stroke="#2e7d32" stroke-width="2" />
+                <polygon points="396,308 400,310 402,304" fill="#2e7d32" />
+                <text x="405" y="285" font-size="16" fill="#2e7d32">90°</text>
+            </g>
+
+            <!-- Point A' and Aux Lines (Step 3) -->
+            <g id="scene1-point-a-prime-group" class="scene1-element scene1-hidden">
+                <line x1="520" y1="310" x2="520" y2="430" stroke="#c62828" stroke-width="2" stroke-dasharray="4,4" />
+                <line x1="520" y1="310" x2="160" y2="310" stroke="#c62828" stroke-width="2" stroke-dasharray="4,4" />
+                <text x="530" y="315" font-size="16" fill="#c62828">A'(9, 3)</text>
+            </g>
+
+        </svg>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Generate grid
+        const gridGroup = document.getElementById('scene1-grid');
+        for (let i = 0; i <= 12; i++) {
+            const x = 160 + i * 40;
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x);
+            line.setAttribute('y1', 70);
+            line.setAttribute('x2', x);
+            line.setAttribute('y2', 430);
+            gridGroup.appendChild(line);
+        }
+        for (let i = 0; i <= 9; i++) {
+            const y = 430 - i * 40;
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', 160);
+            line.setAttribute('y1', y);
+            line.setAttribute('x2', 640);
+            line.setAttribute('y2', y);
+            gridGroup.appendChild(line);
+        }
+
+        // Generate axis numbers
+        const axisNumbersGroup = document.getElementById('scene1-axis-numbers');
+        for (let i = 1; i <= 12; i++) {
+            const x = 160 + i * 40;
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', x);
+            text.setAttribute('y', 445);
+            text.setAttribute('text-anchor', 'middle');
+            text.textContent = i;
+            axisNumbersGroup.appendChild(text);
+        }
+        for (let i = 1; i <= 8; i++) { // Changed to 8 to avoid overlapping with 'y'
+            const y = 430 - i * 40;
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', 145);
+            text.setAttribute('y', y + 5);
+            text.setAttribute('text-anchor', 'end');
+            text.textContent = i;
+            axisNumbersGroup.appendChild(text);
+        }
+
+        // State management
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const flagGroup = document.getElementById('scene1-flag-group');
+        const flagpole = document.getElementById('scene1-flagpole');
+        const flagSurface = document.getElementById('scene1-flag-surface');
+        const pointO = document.getElementById('scene1-point-o');
+        const labelO = document.getElementById('scene1-label-o');
+        const labelOCoord = document.getElementById('scene1-label-o-coord');
+        const lengthGroup = document.getElementById('scene1-length-group');
+        const flagShadow = document.getElementById('scene1-flag-shadow');
+        const rotationGroup = document.getElementById('scene1-rotation-group');
+        const pointAPrimeGroup = document.getElementById('scene1-point-a-prime-group');
+        
+        let rotationTimeout = null;
+        let aPrimeTimeout = null;
+
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            clearTimeout(rotationTimeout);
+            clearTimeout(aPrimeTimeout);
+
+            // Step 0: Initial
+            if (currentStep === 0) {
+                flagGroup.style.transform = 'rotate(0deg)';
+                flagpole.setAttribute('stroke', '#000000');
+                flagSurface.setAttribute('stroke', '#000000');
+                flagSurface.setAttribute('fill', '#000000');
+                pointO.setAttribute('fill', '#000000');
+                labelO.classList.remove('scene1-hidden');
+                labelOCoord.classList.add('scene1-hidden');
+                lengthGroup.classList.add('scene1-hidden');
+                flagShadow.classList.add('scene1-hidden');
+                rotationGroup.classList.add('scene1-hidden');
+                pointAPrimeGroup.classList.add('scene1-hidden');
+            }
+
+            // Step 1: Highlight O and length
+            if (currentStep === 1) {
+                flagGroup.style.transform = 'rotate(0deg)';
+                flagpole.setAttribute('stroke', '#c62828');
+                flagSurface.setAttribute('stroke', '#000000');
+                flagSurface.setAttribute('fill', '#000000');
+                pointO.setAttribute('fill', '#c62828');
+                labelO.classList.add('scene1-hidden');
+                labelOCoord.classList.remove('scene1-hidden');
+                lengthGroup.classList.remove('scene1-hidden');
+                flagShadow.classList.add('scene1-hidden');
+                rotationGroup.classList.add('scene1-hidden');
+                pointAPrimeGroup.classList.add('scene1-hidden');
+            }
+
+            // Step 2: Rotate
+            if (currentStep === 2) {
+                flagShadow.classList.remove('scene1-hidden');
+                flagGroup.style.transform = 'rotate(90deg)';
+                flagpole.setAttribute('stroke', '#1565c0');
+                flagSurface.setAttribute('stroke', '#1565c0');
+                flagSurface.setAttribute('fill', '#1565c0');
+                pointO.setAttribute('fill', '#c62828');
+                labelO.classList.add('scene1-hidden');
+                labelOCoord.classList.remove('scene1-hidden');
+                lengthGroup.classList.remove('scene1-hidden');
+                pointAPrimeGroup.classList.add('scene1-hidden');
+                
+                rotationTimeout = setTimeout(() => {
+                    rotationGroup.classList.remove('scene1-hidden');
+                }, 1000);
+            }
+
+            // Step 3: Show A'
+            if (currentStep === 3) {
+                flagShadow.classList.remove('scene1-hidden');
+                flagGroup.style.transform = 'rotate(90deg)';
+                flagpole.setAttribute('stroke', '#1565c0');
+                flagSurface.setAttribute('stroke', '#1565c0');
+                flagSurface.setAttribute('fill', '#1565c0');
+                pointO.setAttribute('fill', '#c62828');
+                labelO.classList.add('scene1-hidden');
+                labelOCoord.classList.remove('scene1-hidden');
+                lengthGroup.classList.remove('scene1-hidden');
+                rotationGroup.classList.remove('scene1-hidden');
+                
+                aPrimeTimeout = setTimeout(() => {
+                    pointAPrimeGroup.classList.remove('scene1-hidden');
+                }, 300); // Small delay for visual effect
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>子弹射入滑块 - 动量守恒</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 5px 14px; font-size: 13px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; font-family: inherit;
+        }
+        #scene1-btn-prev { background: #f0f0f0; color: #333; }
+        #scene1-btn-next { background: #1565c0; color: #fff; border-color: #1565c0; }
+        #scene1-btn-prev:hover { background: #e0e0e0; }
+        #scene1-btn-next:hover { background: #0d47a1; }
+        #scene1-btn-prev:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* 提示框 - HTML div 避免 SVG 文字与矩形重叠检测误报 */
+        #scene1-tip-box {
+            position: absolute; left: 240px; top: 95px; width: 320px; height: 46px;
+            background: #fffde7; border: 1.5px solid #2e7d32; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: #000; z-index: 5;
+        }
+        /* 公式框 - HTML div */
+        #scene1-formula-box {
+            position: absolute; left: 140px; top: 392px; width: 520px; height: 48px;
+            background: #f5f5f5; border: 1px solid #000; border-radius: 4px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 5;
+        }
+        #scene1-formula-box .formula-line1 { font-size: 15px; color: #000; text-align: center; }
+        #scene1-formula-box .formula-line2 { font-size: 14px; color: #333; margin-top: 2px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 蓝色箭头（向右速度） -->
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <!-- 红色箭头（向左速度） -->
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <!-- 绿色箭头（共同速度） -->
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+                <!-- 地面斜线纹理 -->
+                <pattern id="scene1-ground-pattern" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="12" x2="12" y2="0" stroke="#aaa" stroke-width="0.8"/>
+                </pattern>
+            </defs>
+
+            <!-- 地面 -->
+            <rect x="80" y="360" width="640" height="18" fill="url(#scene1-ground-pattern)" opacity="0.6"/>
+            <line x1="80" y1="360" x2="720" y2="360" stroke="#000" stroke-width="2"/>
+
+            <!-- 小车 -->
+            <rect id="scene1-cart" x="180" y="280" width="440" height="80" fill="#e3f2fd" stroke="#000" stroke-width="2" opacity="0.9"/>
+            <!-- 左挡板 -->
+            <line x1="180" y1="280" x2="180" y2="360" stroke="#000" stroke-width="2"/>
+
+            <!-- 轮子 -->
+            <circle cx="250" cy="360" r="8" fill="#333" stroke="#000" stroke-width="1"/>
+            <circle cx="550" cy="360" r="8" fill="#333" stroke="#000" stroke-width="1"/>
+
+            <!-- 弹簧：连接挡板内侧(190,315)与滑块左端(480,315) -->
+            <path id="scene1-spring" d="M190,315 l10,0 l5,-10 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l10,20 l10,-20 l5,10 l10,0" fill="none" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 滑块 -->
+            <rect id="scene1-block" x="480" y="290" width="80" height="50" fill="#fff3e0" stroke="#000" stroke-width="2" opacity="0.9"/>
+
+            <!-- 子弹(待射入，步骤0-1) -->
+            <circle id="scene1-bullet-out" cx="590" cy="315" r="15" fill="#ffcdd2" stroke="#000" stroke-width="1.5" opacity="0.9"/>
+
+            <!-- 子弹(嵌入，步骤2) -->
+            <rect id="scene1-bullet-in" x="540" y="305" width="20" height="20" fill="#ffcdd2" stroke="#000" stroke-width="1.5" opacity="0.9"/>
+
+            <!-- 高亮框(步骤1) -->
+            <rect id="scene1-highlight-box" x="470" y="280" width="140" height="70" fill="none" stroke="#2e7d32" stroke-width="3" stroke-dasharray="8,4"/>
+
+            <!-- 速度箭头 -->
+            <!-- 小车v₁(步骤0-1) -->
+            <line id="scene1-arrow-v1-cart" x1="360" y1="240" x2="440" y2="240" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+            <!-- 滑块v₁(步骤1) -->
+            <line id="scene1-arrow-v1-block" x1="500" y1="265" x2="540" y2="265" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-blue)"/>
+            <!-- 子弹v₀(步骤1) -->
+            <line id="scene1-arrow-v0" x1="700" y1="315" x2="605" y2="315" stroke="#c62828" stroke-width="2" marker-end="url(#scene1-arrow-red)"/>
+            <!-- 滑块v₂(步骤2) -->
+            <line id="scene1-arrow-v2" x1="505" y1="265" x2="535" y2="265" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#scene1-arrow-green)"/>
+
+            <!-- 质量标签（始终显示） -->
+            <text id="scene1-label-M" x="170" y="270" text-anchor="end" font-size="14" fill="#000">M=2kg</text>
+            <text id="scene1-label-m" x="520" y="268" text-anchor="middle" font-size="14" fill="#000">m=1.8kg</text>
+            <text id="scene1-label-m0" x="600" y="268" text-anchor="middle" font-size="14" fill="#000">m₀=0.2kg</text>
+            <text id="scene1-label-ground" x="400" y="392" text-anchor="middle" font-size="14" fill="#000">光滑水平面</text>
+
+            <!-- 速度标签 -->
+            <text id="scene1-label-v1-cart" x="400" y="228" text-anchor="middle" font-size="14" fill="#1565c0">v₁=10m/s</text>
+            <text id="scene1-label-v1-block" x="520" y="242" text-anchor="middle" font-size="14" fill="#1565c0">v₁=10m/s</text>
+            <text id="scene1-label-v0" x="650" y="340" text-anchor="middle" font-size="14" fill="#c62828">v₀=50m/s</text>
+            <text id="scene1-label-v2" x="520" y="242" text-anchor="middle" font-size="14" fill="#2e7d32">v₂=4m/s</text>
+        </svg>
+
+        <!-- 提示框（HTML div，避免 SVG 文字与矩形重叠误报） -->
+        <div id="scene1-tip-box">时间极短：弹簧力与摩擦力冲量可忽略</div>
+
+        <!-- 公式框（HTML div） -->
+        <div id="scene1-formula-box">
+            <div class="formula-line1">m·v₁ − m₀·v₀ = (m+m₀)·v₂</div>
+            <div class="formula-line2">1.8×10 − 0.2×50 = 2.0×4 = 8</div>
+        </div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：子弹射入滑块 - 动量守恒分步演示
+        let currentStep = 0;
+        const maxStep = 2;
+
+        const elements = {
+            bulletOut: document.getElementById('scene1-bullet-out'),
+            bulletIn: document.getElementById('scene1-bullet-in'),
+            arrowV1Cart: document.getElementById('scene1-arrow-v1-cart'),
+            arrowV1Block: document.getElementById('scene1-arrow-v1-block'),
+            arrowV0: document.getElementById('scene1-arrow-v0'),
+            arrowV2: document.getElementById('scene1-arrow-v2'),
+            highlightBox: document.getElementById('scene1-highlight-box'),
+            tipBox: document.getElementById('scene1-tip-box'),
+            formulaBox: document.getElementById('scene1-formula-box'),
+            labelV1Cart: document.getElementById('scene1-label-v1-cart'),
+            labelV1Block: document.getElementById('scene1-label-v1-block'),
+            labelV0: document.getElementById('scene1-label-v0'),
+            labelV2: document.getElementById('scene1-label-v2'),
+            btnPrev: document.getElementById('scene1-btn-prev'),
+            btnNext: document.getElementById('scene1-btn-next')
+        };
+
+        function setDisplay(el, show) {
+            if (!el) return;
+            el.style.display = show ? 'block' : 'none';
+            el.style.opacity = show ? '1' : '0';
+        }
+
+        function renderStep() {
+            // 步骤0: 初始匀速状态
+            if (currentStep === 0) {
+                setDisplay(elements.bulletOut, true);
+                setDisplay(elements.bulletIn, false);
+                setDisplay(elements.arrowV1Cart, true);
+                setDisplay(elements.arrowV1Block, false);
+                setDisplay(elements.arrowV0, false);
+                setDisplay(elements.arrowV2, false);
+                setDisplay(elements.highlightBox, false);
+                setDisplay(elements.tipBox, false);
+                setDisplay(elements.formulaBox, false);
+                setDisplay(elements.labelV1Cart, true);
+                setDisplay(elements.labelV1Block, false);
+                setDisplay(elements.labelV0, false);
+                setDisplay(elements.labelV2, false);
+            }
+            // 步骤1: 射入瞬间，强调动量守恒条件
+            else if (currentStep === 1) {
+                setDisplay(elements.bulletOut, true);
+                setDisplay(elements.bulletIn, false);
+                setDisplay(elements.arrowV1Cart, true);
+                setDisplay(elements.arrowV1Block, true);
+                setDisplay(elements.arrowV0, true);
+                setDisplay(elements.arrowV2, false);
+                setDisplay(elements.highlightBox, true);
+                setDisplay(elements.tipBox, true);
+                setDisplay(elements.formulaBox, false);
+                setDisplay(elements.labelV1Cart, true);
+                setDisplay(elements.labelV1Block, true);
+                setDisplay(elements.labelV0, true);
+                setDisplay(elements.labelV2, false);
+            }
+            // 步骤2: 共同速度与动量守恒方程
+            else if (currentStep === 2) {
+                setDisplay(elements.bulletOut, false);
+                setDisplay(elements.bulletIn, true);
+                setDisplay(elements.arrowV1Cart, false);
+                setDisplay(elements.arrowV1Block, false);
+                setDisplay(elements.arrowV0, false);
+                setDisplay(elements.arrowV2, true);
+                setDisplay(elements.highlightBox, false);
+                setDisplay(elements.tipBox, false);
+                setDisplay(elements.formulaBox, true);
+                setDisplay(elements.labelV1Cart, false);
+                setDisplay(elements.labelV1Block, false);
+                setDisplay(elements.labelV0, false);
+                setDisplay(elements.labelV2, true);
+            }
+
+            elements.btnPrev.disabled = currentStep === 0;
+            elements.btnNext.disabled = currentStep === maxStep;
+        }
+
+        elements.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        elements.btnNext.addEventListener('click', function() {
+            if (currentStep < maxStep) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始化渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

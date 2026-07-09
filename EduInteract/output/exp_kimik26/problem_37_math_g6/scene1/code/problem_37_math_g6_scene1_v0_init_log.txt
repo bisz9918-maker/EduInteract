@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中心投影影子长度探究</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #1565c0; min-width: 80px; text-align: center; }
+        #scene1-slider-group { position: absolute; bottom: 50px; left: 0; right: 0; display: none; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-slider-group label { font-size: 14px; }
+        #scene1-slider-group input[type="range"] { width: 360px; }
+        #scene1-slider-group span { font-size: 14px; min-width: 70px; }
+        #scene1-formula-overlay { position: absolute; top: 20px; right: 20px; font-family: sans-serif; font-size: 16px; line-height: 32px; color: #000000; z-index: 10; display: none; background: rgba(255,255,255,0.92); padding: 12px 16px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        #scene1-formula-overlay .formula-line { display: block; white-space: nowrap; }
+        #scene1-formula-overlay .highlight-green { color: #2e7d32; }
+        #scene1-formula-overlay .highlight-red { color: #c62828; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" style="position:absolute; top:0; left:0;">
+            <!-- 灯杆 -->
+            <line id="scene1-lamp-pole" x1="200" y1="140" x2="200" y2="380" stroke="#000000" stroke-width="2"/>
+            <!-- 光源 -->
+            <circle id="scene1-light-source" cx="200" cy="140" r="10" fill="#ff9800"/>
+            <!-- 光晕 -->
+            <circle id="scene1-light-glow" cx="200" cy="140" r="24" fill="#fff3e0" opacity="0.4"/>
+            <!-- 地面 -->
+            <line id="scene1-ground" x1="80" y1="380" x2="720" y2="380" stroke="#000000" stroke-width="2"/>
+            <!-- 杯子 -->
+            <rect id="scene1-cup" x="348" y="340" width="24" height="40" fill="none" stroke="#1565c0" stroke-width="2"/>
+            <rect id="scene1-cup-fill" x="348" y="340" width="24" height="40" fill="#1565c0" opacity="0.2"/>
+            <!-- 影子 -->
+            <rect id="scene1-shadow" x="360" y="374" width="32" height="6" fill="#c62828" opacity="0.25" style="display:none;"/>
+            <!-- 光线 -->
+            <line id="scene1-ray" x1="200" y1="140" x2="392" y2="380" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4" style="display:none;"/>
+            <!-- 大三角形 -->
+            <polygon id="scene1-triangle-big" points="200,140 200,380 392,380" fill="#2e7d32" fill-opacity="0.1" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="6,4" style="display:none;"/>
+            <!-- 小三角形 -->
+            <polygon id="scene1-triangle-small" points="360,340 360,380 392,380" fill="#2e7d32" fill-opacity="0.15" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="6,4" style="display:none;"/>
+            
+            <!-- 标签 S -->
+            <text id="scene1-label-s" x="200" y="105" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#000000">点光源 S</text>
+            <!-- H 箭头 -->
+            <line id="scene1-arrow-h" x1="218" y1="140" x2="218" y2="380" stroke="#000000" stroke-width="1.5" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)"/>
+            <text id="scene1-label-h" x="180" y="265" font-family="sans-serif" font-size="16" fill="#000000">H</text>
+            <!-- a 箭头 -->
+            <line id="scene1-arrow-a" x1="200" y1="400" x2="360" y2="400" stroke="#1565c0" stroke-width="1.5" marker-start="url(#arrow-start-blue)" marker-end="url(#arrow-end-blue)"/>
+            <text id="scene1-label-a" x="280" y="418" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#1565c0">a</text>
+            <!-- h 箭头 -->
+            <line id="scene1-arrow-h-cup" x1="378" y1="380" x2="378" y2="340" stroke="#1565c0" stroke-width="1.5" marker-start="url(#arrow-start-blue)" marker-end="url(#arrow-end-blue)"/>
+            <text id="scene1-label-h-cup" x="400" y="365" font-family="sans-serif" font-size="16" fill="#1565c0">h</text>
+            <!-- L 箭头 -->
+            <line id="scene1-arrow-l" x1="360" y1="400" x2="392" y2="400" stroke="#c62828" stroke-width="1.5" marker-start="url(#arrow-start-red)" marker-end="url(#arrow-end-red)" style="display:none;"/>
+            <text id="scene1-label-l" x="376" y="418" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#c62828" style="display:none;">L</text>
+            
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="arrow-start" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10" fill="none" stroke="#000000" stroke-width="1"/>
+                </marker>
+                <marker id="arrow-end" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10" fill="none" stroke="#000000" stroke-width="1"/>
+                </marker>
+                <marker id="arrow-start-blue" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10" fill="none" stroke="#1565c0" stroke-width="1"/>
+                </marker>
+                <marker id="arrow-end-blue" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10" fill="none" stroke="#1565c0" stroke-width="1"/>
+                </marker>
+                <marker id="arrow-start-red" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M10,0 L0,5 L10,10" fill="none" stroke="#c62828" stroke-width="1"/>
+                </marker>
+                <marker id="arrow-end-red" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10" fill="none" stroke="#c62828" stroke-width="1"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 公式区 HTML 覆盖层 -->
+        <div id="scene1-formula-overlay">
+            <span class="formula-line">由相似三角形：</span>
+            <span class="formula-line">h / H = L / (a + L)</span>
+            <span class="formula-line">推导得：</span>
+            <span class="formula-line">L = <span class="highlight-green">a</span>h / (H − <span class="highlight-green">h</span>)</span>
+            <span class="formula-line">∵ H、h 为定值</span>
+            <span class="formula-line">∴ L 与 <span class="highlight-green">a</span> 成正相关</span>
+            <span id="scene1-formula-verify" class="formula-line highlight-red" style="display:none;">验证：a 越小 → L 越短</span>
+        </div>
+        
+        <!-- 滑块组 -->
+        <div id="scene1-slider-group">
+            <label>物距 a (m)</label>
+            <input id="scene1-slider" type="range" min="0.5" max="5.0" step="0.1" value="2.0">
+            <span id="scene1-slider-val-a">a = 2.0 m</span>
+            <span id="scene1-slider-val-l">L = 0.40 m</span>
+        </div>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1 / 6</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 状态
+        var currentStep = 0;
+        var currentA = 2.0;
+        
+        // 常量
+        var SCALE = 80; // px/m
+        var LAMP_X = 200;
+        var LAMP_TOP_Y = 140;
+        var GROUND_Y = 380;
+        var CUP_WIDTH = 24;
+        var CUP_HEIGHT = 40;
+        var H_VALUE = 3.0; // m
+        var h_VALUE = 0.5; // m
+        
+        // 获取元素
+        var shadow = document.getElementById('scene1-shadow');
+        var ray = document.getElementById('scene1-ray');
+        var triangleBig = document.getElementById('scene1-triangle-big');
+        var triangleSmall = document.getElementById('scene1-triangle-small');
+        var arrowL = document.getElementById('scene1-arrow-l');
+        var labelL = document.getElementById('scene1-label-l');
+        var formulaOverlay = document.getElementById('scene1-formula-overlay');
+        var formulaVerify = document.getElementById('scene1-formula-verify');
+        var sliderGroup = document.getElementById('scene1-slider-group');
+        var slider = document.getElementById('scene1-slider');
+        var sliderValA = document.getElementById('scene1-slider-val-a');
+        var sliderValL = document.getElementById('scene1-slider-val-l');
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 动态元素
+        var cup = document.getElementById('scene1-cup');
+        var cupFill = document.getElementById('scene1-cup-fill');
+        var arrowA = document.getElementById('scene1-arrow-a');
+        var labelA = document.getElementById('scene1-label-a');
+        var arrowHCup = document.getElementById('scene1-arrow-h-cup');
+        var labelHCup = document.getElementById('scene1-label-h-cup');
+        
+        // 计算坐标
+        function calcCoordinates(a) {
+            var a_px = a * SCALE;
+            var cupCenterX = LAMP_X + a_px;
+            var L_px = a * 16; // L = a * 0.5 / 2.5 = a/5 m = 0.2a m -> 0.2a * 80 = 16a px
+            var shadowEndX = cupCenterX + L_px;
+            var cupLeft = cupCenterX - CUP_WIDTH / 2;
+            var cupTop = GROUND_Y - CUP_HEIGHT;
+            return {
+                a_px: a_px,
+                cupCenterX: cupCenterX,
+                L_px: L_px,
+                shadowEndX: shadowEndX,
+                cupLeft: cupLeft,
+                cupTop: cupTop
+            };
+        }
+        
+        // 更新场景
+        function updateScene(a) {
+            currentA = a;
+            var coords = calcCoordinates(a);
+            
+            // 更新杯子
+            cup.setAttribute('x', coords.cupLeft);
+            cup.setAttribute('y', coords.cupTop);
+            cupFill.setAttribute('x', coords.cupLeft);
+            cupFill.setAttribute('y', coords.cupTop);
+            
+            // 更新影子
+            shadow.setAttribute('x', coords.cupCenterX);
+            shadow.setAttribute('width', coords.L_px);
+            
+            // 更新光线
+            ray.setAttribute('x2', coords.shadowEndX);
+            
+            // 更新大三角形
+            triangleBig.setAttribute('points', LAMP_X + ',' + LAMP_TOP_Y + ' ' + LAMP_X + ',' + GROUND_Y + ' ' + coords.shadowEndX + ',' + GROUND_Y);
+            
+            // 更新小三角形
+            triangleSmall.setAttribute('points', coords.cupCenterX + ',' + coords.cupTop + ' ' + coords.cupCenterX + ',' + GROUND_Y + ' ' + coords.shadowEndX + ',' + GROUND_Y);
+            
+            // 更新 a 箭头
+            arrowA.setAttribute('x2', coords.cupCenterX);
+            labelA.setAttribute('x', LAMP_X + coords.a_px / 2);
+            
+            // 更新 h 箭头
+            arrowHCup.setAttribute('x1', coords.cupCenterX + 18);
+            arrowHCup.setAttribute('x2', coords.cupCenterX + 18);
+            
+            // h 标签放在小三角形右侧，避免重叠
+            var hLabelX = Math.max(coords.cupCenterX + 35, coords.shadowEndX + 15);
+            labelHCup.setAttribute('x', hLabelX);
+            labelHCup.setAttribute('y', coords.cupTop + 25);
+            
+            // 更新 L 箭头
+            arrowL.setAttribute('x2', coords.shadowEndX);
+            labelL.setAttribute('x', coords.cupCenterX + coords.L_px / 2);
+            
+            // 更新滑块数值
+            var L_meter = a * h_VALUE / (H_VALUE - h_VALUE);
+            sliderValA.textContent = 'a = ' + a.toFixed(1) + ' m';
+            sliderValL.textContent = 'L = ' + L_meter.toFixed(2) + ' m';
+        }
+        
+        // 设置步骤
+        function setStep(step) {
+            currentStep = step;
+            stepIndicator.textContent = '步骤 ' + (step + 1) + ' / 6';
+            
+            // 按钮状态
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === 5);
+            
+            // 步骤0: 题意初始化
+            if (step === 0) {
+                shadow.style.display = 'none';
+                arrowL.style.display = 'none';
+                labelL.style.display = 'none';
+                ray.style.display = 'none';
+                triangleBig.style.display = 'none';
+                triangleSmall.style.display = 'none';
+                formulaOverlay.style.display = 'none';
+                formulaVerify.style.display = 'none';
+                sliderGroup.style.display = 'none';
+            }
+            // 步骤1: 影子显现
+            else if (step === 1) {
+                shadow.style.display = 'block';
+                arrowL.style.display = 'block';
+                labelL.style.display = 'block';
+                ray.style.display = 'none';
+                triangleBig.style.display = 'none';
+                triangleSmall.style.display = 'none';
+                formulaOverlay.style.display = 'none';
+                formulaVerify.style.display = 'none';
+                sliderGroup.style.display = 'none';
+            }
+            // 步骤2: 光路原理
+            else if (step === 2) {
+                shadow.style.display = 'block';
+                arrowL.style.display = 'block';
+                labelL.style.display = 'block';
+                ray.style.display = 'block';
+                triangleBig.style.display = 'none';
+                triangleSmall.style.display = 'none';
+                formulaOverlay.style.display = 'none';
+                formulaVerify.style.display = 'none';
+                sliderGroup.style.display = 'none';
+            }
+            // 步骤3: 相似三角形
+            else if (step === 3) {
+                shadow.style.display = 'block';
+                arrowL.style.display = 'block';
+                labelL.style.display = 'block';
+                ray.style.display = 'block';
+                triangleBig.style.display = 'block';
+                triangleSmall.style.display = 'block';
+                formulaOverlay.style.display = 'none';
+                formulaVerify.style.display = 'none';
+                sliderGroup.style.display = 'none';
+            }
+            // 步骤4: 公式推导
+            else if (step === 4) {
+                shadow.style.display = 'block';
+                arrowL.style.display = 'block';
+                labelL.style.display = 'block';
+                ray.style.display = 'block';
+                triangleBig.style.display = 'block';
+                triangleSmall.style.display = 'block';
+                formulaOverlay.style.display = 'block';
+                formulaVerify.style.display = 'none';
+                sliderGroup.style.display = 'none';
+            }
+            // 步骤5: 交互验证
+            else if (step === 5) {
+                shadow.style.display = 'block';
+                arrowL.style.display = 'block';
+                labelL.style.display = 'block';
+                ray.style.display = 'block';
+                triangleBig.style.display = 'block';
+                triangleSmall.style.display = 'block';
+                formulaOverlay.style.display = 'block';
+                formulaVerify.style.display = 'block';
+                sliderGroup.style.display = 'flex';
+            }
+            
+            // 更新场景坐标
+            updateScene(currentA);
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                setStep(currentStep - 1);
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < 5) {
+                setStep(currentStep + 1);
+            }
+        });
+        
+        slider.addEventListener('input', function() {
+            var a = parseFloat(this.value);
+            updateScene(a);
+        });
+        
+        // 初始化
+        updateScene(2.0);
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

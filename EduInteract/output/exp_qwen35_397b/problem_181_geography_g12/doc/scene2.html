@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极地俯视图风带分布</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-lat-circle {
+            fill: none;
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 5, 5;
+        }
+        .scene2-lon-line {
+            stroke: #888888;
+            stroke-width: 1;
+            stroke-dasharray: 5, 5;
+        }
+        .scene2-pressure-band {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 8;
+        }
+        .scene2-wind-arrow {
+            fill: none;
+            stroke: #1565c0;
+            stroke-width: 3;
+            marker-end: url(#scene2-arrowhead);
+        }
+        .scene2-zone {
+            fill: #2e7d32;
+            fill-opacity: 0.2;
+            stroke: none;
+        }
+        .scene2-label {
+            font-size: 14px;
+            fill: #000000;
+            text-anchor: start;
+        }
+        .scene2-label-pole {
+            font-size: 14px;
+            fill: #000000;
+            text-anchor: middle;
+            font-weight: bold;
+        }
+        .scene2-box {
+            fill: #ffffff;
+            stroke: #c62828;
+            stroke-width: 2;
+        }
+        .scene2-box-text {
+            font-size: 12px;
+            fill: #c62828;
+            text-anchor: start;
+        }
+        .scene2-legend-oval {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 3;
+        }
+        .scene2-legend-text {
+            font-size: 12px;
+            fill: #000000;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #f0f0f0;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+        }
+        .scene2-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene2-btn:disabled {
+            background: #d0d0d0;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- 同心圆（纬度圈） -->
+            <!-- 赤道圈 0° 半径 180px -->
+            <circle id="scene2-circle-0" class="scene2-lat-circle" cx="400" cy="250" r="180" />
+            <!-- 30°纬度圈 半径 120px -->
+            <circle id="scene2-circle-30" class="scene2-lat-circle" cx="400" cy="250" r="120" />
+            <!-- 60°纬度圈 半径 60px -->
+            <circle id="scene2-circle-60" class="scene2-lat-circle" cx="400" cy="250" r="60" />
+
+            <!-- 放射状经线 -->
+            <!-- 0°经线 向上 -->
+            <line id="scene2-line-0" class="scene2-lon-line" x1="400" y1="250" x2="400" y2="70" />
+            <!-- 90°E 经线 向右 -->
+            <line id="scene2-line-90" class="scene2-lon-line" x1="400" y1="250" x2="580" y2="250" />
+            <!-- 180°经线 向下 -->
+            <line id="scene2-line-180" class="scene2-lon-line" x1="400" y1="250" x2="400" y2="430" />
+            <!-- 270°E(90°W) 经线 向左 -->
+            <line id="scene2-line-270" class="scene2-lon-line" x1="400" y1="250" x2="220" y2="250" />
+
+            <!-- 气压带（黑色粗环，30°附近） -->
+            <circle id="scene2-pressure-band" class="scene2-pressure-band" cx="400" cy="250" r="120" />
+
+            <!-- 风向箭头（步骤 1 显示） -->
+            <!-- 箭头 1: 30°-60°间，显示右偏（顺时针弯曲） -->
+            <path id="scene2-wind-arrow-1" class="scene2-wind-arrow" 
+                  d="M 520,250 Q 500,220 460,210" 
+                  fill="none" stroke="#1565c0" stroke-width="3" 
+                  marker-end="url(#scene2-arrowhead)" />
+            <!-- 箭头 2: 0°-30°间，显示右偏（顺时针弯曲） -->
+            <path id="scene2-wind-arrow-2" class="scene2-wind-arrow" 
+                  d="M 580,250 Q 550,230 530,220" 
+                  fill="none" stroke="#1565c0" stroke-width="3" 
+                  marker-end="url(#scene2-arrowhead)" />
+
+            <!-- a 风带区（30°-60°间，绿色半透明扇形） -->
+            <path id="scene2-zone-a" class="scene2-zone" 
+                  d="M 400,250 L 460,210 A 60,60 0 0,1 400,190 Z" 
+                  fill="#2e7d32" fill-opacity="0.2" />
+
+            <!-- b 风带区（0°-30°间，绿色半透明扇形） -->
+            <path id="scene2-zone-b" class="scene2-zone" 
+                  d="M 400,250 L 530,220 A 120,120 0 0,1 520,250 Z" 
+                  fill="#2e7d32" fill-opacity="0.2" />
+
+            <!-- 纬度标签 - 放在右侧经线上方，对应纬度圈的内侧 -->
+            <!-- 0°纬度标签：赤道圈内侧，靠近右侧经线 -->
+            <text id="scene2-label-0deg" class="scene2-label" x="565" y="255">0°</text>
+            <!-- 30°纬度标签：30°圈内侧，靠近右侧经线 -->
+            <text id="scene2-label-30deg" class="scene2-label" x="505" y="255">30°</text>
+            <!-- 60°纬度标签：60°圈内侧，靠近右侧经线 -->
+            <text id="scene2-label-60deg" class="scene2-label" x="445" y="255">60°</text>
+            <!-- 90°N 标签：极点上方 -->
+            <text id="scene2-label-90N" class="scene2-label-pole" x="400" y="175">N</text>
+
+            <!-- 经度标签 - 放在对应经线末端的外侧 -->
+            <!-- 0°经度标签：顶部，经线上方 -->
+            <text id="scene2-label-0lon" class="scene2-label" x="400" y="50">0°</text>
+            <!-- 90°E 经度标签：右侧，经线右方，圆外 -->
+            <text id="scene2-label-90lon" class="scene2-label" x="600" y="255">90°</text>
+            <!-- 180°经度标签：底部，经线下方 -->
+            <text id="scene2-label-180lon" class="scene2-label" x="400" y="460">180°</text>
+            <!-- 270°E(90°W) 经度标签：左侧，经线左方，圆外 -->
+            <text id="scene2-label-270lon" class="scene2-label" x="190" y="255">90°</text>
+
+            <!-- a、b 风带标签（步骤 2 显示）- 放在圆外右侧区域 -->
+            <text id="scene2-label-a" class="scene2-label" x="550" y="290" style="display:none;">a</text>
+            <text id="scene2-label-b" class="scene2-label" x="570" y="275" style="display:none;">b</text>
+
+            <!-- 气压带图例 -->
+            <ellipse id="scene2-legend-oval" class="scene2-legend-oval" cx="650" cy="400" rx="20" ry="5" />
+            <text id="scene2-legend-text" class="scene2-legend-text" x="675" y="405">气压带</text>
+
+            <!-- 半球判断框（步骤 3 显示） -->
+            <rect id="scene2-box-hemisphere" class="scene2-box" x="620" y="50" width="160" height="60" style="display:none;" />
+            <text id="scene2-box-hemisphere-text" class="scene2-box-text" x="630" y="85" style="display:none;">风向右偏→北半球</text>
+
+            <!-- 季节判断框（步骤 4 显示） -->
+            <rect id="scene2-box-season" class="scene2-box" x="620" y="120" width="160" height="60" style="display:none;" />
+            <text id="scene2-box-season-text" class="scene2-box-text" x="630" y="155" style="display:none;">气压带北移→夏季</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 1/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现：极地俯视图风带分布与半球季节判断
+
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 备注 |
+        // |------|------|-----------|------|------|
+        // | 赤道圈 (0°) | 圆 | 圆心 (400,250) | 半径 180px | 最外层纬度圈 |
+        // | 30°纬度圈 | 圆 | 圆心 (400,250) | 半径 120px | 中层纬度圈 |
+        // | 60°纬度圈 | 圆 | 圆心 (400,250) | 半径 60px | 内层纬度圈 |
+        // | 0°经线 | 线段 | (400,250)-(400,70) | 180px | 向上放射 |
+        // | 90°E 经线 | 线段 | (400,250)-(580,250) | 180px | 向右放射 |
+        // | 180°经线 | 线段 | (400,250)-(400,430) | 180px | 向下放射 |
+        // | 270°E 经线 | 线段 | (400,250)-(220,250) | 180px | 向左放射 |
+        // | 气压带 | 粗环 | 圆心 (400,250) | 半径 120px | 黑色粗环 |
+        // | 风向箭头 1 | 曲线箭头 | 30°-60°间 | - | 显示右偏特征 |
+        // | 风向箭头 2 | 曲线箭头 | 0°-30°间 | - | 显示右偏特征 |
+        // | a 风带区 | 扇形填充 | 30°-60°间 | - | 绿色半透明 |
+        // | b 风带区 | 扇形填充 | 0°-30°间 | - | 绿色半透明 |
+        // | 0°纬度标签 | text | (565,255) | - | 右侧圆内 |
+        // | 30°纬度标签 | text | (505,255) | - | 右侧圆内 |
+        // | 60°纬度标签 | text | (445,255) | - | 右侧圆内 |
+        // | 90°N 标签 | text | (400,175) | - | 极点上方圆内 |
+        // | 0°经度标签 | text | (400,50) | - | 顶部圆外 |
+        // | 90°经度标签 | text | (600,255) | - | 右侧圆外 |
+        // | 180°经度标签 | text | (400,460) | - | 底部圆外 |
+        // | 270°经度标签 | text | (190,255) | - | 左侧圆外 |
+        // | a 标签 | text | (550,290) | - | a 风带标记 |
+        // | b 标签 | text | (570,275) | - | b 风带标记 |
+        // | 气压带图例 | 椭圆 + 文字 | (650,400) | - | 右下角图例 |
+        // | 半球判断框 | 矩形框 | (620,50) | 160×60 | 红色边框 |
+        // | 季节判断框 | 矩形框 | (620,120) | 160×60 | 红色边框 |
+
+        // 状态机：当前步骤 (0-4)
+        let currentState = 0;
+        const totalSteps = 5;
+
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 元素 ID 列表
+        const windArrows = ['scene2-wind-arrow-1', 'scene2-wind-arrow-2'];
+        const zoneElements = ['scene2-zone-a', 'scene2-zone-b'];
+        const labelAB = ['scene2-label-a', 'scene2-label-b'];
+        const hemisphereBox = ['scene2-box-hemisphere', 'scene2-box-hemisphere-text'];
+        const seasonBox = ['scene2-box-season', 'scene2-box-season-text'];
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新视图：根据当前状态显示/隐藏元素
+        function updateView() {
+            // 步骤 0：基础框架（同心圆、经线、气压带、图例）- 始终显示
+            // 步骤 1：显示风向箭头
+            // 步骤 2：高亮 a、b 风带区，显示标签
+            // 步骤 3：显示半球判断框
+            // 步骤 4：显示季节判断框
+
+            // 风向箭头（步骤 1+）
+            if (currentState >= 1) {
+                windArrows.forEach(id => showElement(id));
+            } else {
+                windArrows.forEach(id => hideElement(id));
+            }
+
+            // a、b 风带区和标签（步骤 2+）
+            if (currentState >= 2) {
+                zoneElements.forEach(id => showElement(id));
+                labelAB.forEach(id => showElement(id));
+            } else {
+                zoneElements.forEach(id => hideElement(id));
+                labelAB.forEach(id => hideElement(id));
+            }
+
+            // 半球判断框（步骤 3+）
+            if (currentState >= 3) {
+                hemisphereBox.forEach(id => showElement(id));
+            } else {
+                hemisphereBox.forEach(id => hideElement(id));
+            }
+
+            // 季节判断框（步骤 4）
+            if (currentState >= 4) {
+                seasonBox.forEach(id => showElement(id));
+            } else {
+                seasonBox.forEach(id => hideElement(id));
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentState + 1}/${totalSteps}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps - 1);
+        }
+
+        // 事件处理：上一步
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateView();
+            }
+        });
+
+        // 事件处理：下一步
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                updateView();
+            }
+        });
+
+        // 初始化视图
+        updateView();
+    })();
+    </script>
+</body>
+</html>

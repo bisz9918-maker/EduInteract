@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 圆锥截线轨迹判定</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; left: 620px; top: 20px; width: 160px; height: 460px; background: #f5f5f5; border-radius: 8px; }
+        #scene2-panel-inner { position: relative; width: 100%; height: 100%; }
+        .scene2-slider-label { position: absolute; font-size: 13px; color: #333; }
+        .scene2-slider { position: absolute; width: 100px; height: 6px; }
+        .scene2-value { position: absolute; font-size: 13px; color: #1565c0; font-weight: bold; }
+        #scene2-data-box { position: absolute; left: 15px; top: 160px; width: 130px; height: 120px; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 8px; box-sizing: border-box; }
+        .scene2-data-row { font-size: 11px; color: #555; line-height: 22px; }
+        .scene2-data-val { color: #1565c0; font-weight: bold; }
+        .scene2-btn { position: absolute; left: 15px; width: 130px; height: 26px; font-size: 11px; border: 1px solid #bbb; border-radius: 4px; background: #fff; cursor: pointer; transition: all 0.2s; }
+        .scene2-btn:hover { background: #e3f2fd; }
+        .scene2-btn.active { border: 2px solid #1565c0; background: #e3f2fd; font-weight: bold; }
+        svg { display: block; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 平面M延伸斜线 -->
+            <line id="scene2-plane-ext1" x1="580" y1="350" x2="570" y2="340" stroke="#2e7d32" stroke-width="2"/>
+            <line id="scene2-plane-ext2" x1="580" y1="350" x2="570" y2="360" stroke="#2e7d32" stroke-width="2"/>
+            
+            <!-- 平面M -->
+            <line id="scene2-plane" x1="80" y1="350" x2="580" y2="350" stroke="#2e7d32" stroke-width="2.5"/>
+            
+            <!-- PO虚线 -->
+            <line id="scene2-po" x1="180" y1="80" x2="180" y2="350" stroke="#888888" stroke-width="1" stroke-dasharray="6,4"/>
+            
+            <!-- PA轴线 -->
+            <line id="scene2-pa" x1="180" y1="80" x2="450" y2="350" stroke="#1565c0" stroke-width="2.5"/>
+            
+            <!-- 母线1 -->
+            <line id="scene2-gen1" x1="180" y1="80" x2="450" y2="350" stroke="#c62828" stroke-width="1.5"/>
+            
+            <!-- 母线2 -->
+            <line id="scene2-gen2" x1="180" y1="80" x2="450" y2="350" stroke="#c62828" stroke-width="1.5"/>
+            
+            <!-- 角度弧 -->
+            <path id="scene2-arc-alpha" d="" fill="none" stroke="#ff9800" stroke-width="1.5"/>
+            <path id="scene2-arc-beta" d="" fill="none" stroke="#ff9800" stroke-width="1.5"/>
+            <path id="scene2-arc-90a" d="" fill="none" stroke="#ff9800" stroke-width="1.5"/>
+            
+            <!-- 点 -->
+            <circle id="scene2-point-p" cx="180" cy="80" r="4" fill="#000"/>
+            <circle id="scene2-point-o" cx="180" cy="350" r="3" fill="#000"/>
+            <circle id="scene2-point-a" cx="450" cy="350" r="3" fill="#000"/>
+            
+            <!-- 标签 -->
+            <!-- 顶部标签，y=36 确保在所有线条bounding box之外 -->
+            <text id="scene2-label-pa" x="140" y="36" font-size="13" fill="#1565c0" text-anchor="end">PA</text>
+            <text id="scene2-label-p" x="168" y="36" font-size="14" fill="#000" text-anchor="end">P</text>
+            <text id="scene2-label-alpha" x="230" y="36" font-size="14" fill="#000" text-anchor="start">α</text>
+            <text id="scene2-label-beta" x="300" y="36" font-size="14" fill="#000" text-anchor="start">β</text>
+            <text id="scene2-label-traj" x="520" y="36" font-size="14" fill="#000" text-anchor="start">轨迹</text>
+            
+            <!-- 底部标签，y=368 确保在平面M和所有斜线之下 -->
+            <text id="scene2-label-o" x="170" y="368" font-size="14" fill="#000" text-anchor="end">O</text>
+            <text id="scene2-label-a" x="460" y="368" font-size="14" fill="#000" text-anchor="start">A</text>
+            <text id="scene2-label-90a" x="400" y="368" font-size="12" fill="#000" text-anchor="start">90°−α</text>
+            <text id="scene2-label-m" x="600" y="340" font-size="14" fill="#000" text-anchor="start">M</text>
+            
+            <!-- 轨迹示意框 -->
+            <rect id="scene2-traj-box" x="520" y="290" width="80" height="30" fill="#fff" stroke="#ccc" stroke-width="1"/>
+            
+            <!-- 轨迹图形（初始隐藏） -->
+            <circle id="scene2-traj-circle" cx="560" cy="305" r="10" fill="none" stroke="#2e7d32" stroke-width="2" style="display:none"/>
+            <line id="scene2-traj-line" x1="545" y1="305" x2="575" y2="305" stroke="#1565c0" stroke-width="2" style="display:none"/>
+            <path id="scene2-traj-parabola" d="M 545,300 C 552,308 558,310 560,310 C 562,310 568,308 575,300" fill="none" stroke="#2e7d32" stroke-width="2" style="display:none"/>
+            <ellipse id="scene2-traj-ellipse" cx="560" cy="305" rx="14" ry="7" fill="none" stroke="#2e7d32" stroke-width="2" style="display:none"/>
+            <path id="scene2-traj-hyperbola" d="M 545,297 Q 555,305 545,313 M 575,297 Q 565,305 575,313" fill="none" stroke="#2e7d32" stroke-width="2" style="display:none"/>
+            <!-- 无轨迹：红色叉线 -->
+            <line id="scene2-traj-none1" x1="548" y1="295" x2="572" y2="315" stroke="#c62828" stroke-width="2" style="display:none"/>
+            <line id="scene2-traj-none2" x1="572" y1="295" x2="548" y2="315" stroke="#c62828" stroke-width="2" style="display:none"/>
+        </svg>
+        
+        <div id="scene2-controls">
+            <div id="scene2-panel-inner">
+                <div class="scene2-slider-label" style="left:20px;top:35px;">α:</div>
+                <input type="range" id="scene2-slider-alpha" class="scene2-slider" style="left:20px;top:50px;" min="0" max="90" value="30">
+                <div id="scene2-alpha-value" class="scene2-value" style="left:125px;top:35px;">30°</div>
+                
+                <div class="scene2-slider-label" style="left:20px;top:95px;">β:</div>
+                <input type="range" id="scene2-slider-beta" class="scene2-slider" style="left:20px;top:110px;" min="0" max="180" value="45">
+                <div id="scene2-beta-value" class="scene2-value" style="left:125px;top:95px;">45°</div>
+                
+                <div id="scene2-data-box">
+                    <div class="scene2-data-row">PA与平面夹角: <span id="scene2-data-angle" class="scene2-data-val">60°</span></div>
+                    <div class="scene2-data-row">圆锥半顶角: <span id="scene2-data-beta" class="scene2-data-val">45°</span></div>
+                    <div class="scene2-data-row">α + β: <span id="scene2-data-sum" class="scene2-data-val">75°</span></div>
+                    <div class="scene2-data-row">轨迹类型: <span id="scene2-data-type" class="scene2-data-val" style="color:#2e7d32;">椭圆</span></div>
+                </div>
+                
+                <button id="scene2-btn-1" class="scene2-btn" style="top:295px;">① α=0°,β=90°</button>
+                <button id="scene2-btn-2" class="scene2-btn" style="top:329px;">② α≠0°,β=90°</button>
+                <button id="scene2-btn-3" class="scene2-btn" style="top:363px;">③ α+β=90°</button>
+                <button id="scene2-btn-4" class="scene2-btn" style="top:397px;">④ α+β>90°</button>
+                <button id="scene2-btn-5" class="scene2-btn" style="top:431px;">⑤ α+β<90°</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 坐标表（来自规格，经Playwright调整后）:
+        // P(180,80), O(180,350), 平面M(80,350)-(580,350)
+        // A_x = 180 + 270*tan(α), A_y = 350
+        // PA从P到A, PO从P到O虚线
+        // 母线1方向=90°-α+β, 母线2方向=90°-α-β
+        // α弧中心P半径30, β弧中心P半径45, 90°-α弧中心A半径20
+        // 轨迹示意框(520,290,80,30), 中心(560,305)
+        // 顶部标签统一放y=36（在所有线条bounding box之上）
+        // 底部标签统一放y=368（在平面M之下）
+        
+        const state = { alpha: 30, beta: 45, activeButton: null };
+        const presets = [
+            { alpha: 0, beta: 90 },    // ①
+            { alpha: 30, beta: 90 },   // ②
+            { alpha: 45, beta: 45 },   // ③
+            { alpha: 60, beta: 40 },   // ④
+            { alpha: 30, beta: 40 }    // ⑤
+        ];
+        
+        const els = {
+            pa: document.getElementById('scene2-pa'),
+            gen1: document.getElementById('scene2-gen1'),
+            gen2: document.getElementById('scene2-gen2'),
+            pointA: document.getElementById('scene2-point-a'),
+            labelA: document.getElementById('scene2-label-a'),
+            label90a: document.getElementById('scene2-label-90a'),
+            labelAlpha: document.getElementById('scene2-label-alpha'),
+            labelBeta: document.getElementById('scene2-label-beta'),
+            labelPa: document.getElementById('scene2-label-pa'),
+            arcAlpha: document.getElementById('scene2-arc-alpha'),
+            arcBeta: document.getElementById('scene2-arc-beta'),
+            arc90a: document.getElementById('scene2-arc-90a'),
+            sliderAlpha: document.getElementById('scene2-slider-alpha'),
+            sliderBeta: document.getElementById('scene2-slider-beta'),
+            valAlpha: document.getElementById('scene2-alpha-value'),
+            valBeta: document.getElementById('scene2-beta-value'),
+            dataAngle: document.getElementById('scene2-data-angle'),
+            dataBeta: document.getElementById('scene2-data-beta'),
+            dataSum: document.getElementById('scene2-data-sum'),
+            dataType: document.getElementById('scene2-data-type'),
+            trajCircle: document.getElementById('scene2-traj-circle'),
+            trajLine: document.getElementById('scene2-traj-line'),
+            trajParabola: document.getElementById('scene2-traj-parabola'),
+            trajEllipse: document.getElementById('scene2-traj-ellipse'),
+            trajHyperbola: document.getElementById('scene2-traj-hyperbola'),
+            trajNone1: document.getElementById('scene2-traj-none1'),
+            trajNone2: document.getElementById('scene2-traj-none2'),
+            btns: [
+                document.getElementById('scene2-btn-1'),
+                document.getElementById('scene2-btn-2'),
+                document.getElementById('scene2-btn-3'),
+                document.getElementById('scene2-btn-4'),
+                document.getElementById('scene2-btn-5')
+            ]
+        };
+        
+        function toRad(deg) { return deg * Math.PI / 180; }
+        
+        function getTrajectoryType(a, b) {
+            if (a === 0) {
+                if (b < 90) return { type: 'circle', color: '#2e7d32', correct: null, msg: '圆' };
+                if (Math.abs(b - 90) < 0.5) return { type: 'none', color: '#c62828', correct: false, msg: '无轨迹（命题①错误）' };
+            }
+            if (Math.abs(b - 90) < 0.5) return { type: 'line', color: '#1565c0', correct: true, msg: '直线（命题②正确）' };
+            const sum = a + b;
+            if (Math.abs(sum - 90) < 0.5) return { type: 'parabola', color: '#2e7d32', correct: true, msg: '抛物线（命题③正确）' };
+            if (sum > 90) return { type: 'hyperbola', color: '#2e7d32', correct: false, msg: '双曲线（命题④错误）' };
+            return { type: 'ellipse', color: '#2e7d32', correct: false, msg: '椭圆（命题⑤错误）' };
+        }
+        
+        function hideAllTraj() {
+            els.trajCircle.style.display = 'none';
+            els.trajLine.style.display = 'none';
+            els.trajParabola.style.display = 'none';
+            els.trajEllipse.style.display = 'none';
+            els.trajHyperbola.style.display = 'none';
+            els.trajNone1.style.display = 'none';
+            els.trajNone2.style.display = 'none';
+        }
+        
+        function showTraj(type, color) {
+            hideAllTraj();
+            if (type === 'none') {
+                els.trajNone1.style.display = 'block';
+                els.trajNone2.style.display = 'block';
+                if (color) {
+                    els.trajNone1.setAttribute('stroke', color);
+                    els.trajNone2.setAttribute('stroke', color);
+                }
+            } else {
+                const elName = 'traj' + type.charAt(0).toUpperCase() + type.slice(1);
+                const el = els[elName];
+                if (el) {
+                    el.style.display = 'block';
+                    if (color) el.setAttribute('stroke', color);
+                }
+            }
+        }
+        
+        function arcPath(cx, cy, r, startAngle, endAngle, largeArc, sweep) {
+            const x1 = cx + r * Math.cos(toRad(startAngle));
+            const y1 = cy + r * Math.sin(toRad(startAngle));
+            const x2 = cx + r * Math.cos(toRad(endAngle));
+            const y2 = cy + r * Math.sin(toRad(endAngle));
+            return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${largeArc} ${sweep} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+        }
+        
+        function render() {
+            const a = state.alpha;
+            const b = state.beta;
+            const radA = toRad(a);
+            
+            // A点位置
+            let ax = 180 + 270 * Math.tan(radA);
+            const ay = 350;
+            if (ax > 580) ax = 580;
+            if (ax < 180) ax = 180;
+            
+            // 更新PA线
+            els.pa.setAttribute('x2', ax);
+            els.pa.setAttribute('y2', ay);
+            
+            // 更新A点
+            els.pointA.setAttribute('cx', ax);
+            els.pointA.setAttribute('cy', ay);
+            
+            // 更新A标签位置：A靠右时放左侧，避免与M拥挤
+            if (ax > 540) {
+                els.labelA.setAttribute('x', ax - 15);
+                els.labelA.setAttribute('text-anchor', 'end');
+            } else {
+                els.labelA.setAttribute('x', ax + 10);
+                els.labelA.setAttribute('text-anchor', 'start');
+            }
+            
+            // 90°−α标签：底部动态位置，避免与A拥挤
+            if (ax > 500) {
+                els.label90a.setAttribute('x', ax - 90);
+            } else {
+                els.label90a.setAttribute('x', ax + 35);
+            }
+            
+            // α、β标签显隐
+            els.labelAlpha.style.display = (a > 1) ? 'block' : 'none';
+            els.labelBeta.style.display = (b > 1) ? 'block' : 'none';
+            
+            // 母线方向（SVG坐标系，顺时针从正x轴）
+            const theta1 = 90 - a + b; // 母线1
+            const theta2 = 90 - a - b; // 母线2
+            
+            // 母线1终点
+            const rad1 = toRad(theta1);
+            const sin1 = Math.sin(rad1);
+            let g1x, g1y;
+            if (sin1 > 0.001) {
+                const t1 = 270 / sin1;
+                g1x = 180 + t1 * Math.cos(rad1);
+                g1y = 80 + t1 * sin1;
+                if (g1x > 600) { g1x = 180 + 300 * Math.cos(rad1); g1y = 80 + 300 * sin1; }
+                if (g1x < 50) { g1x = 180 + 300 * Math.cos(rad1); g1y = 80 + 300 * sin1; }
+            } else {
+                g1x = 180 + 200 * Math.cos(rad1);
+                g1y = 80 + 200 * sin1;
+            }
+            els.gen1.setAttribute('x2', g1x);
+            els.gen1.setAttribute('y2', g1y);
+            
+            // 母线2终点
+            const rad2 = toRad(theta2);
+            const sin2 = Math.sin(rad2);
+            let g2x, g2y;
+            if (sin2 > 0.001) {
+                const t2 = 270 / sin2;
+                g2x = 180 + t2 * Math.cos(rad2);
+                g2y = 80 + t2 * sin2;
+                if (g2x > 600) { g2x = 180 + 300 * Math.cos(rad2); g2y = 80 + 300 * sin2; }
+                if (g2x < 50) { g2x = 180 + 300 * Math.cos(rad2); g2y = 80 + 300 * sin2; }
+            } else {
+                g2x = 180 + 200 * Math.cos(rad2);
+                g2y = 80 + 200 * sin2;
+            }
+            els.gen2.setAttribute('x2', g2x);
+            els.gen2.setAttribute('y2', g2y);
+            
+            // α弧: 从PO方向(90°)到PA方向(90°-a)
+            if (a > 1) {
+                els.arcAlpha.setAttribute('d', arcPath(180, 80, 30, 90, 90 - a, 0, 0));
+                els.arcAlpha.style.display = 'block';
+            } else {
+                els.arcAlpha.style.display = 'none';
+            }
+            
+            // β弧: 从PA方向(90°-a)到母线1方向(90°-a+b)
+            if (b > 1) {
+                const betaStart = 90 - a;
+                const betaEnd = 90 - a + b;
+                const largeArc = b > 180 ? 1 : 0;
+                // sweep=0取短弧（顺时针方向）
+                els.arcBeta.setAttribute('d', arcPath(180, 80, 45, betaStart, betaEnd, largeArc, 0));
+                els.arcBeta.style.display = 'block';
+            } else {
+                els.arcBeta.style.display = 'none';
+            }
+            
+            // 90°-α弧: 中心A，从平面左侧方向(180°)到AP方向(180°+(90°-a))
+            if (a > 1 && a < 89) {
+                const angle90a = 90 - a;
+                els.arc90a.setAttribute('d', arcPath(ax, ay, 20, 180, 180 + angle90a, 0, 1));
+                els.arc90a.style.display = 'block';
+                els.label90a.style.display = 'block';
+            } else {
+                els.arc90a.style.display = 'none';
+                els.label90a.style.display = 'none';
+            }
+            
+            // 轨迹类型
+            const traj = getTrajectoryType(a, b);
+            showTraj(traj.type, traj.color);
+            
+            // 更新数据面板
+            const planeAngle = 90 - a;
+            els.dataAngle.textContent = planeAngle.toFixed(0) + '°';
+            els.dataBeta.textContent = b.toFixed(0) + '°';
+            els.dataSum.textContent = (a + b).toFixed(0) + '°';
+            els.dataType.textContent = traj.msg;
+            els.dataType.style.color = traj.color;
+            
+            // 更新滑块显示
+            els.valAlpha.textContent = a.toFixed(0) + '°';
+            els.valBeta.textContent = b.toFixed(0) + '°';
+        }
+        
+        function animateTo(targetAlpha, targetBeta, duration) {
+            const startAlpha = state.alpha;
+            const startBeta = state.beta;
+            const startTime = performance.now();
+            
+            function step(now) {
+                const t = Math.min((now - startTime) / duration, 1);
+                const ease = 1 - Math.pow(1 - t, 3); // ease-out
+                state.alpha = startAlpha + (targetAlpha - startAlpha) * ease;
+                state.beta = startBeta + (targetBeta - startBeta) * ease;
+                els.sliderAlpha.value = state.alpha;
+                els.sliderBeta.value = state.beta;
+                render();
+                if (t < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        }
+        
+        // 事件绑定
+        els.sliderAlpha.addEventListener('input', function() {
+            state.alpha = parseFloat(this.value);
+            state.activeButton = null;
+            updateBtnHighlight();
+            render();
+        });
+        
+        els.sliderBeta.addEventListener('input', function() {
+            state.beta = parseFloat(this.value);
+            state.activeButton = null;
+            updateBtnHighlight();
+            render();
+        });
+        
+        function updateBtnHighlight() {
+            els.btns.forEach((btn, i) => {
+                if (state.activeButton === i + 1) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        }
+        
+        els.btns.forEach((btn, i) => {
+            btn.addEventListener('click', function() {
+                state.activeButton = i + 1;
+                updateBtnHighlight();
+                animateTo(presets[i].alpha, presets[i].beta, 300);
+            });
+        });
+        
+        // 初始渲染
+        render();
+    })();
+    </script>
+</body>
+</html>

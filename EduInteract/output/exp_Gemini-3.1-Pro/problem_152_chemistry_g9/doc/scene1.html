@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-text { font-size: 16px; font-weight: bold; min-width: 180px; text-align: center; }
+        
+        /* SVG Elements Transitions */
+        .anim-element { transition: all 1s ease-in-out; }
+        .water-flow { stroke-dasharray: 1000; stroke-dashoffset: 1000; transition: stroke-dashoffset 2s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <filter id="scene1-blur">
+                    <feGaussianBlur stdDeviation="5"/>
+                </filter>
+                <linearGradient id="scene1-flame-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" stop-color="#ff9800" />
+                    <stop offset="100%" stop-color="#ffeb3b" />
+                </linearGradient>
+            </defs>
+            
+            <!-- 烧杯水 -->
+            <rect id="scene1-beaker-water" class="anim-element" x="512" y="250" width="176" height="148" fill="#1565c0" opacity="0.3" />
+            
+            <!-- 烧杯 -->
+            <path d="M 500 190 L 510 190 L 510 400 L 690 400 L 690 190 L 700 190" fill="none" stroke="#000" stroke-width="2" />
+            <text x="600" y="430" font-size="16" text-anchor="middle" fill="#000">烧杯</text>
+            <text id="scene1-label-beaker-water" x="720" y="320" font-size="14" fill="#000">水</text>
+            <line x1="690" y1="315" x2="715" y2="315" stroke="#000" stroke-width="1" />
+
+            <!-- 瓶底水 -->
+            <rect id="scene1-bottle-water" class="anim-element" x="172" y="360" width="156" height="38" fill="#1565c0" opacity="0" />
+            <text id="scene1-label-bottle-water" class="anim-element" x="110" y="380" font-size="14" fill="#000" opacity="0">底水</text>
+            <line id="scene1-line-bottle-water" class="anim-element" x1="145" y1="375" x2="170" y2="375" stroke="#000" stroke-width="1" opacity="0" />
+
+            <!-- 1/5高亮区 -->
+            <rect id="scene1-highlight" class="anim-element" x="172" y="320" width="156" height="40" fill="#2e7d32" opacity="0" />
+            <text id="scene1-label-highlight" class="anim-element" x="50" y="345" font-size="14" fill="#2e7d32" opacity="0">占空气体积的1/5</text>
+            <line id="scene1-line-highlight" class="anim-element" x1="150" y1="340" x2="250" y2="340" stroke="#2e7d32" stroke-width="1" opacity="0" />
+
+            <!-- 集气瓶 -->
+            <path d="M 210 100 L 210 130 C 210 140, 170 150, 170 170 L 170 390 C 170 395, 175 400, 180 400 L 320 400 C 325 400, 330 395, 330 390 L 330 170 C 330 150, 290 140, 290 130 L 290 100 Z" fill="none" stroke="#000" stroke-width="2" />
+            <text x="250" y="430" font-size="16" text-anchor="middle" fill="#000">集气瓶</text>
+            
+            <!-- 刻度线 -->
+            <g id="scene1-scales" class="anim-element" opacity="0">
+                <line x1="170" y1="320" x2="185" y2="320" stroke="#000" stroke-width="2" />
+                <text x="150" y="325" font-size="14" fill="#000">1</text>
+                <line x1="170" y1="280" x2="185" y2="280" stroke="#000" stroke-width="2" />
+                <text x="150" y="285" font-size="14" fill="#000">2</text>
+                <line x1="170" y1="240" x2="185" y2="240" stroke="#000" stroke-width="2" />
+                <text x="150" y="245" font-size="14" fill="#000">3</text>
+                <line x1="170" y1="200" x2="185" y2="200" stroke="#000" stroke-width="2" />
+                <text x="150" y="205" font-size="14" fill="#000">4</text>
+            </g>
+
+            <!-- 橡胶塞 -->
+            <path d="M 205 90 L 295 90 L 290 115 L 210 115 Z" fill="#555555" />
+
+            <!-- 燃烧匙 -->
+            <line x1="230" y1="70" x2="230" y2="280" stroke="#000" stroke-width="2" />
+            <path d="M 220 280 C 220 290, 240 290, 240 280 Z" fill="none" stroke="#000" stroke-width="2" />
+            
+            <!-- 红磷 -->
+            <path id="scene1-phosphorus" class="anim-element" d="M 222 278 C 225 272, 235 272, 238 278 Z" fill="#c62828" opacity="0" />
+            <text id="scene1-label-phosphorus" class="anim-element" x="70" y="285" font-size="14" fill="#c62828" opacity="0">红磷(过量)</text>
+            <line id="scene1-line-phosphorus" class="anim-element" x1="140" y1="280" x2="220" y2="280" stroke="#c62828" stroke-width="1" opacity="0" />
+
+            <!-- 火焰 -->
+            <path id="scene1-flame" class="anim-element" d="M 230 250 Q 235 265 235 270 Q 230 275 225 270 Q 225 265 230 250 Z" fill="url(#scene1-flame-grad)" opacity="0" />
+
+            <!-- 白烟 -->
+            <g id="scene1-smoke" class="anim-element" opacity="0" filter="url(#scene1-blur)">
+                <circle cx="250" cy="250" r="40" fill="#888888" opacity="0.6" />
+                <circle cx="220" cy="220" r="50" fill="#888888" opacity="0.6" />
+                <circle cx="280" cy="210" r="45" fill="#888888" opacity="0.6" />
+                <circle cx="250" cy="180" r="55" fill="#888888" opacity="0.6" />
+                <circle cx="210" cy="270" r="35" fill="#888888" opacity="0.6" />
+                <circle cx="290" cy="260" r="35" fill="#888888" opacity="0.6" />
+            </g>
+            <text id="scene1-label-smoke" class="anim-element" x="80" y="220" font-size="14" fill="#666666" opacity="0">大量白烟</text>
+            <line id="scene1-line-smoke" class="anim-element" x1="140" y1="215" x2="250" y2="215" stroke="#666666" stroke-width="1" opacity="0" />
+
+            <!-- 导管 -->
+            <path d="M 270 120 L 270 80 L 600 80 L 600 390" fill="none" stroke="#000" stroke-width="10" />
+            <path d="M 270 120 L 270 80 L 600 80 L 600 390" fill="none" stroke="#fff" stroke-width="6" />
+            
+            <!-- 导管水流 (动画用) -->
+            <path id="scene1-water-flow" class="water-flow" d="M 600 390 L 600 80 L 270 80 L 270 120" fill="none" stroke="#1565c0" stroke-width="6" opacity="0.6" />
+
+            <!-- 止水夹 -->
+            <g id="scene1-clamp">
+                <rect x="420" y="70" width="30" height="20" fill="#fff" stroke="#000" stroke-width="2" />
+                <line x1="435" y1="60" x2="435" y2="70" stroke="#000" stroke-width="2" />
+                <circle cx="435" cy="55" r="5" fill="none" stroke="#000" stroke-width="2" />
+                <line x1="435" y1="90" x2="435" y2="100" stroke="#000" stroke-width="2" />
+                <circle cx="435" cy="105" r="5" fill="none" stroke="#000" stroke-width="2" />
+            </g>
+            <text x="435" y="40" font-size="14" text-anchor="middle" fill="#000">止水夹</text>
+            
+            <!-- 止水夹关闭状态的叉号 -->
+            <g id="scene1-clamp-closed" class="anim-element" opacity="0">
+                <line x1="425" y1="75" x2="445" y2="85" stroke="#d32f2f" stroke-width="3" />
+                <line x1="445" y1="75" x2="425" y2="85" stroke="#d32f2f" stroke-width="3" />
+            </g>
+
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <div id="scene1-step-text">步骤 0/5：初始装置</div>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 5;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+        
+        const steps = [
+            "步骤 0/5：初始装置",
+            "步骤 1/5：实验准备",
+            "步骤 2/5：红磷燃烧",
+            "步骤 3/5：冷却室温",
+            "步骤 4/5：打开止水夹",
+            "步骤 5/5：得出结论"
+        ];
+
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            stepText.textContent = steps[currentStep];
+            
+            const bottleWater = document.getElementById('scene1-bottle-water');
+            const labelBottleWater = document.getElementById('scene1-label-bottle-water');
+            const lineBottleWater = document.getElementById('scene1-line-bottle-water');
+            const scales = document.getElementById('scene1-scales');
+            const phosphorus = document.getElementById('scene1-phosphorus');
+            const labelPhosphorus = document.getElementById('scene1-label-phosphorus');
+            const linePhosphorus = document.getElementById('scene1-line-phosphorus');
+            const clampClosed = document.getElementById('scene1-clamp-closed');
+            const flame = document.getElementById('scene1-flame');
+            const smoke = document.getElementById('scene1-smoke');
+            const labelSmoke = document.getElementById('scene1-label-smoke');
+            const lineSmoke = document.getElementById('scene1-line-smoke');
+            const waterFlow = document.getElementById('scene1-water-flow');
+            const beakerWater = document.getElementById('scene1-beaker-water');
+            const highlight = document.getElementById('scene1-highlight');
+            const labelHighlight = document.getElementById('scene1-label-highlight');
+            const lineHighlight = document.getElementById('scene1-line-highlight');
+
+            // Step 0: Initial
+            if (currentStep === 0) {
+                bottleWater.style.opacity = 0;
+                labelBottleWater.style.opacity = 0;
+                lineBottleWater.style.opacity = 0;
+                scales.style.opacity = 0;
+                phosphorus.style.opacity = 0;
+                labelPhosphorus.style.opacity = 0;
+                linePhosphorus.style.opacity = 0;
+                clampClosed.style.opacity = 0;
+                flame.style.opacity = 0;
+                smoke.style.opacity = 0;
+                labelSmoke.style.opacity = 0;
+                lineSmoke.style.opacity = 0;
+                waterFlow.style.strokeDashoffset = 1000;
+                beakerWater.setAttribute('y', '250');
+                beakerWater.setAttribute('height', '148');
+                bottleWater.setAttribute('y', '360');
+                bottleWater.setAttribute('height', '38');
+                highlight.style.opacity = 0;
+                labelHighlight.style.opacity = 0;
+                lineHighlight.style.opacity = 0;
+            }
+            
+            // Step 1: Preparation
+            if (currentStep >= 1) {
+                bottleWater.style.opacity = 0.3;
+                labelBottleWater.style.opacity = 1;
+                lineBottleWater.style.opacity = 1;
+                scales.style.opacity = 1;
+                phosphorus.style.opacity = 1;
+                labelPhosphorus.style.opacity = 1;
+                linePhosphorus.style.opacity = 1;
+                clampClosed.style.opacity = 1;
+            } else {
+                clampClosed.style.opacity = 0;
+            }
+
+            // Step 2: Burning
+            if (currentStep === 2) {
+                flame.style.opacity = 1;
+                smoke.style.opacity = 1;
+                labelSmoke.style.opacity = 1;
+                lineSmoke.style.opacity = 1;
+            } else {
+                flame.style.opacity = 0;
+            }
+
+            // Step 3: Cooling
+            if (currentStep === 3) {
+                smoke.style.opacity = 0.3;
+                labelSmoke.style.opacity = 0.5;
+                lineSmoke.style.opacity = 0.5;
+            } else if (currentStep > 3) {
+                smoke.style.opacity = 0;
+                labelSmoke.style.opacity = 0;
+                lineSmoke.style.opacity = 0;
+            }
+
+            // Step 4: Open clamp & water flows
+            if (currentStep >= 4) {
+                clampClosed.style.opacity = 0;
+                waterFlow.style.strokeDashoffset = 0;
+                setTimeout(() => {
+                    if (currentStep >= 4) {
+                        beakerWater.setAttribute('y', '270');
+                        beakerWater.setAttribute('height', '128');
+                        bottleWater.setAttribute('y', '320');
+                        bottleWater.setAttribute('height', '78');
+                    }
+                }, 1000);
+            } else {
+                waterFlow.style.strokeDashoffset = 1000;
+                beakerWater.setAttribute('y', '250');
+                beakerWater.setAttribute('height', '148');
+                bottleWater.setAttribute('y', '360');
+                bottleWater.setAttribute('height', '38');
+            }
+
+            // Step 5: Conclusion
+            if (currentStep === 5) {
+                setTimeout(() => {
+                    if (currentStep === 5) {
+                        highlight.style.opacity = 1;
+                        labelHighlight.style.opacity = 1;
+                        lineHighlight.style.opacity = 1;
+                    }
+                }, 1500);
+            } else {
+                highlight.style.opacity = 0;
+                labelHighlight.style.opacity = 0;
+                lineHighlight.style.opacity = 0;
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

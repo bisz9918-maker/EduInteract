@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 选项对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; display: block; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px; z-index: 10; }
+        .scene2-btn {
+            width: 60px; height: 40px; border: 2px solid #999; border-radius: 6px;
+            background: #e0e0e0; color: #333; font-size: 18px; font-weight: bold;
+            cursor: pointer; transition: all 0.2s; outline: none;
+        }
+        .scene2-btn:hover { background: #bdbdbd; }
+        .scene2-btn.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 选项标题 (y=44, 确保距顶部≥20px) -->
+            <text id="scene2-title" x="400" y="44" text-anchor="middle" font-size="20" font-weight="bold" fill="#000000">选项 A</text>
+
+            <!-- 正方形边框 -->
+            <rect id="scene2-square" x="240" y="60" width="320" height="320" rx="2" ry="2"
+                  fill="none" stroke="#2e7d32" stroke-width="3" />
+
+            <!-- 对角线（辅助线，虚线） -->
+            <line id="scene2-diagonal" x1="240" y1="60" x2="560" y2="380"
+                  stroke="#cccccc" stroke-width="1" stroke-dasharray="6,4" />
+
+            <!-- 圆洞组 -->
+            <g id="scene2-holes"></g>
+
+            <!-- 结果标注 -->
+            <text id="scene2-result" x="400" y="410" text-anchor="middle" font-size="18" fill="#2e7d32">✓ 正确</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-A" class="scene2-btn active" onclick="window.__scene2Switch('A')">A</button>
+            <button id="scene2-btn-B" class="scene2-btn" onclick="window.__scene2Switch('B')">B</button>
+            <button id="scene2-btn-C" class="scene2-btn" onclick="window.__scene2Switch('C')">C</button>
+            <button id="scene2-btn-D" class="scene2-btn" onclick="window.__scene2Switch('D')">D</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 布局坐标表（来自 spec 计划）：
+        // 标题: (400,44) | 正方形: (240,60)-(560,380) 320x320
+        // 结果标注: (400,410) | 按钮: y=455~495, x=250,330,410,490
+        // 圆洞半径: 12px
+
+        var currentOption = 'A';
+
+        // 各选项的圆洞坐标
+        var holeData = {
+            A: [
+                { cx: 275, cy: 95 },   // 左上
+                { cx: 525, cy: 95 },   // 右上
+                { cx: 275, cy: 345 },  // 左下
+                { cx: 525, cy: 345 }   // 右下
+            ],
+            B: [
+                { cx: 275, cy: 95 },
+                { cx: 525, cy: 95 },
+                { cx: 275, cy: 345 },
+                { cx: 525, cy: 345 },
+                { cx: 380, cy: 200 },  // 中间对角线上
+                { cx: 420, cy: 240 }   // 中间对角线上
+            ],
+            C: [
+                { cx: 270, cy: 90 },   // 左上偏移
+                { cx: 530, cy: 120 },  // 右上偏移
+                { cx: 280, cy: 330 },  // 左下偏移
+                { cx: 510, cy: 350 }   // 右下偏移
+            ],
+            D: [
+                { cx: 260, cy: 80 },   // 左上角第一个
+                { cx: 290, cy: 110 },  // 左上角第二个
+                { cx: 510, cy: 80 },   // 右上角第一个
+                { cx: 540, cy: 110 },  // 右上角第二个
+                { cx: 260, cy: 330 },  // 左下角第一个
+                { cx: 290, cy: 360 },  // 左下角第二个
+                { cx: 510, cy: 330 },  // 右下角第一个
+                { cx: 540, cy: 360 }   // 右下角第二个
+            ]
+        };
+
+        // 各选项的结果信息
+        var resultInfo = {
+            A: { text: '✓ 正确', color: '#2e7d32', borderColor: '#2e7d32', borderWidth: 3 },
+            B: { text: '✗ 错误：多了中间的洞', color: '#c62828', borderColor: '#888888', borderWidth: 2 },
+            C: { text: '✗ 错误：分布不对称', color: '#c62828', borderColor: '#888888', borderWidth: 2 },
+            D: { text: '✗ 错误：每个角有两个洞', color: '#c62828', borderColor: '#888888', borderWidth: 2 }
+        };
+
+        function render(option) {
+            var title = document.getElementById('scene2-title');
+            var square = document.getElementById('scene2-square');
+            var holesGroup = document.getElementById('scene2-holes');
+            var result = document.getElementById('scene2-result');
+            var info = resultInfo[option];
+
+            // 更新标题
+            title.textContent = '选项 ' + option;
+
+            // 更新正方形边框
+            square.setAttribute('stroke', info.borderColor);
+            square.setAttribute('stroke-width', info.borderWidth);
+
+            // 更新圆洞
+            holesGroup.innerHTML = '';
+            var holes = holeData[option];
+            for (var i = 0; i < holes.length; i++) {
+                var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', holes[i].cx);
+                circle.setAttribute('cy', holes[i].cy);
+                circle.setAttribute('r', '12');
+                circle.setAttribute('fill', 'none');
+                circle.setAttribute('stroke', '#000000');
+                circle.setAttribute('stroke-width', '2');
+                holesGroup.appendChild(circle);
+            }
+
+            // 更新结果标注
+            result.textContent = info.text;
+            result.setAttribute('fill', info.color);
+
+            // 更新按钮状态
+            var btns = ['A', 'B', 'C', 'D'];
+            for (var j = 0; j < btns.length; j++) {
+                var btn = document.getElementById('scene2-btn-' + btns[j]);
+                if (btns[j] === option) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            }
+
+            currentOption = option;
+        }
+
+        // 暴露给全局的切换函数
+        window.__scene2Switch = function(option) {
+            render(option);
+        };
+
+        // 初始渲染
+        render('A');
+    })();
+    </script>
+</body>
+</html>

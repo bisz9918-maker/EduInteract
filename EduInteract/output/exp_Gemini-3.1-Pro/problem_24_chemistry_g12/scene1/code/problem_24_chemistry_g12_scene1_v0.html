@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>等效平衡演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .molecule { transition: all 0.8s ease-in-out; }
+        .fade { transition: opacity 0.8s ease-in-out; }
+        #scene1-conclusion { position: absolute; top: 360px; left: 100px; width: 600px; height: 80px; font-size: 16px; line-height: 1.5; text-align: center; display: flex; align-items: center; justify-content: center; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 反应方程式 -->
+            <text x="400" y="50" font-size="24" text-anchor="middle" font-family="sans-serif">2NO₂ (g) ⇌ N₂O₄ (g)</text>
+            
+            <!-- 容器甲 -->
+            <rect x="150" y="120" width="180" height="180" fill="rgba(0,0,0,0.05)" stroke="#000" stroke-width="2" />
+            <text x="240" y="325" font-size="16" text-anchor="middle">甲 (恒温恒容)</text>
+            <text id="scene1-jia-status" x="240" y="105" font-size="16" text-anchor="middle" fill="#c62828" class="fade">0.2 mol NO₂</text>
+            
+            <!-- 容器丙 -->
+            <rect x="470" y="120" width="180" height="180" fill="rgba(0,0,0,0.05)" stroke="#000" stroke-width="2" />
+            <text x="560" y="325" font-size="16" text-anchor="middle">丙 (恒温恒容)</text>
+            <text id="scene1-bing-status" x="560" y="105" font-size="16" text-anchor="middle" fill="#1565c0" class="fade">0.1 mol N₂O₄</text>
+            
+            <!-- 关系符号 -->
+            <g id="scene1-relation" class="fade" opacity="0">
+                <text id="scene1-relation-label" x="400" y="180" font-size="14" text-anchor="middle" fill="#666">极限转化</text>
+                <path id="scene1-relation-arrow" d="M 350 215 L 450 215" stroke="#888" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)" />
+                <text id="scene1-relation-eq" x="400" y="245" font-size="36" text-anchor="middle" fill="#000" opacity="0">=</text>
+            </g>
+
+            <!-- 箭头定义 -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#888" />
+                </marker>
+            </defs>
+
+            <!-- 分子 甲 -->
+            <!-- R1, R2 -->
+            <circle id="scene1-jia-r1" class="molecule" cx="210" cy="180" r="8" fill="#c62828" />
+            <circle id="scene1-jia-r2" class="molecule" cx="270" cy="180" r="8" fill="#c62828" />
+            <!-- R3, R4 -->
+            <circle id="scene1-jia-r3" class="molecule" cx="210" cy="240" r="8" fill="#c62828" />
+            <circle id="scene1-jia-r4" class="molecule" cx="270" cy="240" r="8" fill="#c62828" />
+            <!-- B1, B2 -->
+            <circle id="scene1-jia-b1" class="molecule fade" cx="240" cy="180" r="12" fill="#1565c0" opacity="0" />
+            <circle id="scene1-jia-b2" class="molecule fade" cx="240" cy="240" r="12" fill="#1565c0" opacity="0" />
+
+            <!-- 分子 丙 -->
+            <!-- B3, B4 -->
+            <circle id="scene1-bing-b3" class="molecule fade" cx="560" cy="180" r="12" fill="#1565c0" />
+            <circle id="scene1-bing-b4" class="molecule fade" cx="560" cy="240" r="12" fill="#1565c0" />
+            <!-- R3, R4 -->
+            <circle id="scene1-bing-r3" class="molecule fade" cx="560" cy="180" r="8" fill="#c62828" opacity="0" />
+            <circle id="scene1-bing-r4" class="molecule fade" cx="560" cy="180" r="8" fill="#c62828" opacity="0" />
+
+        </svg>
+        
+        <div id="scene1-conclusion"></div>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const conclusion = document.getElementById('scene1-conclusion');
+
+        const jiaStatus = document.getElementById('scene1-jia-status');
+        const bingStatus = document.getElementById('scene1-bing-status');
+        const relation = document.getElementById('scene1-relation');
+        const relationLabel = document.getElementById('scene1-relation-label');
+        const relationArrow = document.getElementById('scene1-relation-arrow');
+        const relationEq = document.getElementById('scene1-relation-eq');
+
+        const jiaR1 = document.getElementById('scene1-jia-r1');
+        const jiaR2 = document.getElementById('scene1-jia-r2');
+        const jiaR3 = document.getElementById('scene1-jia-r3');
+        const jiaR4 = document.getElementById('scene1-jia-r4');
+        const jiaB1 = document.getElementById('scene1-jia-b1');
+        const jiaB2 = document.getElementById('scene1-jia-b2');
+
+        const bingB3 = document.getElementById('scene1-bing-b3');
+        const bingB4 = document.getElementById('scene1-bing-b4');
+        const bingR3 = document.getElementById('scene1-bing-r3');
+        const bingR4 = document.getElementById('scene1-bing-r4');
+
+        const texts = [
+            "初始状态：甲充入 0.2 mol NO₂，丙充入 0.1 mol N₂O₄。两容器体积、温度相同。",
+            "极限转化：假设甲中的 NO₂ 完全反应，将生成 0.1 mol N₂O₄，此时甲与丙的物质状态完全一致。",
+            "等效平衡：由于极限状态相同且条件（恒温恒容）相同，甲与丙最终将达到完全相同的平衡状态。",
+            "转化率分析：设甲中 NO₂ 转化率为 α，丙中 N₂O₄ 转化率为 β。根据等效平衡原理，α + β = 1。若 α = β = 50%，则转化率相同，故选项C“不可能相同”错误。"
+        ];
+
+        function updateScene(step) {
+            btnPrev.disabled = step === 0;
+            btnNext.disabled = step === maxStep;
+            conclusion.innerHTML = texts[step];
+
+            if (step === 0) {
+                jiaStatus.textContent = "0.2 mol NO₂";
+                jiaStatus.setAttribute("fill", "#c62828");
+                bingStatus.textContent = "0.1 mol N₂O₄";
+                bingStatus.setAttribute("fill", "#1565c0");
+
+                relation.setAttribute("opacity", "0");
+
+                // 甲分子
+                jiaR1.setAttribute("cx", "210"); jiaR1.setAttribute("opacity", "1");
+                jiaR2.setAttribute("cx", "270"); jiaR2.setAttribute("opacity", "1");
+                jiaR3.setAttribute("cx", "210"); jiaR3.setAttribute("opacity", "1");
+                jiaR4.setAttribute("cx", "270"); jiaR4.setAttribute("opacity", "1");
+                jiaB1.setAttribute("opacity", "0");
+                jiaB2.setAttribute("opacity", "0");
+
+                // 丙分子
+                bingB3.setAttribute("opacity", "1");
+                bingR3.setAttribute("cx", "560"); bingR3.setAttribute("opacity", "0");
+                bingR4.setAttribute("cx", "560"); bingR4.setAttribute("opacity", "0");
+            } 
+            else if (step === 1) {
+                jiaStatus.textContent = "0.1 mol N₂O₄";
+                jiaStatus.setAttribute("fill", "#1565c0");
+                bingStatus.textContent = "0.1 mol N₂O₄";
+                bingStatus.setAttribute("fill", "#1565c0");
+
+                relation.setAttribute("opacity", "1");
+                relationLabel.textContent = "极限转化";
+                relationLabel.setAttribute("opacity", "1");
+                relationArrow.setAttribute("opacity", "1");
+                relationEq.setAttribute("opacity", "0");
+
+                // 甲分子极限转化
+                jiaR1.setAttribute("cx", "240"); jiaR1.setAttribute("opacity", "0");
+                jiaR2.setAttribute("cx", "240"); jiaR2.setAttribute("opacity", "0");
+                jiaR3.setAttribute("cx", "240"); jiaR3.setAttribute("opacity", "0");
+                jiaR4.setAttribute("cx", "240"); jiaR4.setAttribute("opacity", "0");
+                jiaB1.setAttribute("opacity", "1");
+                jiaB2.setAttribute("opacity", "1");
+
+                // 丙分子保持
+                bingB3.setAttribute("opacity", "1");
+                bingR3.setAttribute("cx", "560"); bingR3.setAttribute("opacity", "0");
+                bingR4.setAttribute("cx", "560"); bingR4.setAttribute("opacity", "0");
+            }
+            else if (step >= 2) {
+                jiaStatus.textContent = "平衡混合物";
+                jiaStatus.setAttribute("fill", "#000");
+                bingStatus.textContent = "平衡混合物";
+                bingStatus.setAttribute("fill", "#000");
+
+                relation.setAttribute("opacity", "1");
+                relationLabel.textContent = "等效平衡";
+                relationArrow.setAttribute("opacity", "0");
+                relationEq.setAttribute("opacity", "1");
+
+                // 甲分子平衡 (B1拆分为R1, R2)
+                jiaB1.setAttribute("opacity", "0");
+                jiaR1.setAttribute("cx", "210"); jiaR1.setAttribute("opacity", "1");
+                jiaR2.setAttribute("cx", "270"); jiaR2.setAttribute("opacity", "1");
+                jiaB2.setAttribute("opacity", "1");
+                jiaR3.setAttribute("opacity", "0");
+                jiaR4.setAttribute("opacity", "0");
+
+                // 丙分子平衡 (B3拆分为R3, R4)
+                bingB3.setAttribute("opacity", "0");
+                bingR3.setAttribute("cx", "530"); bingR3.setAttribute("opacity", "1");
+                bingR4.setAttribute("cx", "590"); bingR4.setAttribute("opacity", "1");
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene(currentStep);
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene(currentStep);
+            }
+        });
+
+        // 初始化
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

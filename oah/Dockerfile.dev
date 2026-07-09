@@ -1,0 +1,59 @@
+FROM node:24-alpine
+
+LABEL org.opencontainers.image.title="Open Agent Harness" \
+      org.opencontainers.image.description="Dockerized local development image for Open Agent Harness." \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.source="https://github.com/fairyshine/OpenAgentHarness" \
+      org.opencontainers.image.url="https://github.com/fairyshine/OpenAgentHarness" \
+      org.opencontainers.image.documentation="https://github.com/fairyshine/OpenAgentHarness#readme" \
+      org.opencontainers.image.licenses="UNLICENSED" \
+      org.opencontainers.image.vendor="fairyshine" \
+      io.openagentharness.logo-path="/app/assets/logo.png"
+
+RUN corepack enable
+
+WORKDIR /app
+
+RUN npm install -g tsx@4.21.0 typescript@6.0.2
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.base.json ./
+RUN printf '%s\n' \
+  '{' \
+  '  "name": "open-agent-harness-dev",' \
+  '  "private": true,' \
+  '  "packageManager": "pnpm@10.30.2",' \
+  '  "type": "module"' \
+  '}' > package.json
+COPY apps/server/package.json ./apps/server/package.json
+COPY packages/api-contracts/package.json ./packages/api-contracts/package.json
+COPY packages/config/package.json ./packages/config/package.json
+COPY packages/engine-core/package.json ./packages/engine-core/package.json
+COPY packages/model-runtime/package.json ./packages/model-runtime/package.json
+COPY packages/native-bridge/package.json ./packages/native-bridge/package.json
+COPY packages/storage-memory/package.json ./packages/storage-memory/package.json
+COPY packages/storage-postgres/package.json ./packages/storage-postgres/package.json
+COPY packages/storage-redis/package.json ./packages/storage-redis/package.json
+COPY packages/storage-sqlite/package.json ./packages/storage-sqlite/package.json
+
+COPY apps/server ./apps/server
+COPY packages/api-contracts ./packages/api-contracts
+COPY packages/config ./packages/config
+COPY packages/engine-core ./packages/engine-core
+COPY packages/model-runtime ./packages/model-runtime
+COPY packages/native-bridge ./packages/native-bridge
+COPY packages/storage-memory ./packages/storage-memory
+COPY packages/storage-postgres ./packages/storage-postgres
+COPY packages/storage-redis ./packages/storage-redis
+COPY packages/storage-sqlite ./packages/storage-sqlite
+COPY docs/openapi ./docs/openapi
+COPY docs/schemas ./docs/schemas
+COPY assets/logo.png ./assets/logo.png
+COPY assets/logo-readme.png ./assets/logo-readme.png
+
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+  pnpm config set store-dir /pnpm/store \
+  && pnpm install --filter @oah/server... --no-frozen-lockfile
+
+EXPOSE 8787
+
+CMD ["tsx", "--tsconfig", "./apps/server/tsconfig.json", "./apps/server/src/index.ts", "--config", "/config/server.docker.yaml"]

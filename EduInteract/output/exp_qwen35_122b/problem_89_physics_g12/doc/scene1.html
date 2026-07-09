@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分段电场中带电粒子的运动轨迹</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; border: 2px solid #333; border-radius: 6px; background: #f5f5f5; cursor: pointer; transition: all 0.2s; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { padding: 8px 16px; font-size: 14px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrow-x" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000" />
+                </marker>
+                <marker id="scene1-arrow-y" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000" />
+                </marker>
+                <marker id="scene1-arrow-e1" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-e2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene1-arrow-v1" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+                <marker id="scene1-arrow-v2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- E₁区域背景 -->
+            <rect id="scene1-region-E1" x="80" y="50" width="270" height="370" fill="#1565c0" fill-opacity="0.1" />
+            <!-- E₂区域背景 -->
+            <rect id="scene1-region-E2" x="350" y="50" width="400" height="370" fill="#2e7d32" fill-opacity="0.1" />
+
+            <!-- x 轴 -->
+            <line id="scene1-axis-x" x1="80" y1="420" x2="750" y2="420" stroke="#000" stroke-width="2" marker-end="url(#scene1-arrow-x)" />
+            <!-- y 轴 -->
+            <line id="scene1-axis-y" x1="80" y1="420" x2="80" y2="50" stroke="#000" stroke-width="2" marker-end="url(#scene1-arrow-y)" />
+
+            <!-- 虚线 ab -->
+            <line id="scene1-line-ab" x1="350" y1="50" x2="350" y2="420" stroke="#666" stroke-width="2" stroke-dasharray="8,4" />
+
+            <!-- E₁电场线 -->
+            <line id="scene1-field-E1-1" x1="120" y1="350" x2="320" y2="350" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-e1)" />
+            <line id="scene1-field-E1-2" x1="120" y1="280" x2="320" y2="280" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-e1)" />
+            <line id="scene1-field-E1-3" x1="120" y1="250" x2="320" y2="250" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-e1)" />
+            <line id="scene1-field-E1-4" x1="120" y1="180" x2="320" y2="180" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-e1)" />
+
+            <!-- E₂电场线 -->
+            <line id="scene1-field-E2-1" x1="420" y1="350" x2="420" y2="100" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-e2)" />
+            <line id="scene1-field-E2-2" x1="490" y1="350" x2="490" y2="100" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-e2)" />
+            <line id="scene1-field-E2-3" x1="560" y1="350" x2="560" y2="100" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-e2)" />
+            <line id="scene1-field-E2-4" x1="630" y1="350" x2="630" y2="100" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-e2)" />
+
+            <!-- P 点 -->
+            <circle id="scene1-point-P" cx="80" cy="250" r="6" fill="#d32f2f" />
+
+            <!-- 轨迹段 1（E₁区域水平直线）-->
+            <line id="scene1-traj-1" x1="80" y1="250" x2="350" y2="250" stroke="#1565c0" stroke-width="2" opacity="0" />
+
+            <!-- 轨迹段 2（E₂区域抛物线）-->
+            <path id="scene1-traj-2" d="M 350 250 Q 465 335 580 420" stroke="#1565c0" stroke-width="2" fill="none" opacity="0" />
+
+            <!-- v₁矢量 -->
+            <line id="scene1-vec-v1" x1="215" y1="240" x2="265" y2="240" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-v1)" opacity="0" />
+
+            <!-- v₂矢量 -->
+            <line id="scene1-vec-v2" x1="465" y1="335" x2="515" y2="385" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrow-v2)" opacity="0" />
+
+            <!-- Q 点 -->
+            <circle id="scene1-point-Q" cx="580" cy="420" r="6" fill="#388e3c" opacity="0" />
+
+            <!-- 粒子（动态）-->
+            <circle id="scene1-particle" cx="80" cy="250" r="8" fill="#ff9800" opacity="0" />
+
+            <!-- 标签 -->
+            <text id="scene1-label-O" x="70" y="435" font-size="16" fill="#000">O</text>
+            <text id="scene1-label-x" x="755" y="425" font-size="16" fill="#000">x</text>
+            <text id="scene1-label-y" x="70" y="40" font-size="16" fill="#000">y</text>
+            <text id="scene1-label-P" x="55" y="255" font-size="16" fill="#d32f2f">P(0,h)</text>
+            <text id="scene1-label-Q" x="570" y="435" font-size="16" fill="#388e3c" opacity="0">Q</text>
+            <text id="scene1-label-Qcoord" x="540" y="450" font-size="14" fill="#388e3c" opacity="0">Q(x_Q, 0)</text>
+            <text id="scene1-label-a" x="345" y="45" font-size="16" fill="#666">a</text>
+            <text id="scene1-label-b" x="345" y="435" font-size="16" fill="#666">b</text>
+            <text id="scene1-label-L" x="215" y="435" font-size="16" fill="#000">L</text>
+            <text id="scene1-label-E1" x="220" y="5" font-size="18" fill="#1565c0" font-weight="bold">E₁</text>
+            <text id="scene1-label-E2" x="680" y="5" font-size="18" fill="#2e7d32" font-weight="bold">E₂</text>
+            <text id="scene1-label-v1" x="230" y="205" font-size="16" fill="#1565c0" opacity="0">v₁</text>
+            <text id="scene1-label-v2" x="525" y="425" font-size="16" fill="#1565c0" opacity="0">v₂</text>
+
+            <!-- L 标注线段 -->
+            <line id="scene1-line-L" x1="80" y1="425" x2="350" y2="425" stroke="#000" stroke-width="1" opacity="0" />
+            <line id="scene1-line-L1" x1="80" y1="420" x2="80" y2="430" stroke="#000" stroke-width="1" opacity="0" />
+            <line id="scene1-line-L2" x1="350" y1="420" x2="350" y2="430" stroke="#000" stroke-width="1" opacity="0" />
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1: 分段电场中带电粒子的运动轨迹
+        // 布局坐标表（对照实现）：
+        // 原点 O: (80, 420)
+        // x 轴: (80,420)-(750,420)
+        // y 轴: (80,420)-(80,50)
+        // 虚线 ab: (350,50)-(350,420)
+        // P 点: (80, 250)
+        // Q 点: (580, 420)
+        // E₁区域: (80,50)-(350,420)
+        // E₂区域: (350,50)-(750,420)
+
+        const scene1 = {
+            currentStep: 0,
+            totalSteps: 5,
+            particleAnimating: false,
+            animationFrame: null,
+            particleStartPos: { x: 80, y: 250 },
+            particleEndPos: { x: 350, y: 250 },
+            particleAnimProgress: 0,
+
+            // 获取元素
+            get: function(id) {
+                return document.getElementById('scene1-' + id);
+            },
+
+            // 显示元素
+            show: function(el) {
+                if (el) {
+                    el.style.display = 'block';
+                    el.style.opacity = '1';
+                }
+            },
+
+            // 隐藏元素
+            hide: function(el) {
+                if (el) {
+                    el.style.display = 'none';
+                    el.style.opacity = '0';
+                }
+            },
+
+            // 设置元素透明度
+            setOpacity: function(el, opacity) {
+                if (el) {
+                    el.style.opacity = opacity;
+                }
+            },
+
+            // 更新场景显示
+            updateScene: function() {
+                const step = this.currentStep;
+
+                // 更新步骤指示器
+                this.get('step-indicator').textContent = '步骤 ' + (step + 1) + '/5';
+
+                // 更新按钮状态
+                this.get('btn-prev').disabled = (step === 0);
+                this.get('btn-next').disabled = (step === this.totalSteps - 1);
+
+                // 步骤 0: 初始状态 - 显示基础条件
+                // 步骤 1: 显示轨迹段 1、v₁、粒子开始移动
+                // 步骤 2: 粒子停在 ab 线处，高亮 ab 线
+                // 步骤 3: 显示轨迹段 2、v₂、Q 点，粒子移动到 Q
+                // 步骤 4: 高亮 Q 点，显示 Q 点坐标
+
+                // 轨迹段 1
+                if (step >= 1) {
+                    this.setOpacity(this.get('traj-1'), 1);
+                } else {
+                    this.setOpacity(this.get('traj-1'), 0);
+                }
+
+                // 轨迹段 2
+                if (step >= 3) {
+                    this.setOpacity(this.get('traj-2'), 1);
+                } else {
+                    this.setOpacity(this.get('traj-2'), 0);
+                }
+
+                // v₁矢量
+                if (step >= 1) {
+                    this.setOpacity(this.get('vec-v1'), 1);
+                    this.setOpacity(this.get('label-v1'), 1);
+                } else {
+                    this.setOpacity(this.get('vec-v1'), 0);
+                    this.setOpacity(this.get('label-v1'), 0);
+                }
+
+                // v₂矢量
+                if (step >= 3) {
+                    this.setOpacity(this.get('vec-v2'), 1);
+                    this.setOpacity(this.get('label-v2'), 1);
+                } else {
+                    this.setOpacity(this.get('vec-v2'), 0);
+                    this.setOpacity(this.get('label-v2'), 0);
+                }
+
+                // Q 点
+                if (step >= 3) {
+                    this.setOpacity(this.get('point-Q'), 1);
+                    this.setOpacity(this.get('label-Q'), 1);
+                } else {
+                    this.setOpacity(this.get('point-Q'), 0);
+                    this.setOpacity(this.get('label-Q'), 0);
+                }
+
+                // Q 点坐标
+                if (step >= 4) {
+                    this.setOpacity(this.get('label-Qcoord'), 1);
+                } else {
+                    this.setOpacity(this.get('label-Qcoord'), 0);
+                }
+
+                // L 标注线段
+                if (step >= 0) {
+                    this.setOpacity(this.get('line-L'), 1);
+                    this.setOpacity(this.get('line-L1'), 1);
+                    this.setOpacity(this.get('line-L2'), 1);
+                }
+
+                // ab 线高亮（步骤 2）
+                if (step === 2) {
+                    this.get('line-ab').setAttribute('stroke-width', '4');
+                    this.get('line-ab').setAttribute('stroke', '#ff9800');
+                } else {
+                    this.get('line-ab').setAttribute('stroke-width', '2');
+                    this.get('line-ab').setAttribute('stroke', '#666');
+                }
+
+                // 粒子显示和位置
+                if (step >= 1) {
+                    this.setOpacity(this.get('particle'), 1);
+                    
+                    if (step === 1) {
+                        // 粒子在 E₁中移动
+                        if (!this.particleAnimating) {
+                            this.particleAnimating = true;
+                            this.particleAnimProgress = 0;
+                            this.animateParticleE1();
+                        }
+                    } else if (step === 2) {
+                        // 粒子停在 ab 线处
+                        this.get('particle').setAttribute('cx', 350);
+                        this.get('particle').setAttribute('cy', 250);
+                    } else if (step === 3) {
+                        // 粒子在 E₂中移动
+                        if (!this.particleAnimating) {
+                            this.particleAnimating = true;
+                            this.particleAnimProgress = 0;
+                            this.animateParticleE2();
+                        }
+                    } else if (step === 4) {
+                        // 粒子停在 Q 点
+                        this.get('particle').setAttribute('cx', 580);
+                        this.get('particle').setAttribute('cy', 420);
+                    }
+                } else {
+                    this.setOpacity(this.get('particle'), 0);
+                }
+            },
+
+            // 粒子在 E₁区域动画
+            animateParticleE1: function() {
+                const self = this;
+                const duration = 1500;
+                const startTime = performance.now();
+
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    self.particleAnimProgress = Math.min(elapsed / duration, 1);
+
+                    const x = 80 + (350 - 80) * self.particleAnimProgress;
+                    const y = 250;
+
+                    self.get('particle').setAttribute('cx', x);
+                    self.get('particle').setAttribute('cy', y);
+
+                    if (self.particleAnimProgress < 1) {
+                        self.animationFrame = requestAnimationFrame(animate);
+                    } else {
+                        self.particleAnimating = false;
+                    }
+                }
+
+                self.animationFrame = requestAnimationFrame(animate);
+            },
+
+            // 粒子在 E₂区域动画（抛物线）
+            animateParticleE2: function() {
+                const self = this;
+                const duration = 1500;
+                const startTime = performance.now();
+
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    self.particleAnimProgress = Math.min(elapsed / duration, 1);
+                    const t = self.particleAnimProgress;
+
+                    // 抛物线参数方程：从 (350,250) 到 (580,420)
+                    // x = 350 + 230 * t
+                    // y = 250 + 170 * t + 200 * t * (1-t)  (添加向下弯曲)
+                    const x = 350 + 230 * t;
+                    const y = 250 + 170 * t + 200 * t * (1 - t);
+
+                    self.get('particle').setAttribute('cx', x);
+                    self.get('particle').setAttribute('cy', y);
+
+                    if (self.particleAnimProgress < 1) {
+                        self.animationFrame = requestAnimationFrame(animate);
+                    } else {
+                        self.particleAnimating = false;
+                    }
+                }
+
+                self.animationFrame = requestAnimationFrame(animate);
+            },
+
+            // 下一步
+            nextStep: function() {
+                if (this.currentStep < this.totalSteps - 1) {
+                    // 取消当前动画
+                    if (this.animationFrame) {
+                        cancelAnimationFrame(this.animationFrame);
+                        this.animationFrame = null;
+                    }
+                    this.particleAnimating = false;
+                    this.currentStep++;
+                    this.updateScene();
+                }
+            },
+
+            // 上一步
+            prevStep: function() {
+                if (this.currentStep > 0) {
+                    // 取消当前动画
+                    if (this.animationFrame) {
+                        cancelAnimationFrame(this.animationFrame);
+                        this.animationFrame = null;
+                    }
+                    this.particleAnimating = false;
+                    this.currentStep--;
+                    this.updateScene();
+                }
+            },
+
+            // 初始化
+            init: function() {
+                var self = this;
+                this.get('btn-prev').addEventListener('click', function() {
+                    self.prevStep();
+                });
+                this.get('btn-next').addEventListener('click', function() {
+                    self.nextStep();
+                });
+
+                this.updateScene();
+            }
+        };
+
+        scene1.init();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 光滑木板条件下木块的运动状态对比</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        #scene3-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; background: #1976d2; color: white; border: none; border-radius: 4px; }
+        #scene3-controls button:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene3-controls button:hover:not(:disabled) { background: #1565c0; }
+        #scene3-step-display { font-size: 14px; color: #424242; min-width: 80px; text-align: center; }
+        #scene3-conclusion { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); background: #e8f5e9; padding: 10px 20px; border-radius: 4px; font-size: 14px; color: #2e7d32; display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" id="scene3-svg">
+            <!-- 斜面 -->
+            <line x1="80" y1="150" x2="200" y2="350" stroke="#000000" stroke-width="2" id="scene3-ramp"/>
+            
+            <!-- 水平木板 -->
+            <line x1="200" y1="350" x2="700" y2="360" stroke="#000000" stroke-width="2" id="scene3-board"/>
+            
+            <!-- 小车（初始位置 - 斜面顶部） -->
+            <g id="scene3-cart-initial" style="display: block;">
+                <rect x="90" y="170" width="40" height="40" fill="#e3f2fd" fill-opacity="0.8" stroke="#000000" stroke-width="1.5"/>
+                <circle cx="100" cy="210" r="5" fill="#000000"/>
+                <circle cx="120" cy="210" r="5" fill="#000000"/>
+            </g>
+            
+            <!-- 小车（撞击后位置 - 斜面底部） -->
+            <g id="scene3-cart-after" style="display: none;">
+                <rect x="180" y="320" width="40" height="40" fill="#e3f2fd" fill-opacity="0.8" stroke="#000000" stroke-width="1.5"/>
+                <circle cx="190" cy="360" r="5" fill="#000000"/>
+                <circle cx="210" cy="360" r="5" fill="#000000"/>
+            </g>
+            
+            <!-- 木块 -->
+            <g id="scene3-block">
+                <rect x="400" y="310" width="60" height="40" fill="#fff3e0" fill-opacity="0.8" stroke="#000000" stroke-width="1.5"/>
+            </g>
+            
+            <!-- 速度矢量 v -->
+            <g id="scene3-velocity" style="display: none;">
+                <line x1="430" y1="300" x2="530" y2="300" stroke="#1565c0" stroke-width="3" marker-end="url(#scene3-arrowhead)"/>
+                <polygon points="530,300 520,295 520,305" fill="#1565c0"/>
+            </g>
+            
+            <!-- 摩擦力 f（波浪线） -->
+            <g id="scene3-friction" style="display: none;">
+                <path d="M 430,360 Q 440,355 450,360 Q 460,365 470,360 Q 480,355 490,360" stroke="#c62828" stroke-width="2" fill="none"/>
+            </g>
+            
+            <!-- 动能指示条 E_k -->
+            <g id="scene3-kinetic-energy" style="display: none;">
+                <rect x="400" y="270" width="60" height="20" fill="#2e7d32" fill-opacity="0.6" stroke="#1b5e20" stroke-width="1"/>
+            </g>
+            
+            <!-- 标签 -->
+            <text x="100" y="155" font-size="14" fill="#000000" id="scene3-label-cart-initial">小车</text>
+            <text x="180" y="305" font-size="14" fill="#000000" id="scene3-label-cart-after" style="display: none;">小车</text>
+            <text x="415" y="295" font-size="14" fill="#000000" id="scene3-label-block">木块</text>
+            <text x="680" y="375" font-size="14" fill="#000000" id="scene3-label-board">木板</text>
+            <text x="535" y="295" font-size="14" fill="#1565c0" id="scene3-label-v" style="display: none;">v</text>
+            <text x="495" y="355" font-size="14" fill="#c62828" id="scene3-label-f" style="display: none;">f</text>
+            <text x="400" y="255" font-size="14" fill="#2e7d32" id="scene3-label-ek" style="display: none;">E_k</text>
+            <text x="650" y="330" font-size="14" fill="#000000" id="scene3-surface-status" style="display: none;">普通</text>
+            
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="scene3-arrowhead" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+                    <polygon points="0,0 10,5 0,10" fill="#1565c0"/>
+                </marker>
+            </defs>
+        </svg>
+        
+        <!-- 结论框 -->
+        <div id="scene3-conclusion">若木板表面光滑且足够长，木块将保持匀速直线运动，动能不变。故选 D 正确。</div>
+        
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev">◀ 上一步</button>
+            <span id="scene3-step-display">步骤 1/4</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 3 实现
+        // 布局坐标表（供参考）：
+        // 斜面：(80,150)-(200,350)
+        // 水平木板：(200,350)-(700,360)
+        // 小车（初始）：(90,170)-(130,210)
+        // 小车（撞击后）：(180,320)-(220,360)
+        // 木块：(400,310)-(460,350)
+        // 速度矢量 v：(430,300)-(530,300)
+        // 摩擦力 f：(430,360)-(490,360)
+        // 动能指示条 E_k：(400,270)-(500,290)
+        
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+        
+        // DOM 元素引用
+        const cartInitial = document.getElementById('scene3-cart-initial');
+        const cartAfter = document.getElementById('scene3-cart-after');
+        const velocity = document.getElementById('scene3-velocity');
+        const friction = document.getElementById('scene3-friction');
+        const kineticEnergy = document.getElementById('scene3-kinetic-energy');
+        const labelCartAfter = document.getElementById('scene3-label-cart-after');
+        const labelV = document.getElementById('scene3-label-v');
+        const labelF = document.getElementById('scene3-label-f');
+        const labelEk = document.getElementById('scene3-label-ek');
+        const surfaceStatus = document.getElementById('scene3-surface-status');
+        const stepDisplay = document.getElementById('scene3-step-display');
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const conclusion = document.getElementById('scene3-conclusion');
+        const ekRect = kineticEnergy.querySelector('rect');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 渲染当前步骤
+        function renderStep() {
+            // 重置所有动态元素
+            hide(cartAfter);
+            hide(labelCartAfter);
+            hide(velocity);
+            hide(friction);
+            hide(kineticEnergy);
+            hide(labelV);
+            hide(labelF);
+            hide(labelEk);
+            hide(surfaceStatus);
+            hide(conclusion);
+            
+            // 根据步骤设置元素状态
+            switch(currentStep) {
+                case 0: // 初始状态
+                    show(cartInitial);
+                    stepDisplay.textContent = '步骤 1/4';
+                    btnPrev.disabled = true;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 1: // 撞击瞬间
+                    hide(cartInitial);
+                    show(cartAfter);
+                    show(labelCartAfter);
+                    stepDisplay.textContent = '步骤 2/4';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 2: // 普通木板
+                    show(cartAfter);
+                    show(labelCartAfter);
+                    show(velocity);
+                    show(friction);
+                    show(kineticEnergy);
+                    show(labelV);
+                    show(labelF);
+                    show(labelEk);
+                    show(surfaceStatus);
+                    surfaceStatus.textContent = '普通';
+                    // 设置动能条长度（普通木板 - 较短）
+                    ekRect.setAttribute('width', '60');
+                    stepDisplay.textContent = '步骤 3/4';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = false;
+                    break;
+                    
+                case 3: // 光滑木板
+                    show(cartAfter);
+                    show(labelCartAfter);
+                    show(velocity);
+                    hide(friction);
+                    show(kineticEnergy);
+                    show(labelV);
+                    hide(labelF);
+                    show(labelEk);
+                    show(surfaceStatus);
+                    surfaceStatus.textContent = '光滑';
+                    // 设置动能条长度（光滑木板 - 较长）
+                    ekRect.setAttribute('width', '100');
+                    stepDisplay.textContent = '步骤 4/4';
+                    btnPrev.disabled = false;
+                    btnNext.disabled = true;
+                    show(conclusion);
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始化渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

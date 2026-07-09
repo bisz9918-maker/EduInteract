@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑块-木板模型受力分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 18px; font-size: 14px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; background: #f0f0f0; color: #333;
+        }
+        #scene1-controls button:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 70px; text-align: center; }
+        .scene1-step-group { transition: opacity 0.15s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <marker id="scene1-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+                <marker id="scene1-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 地面线 -->
+            <line x1="50" y1="360" x2="350" y2="360" stroke="#000000" stroke-width="3"/>
+            <g id="scene1-ground-hatch">
+                <line x1="70" y1="360" x2="50" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="110" y1="360" x2="90" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="150" y1="360" x2="130" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="190" y1="360" x2="170" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="230" y1="360" x2="210" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="270" y1="360" x2="250" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="310" y1="360" x2="290" y2="390" stroke="#888888" stroke-width="1"/>
+                <line x1="350" y1="360" x2="330" y2="390" stroke="#888888" stroke-width="1"/>
+            </g>
+
+            <!-- 木板 M -->
+            <rect id="scene1-plank" x="80" y="310" width="180" height="50" fill="#1565c0" fill-opacity="0.15" stroke="#1565c0" stroke-width="2"/>
+            <!-- 物块 m -->
+            <rect id="scene1-block" x="220" y="270" width="40" height="40" fill="#c62828" fill-opacity="0.15" stroke="#c62828" stroke-width="2"/>
+
+            <!-- 拉力 F 箭头 -->
+            <line id="scene1-force-f" x1="260" y1="335" x2="320" y2="335" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-green)"/>
+            <text id="scene1-force-f-label" x="335" y="340" font-size="14" fill="#2e7d32" font-family="sans-serif">F</text>
+
+            <!-- 长度 L 标注 -->
+            <line x1="80" y1="360" x2="80" y2="380" stroke="#000000" stroke-width="1"/>
+            <line x1="260" y1="360" x2="260" y2="380" stroke="#000000" stroke-width="1"/>
+            <line x1="80" y1="380" x2="260" y2="380" stroke="#000000" stroke-width="1"/>
+            <text x="170" y="395" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="middle">L = 1.6 m</text>
+
+            <!-- 木板标签 M -->
+            <text id="scene1-plank-label" x="170" y="305" font-size="14" fill="#1565c0" font-family="sans-serif" text-anchor="middle">M</text>
+            <!-- 物块标签 m -->
+            <text id="scene1-block-label" x="240" y="255" font-size="14" fill="#c62828" font-family="sans-serif" text-anchor="middle">m</text>
+
+            <!-- 已知条件文本 -->
+            <text x="35" y="70" font-size="14" fill="#000000" font-family="sans-serif">L = 1.6 m</text>
+            <text x="35" y="108" font-size="14" fill="#000000" font-family="sans-serif">M = 3 kg</text>
+            <text x="35" y="146" font-size="14" fill="#000000" font-family="sans-serif">m = 1 kg</text>
+            <text x="35" y="184" font-size="14" fill="#000000" font-family="sans-serif">μ = 0.1</text>
+
+            <!-- 步骤0 提示文字 -->
+            <g id="scene1-step0-group" class="scene1-step-group">
+                <text x="600" y="250" font-size="16" fill="#888888" font-family="sans-serif" text-anchor="middle">点击「下一步」开始受力分析</text>
+            </g>
+
+            <!-- 步骤1 物块m受力分析 -->
+            <g id="scene1-step1-group" class="scene1-step-group" style="display:none; opacity:0;">
+                <text x="600" y="100" font-size="18" fill="#c62828" font-family="sans-serif" text-anchor="middle" font-weight="bold">物块 m 受力分析</text>
+                <rect x="560" y="240" width="60" height="60" fill="#c62828" fill-opacity="0.15" stroke="#c62828" stroke-width="2"/>
+                <line x1="590" y1="300" x2="590" y2="370" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="600" y="385" font-size="14" fill="#000000" font-family="sans-serif">mg</text>
+                <line x1="590" y1="240" x2="590" y2="180" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="600" y="170" font-size="14" fill="#000000" font-family="sans-serif">N₁</text>
+                <line x1="620" y1="270" x2="690" y2="270" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="655" y="260" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="middle">f = μmg</text>
+                <line x1="590" y1="210" x2="660" y2="210" stroke="#c62828" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-red)"/>
+                <text x="665" y="215" font-size="14" fill="#c62828" font-family="sans-serif">a_m</text>
+            </g>
+
+            <!-- 步骤2 木板M受力分析 -->
+            <g id="scene1-step2-group" class="scene1-step-group" style="display:none; opacity:0;">
+                <text x="600" y="100" font-size="18" fill="#1565c0" font-family="sans-serif" text-anchor="middle" font-weight="bold">木板 M 受力分析</text>
+                <rect x="520" y="250" width="200" height="60" fill="#1565c0" fill-opacity="0.15" stroke="#1565c0" stroke-width="2"/>
+                <line x1="620" y1="310" x2="620" y2="380" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="630" y="395" font-size="14" fill="#000000" font-family="sans-serif">Mg</text>
+                <line x1="620" y1="250" x2="620" y2="180" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="630" y="170" font-size="14" fill="#000000" font-family="sans-serif">N₂</text>
+                <line x1="660" y1="250" x2="660" y2="200" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="670" y="190" font-size="14" fill="#000000" font-family="sans-serif">N₁′</text>
+                <line x1="520" y1="280" x2="460" y2="280" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrow-black)"/>
+                <text x="450" y="275" font-size="14" fill="#000000" font-family="sans-serif" text-anchor="end">f′</text>
+                <line x1="720" y1="280" x2="765" y2="280" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene1-arrow-green)"/>
+                <text x="770" y="275" font-size="14" fill="#2e7d32" font-family="sans-serif">F</text>
+                <line x1="620" y1="220" x2="690" y2="220" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#scene1-arrow-blue)"/>
+                <text x="695" y="225" font-size="14" fill="#1565c0" font-family="sans-serif">a_M</text>
+            </g>
+
+            <!-- 步骤3 临界条件推导 -->
+            <g id="scene1-step3-group" class="scene1-step-group" style="display:none; opacity:0;">
+                <text x="600" y="50" font-size="18" fill="#000000" font-family="sans-serif" text-anchor="middle" font-weight="bold">临界条件推导</text>
+                <line x1="450" y1="75" x2="750" y2="75" stroke="#888888" stroke-width="1"/>
+                <text x="450" y="110" font-size="16" fill="#000000" font-family="sans-serif">对物块 m：</text>
+                <text x="480" y="150" font-size="16" fill="#000000" font-family="sans-serif">f = μmg = ma_m</text>
+                <text x="480" y="190" font-size="16" fill="#c62828" font-family="sans-serif">∴ a_m = μg = 1 m/s²</text>
+                <text x="450" y="235" font-size="16" fill="#000000" font-family="sans-serif">对木板 M：</text>
+                <text x="480" y="275" font-size="16" fill="#000000" font-family="sans-serif">F − f′ = Ma_M</text>
+                <text x="480" y="315" font-size="16" fill="#000000" font-family="sans-serif">∴ a_M = (F − μmg)/M</text>
+                <text x="450" y="355" font-size="16" fill="#000000" font-family="sans-serif" font-weight="bold">抽出条件：a_M &gt; a_m</text>
+                <text x="480" y="400" font-size="16" fill="#000000" font-family="sans-serif">F₀ = μ(M+m)g = 4 N</text>
+                <text x="600" y="450" font-size="22" fill="#2e7d32" font-family="sans-serif" text-anchor="middle" font-weight="bold">F &gt; 4 N</text>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var currentStep = 0;
+        var totalSteps = 4;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        var plank = document.getElementById('scene1-plank');
+        var block = document.getElementById('scene1-block');
+        var forceF = document.getElementById('scene1-force-f');
+
+        var groups = [
+            document.getElementById('scene1-step0-group'),
+            document.getElementById('scene1-step1-group'),
+            document.getElementById('scene1-step2-group'),
+            document.getElementById('scene1-step3-group')
+        ];
+
+        function show(el) {
+            el.style.display = 'block';
+            requestAnimationFrame(function() {
+                el.style.opacity = '1';
+            });
+        }
+
+        function hide(el) {
+            el.style.opacity = '0';
+            setTimeout(function() {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 150);
+        }
+
+        function updateScene() {
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+
+            for (var i = 0; i < groups.length; i++) {
+                if (i === currentStep) {
+                    show(groups[i]);
+                } else {
+                    hide(groups[i]);
+                }
+            }
+
+            plank.setAttribute('fill-opacity', '0.15');
+            plank.setAttribute('stroke-width', '2');
+            block.setAttribute('fill-opacity', '0.15');
+            block.setAttribute('stroke-width', '2');
+            forceF.setAttribute('stroke-width', '2');
+
+            if (currentStep === 1) {
+                block.setAttribute('fill-opacity', '0.30');
+                block.setAttribute('stroke-width', '3');
+            } else if (currentStep === 2) {
+                plank.setAttribute('fill-opacity', '0.30');
+                plank.setAttribute('stroke-width', '3');
+            } else if (currentStep === 3) {
+                forceF.setAttribute('stroke-width', '3');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

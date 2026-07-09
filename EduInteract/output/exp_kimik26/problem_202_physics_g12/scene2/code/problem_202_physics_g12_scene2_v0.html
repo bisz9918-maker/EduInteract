@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 带电粒子在组合电磁场中的运动</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #888; border-radius: 4px; background: #f0f0f0; }
+        #scene2-controls button:hover { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+
+        /* 轨迹样式 */
+        .trajectory { fill: none; stroke: #c62828; stroke-width: 1.5px; stroke-dasharray: 6,4; opacity: 0.25; transition: opacity 0.3s ease, stroke-width 0.3s ease; }
+        .trajectory.highlight { opacity: 1; stroke-width: 2.5px; }
+        .trajectory.dimmed { opacity: 0.2; stroke-width: 1.5px; }
+
+        /* 公式框 */
+        .formula-box { fill: #f5f5f5; stroke: #888888; stroke-width: 1px; rx: 4px; opacity: 0; transition: opacity 0.3s ease; }
+        .formula-box.visible { opacity: 1; }
+        .formula-text { font-size: 13px; fill: #333; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .formula-text.visible { opacity: 1; }
+
+        /* 箭头 */
+        .arrow-line { stroke-width: 2px; fill: none; marker-end: url(#arrowhead-blue); opacity: 0; transition: opacity 0.3s ease; }
+        .arrow-line.visible { opacity: 1; }
+        .arrow-line.red { stroke: #c62828; marker-end: url(#arrowhead-red); }
+        .arrow-line.blue { stroke: #1565c0; marker-end: url(#arrowhead-blue); }
+        .arrow-line.green { stroke: #2e7d32; marker-end: url(#arrowhead-green); }
+
+        /* 辅助线 */
+        .guide-line { stroke: #888888; stroke-width: 1px; stroke-dasharray: 4,4; fill: none; opacity: 0; transition: opacity 0.3s ease; }
+        .guide-line.visible { opacity: 1; }
+
+        /* 半径线 */
+        .radius-line { stroke: #2e7d32; stroke-width: 1px; fill: none; opacity: 0; transition: opacity 0.3s ease; }
+        .radius-line.visible { opacity: 1; }
+
+        /* 点标记 */
+        .point { fill: #000; stroke: none; }
+        .point-ring { fill: none; stroke: #c62828; stroke-width: 1.5px; opacity: 0; transition: opacity 0.3s ease; }
+        .point-ring.visible { opacity: 1; }
+        .point-ring.pulse { animation: pulse 0.6s ease 2; }
+
+        @keyframes pulse {
+            0%, 100% { stroke-width: 1.5px; opacity: 1; }
+            50% { stroke-width: 3px; opacity: 0.7; }
+        }
+
+        /* 圆心十字 */
+        .cross { stroke: #2e7d32; stroke-width: 2px; fill: none; opacity: 0; transition: opacity 0.3s ease; }
+        .cross.visible { opacity: 1; }
+
+        /* 标签 */
+        .label { font-size: 14px; fill: #333; font-family: "Times New Roman", serif; }
+        .label-formula { font-size: 13px; fill: #333; }
+        .label-step { font-size: 12px; fill: #555; opacity: 0; transition: opacity 0.3s ease; }
+        .label-step.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#c62828"/>
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 坐标轴 -->
+            <line id="scene2-axis-x" x1="265" y1="277.5" x2="580" y2="277.5" stroke="#000" stroke-width="1.5"/>
+            <polygon points="580,277.5 572,273 572,282" fill="#000"/>
+            <line id="scene2-axis-y" x1="400" y1="187.5" x2="400" y2="480" stroke="#000" stroke-width="1.5"/>
+            <polygon points="400,187.5 396,195 404,195" fill="#000"/>
+
+            <!-- 边界线 x=-2L -->
+            <line id="scene2-boundary" x1="310" y1="187.5" x2="310" y2="480" stroke="#000" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- 电场线 (II象限，竖直向下) -->
+            <g id="scene2-field-e2">
+                <line x1="340" y1="200" x2="340" y2="220" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="360" y1="200" x2="360" y2="220" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="380" y1="200" x2="380" y2="220" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="340" y1="240" x2="340" y2="260" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="360" y1="240" x2="360" y2="260" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="380" y1="240" x2="380" y2="260" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+            </g>
+
+            <!-- 电场线 (III象限，竖直向上) -->
+            <g id="scene2-field-e3">
+                <line x1="340" y1="320" x2="340" y2="300" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="360" y1="320" x2="360" y2="300" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="380" y1="320" x2="380" y2="300" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="340" y1="360" x2="340" y2="340" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="360" y1="360" x2="360" y2="340" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="380" y1="360" x2="380" y2="340" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="340" y1="400" x2="340" y2="380" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="360" y1="400" x2="360" y2="380" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+                <line x1="380" y1="400" x2="380" y2="380" stroke="#c62828" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+            </g>
+
+            <!-- 磁场符号 (I、IV象限) - 移至 x=500+ 避免与右侧标签重叠 -->
+            <g id="scene2-field-b" fill="#666" font-size="14" font-family="serif">
+                <text x="500" y="220">×</text><text x="535" y="220">×</text><text x="570" y="220">×</text>
+                <text x="500" y="255">×</text><text x="535" y="255">×</text><text x="570" y="255">×</text>
+                <text x="500" y="290">×</text><text x="535" y="290">×</text><text x="570" y="290">×</text>
+                <text x="500" y="325">×</text><text x="535" y="325">×</text><text x="570" y="325">×</text>
+                <text x="500" y="360">×</text><text x="535" y="360">×</text><text x="570" y="360">×</text>
+                <text x="500" y="395">×</text><text x="535" y="395">×</text><text x="570" y="395">×</text>
+                <text x="500" y="430">×</text><text x="535" y="430">×</text><text x="570" y="430">×</text>
+            </g>
+
+            <!-- 轨迹 A→M -->
+            <path id="scene2-trajectory-am" class="trajectory" d="M310,232.5 Q332.5,255 355,277.5"/>
+            <!-- 轨迹 M→A' -->
+            <path id="scene2-trajectory-ma" class="trajectory" d="M355,277.5 Q377.5,300 400,322.5"/>
+            <!-- 圆弧 A'→P -->
+            <path id="scene2-arc-ap" class="trajectory" d="M400,322.5 A28.125,28.125 0 0,1 400,266.25"/>
+            <!-- 轨迹 P→Q -->
+            <path id="scene2-trajectory-pq" class="trajectory" d="M400,266.25 Q355,356.25 310,446.25"/>
+
+            <!-- 半径线 O₁A' 和 O₁P -->
+            <line id="scene2-radius-o1a" class="radius-line" x1="400" y1="294.375" x2="400" y2="322.5"/>
+            <line id="scene2-radius-o1p" class="radius-line" x1="400" y1="294.375" x2="400" y2="266.25"/>
+
+            <!-- 圆心 O₁ 十字 -->
+            <g id="scene2-cross-o1" class="cross">
+                <line x1="395" y1="294.375" x2="405" y2="294.375"/>
+                <line x1="400" y1="289.375" x2="400" y2="299.375"/>
+            </g>
+
+            <!-- 点标记 -->
+            <circle id="scene2-point-a" class="point" cx="310" cy="232.5" r="3"/>
+            <circle id="scene2-point-a-ring" class="point-ring" cx="310" cy="232.5" r="5"/>
+            <circle id="scene2-point-c" class="point" cx="310" cy="277.5" r="3"/>
+            <circle id="scene2-point-m" class="point" cx="355" cy="277.5" r="3"/>
+            <circle id="scene2-point-m-ring" class="point-ring" cx="355" cy="277.5" r="5"/>
+            <circle id="scene2-point-ap" class="point" cx="400" cy="322.5" r="3"/>
+            <circle id="scene2-point-ap-ring" class="point-ring" cx="400" cy="322.5" r="5"/>
+            <circle id="scene2-point-p" class="point" cx="400" cy="266.25" r="3"/>
+            <circle id="scene2-point-p-ring" class="point-ring" cx="400" cy="266.25" r="5"/>
+            <circle id="scene2-point-q" class="point" cx="310" cy="446.25" r="3"/>
+            <circle id="scene2-point-q-ring" class="point-ring" cx="310" cy="446.25" r="5"/>
+
+            <!-- 速度/力箭头 -->
+            <!-- A点 v₀ 水平向右 -->
+            <line id="scene2-arrow-v0-a" class="arrow-line blue" x1="310" y1="232.5" x2="340" y2="232.5"/>
+            <!-- A点 a 竖直向下 -->
+            <line id="scene2-arrow-a" class="arrow-line red" x1="310" y1="232.5" x2="310" y2="255"/>
+            <!-- A'点 v₀ 水平向右 -->
+            <line id="scene2-arrow-v0-ap" class="arrow-line blue" x1="400" y1="322.5" x2="430" y2="322.5"/>
+            <!-- A'点 洛伦兹力 f 竖直向上 -->
+            <line id="scene2-arrow-f" class="arrow-line green" x1="400" y1="322.5" x2="400" y2="300"/>
+            <!-- P点 v 水平向左 -->
+            <line id="scene2-arrow-v-p" class="arrow-line blue" x1="400" y1="266.25" x2="370" y2="266.25"/>
+
+            <!-- 辅助线（位移标注） -->
+            <!-- 步骤1：水平位移标注线 y=L 处从 x=-2L 到 x=-L -->
+            <line id="scene2-guide-h1" class="guide-line" x1="310" y1="232.5" x2="355" y2="232.5"/>
+            <line id="scene2-guide-v1" class="guide-line" x1="355" y1="232.5" x2="355" y2="277.5"/>
+            <!-- 步骤5：水平位移标注线 y≈440 处从 x=0 到 x=-2L -->
+            <line id="scene2-guide-h5" class="guide-line" x1="310" y1="440" x2="400" y2="440"/>
+            <line id="scene2-guide-v5" class="guide-line" x1="300" y1="266.25" x2="300" y2="446.25"/>
+
+            <!-- 标签 - 调整位置避免重叠 -->
+            <text id="scene2-label-a" class="label" x="285" y="222.5">A</text>
+            <text id="scene2-label-c" class="label" x="290" y="295">C</text>
+            <!-- M 标签左移避免与 M→A' 轨迹重叠 -->
+            <text id="scene2-label-m" class="label" x="335" y="295">M</text>
+            <!-- A' 标签右移避免与磁场符号重叠 -->
+            <text id="scene2-label-ap" class="label" x="420" y="340">A′</text>
+            <!-- O₁ 标签右移 -->
+            <text id="scene2-label-o1" class="label" x="440" y="285">O₁</text>
+            <!-- P 标签右移 -->
+            <text id="scene2-label-p" class="label" x="420" y="255">P</text>
+            <!-- Q 标签上移避免与按钮重叠 -->
+            <text id="scene2-label-q" class="label" x="290" y="435">Q</text>
+            <!-- O 标签右移 -->
+            <text id="scene2-label-o" class="label" x="415" y="290">O</text>
+            <text id="scene2-label-x" class="label" x="590" y="290">x</text>
+            <text id="scene2-label-y" class="label" x="375" y="175">y</text>
+            <!-- x=-2L 标签上移避免与 A 标签过近 -->
+            <text id="scene2-label-x2l" class="label" x="310" y="180" text-anchor="middle">x=−2L</text>
+            <!-- E 标签右移上移避免与轨迹重叠 -->
+            <text id="scene2-label-e" class="label" x="370" y="220">E</text>
+            <!-- B 标签右移至磁场区域旁 -->
+            <text id="scene2-label-b" class="label" x="510" y="350">B</text>
+
+            <!-- 步骤标签 -->
+            <text id="scene2-label-v0-step1" class="label-step" x="350" y="220">v₀</text>
+            <text id="scene2-label-a-step1" class="label-step" x="320" y="260">a</text>
+            <text id="scene2-label-lh-step1" class="label-step" x="332.5" y="210" text-anchor="middle">L</text>
+            <text id="scene2-label-lv-step1" class="label-step" x="365" y="255">L</text>
+            <text id="scene2-label-f-step3" class="label-step" x="420" y="310">f</text>
+            <text id="scene2-label-r-step4" class="label-step" x="415" y="308">R</text>
+            <text id="scene2-label-2l-step5" class="label-step" x="355" y="455" text-anchor="middle">2L</text>
+            <text id="scene2-label-4l-step5" class="label-step" x="275" y="356">4L</text>
+
+            <!-- 公式框 -->
+            <!-- 左侧公式框 (步骤1-2) -->
+            <rect id="scene2-formula-left" class="formula-box" x="20" y="120" width="220" height="140"/>
+            <foreignObject id="scene2-formula-left-fo" x="20" y="120" width="220" height="140" style="opacity:0; transition: opacity 0.3s ease;">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="padding:8px; font-size:13px; line-height:1.6; color:#333;">
+                    <span id="scene2-formula-left-content"></span>
+                </div>
+            </foreignObject>
+
+            <!-- 右侧公式框 (步骤3-4) -->
+            <rect id="scene2-formula-right" class="formula-box" x="520" y="120" width="260" height="140"/>
+            <foreignObject id="scene2-formula-right-fo" x="520" y="120" width="260" height="140" style="opacity:0; transition: opacity 0.3s ease;">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="padding:8px; font-size:13px; line-height:1.6; color:#333;">
+                    <span id="scene2-formula-right-content"></span>
+                </div>
+            </foreignObject>
+
+            <!-- 左上方公式框 (步骤5-6) -->
+            <rect id="scene2-formula-topleft" class="formula-box" x="20" y="50" width="240" height="100"/>
+            <foreignObject id="scene2-formula-topleft-fo" x="20" y="50" width="240" height="100" style="opacity:0; transition: opacity 0.3s ease;">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="padding:8px; font-size:13px; line-height:1.6; color:#333;">
+                    <span id="scene2-formula-topleft-content"></span>
+                </div>
+            </foreignObject>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/6</span>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        // 元素引用
+        const els = {
+            trajectories: {
+                am: document.getElementById('scene2-trajectory-am'),
+                ma: document.getElementById('scene2-trajectory-ma'),
+                ap: document.getElementById('scene2-arc-ap'),
+                pq: document.getElementById('scene2-trajectory-pq')
+            },
+            arrows: {
+                v0a: document.getElementById('scene2-arrow-v0-a'),
+                a: document.getElementById('scene2-arrow-a'),
+                v0ap: document.getElementById('scene2-arrow-v0-ap'),
+                f: document.getElementById('scene2-arrow-f'),
+                vp: document.getElementById('scene2-arrow-v-p')
+            },
+            guides: {
+                h1: document.getElementById('scene2-guide-h1'),
+                v1: document.getElementById('scene2-guide-v1'),
+                h5: document.getElementById('scene2-guide-h5'),
+                v5: document.getElementById('scene2-guide-v5')
+            },
+            radius: {
+                o1a: document.getElementById('scene2-radius-o1a'),
+                o1p: document.getElementById('scene2-radius-o1p')
+            },
+            cross: document.getElementById('scene2-cross-o1'),
+            rings: {
+                a: document.getElementById('scene2-point-a-ring'),
+                m: document.getElementById('scene2-point-m-ring'),
+                ap: document.getElementById('scene2-point-ap-ring'),
+                p: document.getElementById('scene2-point-p-ring'),
+                q: document.getElementById('scene2-point-q-ring')
+            },
+            labels: {
+                v0step1: document.getElementById('scene2-label-v0-step1'),
+                astep1: document.getElementById('scene2-label-a-step1'),
+                lhstep1: document.getElementById('scene2-label-lh-step1'),
+                lvstep1: document.getElementById('scene2-label-lv-step1'),
+                fstep3: document.getElementById('scene2-label-f-step3'),
+                rstep4: document.getElementById('scene2-label-r-step4'),
+                l2step5: document.getElementById('scene2-label-2l-step5'),
+                l4step5: document.getElementById('scene2-label-4l-step5')
+            },
+            formulas: {
+                left: document.getElementById('scene2-formula-left'),
+                leftFo: document.getElementById('scene2-formula-left-fo'),
+                leftContent: document.getElementById('scene2-formula-left-content'),
+                right: document.getElementById('scene2-formula-right'),
+                rightFo: document.getElementById('scene2-formula-right-fo'),
+                rightContent: document.getElementById('scene2-formula-right-content'),
+                topleft: document.getElementById('scene2-formula-topleft'),
+                topleftFo: document.getElementById('scene2-formula-topleft-fo'),
+                topleftContent: document.getElementById('scene2-formula-topleft-content')
+            },
+            indicator: document.getElementById('scene2-step-indicator'),
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next')
+        };
+
+        // 步骤配置 - 使用纯文本公式避免MathJax渲染重叠
+        const stepConfig = [
+            // 步骤0：初始状态
+            {
+                highlight: [],
+                showArrows: [],
+                showGuides: [],
+                showRadius: false,
+                showCross: false,
+                showLabels: [],
+                showRings: [],
+                formula: { pos: null, html: '' }
+            },
+            // 步骤1：电场II象限分析 A→M
+            {
+                highlight: ['am'],
+                showArrows: ['v0a', 'a'],
+                showGuides: ['h1', 'v1'],
+                showRadius: false,
+                showCross: false,
+                showLabels: ['v0step1', 'astep1', 'lhstep1', 'lvstep1'],
+                showRings: ['a'],
+                formula: {
+                    pos: 'left',
+                    html: '水平方向：L = v₀t₁<br>竖直方向：L = ½at₁²'
+                }
+            },
+            // 步骤2：求E与A\'坐标 M→A\'
+            {
+                highlight: ['ma'],
+                showArrows: [],
+                showGuides: [],
+                showRadius: false,
+                showCross: false,
+                showLabels: [],
+                showRings: ['ap'],
+                formula: {
+                    pos: 'left',
+                    html: 'vᵧ = at₁ = 2v₀<br>A′(0, −L)<br>E = 2mv₀²/(qL)'
+                }
+            },
+            // 步骤3：进入磁场 A\'→P
+            {
+                highlight: ['ap'],
+                showArrows: ['v0ap', 'f'],
+                showGuides: [],
+                showRadius: false,
+                showCross: false,
+                showLabels: ['fstep3'],
+                showRings: ['ap'],
+                formula: {
+                    pos: 'right',
+                    html: 'f = qv₀B (↑)<br>R = mv₀/(qB)'
+                }
+            },
+            // 步骤4：圆周运动几何
+            {
+                highlight: ['ap'],
+                showArrows: [],
+                showGuides: [],
+                showRadius: true,
+                showCross: true,
+                showLabels: ['rstep4'],
+                showRings: ['p'],
+                formula: {
+                    pos: 'right',
+                    html: 'B = 8mv₀/(5qL)<br>R = 5L/8<br>O₁(0, −3L/8)<br>P(0, L/4)'
+                }
+            },
+            // 步骤5：返回电场 P→Q
+            {
+                highlight: ['pq'],
+                showArrows: ['vp'],
+                showGuides: ['h5', 'v5'],
+                showRadius: false,
+                showCross: false,
+                showLabels: ['l2step5', 'l4step5'],
+                showRings: [],
+                formula: {
+                    pos: 'topleft',
+                    html: 'v = v₀ (←)<br>t = 2L/v₀<br>Δy = ½at² = 4L'
+                }
+            },
+            // 步骤6：最终结果
+            {
+                highlight: ['pq'],
+                showArrows: [],
+                showGuides: [],
+                showRadius: false,
+                showCross: false,
+                showLabels: [],
+                showRings: ['a', 'm', 'ap', 'p', 'q'],
+                formula: {
+                    pos: 'topleft',
+                    html: '<strong style="color:#c62828;">Q(−2L, −15L/4)</strong><br><strong style="color:#c62828;">= (−2L, −3.75L)</strong>'
+                }
+            }
+        ];
+
+        function setVisible(el, visible) {
+            if (!el) return;
+            if (visible) {
+                el.style.display = '';
+                el.style.opacity = '1';
+                el.classList.add('visible');
+            } else {
+                el.style.opacity = '0';
+                el.classList.remove('visible');
+            }
+        }
+
+        function renderStep() {
+            const cfg = stepConfig[currentStep];
+
+            // 更新指示器
+            els.indicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            els.btnPrev.disabled = currentStep === 0;
+            els.btnNext.disabled = currentStep === totalSteps;
+
+            // 轨迹高亮/淡化
+            const allTraj = ['am', 'ma', 'ap', 'pq'];
+            allTraj.forEach(key => {
+                const t = els.trajectories[key];
+                t.classList.remove('highlight', 'dimmed');
+                if (cfg.highlight.includes(key)) {
+                    t.classList.add('highlight');
+                } else {
+                    t.classList.add('dimmed');
+                }
+            });
+
+            // 步骤0特殊处理：全部淡化但不加dimmed类（保持默认opacity 0.25）
+            if (currentStep === 0) {
+                allTraj.forEach(key => {
+                    const t = els.trajectories[key];
+                    t.classList.remove('highlight', 'dimmed');
+                });
+            }
+
+            // 箭头
+            Object.keys(els.arrows).forEach(key => {
+                setVisible(els.arrows[key], cfg.showArrows.includes(key));
+            });
+
+            // 辅助线
+            Object.keys(els.guides).forEach(key => {
+                setVisible(els.guides[key], cfg.showGuides.includes(key));
+            });
+
+            // 半径线
+            setVisible(els.radius.o1a, cfg.showRadius);
+            setVisible(els.radius.o1p, cfg.showRadius);
+
+            // 圆心十字
+            setVisible(els.cross, cfg.showCross);
+
+            // 标签
+            Object.keys(els.labels).forEach(key => {
+                setVisible(els.labels[key], cfg.showLabels.includes(key));
+            });
+
+            // 外圈
+            Object.keys(els.rings).forEach(key => {
+                const ring = els.rings[key];
+                if (cfg.showRings.includes(key)) {
+                    ring.style.opacity = '1';
+                    ring.classList.add('visible');
+                    if (currentStep === 6) {
+                        ring.classList.add('pulse');
+                        setTimeout(() => ring.classList.remove('pulse'), 1200);
+                    }
+                } else {
+                    ring.style.opacity = '0';
+                    ring.classList.remove('visible');
+                }
+            });
+
+            // 公式框
+            ['left', 'right', 'topleft'].forEach(pos => {
+                const box = els.formulas[pos];
+                const fo = els.formulas[pos + 'Fo'];
+                if (cfg.formula.pos === pos) {
+                    box.classList.add('visible');
+                    fo.style.opacity = '1';
+                    els.formulas[pos + 'Content'].innerHTML = cfg.formula.html;
+                } else {
+                    box.classList.remove('visible');
+                    fo.style.opacity = '0';
+                }
+            });
+        }
+
+        // 事件绑定
+        els.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; renderStep(); }
+        });
+        els.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) { currentStep++; renderStep(); }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

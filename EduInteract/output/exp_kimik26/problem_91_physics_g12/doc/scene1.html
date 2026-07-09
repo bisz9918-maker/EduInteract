@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 三带电小球系统</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; background: #f5f5f5; transition: background 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #333; min-width: 50px; text-align: center; }
+
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+        .scene1-visible { opacity: 1; transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 黑色箭头 marker (F) -->
+                <marker id="scene1-arrow-black" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+                <!-- 绿色箭头 marker (a) -->
+                <marker id="scene1-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 连线：AB 竖直虚线 -->
+            <line id="scene1-line-ab" x1="348" y1="160" x2="348" y2="340" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5"/>
+            <!-- 连线：AC 斜虚线 -->
+            <line id="scene1-line-ac" x1="348" y1="160" x2="504" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5"/>
+            <!-- 连线：BC 斜虚线 -->
+            <line id="scene1-line-bc" x1="348" y1="340" x2="504" y2="250" stroke="#888888" stroke-width="1.5" stroke-dasharray="5,5"/>
+
+            <!-- A 球 -->
+            <circle id="scene1-ball-a" cx="348" cy="160" r="18" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+            <!-- B 球 -->
+            <circle id="scene1-ball-b" cx="348" cy="340" r="18" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+            <!-- C 球 -->
+            <circle id="scene1-ball-c" cx="504" cy="250" r="18" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 步骤0 标签：A, B, C (放在球外侧，避免重叠) -->
+            <text id="scene1-label-a" x="310" y="145" font-size="16" fill="#000000" text-anchor="middle">A</text>
+            <text id="scene1-label-b" x="310" y="355" font-size="16" fill="#000000" text-anchor="middle">B</text>
+            <text id="scene1-label-c" x="540" y="235" font-size="16" fill="#000000" text-anchor="middle">C</text>
+
+            <!-- 步骤1 元素：质量 m (放在球外侧，远离连线) -->
+            <text id="scene1-label-m-a" class="scene1-hidden" x="395" y="130" font-size="14" fill="#000000">m</text>
+            <text id="scene1-label-m-b" class="scene1-hidden" x="395" y="370" font-size="14" fill="#000000">m</text>
+            <text id="scene1-label-m-c" class="scene1-hidden" x="540" y="320" font-size="14" fill="#000000" text-anchor="middle">m</text>
+
+            <!-- 步骤1 元素：电荷 +q, ? (放在远离连线的位置) -->
+            <text id="scene1-label-q-a" class="scene1-hidden" x="280" y="160" font-size="14" fill="#c62828" text-anchor="middle" dominant-baseline="central">+q</text>
+            <text id="scene1-label-q-b" class="scene1-hidden" x="280" y="340" font-size="14" fill="#c62828" text-anchor="middle" dominant-baseline="central">+q</text>
+            <text id="scene1-label-q-c" class="scene1-hidden" x="560" y="265" font-size="14" fill="#1565c0" text-anchor="middle" dominant-baseline="central">?</text>
+
+            <!-- 步骤1 元素：间距 r (放在边中点外侧，远离连线) -->
+            <text id="scene1-label-r-ab" class="scene1-hidden" x="310" y="250" font-size="14" fill="#000000" text-anchor="end">r</text>
+            <text id="scene1-label-r-ac" class="scene1-hidden" x="430" y="130" font-size="14" fill="#000000" text-anchor="middle">r</text>
+            <text id="scene1-label-r-bc" class="scene1-hidden" x="430" y="370" font-size="14" fill="#000000" text-anchor="middle">r</text>
+
+            <!-- 步骤2 元素：F 箭头 (从 C 球右侧出发) -->
+            <path id="scene1-arrow-f" class="scene1-hidden" d="M 525 250 L 610 250" stroke="#000000" stroke-width="3" fill="none" marker-end="url(#scene1-arrow-black)"/>
+            <text id="scene1-label-f" class="scene1-hidden" x="615" y="240" font-size="16" fill="#000000">F</text>
+
+            <!-- 步骤2 元素：a 箭头 (放在三角形上方较高处，避免与图形重叠) -->
+            <path id="scene1-arrow-a" class="scene1-hidden" d="M 430 100 L 500 100" stroke="#2e7d32" stroke-width="2" fill="none" marker-end="url(#scene1-arrow-green)"/>
+            <text id="scene1-label-a" class="scene1-hidden" x="465" y="85" font-size="16" fill="#2e7d32" text-anchor="middle">a</text>
+
+            <!-- 步骤3 元素：公式 F=3ma -->
+            <text id="scene1-label-formula" class="scene1-hidden" x="400" y="420" font-size="20" fill="#000000" text-anchor="middle" font-weight="bold">F = 3ma</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">1 / 4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：三带电小球系统分步导航
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 每一步需要显示的元素 ID 列表
+        const stepElements = {
+            0: ['scene1-label-a', 'scene1-label-b', 'scene1-label-c'],
+            1: ['scene1-label-m-a', 'scene1-label-m-b', 'scene1-label-m-c',
+                'scene1-label-q-a', 'scene1-label-q-b', 'scene1-label-q-c',
+                'scene1-label-r-ab', 'scene1-label-r-ac', 'scene1-label-r-bc'],
+            2: ['scene1-arrow-f', 'scene1-label-f', 'scene1-arrow-a', 'scene1-label-a'],
+            3: ['scene1-label-formula']
+        };
+
+        function updateUI() {
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps - 1;
+            stepIndicator.textContent = (currentStep + 1) + ' / ' + totalSteps;
+
+            // 遍历所有步骤，设置元素显隐
+            for (let s = 0; s < totalSteps; s++) {
+                const ids = stepElements[s] || [];
+                ids.forEach(function(id) {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (s <= currentStep) {
+                        el.classList.remove('scene1-hidden');
+                        el.classList.add('scene1-visible');
+                    } else {
+                        el.classList.remove('scene1-visible');
+                        el.classList.add('scene1-hidden');
+                    }
+                });
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateUI();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateUI();
+            }
+        });
+
+        // 初始化
+        updateUI();
+    })();
+    </script>
+</body>
+</html>

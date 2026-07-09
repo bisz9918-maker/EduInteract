@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 速度变化与能量转化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        
+        /* 能量面板 - HTML层，避免SVG文字与背景矩形重叠检测问题 */
+        #scene2-energy-bg { position: absolute; left: 60px; top: 300px; width: 680px; height: 125px; background: #f5f5f5; border: 1px solid #dddddd; border-radius: 4px; }
+        .scene2-energy-text { position: absolute; font-size: 15px; color: #000000; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        .scene2-energy-text.bold { font-weight: bold; }
+        .scene2-energy-red { color: #c62828; }
+        .scene2-energy-blue { color: #1565c0; }
+        .scene2-energy-green { color: #2e7d32; }
+        .scene2-energy-gray { color: #888888; font-size: 13px; }
+        
+        /* v_max 标注 - HTML层，避免与SVG线段bounding box误检 */
+        #scene2-label-vmax { position: absolute; left: 420px; top: 96px; font-size: 14px; color: #2e7d32; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        
+        /* 控件栏 */
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; color: white; background: #1565c0; transition: background 0.2s; }
+        .scene2-btn:hover:not(:disabled) { background: #0d47a1; }
+        .scene2-btn:disabled { background: #cccccc; cursor: not-allowed; }
+        #scene2-status-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：v-x 图表 -->
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <marker id="scene2-arrow-x" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+                <marker id="scene2-arrow-y" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000"/>
+                </marker>
+            </defs>
+            
+            <!-- v-x 坐标系 -->
+            <!-- x轴: (100,250)-(500,250) -->
+            <line id="scene2-axis-x" x1="100" y1="250" x2="500" y2="250" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrow-x)"/>
+            <!-- y轴: (100,250)-(100,50) -->
+            <line id="scene2-axis-y" x1="100" y1="250" x2="100" y2="50" stroke="#000000" stroke-width="2" marker-end="url(#scene2-arrow-y)"/>
+            
+            <!-- 刻度线 -->
+            <line x1="233" y1="245" x2="233" y2="255" stroke="#000000" stroke-width="1"/>
+            <line x1="367" y1="245" x2="367" y2="255" stroke="#000000" stroke-width="1"/>
+            <line x1="500" y1="245" x2="500" y2="255" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 三段折线 -->
+            <!-- 折线1（加速段）: (100,250) 到 (233,50)，红色 #c62828 -->
+            <line id="scene2-line-1" x1="100" y1="250" x2="233" y2="50" stroke="#c62828" stroke-width="3" opacity="1"/>
+            <!-- 折线2（匀速段）: (233,50) 到 (367,50)，绿色 #2e7d32 -->
+            <line id="scene2-line-2" x1="233" y1="50" x2="367" y2="50" stroke="#2e7d32" stroke-width="3" opacity="1"/>
+            <!-- 折线3（减速段）: (367,50) 到 (500,250)，蓝色 #1565c0 -->
+            <line id="scene2-line-3" x1="367" y1="50" x2="500" y2="250" stroke="#1565c0" stroke-width="3" opacity="1"/>
+            
+            <!-- 轴标签 -->
+            <text id="scene2-label-x" x="525" y="255" font-size="16" fill="#000000">x</text>
+            <text id="scene2-label-v" x="80" y="55" font-size="16" fill="#000000">v</text>
+            
+            <!-- 横轴刻度标签 -->
+            <text x="95" y="270" font-size="14" fill="#000000" text-anchor="middle">0</text>
+            <text x="233" y="270" font-size="14" fill="#000000" text-anchor="middle">L</text>
+            <text x="367" y="270" font-size="14" fill="#000000" text-anchor="middle">2L</text>
+            <text x="500" y="270" font-size="14" fill="#000000" text-anchor="middle">3L</text>
+            
+            <!-- 阶段标注：移出线段bounding box避免误检 -->
+            <text id="scene2-label-acc" x="50" y="170" font-size="14" fill="#c62828">加速</text>
+            <text id="scene2-label-const" x="280" y="42" font-size="14" fill="#2e7d32">匀速</text>
+            <text id="scene2-label-dec" x="520" y="150" font-size="14" fill="#1565c0">减速</text>
+            
+            <!-- 当前状态点 -->
+            <circle id="scene2-state-point" cx="100" cy="250" r="5" fill="#1565c0" stroke="#ffffff" stroke-width="1"/>
+        </svg>
+        
+        <!-- v_max 标注 - HTML层，避免与SVG线段bounding box误检 -->
+        <div id="scene2-label-vmax">v_max = √(gL)</div>
+        
+        <!-- 能量面板 - HTML层 -->
+        <div id="scene2-energy-bg"></div>
+        <div class="scene2-energy-text bold" style="left:100px; top:310px;">动能定理</div>
+        <div class="scene2-energy-text" style="left:100px; top:340px;">W_G + W_E = ΔE_k</div>
+        
+        <div id="scene2-label-xpos" class="scene2-energy-text bold" style="left:350px; top:310px;">x = 0</div>
+        <div style="position:absolute; left:350px; top:332px; width:300px; height:1px; background:#888888;"></div>
+        
+        <div class="scene2-energy-text" style="left:350px; top:348px;">W_G =</div>
+        <div id="scene2-val-wg" class="scene2-energy-text scene2-energy-red" style="left:450px; top:348px;">0 mgL</div>
+        
+        <div class="scene2-energy-text" style="left:350px; top:378px;">W_E =</div>
+        <div id="scene2-val-we" class="scene2-energy-text scene2-energy-blue" style="left:450px; top:378px;">0 mgL</div>
+        
+        <div class="scene2-energy-text" style="left:350px; top:408px;">E_k =</div>
+        <div id="scene2-val-ek" class="scene2-energy-text scene2-energy-green" style="left:450px; top:408px;">0 mgL</div>
+        
+        <div class="scene2-energy-text scene2-energy-gray" style="left:580px; top:408px;">(单位：mgL)</div>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <span id="scene2-status-indicator">状态 1 / 4</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 速度变化规律与能量转化分析
+        
+        // 坐标表对照（实现依据）
+        // v-x 坐标系原点: (100,250)
+        // x轴: (100,250)-(500,250)
+        // y轴: (100,250)-(100,50)
+        // 横轴标签 "x": (525,255)
+        // 纵轴标签 "v": (80,55)
+        // 刻度 0/L/2L/3L: y=270, x=100/233/367/500
+        // 折线1 加速段: (100,250)-(233,50) 红色#c62828
+        // 折线2 匀速段: (233,50)-(367,50) 绿色#2e7d32
+        // 折线3 减速段: (367,50)-(500,250) 蓝色#1565c0
+        // 阶段标注: 加速(50,170) 匀速(280,42) 减速(520,150)
+        // v_max标注: HTML层 (420,96)
+        // 能量面板: HTML绝对定位层 (60,300)-(740,425)
+        // 状态点: 状态0(100,250) 状态1(233,50) 状态2(367,50) 状态3(500,250)
+        
+        const energyData = [
+            {x: "0", wg: "0", we: "0", ek: "0"},
+            {x: "L", wg: "3", we: "-1.5", ek: "1.5"},
+            {x: "2L", wg: "6", we: "-4.5", ek: "1.5"},
+            {x: "3L", wg: "9", we: "-9", ek: "0"}
+        ];
+        
+        const statePoints = [
+            {cx: 100, cy: 250},
+            {cx: 233, cy: 50},
+            {cx: 367, cy: 50},
+            {cx: 500, cy: 250}
+        ];
+        
+        let currentState = 0;
+        let isAnimating = false;
+        
+        const statePoint = document.getElementById('scene2-state-point');
+        const labelXpos = document.getElementById('scene2-label-xpos');
+        const valWg = document.getElementById('scene2-val-wg');
+        const valWe = document.getElementById('scene2-val-we');
+        const valEk = document.getElementById('scene2-val-ek');
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const statusIndicator = document.getElementById('scene2-status-indicator');
+        const line1 = document.getElementById('scene2-line-1');
+        const line2 = document.getElementById('scene2-line-2');
+        const line3 = document.getElementById('scene2-line-3');
+        
+        function updateButtonState() {
+            btnPrev.disabled = currentState === 0;
+            btnNext.disabled = currentState === 3;
+        }
+        
+        function highlightLine(state) {
+            // 重置所有线段
+            line1.setAttribute('stroke-width', '3');
+            line1.setAttribute('opacity', '0.6');
+            line2.setAttribute('stroke-width', '3');
+            line2.setAttribute('opacity', '0.6');
+            line3.setAttribute('stroke-width', '3');
+            line3.setAttribute('opacity', '0.6');
+            
+            // 高亮当前状态对应的线段
+            if (state === 1) {
+                line1.setAttribute('stroke-width', '4');
+                line1.setAttribute('opacity', '1');
+            } else if (state === 2) {
+                line2.setAttribute('stroke-width', '4');
+                line2.setAttribute('opacity', '1');
+            } else if (state === 3) {
+                line3.setAttribute('stroke-width', '4');
+                line3.setAttribute('opacity', '1');
+            } else {
+                // 状态0：全部显示为正常
+                line1.setAttribute('opacity', '1');
+                line2.setAttribute('opacity', '1');
+                line3.setAttribute('opacity', '1');
+            }
+        }
+        
+        function animateStatePoint(targetState, duration) {
+            const startCx = parseFloat(statePoint.getAttribute('cx'));
+            const startCy = parseFloat(statePoint.getAttribute('cy'));
+            const targetCx = statePoints[targetState].cx;
+            const targetCy = statePoints[targetState].cy;
+            const startTime = performance.now();
+            
+            isAnimating = true;
+            
+            function step(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // ease-out cubic
+                const t = 1 - Math.pow(1 - progress, 3);
+                
+                const newCx = startCx + (targetCx - startCx) * t;
+                const newCy = startCy + (targetCy - startCy) * t;
+                
+                statePoint.setAttribute('cx', newCx);
+                statePoint.setAttribute('cy', newCy);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    isAnimating = false;
+                }
+            }
+            
+            requestAnimationFrame(step);
+        }
+        
+        function renderState(newState) {
+            if (isAnimating) return;
+            if (newState < 0 || newState > 3) return;
+            
+            currentState = newState;
+            
+            // 动画移动状态点（300ms）
+            animateStatePoint(currentState, 300);
+            
+            // 更新能量数值（HTML元素）
+            const data = energyData[currentState];
+            labelXpos.textContent = 'x = ' + data.x;
+            valWg.textContent = data.wg + ' mgL';
+            valWe.textContent = data.we + ' mgL';
+            valEk.textContent = data.ek + ' mgL';
+            
+            // 更新状态指示器
+            statusIndicator.textContent = '状态 ' + (currentState + 1) + ' / 4';
+            
+            // 高亮当前线段
+            highlightLine(currentState);
+            
+            // 更新按钮状态
+            updateButtonState();
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            renderState(currentState - 1);
+        });
+        
+        btnNext.addEventListener('click', function() {
+            renderState(currentState + 1);
+        });
+        
+        // 初始化
+        highlightLine(0);
+        updateButtonState();
+    })();
+    </script>
+</body>
+</html>

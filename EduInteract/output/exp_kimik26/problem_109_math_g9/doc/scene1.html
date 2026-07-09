@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半圆旋转与阴影面积</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; background: #f5f5f5; transition: background 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 80px; text-align: center; }
+        svg { display: block; }
+        .scene1-hidden { opacity: 0; pointer-events: none; }
+        .scene1-fade { transition: opacity 0.4s ease; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 底层：扇形ABA'（步骤3出现） -->
+            <path id="scene1-sector" class="scene1-fade scene1-hidden"
+                  d="M 380 300 L 140 300 A 240 240 0 0 1 210 130 Z"
+                  fill="rgba(46,125,50,0.2)" stroke="none"/>
+
+            <!-- 旋转后半圆（步骤1出现轮廓，步骤2填充红色半透明） -->
+            <path id="scene1-semicircle-rotated" class="scene1-fade scene1-hidden"
+                  d="M 210 130 A 120 120 0 0 1 380 300 Z"
+                  fill="none" stroke="#c62828" stroke-width="2"/>
+
+            <!-- 原半圆（始终显示轮廓，步骤2填充白色）——弧线在AB上方 -->
+            <path id="scene1-semicircle-original"
+                  d="M 140 300 A 120 120 0 0 1 380 300 Z"
+                  fill="none" stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 直径AB -->
+            <line id="scene1-line-ab" x1="140" y1="300" x2="380" y2="300"
+                  stroke="#1565c0" stroke-width="2"/>
+
+            <!-- 直径A'B（步骤1出现） -->
+            <line id="scene1-line-apb" class="scene1-fade scene1-hidden"
+                  x1="210" y1="130" x2="380" y2="300"
+                  stroke="#c62828" stroke-width="2"/>
+
+            <!-- 轨迹弧AA'（步骤1出现） -->
+            <path id="scene1-arc-trace" class="scene1-fade scene1-hidden"
+                  d="M 140 300 A 240 240 0 0 1 210 130"
+                  fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- 角度弧（步骤1出现） -->
+            <path id="scene1-angle-arc" class="scene1-fade scene1-hidden"
+                  d="M 345 300 A 35 35 0 0 1 355 275"
+                  fill="none" stroke="#000000" stroke-width="1"/>
+
+            <!-- 点标签 -->
+            <text id="scene1-label-a" x="125" y="320" font-size="16" font-family="serif" fill="#000000" text-anchor="middle">A</text>
+            <text id="scene1-label-b" x="395" y="320" font-size="16" font-family="serif" fill="#000000" text-anchor="middle">B</text>
+            <text id="scene1-label-ap" class="scene1-fade scene1-hidden" x="190" y="115" font-size="16" font-family="serif" fill="#c62828" text-anchor="middle">A′</text>
+
+            <!-- 长度标注：AB=4，放在AB下方避免与半圆重叠 -->
+            <text id="scene1-text-ab4" x="260" y="320" font-size="14" fill="#1565c0" text-anchor="middle">4</text>
+            <!-- 长度标注：A'B=4，放在A'B左上方避免与图形重叠 -->
+            <text id="scene1-text-apb4" class="scene1-fade scene1-hidden" x="180" y="120" font-size="14" fill="#c62828" text-anchor="middle">4</text>
+
+            <!-- 角度值：放在B点右下方，避免与旋转半圆重叠 -->
+            <text id="scene1-text-angle" class="scene1-fade scene1-hidden" x="410" y="330" font-size="14" fill="#000000" text-anchor="middle">45°</text>
+
+            <!-- 面积符号（步骤3出现，全部放在图形外部不重叠位置） -->
+            <text id="scene1-text-s1" class="scene1-fade scene1-hidden" x="180" y="450" font-size="16" fill="#1565c0" text-anchor="middle">S₁</text>
+            <text id="scene1-text-s2" class="scene1-fade scene1-hidden" x="420" y="140" font-size="16" fill="#c62828" text-anchor="middle">S₂</text>
+            <text id="scene1-text-seq" class="scene1-fade scene1-hidden" x="200" y="60" font-size="16" fill="#000000" text-anchor="middle">S₁ = S₂</text>
+            <text id="scene1-text-shadow" class="scene1-fade scene1-hidden" x="480" y="220" font-size="16" fill="#c62828" text-anchor="middle">S阴影</text>
+            <text id="scene1-text-sector" class="scene1-fade scene1-hidden" x="120" y="220" font-size="16" fill="#2e7d32" text-anchor="middle">S扇形</text>
+            <text id="scene1-text-overlap" class="scene1-fade scene1-hidden" x="300" y="80" font-size="16" fill="#ef6c00" text-anchor="middle">S重叠</text>
+
+            <!-- 推导等式（步骤3出现，右侧4行） -->
+            <text id="scene1-formula-derive" class="scene1-fade scene1-hidden" x="520" y="160" font-size="14" fill="#000000">
+                <tspan x="520" dy="0">S阴影 + S重叠 = S半圆′</tspan>
+                <tspan x="520" dy="20">S扇形 + S重叠 = S半圆</tspan>
+                <tspan x="520" dy="20">∵ S半圆 = S半圆′</tspan>
+                <tspan x="520" dy="20">∴ S阴影 = S扇形ABA′</tspan>
+            </text>
+
+            <!-- 计算公式（步骤4出现） -->
+            <text id="scene1-formula-calc" class="scene1-fade scene1-hidden" x="520" y="120" font-size="16" fill="#000000">
+                S = (45/360)·π·4² =
+            </text>
+
+            <!-- 答案高亮（步骤4出现） -->
+            <text id="scene1-answer" class="scene1-fade scene1-hidden" x="720" y="120" font-size="24" font-weight="bold" fill="#2e7d32">2π</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const indicator = document.getElementById('scene1-step-indicator');
+
+        // 获取所有受控元素
+        const els = {
+            sector: document.getElementById('scene1-sector'),
+            semicircleRotated: document.getElementById('scene1-semicircle-rotated'),
+            semicircleOriginal: document.getElementById('scene1-semicircle-original'),
+            lineApb: document.getElementById('scene1-line-apb'),
+            arcTrace: document.getElementById('scene1-arc-trace'),
+            angleArc: document.getElementById('scene1-angle-arc'),
+            labelAp: document.getElementById('scene1-label-ap'),
+            textApb4: document.getElementById('scene1-text-apb4'),
+            textAngle: document.getElementById('scene1-text-angle'),
+            textS1: document.getElementById('scene1-text-s1'),
+            textS2: document.getElementById('scene1-text-s2'),
+            textSeq: document.getElementById('scene1-text-seq'),
+            textShadow: document.getElementById('scene1-text-shadow'),
+            textSector: document.getElementById('scene1-text-sector'),
+            textOverlap: document.getElementById('scene1-text-overlap'),
+            formulaDerive: document.getElementById('scene1-formula-derive'),
+            formulaCalc: document.getElementById('scene1-formula-calc'),
+            answer: document.getElementById('scene1-answer')
+        };
+
+        function updateStep(step) {
+            currentStep = step;
+            indicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+
+            // 步骤0：仅显示原半圆、AB、A、B、AB=4
+            // 步骤1：+轨迹、旋转后半圆、A'B、A'、A'B=4、45°
+            // 步骤2：+旋转后半圆fill红色半透明、原半圆fill白色
+            // 步骤3：+扇形fill绿色半透明、所有面积符号、推导文字
+            // 步骤4：+扇形stroke加粗、计算公式、答案高亮
+
+            // 旋转后半圆
+            if (step >= 1) {
+                els.semicircleRotated.classList.remove('scene1-hidden');
+            } else {
+                els.semicircleRotated.classList.add('scene1-hidden');
+            }
+            if (step >= 2) {
+                els.semicircleRotated.setAttribute('fill', 'rgba(198,40,40,0.2)');
+            } else {
+                els.semicircleRotated.setAttribute('fill', 'none');
+            }
+
+            // 原半圆填充
+            if (step >= 2) {
+                els.semicircleOriginal.setAttribute('fill', 'white');
+            } else {
+                els.semicircleOriginal.setAttribute('fill', 'none');
+            }
+
+            // 步骤1元素
+            const step1Els = [els.lineApb, els.arcTrace, els.angleArc, els.labelAp, els.textApb4, els.textAngle];
+            step1Els.forEach(el => {
+                if (step >= 1) el.classList.remove('scene1-hidden');
+                else el.classList.add('scene1-hidden');
+            });
+
+            // 步骤3元素
+            const step3Els = [els.sector, els.textS1, els.textS2, els.textSeq, els.textShadow, els.textSector, els.textOverlap, els.formulaDerive];
+            step3Els.forEach(el => {
+                if (step >= 3) el.classList.remove('scene1-hidden');
+                else el.classList.add('scene1-hidden');
+            });
+
+            // 步骤4元素
+            const step4Els = [els.formulaCalc, els.answer];
+            step4Els.forEach(el => {
+                if (step >= 4) el.classList.remove('scene1-hidden');
+                else el.classList.add('scene1-hidden');
+            });
+
+            // 扇形轮廓加粗（步骤4）
+            if (step >= 4) {
+                els.sector.setAttribute('stroke', '#2e7d32');
+                els.sector.setAttribute('stroke-width', '3');
+            } else {
+                els.sector.setAttribute('stroke', 'none');
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) updateStep(currentStep - 1);
+        });
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) updateStep(currentStep + 1);
+        });
+
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

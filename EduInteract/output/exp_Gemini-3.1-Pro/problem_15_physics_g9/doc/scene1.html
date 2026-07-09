@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* SVG Styles */
+        .wood-block { fill: #ffffff; stroke: #000000; stroke-width: 2; }
+        .block-text { font-size: 20px; font-weight: bold; text-anchor: middle; dominant-baseline: middle; }
+        .desk-line { stroke: #000000; stroke-width: 2; }
+        .desk-hatch { stroke: #000000; stroke-width: 1; }
+        
+        .v-arrow { stroke: #888888; stroke-width: 2; stroke-dasharray: 4,4; fill: none; }
+        .v-text { fill: #888888; font-size: 16px; text-anchor: middle; }
+        
+        .f-arrow { stroke: #c62828; stroke-width: 2; fill: none; transition: stroke-width 0.3s; }
+        .f-text { fill: #c62828; font-size: 16px; text-anchor: middle; }
+        
+        .g-arrow, .n-arrow { stroke: #2e7d32; stroke-width: 2; fill: none; }
+        .g-text, .n-text { fill: #2e7d32; font-size: 16px; }
+        
+        .fric-arrow { stroke: #1565c0; stroke-width: 2; fill: none; transition: stroke-width 0.3s; }
+        .fric-text { fill: #1565c0; font-size: 16px; text-anchor: middle; }
+        
+        .highlight-rect { fill: #1565c0; opacity: 0; transition: opacity 0.3s; }
+        
+        .label-text { font-size: 18px; text-anchor: middle; }
+        #scene1-hint { font-size: 16px; text-anchor: middle; fill: #333333; }
+        
+        /* Step visibility classes */
+        .step-element { opacity: 0; transition: opacity 0.3s; }
+        .step-element.visible { opacity: 1; }
+        
+        .v-group { transition: opacity 0.3s; }
+        .v-group.dimmed { opacity: 0.3; }
+        
+        .force-balanced { stroke-width: 4px !important; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <defs>
+                <marker id="arrow-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#888888" />
+                </marker>
+                <marker id="arrow-f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                <marker id="arrow-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+                <marker id="arrow-fric" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                
+                <!-- Hatch pattern for desk -->
+                <pattern id="hatch" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="0" x2="0" y2="10" stroke="#000000" stroke-width="1" />
+                </pattern>
+            </defs>
+            
+            <!-- 桌面 -->
+            <line x1="50" y1="350" x2="350" y2="350" class="desk-line" />
+            <rect x="50" y="350" width="300" height="10" fill="url(#hatch)" />
+            
+            <line x1="450" y1="350" x2="750" y2="350" class="desk-line" />
+            <rect x="450" y="350" width="300" height="10" fill="url(#hatch)" />
+            
+            <!-- 图甲 (叠放) -->
+            <!-- 整体高亮 (Step 1) -->
+            <g class="highlight-rect step-element step1" id="scene1-hl-jia" stroke="#1565c0" stroke-width="4"><line x1="156" y1="226" x2="244" y2="226"/><line x1="244" y1="226" x2="244" y2="354"/><line x1="244" y1="354" x2="156" y2="354"/><line x1="156" y1="354" x2="156" y2="226"/></g>
+            
+            <line x1="160" y1="230" x2="240" y2="230" class="wood-block" /><line x1="240" y1="230" x2="240" y2="290" class="wood-block" /><line x1="240" y1="290" x2="160" y2="290" class="wood-block" /><line x1="160" y1="290" x2="160" y2="230" class="wood-block" />
+            <text x="200" y="260" class="block-text">B</text>
+            
+            <line x1="160" y1="290" x2="240" y2="290" class="wood-block" /><line x1="240" y1="290" x2="240" y2="350" class="wood-block" /><line x1="240" y1="350" x2="160" y2="350" class="wood-block" /><line x1="160" y1="350" x2="160" y2="290" class="wood-block" />
+            <text x="200" y="320" class="block-text">A</text>
+            
+            <!-- 图乙 (平放) -->
+            <!-- 整体高亮 (Step 1) -->
+            <g class="highlight-rect step-element step1" id="scene1-hl-yi" stroke="#1565c0" stroke-width="4"><line x1="516" y1="286" x2="684" y2="286"/><line x1="684" y1="286" x2="684" y2="354"/><line x1="684" y1="354" x2="516" y2="354"/><line x1="516" y1="354" x2="516" y2="286"/></g>
+            
+            <line x1="520" y1="290" x2="600" y2="290" class="wood-block" /><line x1="600" y1="290" x2="600" y2="350" class="wood-block" /><line x1="600" y1="350" x2="520" y2="350" class="wood-block" /><line x1="520" y1="350" x2="520" y2="290" class="wood-block" />
+            <text x="560" y="320" class="block-text">A</text>
+            
+            <line x1="600" y1="290" x2="680" y2="290" class="wood-block" /><line x1="680" y1="290" x2="680" y2="350" class="wood-block" /><line x1="680" y1="350" x2="600" y2="350" class="wood-block" /><line x1="600" y1="350" x2="600" y2="290" class="wood-block" />
+            <text x="640" y="320" class="block-text">B</text>
+            
+            <!-- 速度 V1, V2 -->
+            <g class="v-group" id="scene1-v-group">
+                <line x1="160" y1="180" x2="240" y2="180" class="v-arrow" marker-end="url(#arrow-v)" />
+                <text x="200" y="170" class="v-text">V₁</text>
+                
+                <line x1="560" y1="240" x2="680" y2="240" class="v-arrow" marker-end="url(#arrow-v)" />
+                <text x="620" y="230" class="v-text">V₂</text>
+            </g>
+            
+            <!-- 推力 F1, F2 -->
+            <line x1="80" y1="320" x2="160" y2="320" class="f-arrow" id="scene1-f1-arrow" marker-end="url(#arrow-f)" />
+            <text x="120" y="310" class="f-text">F₁</text>
+            
+            <line x1="440" y1="320" x2="520" y2="320" class="f-arrow" id="scene1-f2-arrow" marker-end="url(#arrow-f)" />
+            <text x="480" y="310" class="f-text">F₂</text>
+            
+            <!-- 垂直受力 (Step 1) -->
+            <g class="step-element step1" id="scene1-vertical-forces">
+                <!-- 图甲 G, N -->
+                <line x1="210" y1="290" x2="210" y2="390" class="g-arrow" marker-end="url(#arrow-g)" />
+                <text x="220" y="380" class="g-text">G_总</text>
+                
+                <line x1="190" y1="350" x2="190" y2="210" class="n-arrow" marker-end="url(#arrow-g)" />
+                <text x="160" y="220" class="n-text">N</text>
+                
+                <!-- 图乙 G, N -->
+                <line x1="610" y1="320" x2="610" y2="400" class="g-arrow" marker-end="url(#arrow-g)" />
+                <text x="620" y="380" class="g-text">G_总</text>
+                
+                <line x1="590" y1="350" x2="590" y2="250" class="n-arrow" marker-end="url(#arrow-g)" />
+                <text x="560" y="260" class="n-text">N</text>
+            </g>
+            
+            <!-- 摩擦力 (Step 2) -->
+            <g class="step-element step2" id="scene1-fric-forces">
+                <!-- 图甲 f1 -->
+                <line x1="200" y1="353" x2="120" y2="353" class="fric-arrow" id="scene1-fric1-arrow" marker-end="url(#arrow-fric)" />
+                <text x="160" y="375" class="fric-text">f₁</text>
+                
+                <!-- 图乙 f2 -->
+                <line x1="600" y1="353" x2="520" y2="353" class="fric-arrow" id="scene1-fric2-arrow" marker-end="url(#arrow-fric)" />
+                <text x="560" y="375" class="fric-text">f₂</text>
+            </g>
+            
+            <!-- 文本标签 -->
+            <text x="200" y="420" class="label-text">图（甲）</text>
+            <text x="600" y="420" class="label-text">图（乙）</text>
+            
+            <!-- 提示文本 -->
+            <text x="400" y="470" id="scene1-hint">初始状态：观察图甲（叠放）和图乙（平放）的受力与运动情况。</text>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const hintText = document.getElementById('scene1-hint');
+        
+        const hints = [
+            "初始状态：观察图甲（叠放）和图乙（平放）的受力与运动情况。",
+            "整体法分析：将A和B看作整体。两图总重力相同，对桌面的压力相同。",
+            "摩擦力分析：压力和接触面粗糙程度相同，因此滑动摩擦力 f₁ = f₂。",
+            "二力平衡：匀速直线运动时推力与摩擦力平衡。F₁=f₁，F₂=f₂，得出 F₁=F₂=100N。"
+        ];
+        
+        function updateScene() {
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Update hint
+            hintText.textContent = hints[currentStep];
+            
+            // Step 1 elements
+            const step1Els = document.querySelectorAll('.step1');
+            step1Els.forEach(el => {
+                if (currentStep >= 1) {
+                    el.classList.add('visible');
+                    if (el.classList.contains('highlight-rect')) {
+                        el.style.opacity = '0.2';
+                    }
+                } else {
+                    el.classList.remove('visible');
+                    if (el.classList.contains('highlight-rect')) {
+                        el.style.opacity = '0';
+                    }
+                }
+            });
+            
+            // Step 2 elements
+            const step2Els = document.querySelectorAll('.step2');
+            step2Els.forEach(el => {
+                if (currentStep >= 2) {
+                    el.classList.add('visible');
+                } else {
+                    el.classList.remove('visible');
+                }
+            });
+            
+            // Step 3 elements (Force balance highlight & V dimming)
+            const f1Arrow = document.getElementById('scene1-f1-arrow');
+            const f2Arrow = document.getElementById('scene1-f2-arrow');
+            const fric1Arrow = document.getElementById('scene1-fric1-arrow');
+            const fric2Arrow = document.getElementById('scene1-fric2-arrow');
+            const vGroup = document.getElementById('scene1-v-group');
+            
+            if (currentStep >= 3) {
+                f1Arrow.classList.add('force-balanced');
+                f2Arrow.classList.add('force-balanced');
+                fric1Arrow.classList.add('force-balanced');
+                fric2Arrow.classList.add('force-balanced');
+                vGroup.classList.add('dimmed');
+            } else {
+                f1Arrow.classList.remove('force-balanced');
+                f2Arrow.classList.remove('force-balanced');
+                fric1Arrow.classList.remove('force-balanced');
+                fric2Arrow.classList.remove('force-balanced');
+                vGroup.classList.remove('dimmed');
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

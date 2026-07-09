@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点移动轨迹 - 场景 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; z-index: 100; }
+        #scene1-btn-prev, #scene1-btn-next {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1565c0;
+            cursor: pointer;
+            font-family: "Microsoft YaHei", sans-serif;
+            transition: all 0.2s;
+        }
+        #scene1-btn-prev:hover:not(:disabled), #scene1-btn-next:hover {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        #scene1-btn-prev:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect id="scene1-bg" x="0" y="0" width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 极昼极夜填充层（底层） -->
+            <g id="scene1-polar-layers">
+                <!-- 北极圈以北区域 -->
+                <path id="scene1-arctic-region" d="M 80 95 L 720 95 L 720 60 L 80 60 Z" fill="#c62828" opacity="0.2" style="display:none"/>
+                <!-- 南极圈以南区域 -->
+                <path id="scene1-antarctic-region" d="M 80 365 L 720 365 L 720 400 L 80 400 Z" fill="#1565c0" opacity="0.2" style="display:none"/>
+            </g>
+            
+            <!-- 经纬网格 -->
+            <g id="scene1-grid">
+                <!-- 东半球经线（5 条弧线） -->
+                <g id="scene1-longitudes-east">
+                    <path id="scene1-meridian-e1" d="M 100 60 Q 100 230 100 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-e2" d="M 150 60 Q 150 230 150 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-e3" d="M 200 60 L 200 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-e4" d="M 250 60 Q 250 230 250 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-e5" d="M 300 60 Q 300 230 300 400" stroke="#000000" stroke-width="1" fill="none"/>
+                </g>
+                <!-- 西半球经线（5 条弧线） -->
+                <g id="scene1-longitudes-west">
+                    <path id="scene1-meridian-w1" d="M 440 60 Q 440 230 440 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-w2" d="M 490 60 Q 490 230 490 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-w3" d="M 540 60 L 540 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-w4" d="M 590 60 Q 590 230 590 400" stroke="#000000" stroke-width="1" fill="none"/>
+                    <path id="scene1-meridian-w5" d="M 640 60 Q 640 230 640 400" stroke="#000000" stroke-width="1" fill="none"/>
+                </g>
+                <!-- 纬线 -->
+                <g id="scene1-latitudes">
+                    <!-- 赤道 -->
+                    <line id="scene1-equator" x1="80" y1="230" x2="720" y2="230" stroke="#000000" stroke-width="2"/>
+                    <!-- 北回归线 -->
+                    <line id="scene1-tropic-n" x1="80" y1="145" x2="720" y2="145" stroke="#c62828" stroke-width="1" stroke-dasharray="5,5"/>
+                    <!-- 南回归线 -->
+                    <line id="scene1-tropic-s" x1="80" y1="315" x2="720" y2="315" stroke="#c62828" stroke-width="1" stroke-dasharray="5,5"/>
+                    <!-- 北极圈 -->
+                    <line id="scene1-arctic-circle" x1="80" y1="95" x2="720" y2="95" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                    <!-- 南极圈 -->
+                    <line id="scene1-antarctic-circle" x1="80" y1="365" x2="720" y2="365" stroke="#1565c0" stroke-width="1" stroke-dasharray="5,5"/>
+                </g>
+            </g>
+            
+            <!-- 地球轮廓 -->
+            <g id="scene1-continents">
+                <ellipse id="scene1-earth-east" cx="230" cy="230" rx="150" ry="170" stroke="#000000" stroke-width="2" fill="none"/>
+                <ellipse id="scene1-earth-west" cx="570" cy="230" rx="150" ry="170" stroke="#000000" stroke-width="2" fill="none"/>
+            </g>
+            
+            <!-- 轨迹线 -->
+            <path id="scene1-trajectory" d="M 90 280 Q 140 255 200 230 T 350 160 T 450 160 T 560 230 T 710 280" stroke="#1565c0" stroke-width="2" fill="none"/>
+            
+            <!-- 关键点 -->
+            <g id="scene1-points">
+                <circle id="scene1-point-A" cx="90" cy="280" r="6" fill="#c62828"/>
+                <circle id="scene1-point-B" cx="200" cy="230" r="6" fill="#c62828"/>
+                <circle id="scene1-point-C" cx="350" cy="160" r="6" fill="#c62828"/>
+                <circle id="scene1-point-D" cx="450" cy="160" r="6" fill="#c62828"/>
+                <circle id="scene1-point-E" cx="560" cy="230" r="6" fill="#c62828"/>
+                <circle id="scene1-point-F" cx="710" cy="280" r="6" fill="#c62828"/>
+            </g>
+            
+            <!-- 标签 -->
+            <g id="scene1-labels">
+                <!-- 纬度标签（移到画布左侧边缘外，x=25） -->
+                <text id="scene1-label-equator" x="25" y="225" font-size="12" fill="#000000">0°</text>
+                <text id="scene1-label-tropic-n" x="25" y="140" font-size="12" fill="#c62828">23°26′N</text>
+                <text id="scene1-label-tropic-s" x="25" y="310" font-size="12" fill="#c62828">23°26′S</text>
+                <text id="scene1-label-arctic-circle" x="25" y="90" font-size="12" fill="#1565c0">66°34′N</text>
+                <text id="scene1-label-antarctic-circle" x="25" y="360" font-size="12" fill="#1565c0">66°34′S</text>
+                
+                <!-- 点标签（调整位置避免重叠） -->
+                <text id="scene1-label-A" x="65" y="285" font-size="14" fill="#c62828" font-weight="bold">A</text>
+                <text id="scene1-label-B" x="185" y="215" font-size="14" fill="#c62828" font-weight="bold">B</text>
+                <text id="scene1-label-C" x="365" y="155" font-size="14" fill="#c62828" font-weight="bold">C</text>
+                <text id="scene1-label-D" x="435" y="155" font-size="14" fill="#c62828" font-weight="bold">D</text>
+                <text id="scene1-label-E" x="575" y="215" font-size="14" fill="#c62828" font-weight="bold">E</text>
+                <text id="scene1-label-F" x="725" y="285" font-size="14" fill="#c62828" font-weight="bold">F</text>
+                
+                <!-- 半球标签（移到地球下方更远处，y=450） -->
+                <text id="scene1-label-east-hemisphere" x="230" y="450" font-size="14" fill="#000000" text-anchor="middle">东半球</text>
+                <text id="scene1-label-west-hemisphere" x="570" y="450" font-size="14" fill="#000000" text-anchor="middle">西半球</text>
+                
+                <!-- 极点标签（移到地球轮廓外更远处） -->
+                <text id="scene1-label-n-east" x="230" y="25" font-size="12" fill="#000000" text-anchor="middle">N</text>
+                <text id="scene1-label-s-east" x="230" y="440" font-size="12" fill="#000000" text-anchor="middle">S</text>
+                <text id="scene1-label-n-west" x="570" y="25" font-size="12" fill="#000000" text-anchor="middle">N</text>
+                <text id="scene1-label-s-west" x="570" y="440" font-size="12" fill="#000000" text-anchor="middle">S</text>
+            </g>
+            
+            <!-- 信息框（移到画布右侧空白区域，x=730，避免与地球重叠） -->
+            <g id="scene1-info-box" style="display:none">
+                <rect id="scene1-info-rect" x="730" y="10" width="180" height="55" fill="#ffffff" stroke="#000000" stroke-width="1" rx="5"/>
+                <text id="scene1-info-text" x="740" y="30" font-size="12" fill="#000000"></text>
+            </g>
+            
+            <!-- 总结信息框（步骤 6 显示，移到画布右侧） -->
+            <g id="scene1-summary-box" style="display:none">
+                <rect id="scene1-summary-rect" x="730" y="10" width="180" height="70" fill="#ffffff" stroke="#1565c0" stroke-width="2" rx="5"/>
+                <text id="scene1-summary-text1" x="740" y="30" font-size="12" fill="#1565c0" font-weight="bold">太阳直射点移动规律：</text>
+                <text id="scene1-summary-text2" x="740" y="50" font-size="11" fill="#000000">南回归线→赤道→</text>
+                <text id="scene1-summary-text3" x="740" y="65" font-size="11" fill="#000000">北回归线→赤道→</text>
+                <text id="scene1-summary-text4" x="740" y="80" font-size="11" fill="#000000">南回归线</text>
+            </g>
+            
+            <!-- 轨迹箭头（步骤 6 显示） -->
+            <g id="scene1-trajectory-arrows" style="display:none">
+                <polygon id="scene1-arrow-1" points="145,257 140,252 150,252" fill="#1565c0"/>
+                <polygon id="scene1-arrow-2" points="275,205 270,200 280,200" fill="#1565c0"/>
+                <polygon id="scene1-arrow-3" points="400,160 395,155 405,155" fill="#1565c0"/>
+                <polygon id="scene1-arrow-4" points="505,205 500,200 510,200" fill="#1565c0"/>
+                <polygon id="scene1-arrow-5" points="635,257 630,252 640,252" fill="#1565c0"/>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // ===== 场景 1：太阳直射点移动轨迹 =====
+        // 布局坐标表（对照实现）：
+        // 东半球地球：椭圆 (80,60)-(380,400) | 标签"东半球"在 (230,450)
+        // 西半球地球：椭圆 (420,60)-(720,400) | 标签"西半球"在 (570,450)
+        // 赤道：(80,230)-(720,230) | 标签"0°"在 (25,225)
+        // 北回归线：(80,145)-(720,145) | 标签"23°26′N"在 (25,140)
+        // 南回归线：(80,315)-(720,315) | 标签"23°26′S"在 (25,310)
+        // 北极圈：(80,95)-(720,95) | 标签"66°34′N"在 (25,90)
+        // 南极圈：(80,365)-(720,365) | 标签"66°34′S"在 (25,360)
+        // A 点：(90,280) | B 点：(200,230) | C 点：(350,160)
+        // D 点：(450,160) | E 点：(560,230) | F 点：(710,280)
+        // N 标签：(230,25) 和 (570,25) | S 标签：(230,440) 和 (570,440)
+        // 信息框：移到画布右侧 (730,10) 避免与地球重叠
+        
+        const currentStepMax = 6;
+        let currentStep = 0;
+        
+        // 信息框内容配置
+        const infoBoxContent = {
+            1: "南回归线（23°26′S）\n冬至日（12 月 22 日前后）",
+            2: "赤道（0°）\n春分日（3 月 21 日前后）",
+            3: "北回归线（23°26′N）\n夏至日（6 月 22 日前后）",
+            4: "赤道（0°）\n秋分日（9 月 23 日前后）",
+            5: "南回归线（23°26′S）\n冬至日（12 月 22 日前后）"
+        };
+        
+        // 获取 DOM 元素
+        const svg = document.getElementById('scene1-svg');
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const infoBox = document.getElementById('scene1-info-box');
+        const infoRect = document.getElementById('scene1-info-rect');
+        const infoText = document.getElementById('scene1-info-text');
+        const summaryBox = document.getElementById('scene1-summary-box');
+        const arcticRegion = document.getElementById('scene1-arctic-region');
+        const antarcticRegion = document.getElementById('scene1-antarctic-region');
+        const trajectoryArrows = document.getElementById('scene1-trajectory-arrows');
+        
+        // 点元素
+        const points = {
+            A: document.getElementById('scene1-point-A'),
+            B: document.getElementById('scene1-point-B'),
+            C: document.getElementById('scene1-point-C'),
+            D: document.getElementById('scene1-point-D'),
+            E: document.getElementById('scene1-point-E'),
+            F: document.getElementById('scene1-point-F')
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 工具函数：高亮点
+        function highlightPoint(pointId) {
+            Object.values(points).forEach(p => {
+                p.setAttribute('r', '6');
+                p.setAttribute('fill', '#c62828');
+            });
+            if (points[pointId]) {
+                points[pointId].setAttribute('r', '8');
+                points[pointId].setAttribute('fill', '#d32f2f');
+            }
+        }
+        
+        // 工具函数：重置所有点
+        function resetPoints() {
+            Object.values(points).forEach(p => {
+                p.setAttribute('r', '6');
+                p.setAttribute('fill', '#c62828');
+            });
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            if (currentStep === currentStepMax) {
+                btnNext.textContent = '重置';
+            } else {
+                btnNext.textContent = '下一步 ▶';
+            }
+            
+            // 隐藏所有动态元素
+            hide(infoBox);
+            hide(summaryBox);
+            hide(arcticRegion);
+            hide(antarcticRegion);
+            hide(trajectoryArrows);
+            resetPoints();
+            
+            // 根据当前步骤更新显示
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：只显示基础图形
+                    break;
+                    
+                case 1:
+                    // A 点
+                    highlightPoint('A');
+                    show(infoBox);
+                    infoText.textContent = infoBoxContent[1];
+                    show(antarcticRegion); // 南极圈以南极昼
+                    hide(arcticRegion);
+                    break;
+                    
+                case 2:
+                    // B 点
+                    highlightPoint('B');
+                    show(infoBox);
+                    infoText.textContent = infoBoxContent[2];
+                    break;
+                    
+                case 3:
+                    // C、D 点
+                    highlightPoint('C');
+                    highlightPoint('D');
+                    show(infoBox);
+                    infoText.textContent = infoBoxContent[3];
+                    show(arcticRegion); // 北极圈以北极昼
+                    break;
+                    
+                case 4:
+                    // E 点
+                    highlightPoint('E');
+                    show(infoBox);
+                    infoText.textContent = infoBoxContent[4];
+                    break;
+                    
+                case 5:
+                    // F 点
+                    highlightPoint('F');
+                    show(infoBox);
+                    infoText.textContent = infoBoxContent[5];
+                    show(antarcticRegion); // 南极圈以南极昼
+                    hide(arcticRegion);
+                    break;
+                    
+                case 6:
+                    // 总结状态
+                    show(summaryBox);
+                    show(trajectoryArrows);
+                    break;
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < currentStepMax) {
+                currentStep++;
+                updateScene();
+            } else {
+                // 重置
+                currentStep = 0;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球侧视光照图综合判读</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #666; min-width: 70px; text-align: center; }
+
+        /* 步骤切换动画 */
+        .scene1-fade-in { opacity: 0; transition: opacity 300ms ease-out; }
+        .scene1-visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <!-- 夜半球斜线阴影 pattern -->
+                <pattern id="scene1-night-pattern" patternUnits="userSpaceOnUse" width="8" height="8">
+                    <path d="M0,8 L8,0" stroke="#000" stroke-width="0.5" opacity="0.12"/>
+                </pattern>
+                <!-- 太阳光线箭头 marker -->
+                <marker id="scene1-arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0,0 8,3 0,6" fill="#ff8f00"/>
+                </marker>
+                <!-- 自转箭头 marker -->
+                <marker id="scene1-rotation-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0,0 8,3 0,6" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- 太阳光线组 -->
+            <g id="scene1-sunray-group">
+                <line x1="80" y1="150" x2="250" y2="150" stroke="#ff8f00" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <line x1="80" y1="190" x2="250" y2="190" stroke="#ff8f00" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <line x1="80" y1="230" x2="250" y2="230" stroke="#ff8f00" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <line x1="80" y1="270" x2="250" y2="270" stroke="#ff8f00" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <line x1="80" y1="310" x2="250" y2="310" stroke="#ff8f00" stroke-width="2" marker-end="url(#scene1-arrowhead)"/>
+                <text x="50" y="235" font-size="14" fill="#000" text-anchor="middle" writing-mode="tb">太阳光线</text>
+            </g>
+
+            <!-- 昼半球填充（左侧弓形） -->
+            <path id="scene1-day-hemisphere" d="M 344,111 A 150,150 0 0,0 456,389 Z" fill="#fff9c4" opacity="0.25"/>
+
+            <!-- 夜半球填充（右侧弓形） -->
+            <path id="scene1-night-hemisphere" d="M 344,111 A 150,150 0 0,1 456,389 Z" fill="#1565c0" opacity="0.15"/>
+            <path id="scene1-night-hatch" d="M 344,111 A 150,150 0 0,1 456,389 Z" fill="url(#scene1-night-pattern)" opacity="0.4"/>
+
+            <!-- 极昼区（步骤2显示） -->
+            <path id="scene1-polar-day" class="scene1-fade-in" d="M 280,160 A 150,150 0 0,0 520,160 Z" fill="#2e7d32" opacity="0" style="display:none;"/>
+
+            <!-- 极夜区（步骤2显示） -->
+            <path id="scene1-polar-night" class="scene1-fade-in" d="M 280,340 A 150,150 0 0,1 520,340 Z" fill="#1565c0" opacity="0" style="display:none;"/>
+
+            <!-- 地球圆 -->
+            <circle id="scene1-earth" cx="400" cy="250" r="150" fill="none" stroke="#000" stroke-width="1.5"/>
+
+            <!-- 纬线 -->
+            <line id="scene1-equator" x1="250" y1="250" x2="550" y2="250" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-tropic-n" x1="259" y1="200" x2="541" y2="200" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-arctic" x1="280" y1="160" x2="520" y2="160" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-tropic-s" x1="259" y1="300" x2="541" y2="300" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+            <line id="scene1-antarctic" x1="280" y1="340" x2="520" y2="340" stroke="#888" stroke-width="1" stroke-dasharray="5,5"/>
+
+            <!-- 纬线标注（统一右移避免与地球圆重叠） -->
+            <text x="580" y="255" font-size="12" fill="#888">赤道</text>
+            <text x="580" y="205" font-size="12" fill="#888">北回归线</text>
+            <text x="580" y="165" font-size="12" fill="#888">北极圈</text>
+            <text x="580" y="305" font-size="12" fill="#888">南回归线</text>
+            <text x="580" y="345" font-size="12" fill="#888">南极圈</text>
+
+            <!-- 地轴 -->
+            <line id="scene1-axis" x1="450" y1="110" x2="350" y2="390" stroke="#000" stroke-width="1" stroke-dasharray="5,5"/>
+
+            <!-- 极点标签（移至地球圆外侧避免重叠） -->
+            <text x="470" y="92" font-size="14" fill="#000" font-weight="bold">N</text>
+            <text x="330" y="418" font-size="14" fill="#000" font-weight="bold">S</text>
+
+            <!-- 晨昏线 -->
+            <line id="scene1-terminator" x1="344" y1="111" x2="456" y2="389" stroke="#000" stroke-width="1.5"/>
+
+            <!-- 标注点 -->
+            <circle id="scene1-point-a" cx="300" cy="220" r="3" fill="#000"/>
+            <circle id="scene1-point-b" cx="355" cy="155" r="3" fill="#000"/>
+            <circle id="scene1-point-c" cx="480" cy="300" r="3" fill="#000"/>
+
+            <!-- 点标签（移至地球圆边缘外侧，减少与图形重叠） -->
+            <text x="242" y="210" font-size="14" fill="#000" font-weight="bold">A</text>
+            <text x="355" y="98" font-size="14" fill="#000" font-weight="bold">B</text>
+            <text x="650" y="290" font-size="14" fill="#000" font-weight="bold">C</text>
+
+            <!-- 步骤1：太阳直射点与节气 -->
+            <g id="scene1-step1-group" class="scene1-fade-in" style="display:none; opacity:0;">
+                <circle cx="250" cy="200" r="4" fill="#c62828"/>
+                <!-- 纵向间距32px，避免文字bounding box拥挤 -->
+                <text x="160" y="172" font-size="13" fill="#c62828" font-weight="bold">太阳直射点</text>
+                <text x="160" y="204" font-size="13" fill="#c62828">23°26′N</text>
+                <text x="160" y="236" font-size="13" fill="#c62828" font-weight="bold">夏至</text>
+                <text x="160" y="268" font-size="13" fill="#c62828">6月22日</text>
+            </g>
+
+            <!-- 步骤2：极昼极夜标签（移至地球圆外侧） -->
+            <text id="scene1-polar-day-label" class="scene1-fade-in" x="555" y="135" font-size="13" fill="#2e7d32" font-weight="bold" style="display:none; opacity:0;">极昼</text>
+            <text id="scene1-polar-night-label" class="scene1-fade-in" x="280" y="418" font-size="13" fill="#1565c0" font-weight="bold" style="display:none; opacity:0;">极夜</text>
+
+            <!-- 步骤3：自转箭头与晨线标签 -->
+            <g id="scene1-step3-group" class="scene1-fade-in" style="display:none; opacity:0;">
+                <!-- 逆时针自转箭头（北极附近） -->
+                <path d="M 430,140 A 20,20 0 0,0 470,140" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-rotation-arrow)"/>
+                <text x="300" y="95" font-size="13" fill="#c62828" font-weight="bold">晨线</text>
+            </g>
+
+            <!-- 步骤4：地方时标注（统一放在右下角空白区，避免与地球圆重叠） -->
+            <g id="scene1-step4-group" class="scene1-fade-in" style="display:none; opacity:0;">
+                <text x="650" y="352" font-size="13" fill="#000" font-weight="bold">地方时</text>
+                <text x="650" y="384" font-size="12" fill="#000">A — 12:00 正午</text>
+                <text x="650" y="416" font-size="12" fill="#000">B — 6:00 日出</text>
+                <text x="650" y="448" font-size="12" fill="#000">C — 0:00 深夜</text>
+            </g>
+
+            <!-- 步骤5：总结文字（左移避免与N标签拥挤） -->
+            <text id="scene1-summary" class="scene1-fade-in" x="260" y="60" font-size="16" fill="#000" font-weight="bold" text-anchor="middle" style="display:none; opacity:0;">北半球：昼最长，夜最短</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var totalSteps = 5;
+
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var indicator = document.getElementById('scene1-step-indicator');
+
+        // 各步骤控制的元素ID列表
+        var stepElements = {
+            1: ['scene1-step1-group'],
+            2: ['scene1-polar-day', 'scene1-polar-night', 'scene1-polar-day-label', 'scene1-polar-night-label'],
+            3: ['scene1-step3-group'],
+            4: ['scene1-step4-group'],
+            5: ['scene1-summary']
+        };
+
+        // 高亮元素（步骤切换时改变样式）
+        var highlightMap = {
+            1: { id: 'scene1-tropic-n', stroke: '#c62828', width: '2', dash: 'none' },
+            3: { id: 'scene1-terminator', stroke: '#c62828', width: '2.5', dash: 'none' }
+        };
+
+        // 保存原始样式以便恢复
+        var originalStyles = {};
+
+        function saveOriginalStyle(id) {
+            var el = document.getElementById(id);
+            if (el && !originalStyles[id]) {
+                originalStyles[id] = {
+                    stroke: el.getAttribute('stroke'),
+                    strokeWidth: el.getAttribute('stroke-width'),
+                    strokeDasharray: el.getAttribute('stroke-dasharray')
+                };
+            }
+        }
+
+        function showElement(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.style.display = '';
+            requestAnimationFrame(function() {
+                el.style.opacity = '1';
+            });
+        }
+
+        function hideElement(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.style.opacity = '0';
+            setTimeout(function() {
+                el.style.display = 'none';
+            }, 300);
+        }
+
+        function applyHighlight(step) {
+            var info = highlightMap[step];
+            if (!info) return;
+            var el = document.getElementById(info.id);
+            if (!el) return;
+            saveOriginalStyle(info.id);
+            el.setAttribute('stroke', info.stroke);
+            el.setAttribute('stroke-width', info.width);
+            if (info.dash) {
+                el.setAttribute('stroke-dasharray', info.dash);
+            }
+        }
+
+        function removeHighlight(step) {
+            var info = highlightMap[step];
+            if (!info) return;
+            var orig = originalStyles[info.id];
+            if (!orig) return;
+            var el = document.getElementById(info.id);
+            if (!el) return;
+            el.setAttribute('stroke', orig.stroke);
+            el.setAttribute('stroke-width', orig.strokeWidth);
+            if (orig.strokeDasharray) {
+                el.setAttribute('stroke-dasharray', orig.strokeDasharray);
+            } else {
+                el.removeAttribute('stroke-dasharray');
+            }
+        }
+
+        function updateScene(newStep) {
+            // 恢复旧步骤高亮
+            if (currentStep > 0) {
+                removeHighlight(currentStep);
+            }
+            // 后退：隐藏多余步骤元素
+            if (newStep < currentStep) {
+                for (var s = currentStep; s > newStep; s--) {
+                    var ids = stepElements[s] || [];
+                    ids.forEach(hideElement);
+                }
+            }
+            // 前进：显示新步骤元素
+            if (newStep > currentStep) {
+                for (var s = currentStep + 1; s <= newStep; s++) {
+                    var ids = stepElements[s] || [];
+                    ids.forEach(showElement);
+                }
+            }
+            // 应用新步骤高亮
+            if (newStep > 0) {
+                applyHighlight(newStep);
+            }
+
+            currentStep = newStep;
+            indicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) updateScene(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) updateScene(currentStep + 1);
+        });
+
+        // 初始化
+        indicator.textContent = '步骤 0/' + totalSteps;
+        btnPrev.disabled = true;
+        btnNext.disabled = false;
+    })();
+    </script>
+</body>
+</html>

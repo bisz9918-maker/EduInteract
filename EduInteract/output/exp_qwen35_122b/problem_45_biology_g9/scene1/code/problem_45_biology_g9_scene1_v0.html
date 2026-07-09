@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>血液流经器官示意图 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn {
+            width: 100px;
+            height: 40px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 2px solid #000000;
+            border-radius: 6px;
+            background: #ffffff;
+            transition: all 0.2s;
+        }
+        .scene1-btn:hover { background: #f0f0f0; }
+        .scene1-btn.active {
+            border-color: #1565c0;
+            background: #e3f2fd;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- 血管 a（管壁） -->
+            <rect id="scene1-vessel-a-wall" x="100" y="220" width="120" height="60" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 血管 a 填充（血液颜色） -->
+            <rect id="scene1-fill-a" x="105" y="225" width="110" height="50" fill="#999999" opacity="0.25"/>
+            <!-- 血流箭头 a -->
+            <line id="scene1-arrow-a-line" x1="110" y1="250" x2="180" y2="250" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrow-a-head" points="180,250 170,245 170,255" fill="#000000"/>
+            <!-- 标签"a" -->
+            <text id="scene1-label-a" x="140" y="205" font-size="16" fill="#000000">a</text>
+            <!-- 血管类型标签 a -->
+            <text id="scene1-vessel-type-a" x="155" y="300" font-size="14" fill="#000000"></text>
+
+            <!-- 器官 b（轮廓） -->
+            <ellipse id="scene1-organ-b-outline" cx="400" cy="250" rx="150" ry="100" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 器官 b 填充（毛细血管网背景）- 降低透明度 -->
+            <ellipse id="scene1-fill-organ" cx="400" cy="250" rx="145" ry="95" fill="#888888" opacity="0.05"/>
+            <!-- 器官名称文本 - 移到更中心，白色背景避免重叠 -->
+            <rect id="scene1-organ-name-bg" x="360" y="235" width="80" height="30" fill="#ffffff" opacity="0.9"/>
+            <text id="scene1-organ-name" x="400" y="255" font-size="18" fill="#000000" text-anchor="middle">?</text>
+            <!-- 标签"b" -->
+            <text id="scene1-label-b" x="400" y="240" font-size="16" fill="#000000" text-anchor="middle" style="display:none;">b</text>
+
+            <!-- O₂气体箭头 -->
+            <line id="scene1-arrow-o2-line" x1="300" y1="160" x2="340" y2="190" stroke="#2e7d32" stroke-width="2" style="display:none;"/>
+            <polygon id="scene1-arrow-o2-head" points="340,190 330,185 335,195" fill="#2e7d32" style="display:none;"/>
+            <!-- 标签"O₂" - 移到更左上方 -->
+            <text id="scene1-label-o2" x="285" y="155" font-size="16" fill="#2e7d32" style="display:none;">O₂</text>
+
+            <!-- CO₂气体箭头 -->
+            <line id="scene1-arrow-co2-line" x1="460" y1="190" x2="500" y2="160" stroke="#c62828" stroke-width="2" style="display:none;"/>
+            <polygon id="scene1-arrow-co2-head" points="500,160 495,170 505,165" fill="#c62828" style="display:none;"/>
+            <!-- 标签"CO₂" - 移到更右上方 -->
+            <text id="scene1-label-co2" x="510" y="155" font-size="16" fill="#c62828" style="display:none;">CO₂</text>
+
+            <!-- 血管 c（管壁） -->
+            <rect id="scene1-vessel-c-wall" x="580" y="220" width="120" height="60" fill="none" stroke="#000000" stroke-width="2"/>
+            <!-- 血管 c 填充（血液颜色） -->
+            <rect id="scene1-fill-c" x="585" y="225" width="110" height="50" fill="#999999" opacity="0.25"/>
+            <!-- 血流箭头 c -->
+            <line id="scene1-arrow-c-line" x1="610" y1="250" x2="680" y2="250" stroke="#000000" stroke-width="2"/>
+            <polygon id="scene1-arrow-c-head" points="680,250 670,245 670,255" fill="#000000"/>
+            <!-- 标签"c" -->
+            <text id="scene1-label-c" x="640" y="205" font-size="16" fill="#000000">c</text>
+            <!-- 血管类型标签 c -->
+            <text id="scene1-vessel-type-c" x="640" y="300" font-size="14" fill="#000000"></text>
+
+            <!-- 结论文本 - 移到更下方 -->
+            <text id="scene1-conclusion" x="100" y="360" font-size="14" fill="#000000"></text>
+
+            <!-- 器官内部结构（肺泡/毛细血管网等，根据状态显示） -->
+            <g id="scene1-organ-internal"></g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-lung" class="scene1-btn">肺</button>
+            <button id="scene1-btn-tissue" class="scene1-btn">组织细胞</button>
+            <button id="scene1-btn-intestine" class="scene1-btn">小肠</button>
+            <button id="scene1-btn-heart" class="scene1-btn">心脏</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 血管 a（管壁） | 矩形 | (100,220)-(220,280) | 120×60 | - | 左侧流入血管 |
+        // | 血管 a 填充 | 矩形 | (105,225)-(215,275) | 110×50 | - | 血液颜色填充 |
+        // | 血流箭头 a | 箭头 | (110,250)-(180,250) | 70×10 | - | 指向右 |
+        // | 标签"a" | text | (140,205) | 20×16 | 上方 | 血管 a 上方 |
+        // | 器官 b（轮廓） | 椭圆 | (250,150)-(550,350) | 300×200 | - | 中间器官区域 |
+        // | 器官 b 填充 | 椭圆 | (255,155)-(545,345) | 290×190 | - | 毛细血管网背景 |
+        // | 器官名称 | text | (400,255) | 60×20 | - | 中央显示器官名（带白色背景） |
+        // | O₂箭头 | 箭头 | (300,160)-(340,190) | 40×15 | - | 氧气进入血液（左移） |
+        // | CO₂箭头 | 箭头 | (460,190)-(500,160) | 40×15 | - | 二氧化碳排出（右移） |
+        // | 标签"O₂" | text | (285,155) | 30×16 | 左上 | 氧气箭头起点（左移） |
+        // | 标签"CO₂" | text | (510,155) | 40×16 | 右上 | 二氧化碳箭头终点（右移） |
+        // | 血管 c（管壁） | 矩形 | (580,220)-(700,280) | 120×60 | - | 右侧流出血管 |
+        // | 血管 c 填充 | 矩形 | (585,225)-(695,275) | 110×50 | - | 血液颜色填充 |
+        // | 血流箭头 c | 箭头 | (610,250)-(680,250) | 70×10 | - | 指向右 |
+        // | 标签"c" | text | (640,205) | 20×16 | 上方 | 血管 c 上方 |
+        // | 标签"b" | text | (400,240) | 20×16 | - | 器官中央（与器官名重叠时隐藏） |
+        // | 血管类型标签 a | text | (155,300) | 60×16 | 下方 | 血管 a 类型说明 |
+        // | 血管类型标签 c | text | (640,300) | 60×16 | 下方 | 血管 c 类型说明 |
+        // | 状态按钮 1 | button | (150,430)-(250,470) | 100×40 | - | "肺" |
+        // | 状态按钮 2 | button | (270,430)-(370,470) | 100×40 | - | "组织细胞" |
+        // | 状态按钮 3 | button | (390,430)-(490,470) | 100×40 | - | "小肠" |
+        // | 状态按钮 4 | button | (510,430)-(610,470) | 100×40 | - | "心脏" |
+        // | 结论文本 | text | (100,360) | 200×20 | - | 当前状态血液类型结论（下移） |
+
+        // 状态数据
+        const states = {
+            0: {
+                name: "?",
+                vesselAColor: "#999999",
+                vesselCColor: "#999999",
+                vesselAType: "",
+                vesselCType: "",
+                showGasExchange: false,
+                conclusion: "",
+                internalStructure: null
+            },
+            1: {
+                name: "肺",
+                vesselAColor: "#1e88e5",  // 静脉血 - 蓝色
+                vesselCColor: "#e53935",  // 动脉血 - 红色
+                vesselAType: "肺动脉（静脉血）",
+                vesselCType: "肺静脉（动脉血）",
+                showGasExchange: true,
+                conclusion: "选项 B 错误：肺循环中，C 血管（肺静脉）流的是动脉血",
+                internalStructure: "alveoli"
+            },
+            2: {
+                name: "组织细胞",
+                vesselAColor: "#e53935",  // 动脉血 - 红色
+                vesselCColor: "#1e88e5",  // 静脉血 - 蓝色
+                vesselAType: "动脉（动脉血）",
+                vesselCType: "静脉（静脉血）",
+                showGasExchange: true,
+                conclusion: "选项 D 正确：组织细胞处，C 血管（静脉）流的是静脉血",
+                internalStructure: "capillaries"
+            },
+            3: {
+                name: "小肠",
+                vesselAColor: "#e53935",  // 动脉血 - 红色
+                vesselCColor: "#1e88e5",  // 静脉血 - 蓝色
+                vesselAType: "肠动脉（动脉血）",
+                vesselCType: "肠静脉（静脉血）",
+                showGasExchange: true,
+                conclusion: "选项 C 错误：小肠处，C 血管（肠静脉）流的是静脉血",
+                internalStructure: "villi"
+            },
+            4: {
+                name: "心脏",
+                vesselAColor: "#1e88e5",  // 静脉血 - 蓝色（以右心房为例）
+                vesselCColor: "#1e88e5",  // 静脉血 - 蓝色（肺动脉）
+                vesselAType: "腔静脉（静脉血）",
+                vesselCType: "肺动脉（静脉血）",
+                showGasExchange: false,
+                conclusion: "选项 A 错误：心脏作为泵，C 血管血液类型取决于具体循环路径",
+                internalStructure: "chambers"
+            }
+        };
+
+        let currentState = 0;
+
+        // 获取 DOM 元素
+        function $(id) { return document.getElementById(id); }
+
+        // 显示/隐藏工具函数
+        function show(el) {
+            if (el) { el.style.display = 'block'; el.style.opacity = '1'; }
+        }
+        function hide(el) {
+            if (el) { el.style.display = 'none'; el.style.opacity = '0'; }
+        }
+
+        // 更新器官内部结构
+        function updateInternalStructure(type) {
+            const container = $('scene1-organ-internal');
+            container.innerHTML = '';
+
+            if (!type) return;
+
+            if (type === 'alveoli') {
+                // 肺泡结构 - 小圆圈群（避开中心文字区域）
+                for (let i = 0; i < 12; i++) {
+                    const angle = (i / 12) * Math.PI * 2;
+                    const dist = 60 + Math.random() * 30;
+                    const cx = 400 + Math.cos(angle) * dist;
+                    const cy = 250 + Math.sin(angle) * dist;
+                    const r = 8 + Math.random() * 8;
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', cx);
+                    circle.setAttribute('cy', cy);
+                    circle.setAttribute('r', r);
+                    circle.setAttribute('fill', 'none');
+                    circle.setAttribute('stroke', '#888888');
+                    circle.setAttribute('stroke-width', '1');
+                    circle.setAttribute('stroke-dasharray', '3,3');
+                    container.appendChild(circle);
+                }
+            } else if (type === 'capillaries') {
+                // 毛细血管网 - 灰色虚线（避开中心文字区域）
+                for (let i = 0; i < 15; i++) {
+                    const angle = (i / 15) * Math.PI * 2;
+                    const dist = 50 + Math.random() * 50;
+                    const x1 = 400 + Math.cos(angle) * (30 + Math.random() * 20);
+                    const y1 = 250 + Math.sin(angle) * (30 + Math.random() * 20);
+                    const x2 = 400 + Math.cos(angle) * (80 + Math.random() * 40);
+                    const y2 = 250 + Math.sin(angle) * (80 + Math.random() * 40);
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', x1);
+                    line.setAttribute('y1', y1);
+                    line.setAttribute('x2', x2);
+                    line.setAttribute('y2', y2);
+                    line.setAttribute('stroke', '#888888');
+                    line.setAttribute('stroke-width', '1');
+                    line.setAttribute('stroke-dasharray', '4,2');
+                    container.appendChild(line);
+                }
+            } else if (type === 'villi') {
+                // 绒毛结构 - 小突起（避开中心文字区域）
+                for (let i = 0; i < 20; i++) {
+                    const angle = (i / 20) * Math.PI * 2;
+                    const dist = 50 + Math.random() * 60;
+                    const cx = 400 + Math.cos(angle) * dist;
+                    const cy = 250 + Math.sin(angle) * dist;
+                    const r = 4 + Math.random() * 5;
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', cx);
+                    circle.setAttribute('cy', cy);
+                    circle.setAttribute('r', r);
+                    circle.setAttribute('fill', '#888888');
+                    circle.setAttribute('opacity', '0.3');
+                    container.appendChild(circle);
+                }
+            } else if (type === 'chambers') {
+                // 心腔结构 - 四腔示意（避开中心文字区域）
+                const chambers = [
+                    { cx: 340, cy: 210, r: 20 },
+                    { cx: 460, cy: 210, r: 20 },
+                    { cx: 340, cy: 290, r: 20 },
+                    { cx: 460, cy: 290, r: 20 }
+                ];
+                chambers.forEach(ch => {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', ch.cx);
+                    circle.setAttribute('cy', ch.cy);
+                    circle.setAttribute('r', ch.r);
+                    circle.setAttribute('fill', 'none');
+                    circle.setAttribute('stroke', '#888888');
+                    circle.setAttribute('stroke-width', '2');
+                    container.appendChild(circle);
+                });
+            }
+        }
+
+        // 切换到指定状态
+        function switchState(stateNum) {
+            if (stateNum < 0 || stateNum > 4) return;
+
+            currentState = stateNum;
+            const state = states[stateNum];
+
+            // 更新器官名称
+            $('scene1-organ-name').textContent = state.name;
+
+            // 更新血管颜色
+            $('scene1-fill-a').setAttribute('fill', state.vesselAColor);
+            $('scene1-fill-c').setAttribute('fill', state.vesselCColor);
+
+            // 更新血管类型标签
+            $('scene1-vessel-type-a').textContent = state.vesselAType;
+            $('scene1-vessel-type-c').textContent = state.vesselCType;
+
+            // 更新气体交换箭头显示
+            if (state.showGasExchange) {
+                show($('scene1-arrow-o2-line'));
+                show($('scene1-arrow-o2-head'));
+                show($('scene1-label-o2'));
+                show($('scene1-arrow-co2-line'));
+                show($('scene1-arrow-co2-head'));
+                show($('scene1-label-co2'));
+            } else {
+                hide($('scene1-arrow-o2-line'));
+                hide($('scene1-arrow-o2-head'));
+                hide($('scene1-label-o2'));
+                hide($('scene1-arrow-co2-line'));
+                hide($('scene1-arrow-co2-head'));
+                hide($('scene1-label-co2'));
+            }
+
+            // 更新结论文本
+            $('scene1-conclusion').textContent = state.conclusion;
+
+            // 更新器官内部结构
+            updateInternalStructure(state.internalStructure);
+
+            // 更新按钮高亮状态
+            const buttons = ['lung', 'tissue', 'intestine', 'heart'];
+            buttons.forEach((btn, idx) => {
+                const btnEl = $('scene1-btn-' + btn);
+                if (idx + 1 === stateNum) {
+                    btnEl.classList.add('active');
+                } else {
+                    btnEl.classList.remove('active');
+                }
+            });
+        }
+
+        // 初始化按钮事件
+        function initButtons() {
+            $('scene1-btn-lung').addEventListener('click', function() { switchState(1); });
+            $('scene1-btn-tissue').addEventListener('click', function() { switchState(2); });
+            $('scene1-btn-intestine').addEventListener('click', function() { switchState(3); });
+            $('scene1-btn-heart').addEventListener('click', function() { switchState(4); });
+        }
+
+        // 初始化
+        function init() {
+            initButtons();
+            switchState(0);  // 初始状态
+        }
+
+        init();
+    })();
+    </script>
+</body>
+</html>

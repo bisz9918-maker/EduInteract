@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乙地昼长计算示意图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 标题 -->
+            <text id="scene2-title" x="400" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#000000">乙地昼长计算示意图</text>
+            
+            <!-- 纬线圈展开图边框 - 下移，y 从 80 到 100 -->
+            <rect id="scene2-lat-circle" x="80" y="100" width="640" height="200" fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 纬线基线 - 下移，y 从 180 到 200 -->
+            <line id="scene2-lat-line" x1="100" y1="200" x2="700" y2="200" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 昼弧段（绿色，随滑块变化）- 下移，y 从 178 到 198，高度 4 -->
+            <rect id="scene2-day-arc" x="100" y="198" width="0" height="4" fill="#2e7d32" fill-opacity="0.2" stroke="#2e7d32" stroke-width="3"/>
+            
+            <!-- 夜弧段（灰色）- 下移，y 从 178 到 198，高度 4 -->
+            <rect id="scene2-night-arc" x="460" y="198" width="240" height="4" fill="#888888" fill-opacity="0.2" stroke="#888888" stroke-width="1"/>
+            
+            <!-- 经线 6 条 - 下移，y1 从 100 到 120，y2 从 260 到 280 -->
+            <line id="scene2-meridian-1" x1="100" y1="120" x2="100" y2="280" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-meridian-2" x1="220" y1="120" x2="220" y2="280" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-meridian-3" x1="340" y1="120" x2="340" y2="280" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-meridian-4" x1="460" y1="120" x2="460" y2="280" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-meridian-5" x1="580" y1="120" x2="580" y2="280" stroke="#000000" stroke-width="1"/>
+            <line id="scene2-meridian-6" x1="700" y1="120" x2="700" y2="280" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 乙地点 - 下移，cy 从 180 到 200 -->
+            <circle id="scene2-point-yi" cx="100" cy="200" r="6" fill="#2e7d32"/>
+            
+            <!-- 晨昏线交点 - 下移，cy 从 180 到 200 -->
+            <circle id="scene2-twilight-point" cx="460" cy="200" r="5" fill="#2e7d32"/>
+            
+            <!-- 乙地纬线标签 - 移到纬线圈左侧外部，x=75, y=205 -->
+            <text id="scene2-label-yi" x="75" y="205" text-anchor="end" font-size="14" fill="#000000">乙地 (23.5°S)</text>
+            
+            <!-- 昼弧角度标注 - 移到纬线圈内部上方，x=280, y=140 -->
+            <text id="scene2-day-angle-label" x="280" y="140" text-anchor="middle" font-size="16" fill="#2e7d32">昼弧 0°</text>
+            
+            <!-- 昼长公式 - 移到纬线圈下方，y=320 -->
+            <text id="scene2-day-length-formula" x="280" y="320" text-anchor="middle" font-size="16" fill="#000000">昼长 = 昼弧度数 ÷ 15°/小时</text>
+            
+            <!-- 昼长结果 - y=350，与公式间距 30px -->
+            <text id="scene2-day-length-result" x="280" y="350" text-anchor="middle" font-size="18" font-weight="bold" fill="#2e7d32">0 小时</text>
+            
+            <!-- 滑块轨道 -->
+            <rect id="scene2-slider-track" x="200" y="450" width="400" height="20" fill="#cccccc" rx="10"/>
+            
+            <!-- 滑块手柄 -->
+            <circle id="scene2-slider-handle" cx="200" cy="460" r="12" fill="#2e7d32" style="cursor: pointer;"/>
+            
+            <!-- 滑块标签 -->
+            <text id="scene2-slider-label-0" x="120" y="460" text-anchor="end" font-size="14" fill="#000000">0%</text>
+            <text id="scene2-slider-label-100" x="620" y="460" text-anchor="start" font-size="14" fill="#000000">100%</text>
+        </svg>
+        
+        <div id="scene2-controls"></div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：乙地昼长计算
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 纬线圈展开图 | 矩形框 | (80,100)-(720,300) | 640×200 | - | 主图区 |
+        // | 纬线基线 | 线段 | (100,200)-(700,200) | 600×2 | - | 乙地所在纬线 |
+        // | 昼弧段 | 填充区域 | (100,198)-(460,202) | 360×4 | - | 绿色高亮，随滑块变化 |
+        // | 夜弧段 | 填充区域 | (460,198)-(700,202) | 240×4 | - | 灰色淡化 |
+        // | 乙地点 | 实心圆 | (100,200) | r=6 | 上方 | 纬线起点 |
+        // | 晨昏线交点 | 实心圆 | (460,200) | r=5 | 上方 | 昼弧终点 |
+        // | 经线 1-6 | 竖线 | x=100,220,340,460,580,700 | 2×160 | - | 等间距 |
+        // | 昼弧角度标注 | text | (280,140) | ~80×18 | 内部上方 | 显示"昼弧 XXX°" |
+        // | 昼长公式 | text | (280,320) | ~200×20 | - | "昼长 = 昼弧度数 ÷ 15°/小时" |
+        // | 昼长结果 | text | (280,350) | ~100×24 | - | 动态显示"≈ 11 小时" |
+        // | 乙地纬线标签 | text | (75,205) | ~50×16 | 左侧外部 | "乙地 (23.5°S)" |
+        // | 滑块轨道 | 矩形 | (200,450)-(600,470) | 400×20 | - | 滑块控件 |
+        // | 滑块手柄 | 圆形 | (200,460) | r=12 | - | 可拖拽，初始最左 |
+        // | 滑块标签 | text | (120,460) / (620,460) | ~40×16 | - | "0%" / "100%" |
+        // | 标题 | text | (400,35) | ~150×20 | - | "乙地昼长计算示意图" |
+        
+        // 状态变量
+        let sliderValue = 0; // 0~100
+        let isDragging = false;
+        
+        // 常量定义
+        const SLIDER_START_X = 200;
+        const SLIDER_END_X = 600;
+        const SLIDER_RANGE = SLIDER_END_X - SLIDER_START_X;
+        const DAY_ARC_MAX_DEGREES = 165; // 乙地昼弧约 165°
+        const LAT_LINE_START_X = 100;
+        const LAT_LINE_LENGTH = 360; // 昼弧最大长度
+        
+        // 获取 DOM 元素
+        const dayArc = document.getElementById('scene2-day-arc');
+        const nightArc = document.getElementById('scene2-night-arc');
+        const twilightPoint = document.getElementById('scene2-twilight-point');
+        const dayAngleLabel = document.getElementById('scene2-day-angle-label');
+        const dayLengthResult = document.getElementById('scene2-day-length-result');
+        const sliderHandle = document.getElementById('scene2-slider-handle');
+        const svg = document.getElementById('scene2-svg');
+        
+        // 更新显示函数
+        function updateDisplay() {
+            // 计算昼弧长度（像素）
+            const dayArcLength = (sliderValue / 100) * LAT_LINE_LENGTH;
+            
+            // 计算昼弧度数
+            const dayArcDegrees = Math.round((sliderValue / 100) * DAY_ARC_MAX_DEGREES);
+            
+            // 计算昼长（小时）
+            const dayLength = dayArcDegrees / 15;
+            
+            // 更新昼弧段
+            dayArc.setAttribute('width', dayArcLength);
+            
+            // 更新夜弧段
+            const nightArcStartX = LAT_LINE_START_X + dayArcLength;
+            const nightArcLength = LAT_LINE_LENGTH - dayArcLength;
+            nightArc.setAttribute('x', nightArcStartX);
+            nightArc.setAttribute('width', nightArcLength);
+            
+            // 更新晨昏线交点
+            twilightPoint.setAttribute('cx', LAT_LINE_START_X + dayArcLength);
+            
+            // 更新昼弧角度标注
+            dayAngleLabel.textContent = '昼弧 ' + dayArcDegrees + '°';
+            
+            // 更新昼长结果
+            if (sliderValue === 0) {
+                dayLengthResult.textContent = '0 小时';
+            } else if (sliderValue >= 100) {
+                dayLengthResult.textContent = '≈ ' + Math.round(dayLength) + ' 小时';
+            } else {
+                dayLengthResult.textContent = dayLength.toFixed(1) + ' 小时';
+            }
+            
+            // 更新滑块手柄位置
+            const handleX = SLIDER_START_X + (sliderValue / 100) * SLIDER_RANGE;
+            sliderHandle.setAttribute('cx', handleX);
+        }
+        
+        // 鼠标/触摸事件处理
+        function startDrag(e) {
+            isDragging = true;
+            e.preventDefault();
+        }
+        
+        function endDrag() {
+            isDragging = false;
+        }
+        
+        function doDrag(e) {
+            if (!isDragging) return;
+            
+            let clientX;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+            } else {
+                clientX = e.clientX;
+            }
+            
+            const svgRect = svg.getBoundingClientRect();
+            let newX = clientX - svgRect.left;
+            
+            // 限制在滑块轨道范围内
+            newX = Math.max(SLIDER_START_X, Math.min(SLIDER_END_X, newX));
+            
+            // 计算滑块百分比
+            sliderValue = ((newX - SLIDER_START_X) / SLIDER_RANGE) * 100;
+            
+            updateDisplay();
+        }
+        
+        // 绑定事件
+        sliderHandle.addEventListener('mousedown', startDrag);
+        sliderHandle.addEventListener('touchstart', startDrag);
+        
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('touchmove', doDrag);
+        
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+        
+        // 初始化显示
+        updateDisplay();
+        
+    })();
+    </script>
+</body>
+</html>

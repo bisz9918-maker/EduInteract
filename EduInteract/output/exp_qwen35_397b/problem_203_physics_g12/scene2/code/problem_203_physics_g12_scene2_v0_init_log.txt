@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飞出电场时的速度矢量分解</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-arrow {
+            stroke-width: 3;
+            fill: none;
+        }
+        .scene2-dashed {
+            stroke-dasharray: 5, 5;
+        }
+        .scene2-label {
+            font-size: 16px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        .scene2-formula {
+            font-size: 18px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        #scene2-prev-btn, #scene2-next-btn {
+            width: 100px;
+            height: 36px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #f5f5f5;
+            transition: background 0.2s;
+        }
+        #scene2-prev-btn:hover, #scene2-next-btn:hover {
+            background: #e0e0e0;
+        }
+        #scene2-prev-btn:disabled, #scene2-next-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene2-arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#1565c0" />
+                </marker>
+                <marker id="scene2-arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#2e7d32" />
+                </marker>
+                <marker id="scene2-arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 中心线 RD (灰色虚线) -->
+            <line id="scene2-center-line" x1="150" y1="250" x2="650" y2="250" 
+                  stroke="#888888" stroke-width="2" class="scene2-dashed" />
+            
+            <!-- R 点标签 -->
+            <text id="scene2-r-label" x="135" y="245" class="scene2-label" fill="#333">R</text>
+            
+            <!-- D 点标签 -->
+            <text id="scene2-d-label" x="655" y="245" class="scene2-label" fill="#333">D</text>
+
+            <!-- MN 界面 (灰色虚线) -->
+            <line id="scene2-mn-interface" x1="400" y1="180" x2="400" y2="320" 
+                  stroke="#888888" stroke-width="2" class="scene2-dashed" />
+            
+            <!-- M 点标签 -->
+            <text id="scene2-m-label" x="405" y="175" class="scene2-label" fill="#333">M</text>
+            
+            <!-- N 点标签 - 向下调整避免与 vy 标签重叠 -->
+            <text id="scene2-n-label" x="405" y="390" class="scene2-label" fill="#333">N</text>
+
+            <!-- 粒子位置 P (红色圆点) -->
+            <circle id="scene2-particle-point" cx="400" cy="280" r="4" fill="#c62828" />
+
+            <!-- vx 矢量 (蓝色箭头) - 初始隐藏 -->
+            <line id="scene2-vx-arrow" x1="400" y1="280" x2="400" y2="280" 
+                  stroke="#1565c0" stroke-width="3" class="scene2-arrow" 
+                  marker-end="url(#scene2-arrowhead-blue)" style="opacity: 0;" />
+            
+            <!-- vx 标签 - 初始隐藏，放在 vx 箭头正上方 -->
+            <text id="scene2-vx-label" x="460" y="270" class="scene2-label" fill="#1565c0" 
+                  style="opacity: 0;">vₓ = v₀</text>
+
+            <!-- vy 矢量 (绿色箭头) - 初始隐藏 -->
+            <line id="scene2-vy-arrow" x1="400" y1="280" x2="400" y2="280" 
+                  stroke="#2e7d32" stroke-width="3" class="scene2-arrow" 
+                  marker-end="url(#scene2-arrowhead-green)" style="opacity: 0;" />
+            
+            <!-- vy 标签 - 初始隐藏，放在 vy 箭头左侧，避开辅助虚线 -->
+            <text id="scene2-vy-label" x="370" y="325" class="scene2-label" fill="#2e7d32" 
+                  style="opacity: 0;">vᵧ = at₁</text>
+
+            <!-- 辅助虚线三角形 - 初始隐藏 -->
+            <line id="scene2-aux-line1" x1="520" y1="280" x2="520" y2="360" 
+                  stroke="#888888" stroke-width="2" class="scene2-dashed" style="opacity: 0;" />
+            <line id="scene2-aux-line2" x1="400" y1="360" x2="520" y2="360" 
+                  stroke="#888888" stroke-width="2" class="scene2-dashed" style="opacity: 0;" />
+
+            <!-- 合速度 v (红色箭头) - 初始隐藏 -->
+            <line id="scene2-v-arrow" x1="400" y1="280" x2="400" y2="280" 
+                  stroke="#c62828" stroke-width="3" class="scene2-arrow" 
+                  marker-end="url(#scene2-arrowhead-red)" style="opacity: 0;" />
+            
+            <!-- v 标签 - 初始隐藏，放在合速度箭头上方，远离辅助线 -->
+            <text id="scene2-v-label" x="470" y="265" class="scene2-label" fill="#c62828" 
+                  style="opacity: 0;">v</text>
+
+            <!-- 偏转角θ弧线 - 初始隐藏 -->
+            <path id="scene2-theta-arc" d="" 
+                  stroke="#000000" stroke-width="2" fill="none" style="opacity: 0;" />
+            
+            <!-- θ标签 - 初始隐藏，放在弧线内部靠近圆心 -->
+            <text id="scene2-theta-label" x="425" y="295" class="scene2-label" fill="#000000" 
+                  style="opacity: 0;">θ</text>
+
+            <!-- 公式标签 - 初始隐藏 -->
+            <text id="scene2-formula" x="550" y="320" class="scene2-formula" fill="#333" 
+                  style="opacity: 0;">tanθ = vᵧ/vₓ</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/4</span>
+            <button id="scene2-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2: 飞出电场时的速度矢量分解
+        // 布局坐标表（已调整标签位置避免重叠）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 中心线 RD | 虚线 | (150,250)-(650,250) | 500×2 | - | 水平居中 |
+        // | MN 界面 | 虚线 | (400,180)-(400,320) | 2×140 | - | 电场右边界 |
+        // | 粒子位置 P | 圆点 | (400,280) | 6×6 | - | MN 界面处偏离中心线 |
+        // | vx 矢量 | 箭头 | (400,280)-(520,280) | 120×3 | 上方 | 蓝色，水平向右 |
+        // | vy 矢量 | 箭头 | (400,280)-(400,360) | 3×80 | 左侧 | 绿色，竖直向下 |
+        // | 合速度 v | 箭头 | (400,280)-(520,360) | 144×3 | 上方偏右 | 红色，沿合方向 |
+        // | 辅助虚线 1 | 虚线 | (520,280)-(520,360) | 2×80 | - | 构成直角三角形 |
+        // | 辅助虚线 2 | 虚线 | (400,360)-(520,360) | 120×2 | - | 构成直角三角形 |
+        // | 偏转角θ弧 | 弧线 | (400,280) 半径 40 | 弧长~30 | 弧线外侧 | 从 vx 到 v 的夹角 |
+        // | vx 标签 | text | (460,270) | ~50×16 | - | vx = v₀，放在 vx 箭头正上方 |
+        // | vy 标签 | text | (370,325) | ~50×16 | 左侧 | vy = at₁，放在 vy 箭头左侧 |
+        // | v 标签 | text | (470,265) | ~20×16 | - | v，放在合速度箭头上方 |
+        // | θ标签 | text | (425,295) | ~15×16 | - | θ，放在弧线内部靠近圆心 |
+        // | 公式标签 | text | (550,320) | ~120×30 | - | tanθ = vy/vx |
+        // | N 标签 | text | (405,390) | ~15×16 | - | 向下调整避免与 vy 重叠 |
+        // | 控件栏 | 按钮组 | (250,450)-(550,490) | 300×40 | - | 上一步/下一步按钮 |
+        
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 元素引用
+        const vxArrow = document.getElementById('scene2-vx-arrow');
+        const vyArrow = document.getElementById('scene2-vy-arrow');
+        const vArrow = document.getElementById('scene2-v-arrow');
+        const vxLabel = document.getElementById('scene2-vx-label');
+        const vyLabel = document.getElementById('scene2-vy-label');
+        const vLabel = document.getElementById('scene2-v-label');
+        const auxLine1 = document.getElementById('scene2-aux-line1');
+        const auxLine2 = document.getElementById('scene2-aux-line2');
+        const thetaArc = document.getElementById('scene2-theta-arc');
+        const thetaLabel = document.getElementById('scene2-theta-label');
+        const formula = document.getElementById('scene2-formula');
+        const prevBtn = document.getElementById('scene2-prev-btn');
+        const nextBtn = document.getElementById('scene2-next-btn');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+
+        // 显示/隐藏工具函数
+        function show(el) {
+            el.style.display = '';
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            el.style.opacity = '0';
+            el.style.display = 'none';
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps);
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+        }
+
+        // 渲染当前步骤
+        function renderStep(step) {
+            // 重置所有元素
+            hide(vxArrow);
+            hide(vyArrow);
+            hide(vArrow);
+            hide(vxLabel);
+            hide(vyLabel);
+            hide(vLabel);
+            hide(auxLine1);
+            hide(auxLine2);
+            hide(thetaArc);
+            hide(thetaLabel);
+            hide(formula);
+
+            // 根据步骤显示相应元素
+            if (step >= 1) {
+                // 步骤 1: 显示 vx
+                vxArrow.style.opacity = '1';
+                vxArrow.style.display = '';
+                vxArrow.setAttribute('x2', '520');
+                vxLabel.style.opacity = '1';
+                vxLabel.style.display = '';
+            }
+            
+            if (step >= 2) {
+                // 步骤 2: 显示 vy
+                vyArrow.style.opacity = '1';
+                vyArrow.style.display = '';
+                vyArrow.setAttribute('y2', '360');
+                vyLabel.style.opacity = '1';
+                vyLabel.style.display = '';
+            }
+            
+            if (step >= 3) {
+                // 步骤 3: 显示合速度 v 和辅助三角形
+                vArrow.style.opacity = '1';
+                vArrow.style.display = '';
+                vArrow.setAttribute('x2', '520');
+                vArrow.setAttribute('y2', '360');
+                vLabel.style.opacity = '1';
+                vLabel.style.display = '';
+                auxLine1.style.opacity = '1';
+                auxLine1.style.display = '';
+                auxLine2.style.opacity = '1';
+                auxLine2.style.display = '';
+            }
+            
+            if (step >= 4) {
+                // 步骤 4: 显示偏转角θ和公式
+                thetaArc.style.opacity = '1';
+                thetaArc.style.display = '';
+                // 绘制弧线：从 vx 方向 (0°) 到 v 方向 (约 34°)，半径 40
+                // 起点：(400+40, 280) = (440, 280)
+                // 终点：(400+40*cos(34°), 280+40*sin(34°)) ≈ (433, 303)
+                thetaArc.setAttribute('d', 'M 440 280 A 40 40 0 0 1 433 303');
+                thetaLabel.style.opacity = '1';
+                thetaLabel.style.display = '';
+                formula.style.opacity = '1';
+                formula.style.display = '';
+            }
+
+            updateButtons();
+        }
+
+        // 上一步按钮点击
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+
+        // 下一步按钮点击
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始化
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

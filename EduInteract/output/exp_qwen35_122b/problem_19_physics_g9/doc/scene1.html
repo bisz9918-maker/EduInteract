@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并联电路结构与电流分配 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-btn-prev, #scene1-btn-next { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 2px solid #333; border-radius: 4px; background: #f5f5f5; }
+        #scene1-btn-prev:hover, #scene1-btn-next:hover { background: #e0e0e0; }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .current-flow { animation: flowAnimation 1s linear infinite; }
+        @keyframes flowAnimation { 0% { stroke-dashoffset: 10; } 100% { stroke-dashoffset: 0; } }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 布局坐标表参考：
+                电源正极 (390,40)-(410,60)  电源负极 (390,70)-(410,85)
+                开关 (395,95)-(405,120)  滑片导线 (400,120)-(400,380)
+                滑片 P (390,380)-(410,400)  铅笔芯 AB (150,400)-(650,400)
+                点 A (150,400) 点 B (650,400) 点 c (280,400) 点 d (400,400)
+                导线左竖 (100,150)-(100,380) 导线右竖 (700,150)-(700,380)
+                导线左上横 (100,150)-(400,150) 导线右上横 (400,150)-(700,150)
+                电流表 A₁ (100,250) 电流表 A₂ (700,250)
+            -->
+            
+            <!-- 步骤 0: 电源和开关 -->
+            <g id="scene1-step0" style="display: block;">
+                <!-- 电源正极（长线） -->
+                <line x1="390" y1="45" x2="410" y2="45" stroke="#000" stroke-width="3" id="scene1-battery-pos"/>
+                <!-- 电源负极（短线） -->
+                <line x1="390" y1="70" x2="410" y2="70" stroke="#000" stroke-width="5" id="scene1-battery-neg"/>
+                <!-- 电源连接线 -->
+                <line x1="400" y1="45" x2="400" y2="70" stroke="#000" stroke-width="2" id="scene1-battery-conn"/>
+                <!-- 开关 -->
+                <line x1="400" y1="75" x2="400" y2="95" stroke="#000" stroke-width="2" id="scene1-switch-conn1"/>
+                <line x1="400" y1="100" x2="400" y2="120" stroke="#000" stroke-width="2" id="scene1-switch-conn2"/>
+                <line x1="400" y1="100" x2="415" y2="100" stroke="#000" stroke-width="2" id="scene1-switch-arm"/>
+                <circle cx="400" cy="95" r="3" fill="#000" id="scene1-switch-pivot"/>
+                <circle cx="415" cy="100" r="3" fill="#000" id="scene1-switch-contact"/>
+                <!-- 电源标签 -->
+                <text x="405" y="42" font-size="14" fill="#000" id="scene1-label-plus">+</text>
+                <text x="405" y="75" font-size="14" fill="#000" id="scene1-label-minus">-</text>
+            </g>
+            
+            <!-- 步骤 1: 铅笔芯 AB、滑片 P、滑片导线 -->
+            <g id="scene1-step1" style="display: none;">
+                <!-- 铅笔芯 AB（粗黑线段） -->
+                <line x1="150" y1="400" x2="650" y2="400" stroke="#000" stroke-width="8" id="scene1-pencil-core"/>
+                <!-- 滑片导线（垂直线） -->
+                <line x1="400" y1="120" x2="400" y2="380" stroke="#000" stroke-width="2" id="scene1-slider-wire"/>
+                <!-- 滑片 P（绿色箭头） -->
+                <polygon points="400,380 390,400 410,400" fill="#2e7d32" id="scene1-slider-arrow"/>
+                <!-- 端点标记 -->
+                <circle cx="150" cy="400" r="4" fill="#000" id="scene1-point-a"/>
+                <circle cx="650" cy="400" r="4" fill="#000" id="scene1-point-b"/>
+                <circle cx="280" cy="400" r="4" fill="#888" id="scene1-point-c"/>
+                <circle cx="400" cy="400" r="4" fill="#888" id="scene1-point-d"/>
+                <!-- 标签 -->
+                <text x="135" y="425" font-size="16" fill="#000" id="scene1-label-a">A</text>
+                <text x="640" y="425" font-size="16" fill="#000" id="scene1-label-b">B</text>
+                <text x="275" y="425" font-size="16" fill="#666" id="scene1-label-c">c</text>
+                <text x="395" y="425" font-size="16" fill="#666" id="scene1-label-d">d</text>
+                <text x="395" y="365" font-size="16" fill="#2e7d32" font-weight="bold" id="scene1-label-p">P</text>
+            </g>
+            
+            <!-- 步骤 2: 导线连接框架 -->
+            <g id="scene1-step2" style="display: none;">
+                <!-- 左垂直导线 -->
+                <line x1="100" y1="150" x2="100" y2="380" stroke="#000" stroke-width="2" id="scene1-wire-left"/>
+                <!-- 右垂直导线 -->
+                <line x1="700" y1="150" x2="700" y2="380" stroke="#000" stroke-width="2" id="scene1-wire-right"/>
+                <!-- 左上水平导线 -->
+                <line x1="100" y1="150" x2="400" y2="150" stroke="#000" stroke-width="2" id="scene1-wire-top-left"/>
+                <!-- 右上水平导线 -->
+                <line x1="400" y1="150" x2="700" y2="150" stroke="#000" stroke-width="2" id="scene1-wire-top-right"/>
+                <!-- 顶部连接点 -->
+                <circle cx="400" cy="150" r="5" fill="#000" id="scene1-connection-top"/>
+                <!-- 左下连接点 -->
+                <circle cx="100" cy="380" r="5" fill="#000" id="scene1-connection-left"/>
+                <!-- 右下连接点 -->
+                <circle cx="700" cy="380" r="5" fill="#000" id="scene1-connection-right"/>
+            </g>
+            
+            <!-- 步骤 3: 电流表 A₁、A₂ -->
+            <g id="scene1-step3" style="display: none;">
+                <!-- 电流表 A₁（左侧，蓝色边框） -->
+                <circle cx="100" cy="250" r="25" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" id="scene1-ammeter1"/>
+                <text x="92" y="255" font-size="16" fill="#1565c0" font-weight="bold" id="scene1-ammeter1-label">A₁</text>
+                <!-- 电流表 A₂（右侧，红色边框） -->
+                <circle cx="700" cy="250" r="25" fill="#ffebee" stroke="#c62828" stroke-width="2" id="scene1-ammeter2"/>
+                <text x="692" y="255" font-size="16" fill="#c62828" font-weight="bold" id="scene1-ammeter2-label">A₂</text>
+                <!-- 电流表标签 -->
+                <text x="65" y="255" font-size="14" fill="#1565c0" id="scene1-label-a1">A₁</text>
+                <text x="720" y="255" font-size="14" fill="#c62828" id="scene1-label-a2">A₂</text>
+            </g>
+            
+            <!-- 步骤 4: 电流方向箭头、高亮支路 -->
+            <g id="scene1-step4" style="display: none;">
+                <!-- AP 段高亮（蓝色） -->
+                <line x1="150" y1="400" x2="400" y2="400" stroke="#1565c0" stroke-width="8" stroke-opacity="0.6" id="scene1-ap-highlight"/>
+                <!-- PB 段高亮（红色） -->
+                <line x1="400" y1="400" x2="650" y2="400" stroke="#c62828" stroke-width="8" stroke-opacity="0.6" id="scene1-pb-highlight"/>
+                <!-- 左侧电流箭头 I₁（蓝色） -->
+                <line x1="95" y1="280" x2="95" y2="320" stroke="#1565c0" stroke-width="3" marker-end="url(#arrowhead-blue)" id="scene1-current1"/>
+                <polygon points="95,320 90,310 100,310" fill="#1565c0" id="scene1-current1-arrow"/>
+                <text x="70" y="305" font-size="14" fill="#1565c0" font-weight="bold" id="scene1-label-i1">I₁</text>
+                <!-- 右侧电流箭头 I₂（红色） -->
+                <line x1="705" y1="280" x2="705" y2="320" stroke="#c62828" stroke-width="3" marker-end="url(#arrowhead-red)" id="scene1-current2"/>
+                <polygon points="705,320 700,310 710,310" fill="#c62828" id="scene1-current2-arrow"/>
+                <text x="725" y="305" font-size="14" fill="#c62828" font-weight="bold" id="scene1-label-i2">I₂</text>
+                <!-- 箭头标记定义 -->
+                <defs>
+                    <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                    </marker>
+                    <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                    </marker>
+                </defs>
+            </g>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+        <div id="scene1-step-indicator">步骤 1/5</div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现 - 并联电路结构与电流分配
+        
+        // 状态变量
+        var currentStep = 0;
+        var totalSteps = 5;
+        
+        // 获取 DOM 元素
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 步骤元素组
+        var stepElements = [
+            document.getElementById('scene1-step0'),
+            document.getElementById('scene1-step1'),
+            document.getElementById('scene1-step2'),
+            document.getElementById('scene1-step3'),
+            document.getElementById('scene1-step4')
+        ];
+        
+        // 更新视图
+        function updateView() {
+            // 更新步骤显示
+            for (var i = 0; i < totalSteps; i++) {
+                if (i <= currentStep) {
+                    stepElements[i].style.display = 'block';
+                    stepElements[i].classList.add('fade-in');
+                } else {
+                    stepElements[i].style.display = 'none';
+                    stepElements[i].classList.remove('fade-in');
+                }
+            }
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+        }
+        
+        // 上一步按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+        
+        // 下一步按钮事件
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateView();
+            }
+        });
+        
+        // 初始化视图
+        updateView();
+    })();
+    </script>
+</body>
+</html>

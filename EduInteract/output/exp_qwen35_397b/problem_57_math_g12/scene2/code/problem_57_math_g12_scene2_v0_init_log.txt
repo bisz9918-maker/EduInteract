@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆锥截线类型探究</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #000;
+        }
+        .scene2-control-label {
+            font-size: 13px;
+            fill: #333;
+        }
+        .scene2-value-display {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #1976d2;
+        }
+        .scene2-type-display {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .scene2-btn {
+            font-size: 12px;
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene2-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene2-btn-active {
+            background: #1976d2;
+            color: white;
+            border-color: #1976d2;
+        }
+        .scene2-critical-highlight {
+            fill: #ffc107;
+            stroke: #f57f17;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 平面 M (平行四边形) -->
+            <polygon id="scene2-plane-m" points="80,280 380,280 420,380 120,380" 
+                     fill="#cccccc" fill-opacity="0.2" stroke="#999" stroke-width="1"/>
+            
+            <!-- 圆锥轮廓 (半透明橙色) -->
+            <line id="scene2-cone-left" x1="250" y1="120" x2="180" y2="330" 
+                  stroke="#ff9800" stroke-width="2" stroke-opacity="0.3"/>
+            <line id="scene2-cone-right" x1="250" y1="120" x2="320" y2="330" 
+                  stroke="#ff9800" stroke-width="2" stroke-opacity="0.3"/>
+            
+            <!-- 线段 PO (虚线，垂线) -->
+            <line id="scene2-line-po" x1="250" y1="120" x2="250" y2="330" 
+                  stroke="#666" stroke-width="2" stroke-dasharray="5,5"/>
+            
+            <!-- 线段 OA (虚线) -->
+            <line id="scene2-line-oa" x1="250" y1="330" x2="150" y2="330" 
+                  stroke="#666" stroke-width="1.5" stroke-dasharray="4,4"/>
+            
+            <!-- 线段 OB (虚线) -->
+            <line id="scene2-line-ob" x1="250" y1="330" x2="320" y2="330" 
+                  stroke="#666" stroke-width="1.5" stroke-dasharray="4,4"/>
+            
+            <!-- 线段 PA (实线) -->
+            <line id="scene2-line-pa" x1="250" y1="120" x2="150" y2="330" 
+                  stroke="#333" stroke-width="2"/>
+            
+            <!-- 线段 PB (实线) -->
+            <line id="scene2-line-pb" x1="250" y1="120" x2="320" y2="330" 
+                  stroke="#333" stroke-width="2"/>
+            
+            <!-- 线段 AB (虚线) -->
+            <line id="scene2-line-ab" x1="150" y1="330" x2="320" y2="330" 
+                  stroke="#666" stroke-width="1.5" stroke-dasharray="4,4"/>
+            
+            <!-- 轨迹曲线 -->
+            <path id="scene2-trace-curve" d="" fill="none" stroke="#2e7d32" stroke-width="3" opacity="0.8"/>
+            
+            <!-- 角α标注弧线 -->
+            <path id="scene2-angle-alpha" d="M 250,135 A 15,15 0 0,0 245,138" 
+                  fill="none" stroke="#1976d2" stroke-width="1.5"/>
+            <text id="scene2-label-alpha" x="235" y="145" class="scene2-label">α</text>
+            
+            <!-- 角β标注弧线 -->
+            <path id="scene2-angle-beta" d="M 250,155 A 25,25 0 0,0 242,162" 
+                  fill="none" stroke="#e65100" stroke-width="1.5"/>
+            <text id="scene2-label-beta" x="225" y="172" class="scene2-label">β</text>
+            
+            <!-- 点 O -->
+            <circle id="scene2-point-o" cx="250" cy="330" r="4" fill="#333"/>
+            <text id="scene2-label-o" x="260" y="320" class="scene2-label">O</text>
+            
+            <!-- 点 P -->
+            <circle id="scene2-point-p" cx="250" cy="120" r="4" fill="#333"/>
+            <text id="scene2-label-p" x="255" y="105" class="scene2-label">P</text>
+            
+            <!-- 点 A -->
+            <circle id="scene2-point-a" cx="150" cy="330" r="4" fill="#333"/>
+            <text id="scene2-label-a" x="135" y="345" class="scene2-label">A</text>
+            
+            <!-- 点 B -->
+            <circle id="scene2-point-b" cx="320" cy="330" r="5" fill="#d32f2f"/>
+            <text id="scene2-label-b" x="330" y="345" class="scene2-label">B</text>
+            
+            <!-- 标签 M -->
+            <text id="scene2-label-m" x="400" y="300" class="scene2-label" font-size="16">M</text>
+            
+            <!-- 临界线标记 (α+β=90°时显示) -->
+            <line id="scene2-critical-line" x1="540" y1="220" x2="690" y2="220" 
+                  stroke="#ffc107" stroke-width="3" opacity="0"/>
+            
+            <!-- 右侧控制区背景 -->
+            <rect x="520" y="60" width="260" height="340" fill="#fafafa" stroke="#ddd" stroke-width="1" rx="8"/>
+            
+            <!-- α滑块标签 -->
+            <text x="540" y="85" class="scene2-control-label">α = </text>
+            <text id="scene2-display-alpha" x="580" y="85" class="scene2-value-display">30°</text>
+            <foreignObject x="620" y="70" width="150" height="30">
+                <input type="range" id="scene2-slider-alpha" min="0" max="60" value="30" 
+                       style="width: 140px; height: 20px;"/>
+            </foreignObject>
+            
+            <!-- β滑块标签 -->
+            <text x="540" y="145" class="scene2-control-label">β = </text>
+            <text id="scene2-display-beta" x="580" y="145" class="scene2-value-display">45°</text>
+            <foreignObject x="620" y="130" width="150" height="30">
+                <input type="range" id="scene2-slider-beta" min="30" max="90" value="45" 
+                       style="width: 140px; height: 20px;"/>
+            </foreignObject>
+            
+            <!-- α+β显示 -->
+            <text x="540" y="200" class="scene2-control-label" font-size="14">α + β = </text>
+            <text id="scene2-display-sum" x="620" y="200" class="scene2-value-display">75° &lt; 90°</text>
+            
+            <!-- 轨迹类型显示 -->
+            <text x="540" y="240" class="scene2-control-label" font-size="14">轨迹类型：</text>
+            <text id="scene2-display-type" x="640" y="240" class="scene2-type-display" fill="#2e7d32">椭圆</text>
+            
+            <!-- 快捷按钮 -->
+            <rect id="scene2-btn-1-bg" x="540" y="270" width="110" height="32" rx="4" fill="#f5f5f5" stroke="#ccc"/>
+            <text id="scene2-btn-1" x="595" y="291" text-anchor="middle" class="scene2-btn" style="pointer-events: none;">① α=0°,β=90°</text>
+            
+            <rect id="scene2-btn-2-bg" x="660" y="270" width="110" height="32" rx="4" fill="#f5f5f5" stroke="#ccc"/>
+            <text id="scene2-btn-2" x="715" y="291" text-anchor="middle" class="scene2-btn" style="pointer-events: none;">② α≠0°,β=90°</text>
+            
+            <rect id="scene2-btn-3-bg" x="540" y="310" width="110" height="32" rx="4" fill="#f5f5f5" stroke="#ccc"/>
+            <text id="scene2-btn-3" x="595" y="331" text-anchor="middle" class="scene2-btn" style="pointer-events: none;">③ α+β=90°</text>
+            
+            <rect id="scene2-btn-4-bg" x="660" y="310" width="110" height="32" rx="4" fill="#f5f5f5" stroke="#ccc"/>
+            <text id="scene2-btn-4" x="715" y="331" text-anchor="middle" class="scene2-btn" style="pointer-events: none;">④ α+β&gt;90°</text>
+            
+            <rect id="scene2-btn-5-bg" x="600" y="350" width="110" height="32" rx="4" fill="#f5f5f5" stroke="#ccc"/>
+            <text id="scene2-btn-5" x="655" y="371" text-anchor="middle" class="scene2-btn" style="pointer-events: none;">⑤ α+β&lt;90°</text>
+        </svg>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 圆锥截线类型探究
+        
+        // 状态变量
+        let alpha = 30;  // α角度，范围 0-60
+        let beta = 45;   // β角度，范围 30-90
+        
+        // DOM 元素引用
+        const sliderAlpha = document.getElementById('scene2-slider-alpha');
+        const sliderBeta = document.getElementById('scene2-slider-beta');
+        const displayAlpha = document.getElementById('scene2-display-alpha');
+        const displayBeta = document.getElementById('scene2-display-beta');
+        const displaySum = document.getElementById('scene2-display-sum');
+        const displayType = document.getElementById('scene2-display-type');
+        const traceCurve = document.getElementById('scene2-trace-curve');
+        const criticalLine = document.getElementById('scene2-critical-line');
+        const pointB = document.getElementById('scene2-point-b');
+        const linePB = document.getElementById('scene2-line-pb');
+        const lineOB = document.getElementById('scene2-line-ob');
+        const labelB = document.getElementById('scene2-label-b');
+        
+        // 按钮背景
+        const btnBg1 = document.getElementById('scene2-btn-1-bg');
+        const btnBg2 = document.getElementById('scene2-btn-2-bg');
+        const btnBg3 = document.getElementById('scene2-btn-3-bg');
+        const btnBg4 = document.getElementById('scene2-btn-4-bg');
+        const btnBg5 = document.getElementById('scene2-btn-5-bg');
+        
+        // 按钮点击区域 (用 text 元素，需要添加点击事件)
+        const btn1 = document.getElementById('scene2-btn-1');
+        const btn2 = document.getElementById('scene2-btn-2');
+        const btn3 = document.getElementById('scene2-btn-3');
+        const btn4 = document.getElementById('scene2-btn-4');
+        const btn5 = document.getElementById('scene2-btn-5');
+        
+        // 轨迹类型颜色
+        const TYPE_COLORS = {
+            circle: '#2e7d32',      // 圆 - 绿色
+            line: '#7b1fa2',        // 直线 - 紫色
+            parabola: '#1565c0',    // 抛物线 - 蓝色
+            ellipse: '#2e7d32',     // 椭圆 - 绿色
+            hyperbola: '#c62828'    // 双曲线 - 红色
+        };
+        
+        // 判断轨迹类型
+        function getTrajectoryType(a, b) {
+            const sum = a + b;
+            if (a === 0 && b === 90) {
+                return { type: 'circle', label: '圆', comparison: '= 90°' };
+            } else if (a !== 0 && b === 90) {
+                return { type: 'line', label: '直线', comparison: '= 90°' };
+            } else if (Math.abs(sum - 90) < 0.5) {
+                return { type: 'parabola', label: '抛物线', comparison: '= 90°' };
+            } else if (sum > 90) {
+                return { type: 'ellipse', label: '椭圆', comparison: '&gt; 90°' };
+            } else {
+                return { type: 'hyperbola', label: '双曲线', comparison: '&lt; 90°' };
+            }
+        }
+        
+        // 计算 B 点位置 (基于α和β)
+        function calculateBPosition(a, b) {
+            // P 点坐标
+            const Px = 250, Py = 120;
+            // O 点坐标
+            const Ox = 250, Oy = 330;
+            // A 点坐标
+            const Ax = 150, Ay = 330;
+            
+            // 计算 PA 的方向角
+            const PA_dx = Ax - Px;  // -100
+            const PA_dy = Ay - Py;  // 210
+            const PA_angle = Math.atan2(PA_dy, PA_dx);  // 约 115°
+            
+            // β是 PA 和 PB 的夹角
+            // PB 的方向角 = PA_angle + β (顺时针为正)
+            const betaRad = b * Math.PI / 180;
+            const PB_angle = PA_angle + betaRad;
+            
+            // PB 线与平面 y=330 的交点
+            // PB 线方程: (x - Px) / cos(PB_angle) = (y - Py) / sin(PB_angle)
+            // 当 y = 330 时，求 x
+            const PB_dy = Oy - Py;  // 210
+            const PB_dx = PB_dy / Math.tan(PB_angle);
+            const Bx = Px + PB_dx;
+            const By = Oy;
+            
+            // 限制 B 点在可视范围内
+            const clampedBx = Math.max(100, Math.min(400, Bx));
+            
+            return { x: clampedBx, y: By };
+        }
+        
+        // 生成轨迹曲线路径
+        function generateTracePath(type, a, b) {
+            const Ox = 250, Oy = 330;  // O 点为中心
+            
+            switch (type) {
+                case 'circle':
+                    // 圆：以 O 为圆心
+                    const r = 80;
+                    return `M ${Ox - r},${Oy} A ${r},${r} 0 1,1 ${Ox + r},${Oy} A ${r},${r} 0 1,1 ${Ox - r},${Oy}`;
+                
+                case 'line':
+                    // 直线：过 O 点的水平线
+                    return `M ${Ox - 120},${Oy} L ${Ox + 120},${Oy}`;
+                
+                case 'parabola':
+                    // 抛物线：开口向上
+                    const pWidth = 100;
+                    const pHeight = 80;
+                    return `M ${Ox - pWidth},${Oy + pHeight} Q ${Ox},${Oy - 20} ${Ox + pWidth},${Oy + pHeight}`;
+                
+                case 'ellipse':
+                    // 椭圆
+                    const ex = 90, ey = 50;
+                    return `M ${Ox - ex},${Oy} A ${ex},${ey} 0 1,1 ${Ox + ex},${Oy} A ${ex},${ey} 0 1,1 ${Ox - ex},${Oy}`;
+                
+                case 'hyperbola':
+                    // 双曲线：两支
+                    const hx = 60, hy = 70;
+                    return `M ${Ox - hx - 40},${Oy - hy} Q ${Ox - hx},${Oy} ${Ox - hx - 40},${Oy + hy} 
+                            M ${Ox + hx + 40},${Oy - hy} Q ${Ox + hx},${Oy} ${Ox + hx + 40},${Oy + hy}`;
+                
+                default:
+                    return '';
+            }
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            const sum = alpha + beta;
+            const result = getTrajectoryType(alpha, beta);
+            
+            // 更新滑块显示值
+            displayAlpha.textContent = alpha + '°';
+            displayBeta.textContent = beta + '°';
+            
+            // 更新α+β显示
+            let comparison;
+            if (Math.abs(sum - 90) < 0.5) {
+                comparison = '= 90°';
+            } else if (sum > 90) {
+                comparison = '&gt; 90°';
+            } else {
+                comparison = '&lt; 90°';
+            }
+            displaySum.innerHTML = sum + '° ' + comparison;
+            
+            // 更新轨迹类型显示
+            displayType.textContent = result.label;
+            displayType.setAttribute('fill', TYPE_COLORS[result.type]);
+            
+            // 更新临界线显示
+            criticalLine.setAttribute('opacity', Math.abs(sum - 90) < 0.5 ? '1' : '0');
+            
+            // 更新轨迹曲线
+            const path = generateTracePath(result.type, alpha, beta);
+            traceCurve.setAttribute('d', path);
+            traceCurve.setAttribute('stroke', TYPE_COLORS[result.type]);
+            
+            // 更新 B 点位置
+            const B = calculateBPosition(alpha, beta);
+            pointB.setAttribute('cx', B.x);
+            pointB.setAttribute('cy', B.y);
+            labelB.setAttribute('x', B.x + 10);
+            labelB.setAttribute('y', B.y + 15);
+            
+            // 更新 PB 线
+            linePB.setAttribute('x2', B.x);
+            linePB.setAttribute('y2', B.y);
+            
+            // 更新 OB 线
+            lineOB.setAttribute('x2', B.x);
+            lineOB.setAttribute('y2', B.y);
+            
+            // 更新按钮高亮
+            highlightActiveButton(result.type, alpha, beta, sum);
+        }
+        
+        // 高亮当前激活的按钮
+        function highlightActiveButton(type, a, b, sum) {
+            const activeColor = '#1976d2';
+            const inactiveColor = '#f5f5f5';
+            
+            btnBg1.setAttribute('fill', inactiveColor);
+            btnBg2.setAttribute('fill', inactiveColor);
+            btnBg3.setAttribute('fill', inactiveColor);
+            btnBg4.setAttribute('fill', inactiveColor);
+            btnBg5.setAttribute('fill', inactiveColor);
+            
+            if (a === 0 && b === 90) {
+                btnBg1.setAttribute('fill', activeColor);
+            } else if (a !== 0 && b === 90) {
+                btnBg2.setAttribute('fill', activeColor);
+            } else if (Math.abs(sum - 90) < 0.5) {
+                btnBg3.setAttribute('fill', activeColor);
+            } else if (sum > 90) {
+                btnBg4.setAttribute('fill', activeColor);
+            } else {
+                btnBg5.setAttribute('fill', activeColor);
+            }
+        }
+        
+        // 快捷按钮设置
+        function setPreset(presetNum) {
+            switch (presetNum) {
+                case 1:  // ① α=0°,β=90°
+                    alpha = 0;
+                    beta = 90;
+                    break;
+                case 2:  // ② α≠0°,β=90°
+                    alpha = 30;
+                    beta = 90;
+                    break;
+                case 3:  // ③ α+β=90°
+                    alpha = 30;
+                    beta = 60;
+                    break;
+                case 4:  // ④ α+β>90°
+                    alpha = 45;
+                    beta = 60;
+                    break;
+                case 5:  // ⑤ α+β<90°
+                    alpha = 20;
+                    beta = 40;
+                    break;
+            }
+            
+            // 更新滑块值
+            sliderAlpha.value = alpha;
+            sliderBeta.value = beta;
+            
+            updateDisplay();
+        }
+        
+        // 事件绑定
+        sliderAlpha.addEventListener('input', function() {
+            alpha = parseInt(this.value);
+            updateDisplay();
+        });
+        
+        sliderBeta.addEventListener('input', function() {
+            beta = parseInt(this.value);
+            updateDisplay();
+        });
+        
+        // 按钮点击事件
+        btnBg1.addEventListener('click', function() { setPreset(1); });
+        btnBg2.addEventListener('click', function() { setPreset(2); });
+        btnBg3.addEventListener('click', function() { setPreset(3); });
+        btnBg4.addEventListener('click', function() { setPreset(4); });
+        btnBg5.addEventListener('click', function() { setPreset(5); });
+        
+        // 初始化
+        updateDisplay();
+        
+    })();
+    </script>
+</body>
+</html>

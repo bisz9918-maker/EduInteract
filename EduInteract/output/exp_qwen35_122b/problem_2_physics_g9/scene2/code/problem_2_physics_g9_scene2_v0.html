@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 平衡力与作用力反作用力</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #000000;
+            border-radius: 4px;
+            background-color: #f5f5f5;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        .scene2-btn.active {
+            background-color: #e3f2fd;
+            border-color: #1565c0;
+            font-weight: bold;
+        }
+        .scene2-btn:hover {
+            background-color: #e0e0e0;
+        }
+        .scene2-btn.active:hover {
+            background-color: #bbdefb;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <!-- SVG 图示区：固定 800×500px -->
+        <svg id="scene2-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 背景 -->
+            <rect id="scene2-bg" width="800" height="500" fill="#ffffff"/>
+            
+            <!-- 木板 -->
+            <line id="scene2-plank" x1="200" y1="350" x2="600" y2="350" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 木块 -->
+            <rect id="scene2-block" x="350" y="280" width="100" height="70" fill="#fff3e0" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 作用点标记 -->
+            <circle id="scene2-point1" cx="400" cy="315" r="4" fill="#000000"/>
+            <circle id="scene2-point2" cx="400" cy="350" r="4" fill="#000000"/>
+            
+            <!-- 重力 G -->
+            <g id="scene2-gravity">
+                <line x1="400" y1="315" x2="400" y2="395" stroke="#000000" stroke-width="2"/>
+                <polygon points="400,395 395,385 405,385" fill="#000000"/>
+            </g>
+            
+            <!-- 支持力 F_N -->
+            <g id="scene2-normalForce">
+                <line x1="400" y1="350" x2="400" y2="270" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="400,270 395,280 405,280" fill="#1565c0"/>
+            </g>
+            
+            <!-- 压力 F_压 -->
+            <g id="scene2-pressure">
+                <line x1="400" y1="350" x2="400" y2="430" stroke="#c62828" stroke-width="2"/>
+                <polygon points="400,430 395,420 405,420" fill="#c62828"/>
+            </g>
+            
+            <!-- 标签 -->
+            <text id="scene2-label-block" x="395" y="245" font-size="14" fill="#000000">木块</text>
+            <text id="scene2-label-plank" x="620" y="345" font-size="14" fill="#000000">木板</text>
+            <text id="scene2-label-G" x="420" y="400" font-size="14" fill="#000000">G</text>
+            <text id="scene2-label-FN" x="425" y="260" font-size="14" fill="#1565c0">F_N</text>
+            <text id="scene2-label-Fpress" x="425" y="435" font-size="14" fill="#c62828">F_压</text>
+            
+            <!-- 配对框（初始隐藏） -->
+            <rect id="scene2-balanceBox" x="330" y="250" width="140" height="160" fill="none" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,5"/>
+            <text id="scene2-balanceLabel" x="335" y="270" font-size="12" fill="#2e7d32">平衡力</text>
+            
+            <rect id="scene2-actionReactionBox" x="330" y="330" width="140" height="120" fill="none" stroke="#1565c0" stroke-width="2" stroke-dasharray="5,5"/>
+            <text id="scene2-actionReactionLabel" x="335" y="350" font-size="12" fill="#1565c0">作用力与反作用力</text>
+            
+            <!-- 状态说明文字 -->
+            <text id="scene2-statusText" x="20" y="435" font-size="12" fill="#000000">状态 1：木块受力分析</text>
+        </svg>
+        
+        <!-- 控件栏叠在 SVG 底部 -->
+        <div id="scene2-controls">
+            <button id="scene2-btn-state1" class="scene2-btn active">受力分析</button>
+            <button id="scene2-btn-state2" class="scene2-btn">平衡力</button>
+            <button id="scene2-btn-state3" class="scene2-btn">作用力与反作用力</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表（修复后）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 木块 | 矩形 | (350,280)-(450,350) | 100×70 | - | 中央位置，填充浅橙色 |
+        // | 木板 | 线段 | (200,350)-(600,350) | 400×2 | - | 水平线，木块下方 |
+        // | 重力 G | 箭头 | (400,315)-(400,395) | 80 长 | 右侧 | 从木块中心向下，黑色 |
+        // | 支持力 F_N | 箭头 | (400,350)-(400,270) | 80 长 | 右侧 | 从木块底部向上，蓝色 |
+        // | 压力 F_压 | 箭头 | (400,350)-(400,430) | 80 长 | 右侧 | 从木块底部向下，红色 |
+        // | 木块标签 | text | (395,245) | ~40×16 | 上方 | 木块正上方（上移 15px） |
+        // | 木板标签 | text | (620,345) | ~40×16 | 右侧 | 木板右端右侧（右移 10px） |
+        // | G 标签 | text | (420,400) | ~20×16 | 右侧 | 重力箭头末端右侧（右移 5px） |
+        // | F_N 标签 | text | (425,260) | ~40×16 | 右侧 | 支持力箭头末端右侧（右移 10px） |
+        // | F_压 标签 | text | (425,435) | ~40×16 | 右侧 | 压力箭头末端右侧（右移 10px） |
+        // | 作用点标记 | 圆点 | (400,315) | 4px 直径 | - | 重力作用点（木块中心） |
+        // | 作用点标记 | 圆点 | (400,350) | 4px 直径 | - | 支持力/压力作用点（木块底部） |
+        // | 平衡力配对框 | 虚线框 | (330,250)-(470,410) | 140×160 | - | 状态 2 显示，包围 G 和 F_N |
+        // | 作用反作用配对框 | 虚线框 | (330,330)-(470,450) | 140×120 | - | 状态 3 显示，包围 F_N 和 F_压 |
+        // | 状态说明文字 | text | (20,435) | ~600×30 | - | 底部控件区上方，显示当前状态说明 |
+        // | 状态 1 按钮 | button | (200,455) | 80×30 | - | 受力分析 |
+        // | 状态 2 按钮 | button | (360,455) | 80×30 | - | 平衡力 |
+        // | 状态 3 按钮 | button | (520,455) | 80×30 | - | 作用力与反作用力 |
+
+        var currentState = 0;
+        var states = [
+            {
+                text: "状态 1：木块受力分析 — 木块受到重力 G（竖直向下）、木板支持力 F_N（竖直向上）、对木板的压力 F_压（竖直向下）",
+                balanceBox: false,
+                actionReactionBox: false
+            },
+            {
+                text: "状态 2：平衡力 — 重力 G 与支持力 F_N 是一对平衡力，它们作用在同一物体（木块）上，大小相等、方向相反、作用在同一直线上",
+                balanceBox: true,
+                actionReactionBox: false
+            },
+            {
+                text: "状态 3：作用力与反作用力 — 支持力 F_N 与压力 F_压是一对作用力与反作用力，它们作用在不同物体上（F_N 作用在木块，F_压作用在木板），大小相等、方向相反、作用在同一直线上",
+                balanceBox: false,
+                actionReactionBox: true
+            }
+        ];
+        
+        function switchState(newState) {
+            currentState = newState;
+            var state = states[currentState];
+            
+            // 更新说明文字（缩短显示）
+            var statusTextEl = document.getElementById('scene2-statusText');
+            if (currentState === 0) {
+                statusTextEl.textContent = "状态 1：木块受力分析 — 木块受到重力 G（竖直向下）、木板支持力 F_N（竖直向上）、对木板的压力 F_压（竖直向下）";
+            } else if (currentState === 1) {
+                statusTextEl.textContent = "状态 2：平衡力 — 重力 G 与支持力 F_N 是一对平衡力，它们作用在同一物体（木块）上，大小相等、方向相反、作用在同一直线上";
+            } else {
+                statusTextEl.textContent = "状态 3：作用力与反作用力 — 支持力 F_N 与压力 F_压是一对作用力与反作用力，它们作用在不同物体上（F_N 作用在木块，F_压作用在木板），大小相等、方向相反、作用在同一直线上";
+            }
+            
+            // 更新配对框显示（同时设置 display 和 opacity）
+            var balanceBox = document.getElementById('scene2-balanceBox');
+            var balanceLabel = document.getElementById('scene2-balanceLabel');
+            var actionReactionBox = document.getElementById('scene2-actionReactionBox');
+            var actionReactionLabel = document.getElementById('scene2-actionReactionLabel');
+            
+            if (state.balanceBox) {
+                balanceBox.style.display = 'block';
+                balanceBox.style.opacity = '1';
+                balanceLabel.style.display = 'block';
+                balanceLabel.style.opacity = '1';
+            } else {
+                balanceBox.style.display = 'none';
+                balanceBox.style.opacity = '0';
+                balanceLabel.style.display = 'none';
+                balanceLabel.style.opacity = '0';
+            }
+            
+            if (state.actionReactionBox) {
+                actionReactionBox.style.display = 'block';
+                actionReactionBox.style.opacity = '1';
+                actionReactionLabel.style.display = 'block';
+                actionReactionLabel.style.opacity = '1';
+            } else {
+                actionReactionBox.style.display = 'none';
+                actionReactionBox.style.opacity = '0';
+                actionReactionLabel.style.display = 'none';
+                actionReactionLabel.style.opacity = '0';
+            }
+            
+            // 更新按钮高亮
+            for (var i = 1; i <= 3; i++) {
+                var btn = document.getElementById('scene2-btn-state' + i);
+                if (btn) {
+                    if (i - 1 === currentState) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                }
+            }
+        }
+        
+        // 绑定按钮事件
+        document.getElementById('scene2-btn-state1').addEventListener('click', function() { switchState(0); });
+        document.getElementById('scene2-btn-state2').addEventListener('click', function() { switchState(1); });
+        document.getElementById('scene2-btn-state3').addEventListener('click', function() { switchState(2); });
+        
+        // 初始化状态
+        switchState(0);
+    })();
+    </script>
+</body>
+</html>

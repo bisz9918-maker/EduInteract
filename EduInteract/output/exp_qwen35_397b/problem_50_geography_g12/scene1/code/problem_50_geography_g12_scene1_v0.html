@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昼半球结构与关键点定位</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene1-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f0f0f0; }
+        .scene1-btn:hover { background: #e0e0e0; }
+        .scene1-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; padding: 8px 16px; }
+        .fade-in { animation: scene1-fade-in 0.3s ease-in-out forwards; }
+        @keyframes scene1-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 步骤 0：昼半球圆 + CB 直径 -->
+            <circle id="scene1-circle" cx="400" cy="220" r="160" fill="#e3f2fd" fill-opacity="0.2" stroke="#000000" stroke-width="2"/>
+            <line id="scene1-diameter" x1="400" y1="60" x2="400" y2="380" stroke="#000000" stroke-width="2"/>
+            
+            <!-- 步骤 1：赤道线 -->
+            <line id="scene1-equator" class="scene1-step1" x1="240" y1="220" x2="560" y2="220" stroke="#888888" stroke-width="2" stroke-dasharray="5,5" style="display:none;"/>
+            
+            <!-- 步骤 1：A 点 -->
+            <circle id="scene1-point-a" class="scene1-step1" cx="400" cy="220" r="5" fill="#1565c0" style="display:none;"/>
+            
+            <!-- 步骤 1：标签 A -->
+            <text id="scene1-label-a" class="scene1-step1" x="412" y="215" font-size="14" fill="#000000" style="display:none;">A</text>
+            
+            <!-- 步骤 1：标签 赤道 -->
+            <text id="scene1-label-equator" class="scene1-step1" x="520" y="215" font-size="14" fill="#000000" style="display:none;">赤道</text>
+            
+            <!-- 步骤 1：标签 15°N -->
+            <text id="scene1-label-15n" class="scene1-step1" x="350" y="215" font-size="14" fill="#000000" style="display:none;">15°N</text>
+            
+            <!-- 步骤 2：B 点 -->
+            <circle id="scene1-point-b" class="scene1-step2" cx="400" cy="380" r="5" fill="#c62828" style="display:none;"/>
+            
+            <!-- 步骤 2：C 点 -->
+            <circle id="scene1-point-c" class="scene1-step2" cx="400" cy="60" r="5" fill="#c62828" style="display:none;"/>
+            
+            <!-- 步骤 2：标签 B -->
+            <text id="scene1-label-b" class="scene1-step2" x="412" y="390" font-size="14" fill="#000000" style="display:none;">B</text>
+            
+            <!-- 步骤 2：标签 C -->
+            <text id="scene1-label-c" class="scene1-step2" x="412" y="50" font-size="14" fill="#000000" style="display:none;">C</text>
+            
+            <!-- 步骤 2：标签 75°S -->
+            <text id="scene1-label-75s" class="scene1-step2" x="350" y="390" font-size="14" fill="#000000" style="display:none;">75°S</text>
+            
+            <!-- 步骤 2：标签 75°N -->
+            <text id="scene1-label-75n" class="scene1-step2" x="350" y="50" font-size="14" fill="#000000" style="display:none;">75°N</text>
+            
+            <!-- 步骤 3：160°E 经线高亮（覆盖原直径） -->
+            <line id="scene1-meridian-160e" class="scene1-step3" x1="400" y1="60" x2="400" y2="380" stroke="#1565c0" stroke-width="4" style="display:none;"/>
+            
+            <!-- 步骤 3：标签 160°E -->
+            <text id="scene1-label-160e" class="scene1-step3" x="415" y="300" font-size="14" fill="#000000" style="display:none;">160°E</text>
+            
+            <!-- 装饰弧线（始终显示） -->
+            <path d="M 260 160 Q 240 220 260 280" stroke="#888888" stroke-width="1" fill="none"/>
+            <path d="M 540 160 Q 560 220 540 280" stroke="#888888" stroke-width="1" fill="none"/>
+        </svg>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/4</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：昼半球结构与关键点定位
+        
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 位置/范围 | 备注 |
+        // |------|-----------|------|
+        // | 昼半球圆 | 圆心 (400,220), r=160 | 填充透明度 20% |
+        // | 赤道线 | (240,220)-(560,220) | 灰色虚线 |
+        // | CB 直径 | (400,60)-(400,380) | 垂直实线 |
+        // | A 点 | (400,220), r=5 | 蓝色高亮 |
+        // | B 点 | (400,380), r=5 | 红色高亮 |
+        // | C 点 | (400,60), r=5 | 红色高亮 |
+        // | 标签"A" | (412,215) | 右上方 |
+        // | 标签"B" | (412,390) | 右下方 |
+        // | 标签"C" | (412,50) | 右上方 |
+        // | 标签"赤道" | (520,215) | 右侧 |
+        // | 标签"160°E" | (415,300) | 右侧 |
+        // | 标签"75°S" | (350,390) | 左侧 |
+        // | 标签"75°N" | (350,50) | 左侧 |
+        // | 标签"15°N" | (350,215) | 左侧 |
+        
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // 获取 DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        
+        // 步骤 1 元素
+        const step1Elements = [
+            document.getElementById('scene1-equator'),
+            document.getElementById('scene1-point-a'),
+            document.getElementById('scene1-label-a'),
+            document.getElementById('scene1-label-equator'),
+            document.getElementById('scene1-label-15n')
+        ];
+        
+        // 步骤 2 元素
+        const step2Elements = [
+            document.getElementById('scene1-point-b'),
+            document.getElementById('scene1-point-c'),
+            document.getElementById('scene1-label-b'),
+            document.getElementById('scene1-label-c'),
+            document.getElementById('scene1-label-75s'),
+            document.getElementById('scene1-label-75n')
+        ];
+        
+        // 步骤 3 元素
+        const step3Elements = [
+            document.getElementById('scene1-meridian-160e'),
+            document.getElementById('scene1-label-160e')
+        ];
+        
+        // 显示元素工具函数
+        function showElement(el) {
+            if (el) {
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                el.classList.add('fade-in');
+            }
+        }
+        
+        // 隐藏元素工具函数
+        function hideElement(el) {
+            if (el) {
+                el.style.display = 'none';
+                el.style.opacity = '0';
+                el.classList.remove('fade-in');
+            }
+        }
+        
+        // 更新步骤显示
+        function updateStep() {
+            // 根据当前步骤显示/隐藏对应元素
+            if (currentStep >= 1) {
+                step1Elements.forEach(showElement);
+            } else {
+                step1Elements.forEach(hideElement);
+            }
+            
+            if (currentStep >= 2) {
+                step2Elements.forEach(showElement);
+            } else {
+                step2Elements.forEach(hideElement);
+            }
+            
+            if (currentStep >= 3) {
+                step3Elements.forEach(showElement);
+                // 高亮直径线为蓝色加粗
+                document.getElementById('scene1-diameter').style.display = 'none';
+            } else {
+                step3Elements.forEach(hideElement);
+                document.getElementById('scene1-diameter').style.display = 'block';
+            }
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps - 1);
+        }
+        
+        // 按钮事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                updateStep();
+            }
+        });
+        
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

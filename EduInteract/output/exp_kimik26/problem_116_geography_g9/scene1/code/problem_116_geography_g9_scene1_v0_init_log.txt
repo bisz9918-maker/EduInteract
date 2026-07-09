@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极地经纬网方位判读</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5;
+        }
+        #scene1-controls button:hover { background: #e0e0e0; }
+        #scene1-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #333; min-width: 70px; text-align: center; }
+
+        /* 步骤元素的过渡效果 */
+        .step-element { transition: opacity 300ms ease, stroke 300ms ease, fill 300ms ease; }
+
+        /* 经线/纬线样式类 */
+        .meridian-normal { stroke: #000000; stroke-width: 1; }
+        .meridian-dim { stroke: #888888; stroke-width: 1; stroke-dasharray: 4,4; }
+        .meridian-red { stroke: #c62828; stroke-width: 2; }
+        .meridian-blue { stroke: #1565c0; stroke-width: 2; }
+        .meridian-green { stroke: #2e7d32; stroke-width: 2; }
+
+        .parallel-normal { stroke: #000000; stroke-width: 1; }
+        .parallel-dim { stroke: #888888; stroke-width: 1; stroke-dasharray: 4,4; }
+        .parallel-red { stroke: #c62828; stroke-width: 2; }
+        .parallel-green { stroke: #2e7d32; stroke-width: 2; }
+
+        /* 点样式 */
+        .point-normal { fill: #000000; }
+        .point-red { fill: #c62828; }
+        .point-blue { fill: #1565c0; }
+
+        /* 高亮填充 */
+        .highlight-red { fill: rgba(198,40,40,0.2); }
+        .highlight-blue { fill: rgba(21,101,192,0.2); }
+
+        /* 箭头样式 */
+        .arrow-green { stroke: #2e7d32; stroke-width: 3; marker-end: url(#arrowhead-green); }
+        .arrow-red { stroke: #c62828; stroke-width: 3; marker-end: url(#arrowhead-red); }
+        .arrow-blue { stroke: #1565c0; stroke-width: 3; marker-end: url(#arrowhead-blue); }
+
+        /* 结论框 */
+        .conclusion-box { fill: rgba(46,125,50,0.15); stroke: #2e7d32; stroke-width: 2; }
+
+        /* 文字样式 */
+        .label-text { font-size: 14px; fill: #000000; }
+        .note-text { font-size: 15px; fill: #333333; }
+        .conclusion-text { font-size: 18px; fill: #2e7d32; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32" />
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828" />
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0" />
+                </marker>
+                <marker id="arrowhead-blue-start" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#1565c0" />
+                </marker>
+            </defs>
+
+            <!-- === 极地投影网格 === -->
+            <!-- 经线 -->
+            <line id="scene1-meridian-140e" class="meridian-normal" x1="140" y1="60" x2="100" y2="380" />
+            <line id="scene1-meridian-160e" class="meridian-normal" x1="196" y1="60" x2="152" y2="380" />
+            <line id="scene1-meridian-180" class="meridian-normal" x1="252" y1="60" x2="204" y2="380" />
+            <line id="scene1-meridian-160w" class="meridian-normal" x1="308" y1="60" x2="256" y2="380" />
+            <line id="scene1-meridian-140w" class="meridian-normal" x1="364" y1="60" x2="308" y2="380" />
+            <line id="scene1-meridian-120w" class="meridian-normal" x1="420" y1="60" x2="360" y2="380" />
+
+            <!-- 纬线 -->
+            <line id="scene1-parallel-60n" class="parallel-normal" x1="135" y1="100" x2="415" y2="100" />
+            <line id="scene1-parallel-40n" class="parallel-normal" x1="120" y1="220" x2="400" y2="220" />
+            <line id="scene1-parallel-20n" class="parallel-normal" x1="105" y1="340" x2="385" y2="340" />
+
+            <!-- === 左侧经度标签 === -->
+            <text id="scene1-label-140e" class="label-text" x="60" y="65" text-anchor="middle">140°E</text>
+            <text id="scene1-label-160e" class="label-text" x="60" y="125" text-anchor="middle">160°E</text>
+            <text id="scene1-label-180" class="label-text" x="60" y="185" text-anchor="middle">180°</text>
+            <text id="scene1-label-160w" class="label-text" x="55" y="245" text-anchor="middle">160°W</text>
+            <text id="scene1-label-140w" class="label-text" x="55" y="305" text-anchor="middle">140°W</text>
+            <text id="scene1-label-120w" class="label-text" x="55" y="365" text-anchor="middle">120°W</text>
+
+            <!-- === 右侧纬度标签 === -->
+            <text id="scene1-label-60n" class="label-text" x="440" y="105" text-anchor="start">60°N</text>
+            <text id="scene1-label-40n" class="label-text" x="440" y="225" text-anchor="start">40°N</text>
+            <text id="scene1-label-20n" class="label-text" x="440" y="345" text-anchor="start">20°N</text>
+
+            <!-- === A点和B点 === -->
+            <!-- A点高亮填充（步骤1出现） -->
+            <circle id="scene1-highlight-a" class="step-element highlight-red" cx="158" cy="340" r="8" opacity="0" />
+            <!-- B点高亮填充（步骤1出现） -->
+            <circle id="scene1-highlight-b" class="step-element highlight-blue" cx="219" cy="100" r="8" opacity="0" />
+            <!-- A点 -->
+            <circle id="scene1-point-a" class="point-normal" cx="158" cy="340" r="4" />
+            <!-- B点 -->
+            <circle id="scene1-point-b" class="point-normal" cx="219" cy="100" r="4" />
+
+            <!-- A、B标签（移到右侧远离纬度标签） -->
+            <text id="scene1-label-a" class="label-text" x="460" y="365">A</text>
+            <text id="scene1-label-b" class="label-text" x="460" y="85">B</text>
+
+            <!-- === 步骤2：北极方向箭头 === -->
+            <line id="scene1-arrow-north" class="step-element arrow-green" x1="280" y1="110" x2="280" y2="55" opacity="0" />
+            <text id="scene1-label-north" class="step-element label-text" x="290" y="45" opacity="0" fill="#2e7d32">北(N)</text>
+
+            <!-- === 步骤3：南北方向箭头 === -->
+            <line id="scene1-arrow-south" class="step-element arrow-red" x1="219" y1="100" x2="165" y2="320" opacity="0" />
+            <text id="scene1-label-south" class="step-element label-text" x="30" y="420" opacity="0" fill="#c62828">南(S)</text>
+
+            <!-- === 步骤4：地球自转方向箭头 === -->
+            <path id="scene1-rotation-arc" class="step-element" d="M195,140 A25,25 0 0,0 145,140" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead-blue)" opacity="0" />
+            <text id="scene1-label-rotation" class="step-element label-text" x="30" y="400" opacity="0" fill="#1565c0">逆时为东</text>
+            <!-- 东西方向箭头 -->
+            <line id="scene1-arrow-west" class="step-element arrow-blue" x1="219" y1="100" x2="150" y2="100" opacity="0" />
+            <text id="scene1-label-west" class="step-element label-text" x="30" y="440" opacity="0" fill="#1565c0">西(W)</text>
+
+            <!-- === 步骤5：十字方向标 === -->
+            <line id="scene1-cross-n" class="step-element" x1="219" y1="100" x2="219" y2="60" stroke="#2e7d32" stroke-width="2" opacity="0" />
+            <line id="scene1-cross-s" class="step-element" x1="219" y1="100" x2="219" y2="140" stroke="#2e7d32" stroke-width="2" opacity="0" />
+            <line id="scene1-cross-e" class="step-element" x1="219" y1="100" x2="259" y2="100" stroke="#2e7d32" stroke-width="2" opacity="0" />
+            <line id="scene1-cross-w" class="step-element" x1="219" y1="100" x2="179" y2="100" stroke="#2e7d32" stroke-width="2" opacity="0" />
+            <text id="scene1-cross-label-n" class="step-element label-text" x="224" y="50" opacity="0" fill="#2e7d32">N</text>
+            <text id="scene1-cross-label-s" class="step-element label-text" x="380" y="158" opacity="0" fill="#2e7d32">S</text>
+            <text id="scene1-cross-label-e" class="step-element label-text" x="380" y="90" opacity="0" fill="#2e7d32">E</text>
+            <text id="scene1-cross-label-w" class="step-element label-text" x="30" y="115" opacity="0" fill="#2e7d32">W</text>
+
+            <!-- 合成西南箭头 -->
+            <line id="scene1-arrow-southwest" class="step-element arrow-green" x1="219" y1="100" x2="179" y2="140" opacity="0" />
+
+            <!-- === 右侧说明区 === -->
+            <!-- 步骤1说明 -->
+            <text id="scene1-note-step1-a" class="step-element note-text" x="500" y="100" opacity="0">A(160°E, 20°N)</text>
+            <text id="scene1-note-step1-b" class="step-element note-text" x="500" y="140" opacity="0">B(170°E, 60°N)</text>
+            <!-- 步骤2说明 -->
+            <text id="scene1-note-step2" class="step-element note-text" x="500" y="180" opacity="0">越靠近北极点纬度越高</text>
+            <!-- 步骤3说明 -->
+            <text id="scene1-note-step3" class="step-element note-text" x="500" y="220" opacity="0">20°N < 60°N，故A在B的南方</text>
+            <!-- 步骤4说明 -->
+            <text id="scene1-note-step4" class="step-element note-text" x="500" y="260" opacity="0">160°E位于170°E西侧，故A在B的西方</text>
+            <!-- 步骤5结论 -->
+            <text id="scene1-conclusion-text" class="step-element conclusion-text" x="500" y="330" opacity="0">B．西南</text>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：极地经纬网方位判读
+        // 状态机
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 元素引用
+        const els = {
+            meridians: {
+                '140e': document.getElementById('scene1-meridian-140e'),
+                '160e': document.getElementById('scene1-meridian-160e'),
+                '180': document.getElementById('scene1-meridian-180'),
+                '160w': document.getElementById('scene1-meridian-160w'),
+                '140w': document.getElementById('scene1-meridian-140w'),
+                '120w': document.getElementById('scene1-meridian-120w')
+            },
+            parallels: {
+                '60n': document.getElementById('scene1-parallel-60n'),
+                '40n': document.getElementById('scene1-parallel-40n'),
+                '20n': document.getElementById('scene1-parallel-20n')
+            },
+            pointA: document.getElementById('scene1-point-a'),
+            pointB: document.getElementById('scene1-point-b'),
+            highlightA: document.getElementById('scene1-highlight-a'),
+            highlightB: document.getElementById('scene1-highlight-b'),
+            arrowNorth: document.getElementById('scene1-arrow-north'),
+            labelNorth: document.getElementById('scene1-label-north'),
+            arrowSouth: document.getElementById('scene1-arrow-south'),
+            labelSouth: document.getElementById('scene1-label-south'),
+            rotationArc: document.getElementById('scene1-rotation-arc'),
+            labelRotation: document.getElementById('scene1-label-rotation'),
+            arrowWest: document.getElementById('scene1-arrow-west'),
+            labelWest: document.getElementById('scene1-label-west'),
+            crossN: document.getElementById('scene1-cross-n'),
+            crossS: document.getElementById('scene1-cross-s'),
+            crossE: document.getElementById('scene1-cross-e'),
+            crossW: document.getElementById('scene1-cross-w'),
+            crossLabelN: document.getElementById('scene1-cross-label-n'),
+            crossLabelS: document.getElementById('scene1-cross-label-s'),
+            crossLabelE: document.getElementById('scene1-cross-label-e'),
+            crossLabelW: document.getElementById('scene1-cross-label-w'),
+            arrowSouthwest: document.getElementById('scene1-arrow-southwest'),
+            noteStep1A: document.getElementById('scene1-note-step1-a'),
+            noteStep1B: document.getElementById('scene1-note-step1-b'),
+            noteStep2: document.getElementById('scene1-note-step2'),
+            noteStep3: document.getElementById('scene1-note-step3'),
+            noteStep4: document.getElementById('scene1-note-step4'),
+            conclusionText: document.getElementById('scene1-conclusion-text'),
+            btnPrev: document.getElementById('scene1-btn-prev'),
+            btnNext: document.getElementById('scene1-btn-next'),
+            stepIndicator: document.getElementById('scene1-step-indicator')
+        };
+
+        // 工具函数：设置元素显示/隐藏
+        function show(el) {
+            if (el) {
+                el.style.display = '';
+                el.setAttribute('opacity', '1');
+            }
+        }
+        function hide(el) {
+            if (el) {
+                el.setAttribute('opacity', '0');
+            }
+        }
+
+        // 工具函数：设置SVG元素的class
+        function setClass(el, className) {
+            if (el) el.setAttribute('class', className);
+        }
+
+        // 渲染当前步骤
+        function renderStep() {
+            // 更新步骤指示器
+            els.stepIndicator.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            els.btnPrev.disabled = currentStep === 0;
+            els.btnNext.disabled = currentStep === totalSteps;
+
+            // 重置所有元素到默认状态
+            // 经线
+            setClass(els.meridians['140e'], 'meridian-normal');
+            setClass(els.meridians['160e'], 'meridian-normal');
+            setClass(els.meridians['180'], 'meridian-normal');
+            setClass(els.meridians['160w'], 'meridian-normal');
+            setClass(els.meridians['140w'], 'meridian-normal');
+            setClass(els.meridians['120w'], 'meridian-normal');
+
+            // 纬线
+            setClass(els.parallels['60n'], 'parallel-normal');
+            setClass(els.parallels['40n'], 'parallel-normal');
+            setClass(els.parallels['20n'], 'parallel-normal');
+
+            // 点
+            setClass(els.pointA, 'point-normal');
+            els.pointA.setAttribute('r', '4');
+            setClass(els.pointB, 'point-normal');
+            els.pointB.setAttribute('r', '4');
+
+            // 隐藏所有步骤专属元素
+            hide(els.highlightA);
+            hide(els.highlightB);
+            hide(els.arrowNorth);
+            hide(els.labelNorth);
+            hide(els.arrowSouth);
+            hide(els.labelSouth);
+            hide(els.rotationArc);
+            hide(els.labelRotation);
+            hide(els.arrowWest);
+            hide(els.labelWest);
+            hide(els.crossN);
+            hide(els.crossS);
+            hide(els.crossE);
+            hide(els.crossW);
+            hide(els.crossLabelN);
+            hide(els.crossLabelS);
+            hide(els.crossLabelE);
+            hide(els.crossLabelW);
+            hide(els.arrowSouthwest);
+            hide(els.noteStep1A);
+            hide(els.noteStep1B);
+            hide(els.noteStep2);
+            hide(els.noteStep3);
+            hide(els.noteStep4);
+            hide(els.conclusionText);
+
+            // 根据步骤设置状态
+            switch (currentStep) {
+                case 0:
+                    // 步骤0：初始状态，全部默认
+                    break;
+
+                case 1:
+                    // 步骤1：定位两点
+                    setClass(els.meridians['140e'], 'meridian-dim');
+                    setClass(els.meridians['160w'], 'meridian-dim');
+                    setClass(els.meridians['140w'], 'meridian-dim');
+                    setClass(els.meridians['120w'], 'meridian-dim');
+                    setClass(els.meridians['160e'], 'meridian-red');
+                    setClass(els.meridians['180'], 'meridian-blue');
+                    setClass(els.parallels['40n'], 'parallel-dim');
+                    setClass(els.parallels['20n'], 'parallel-red');
+                    setClass(els.parallels['60n'], 'parallel-red');
+                    setClass(els.pointA, 'point-red');
+                    els.pointA.setAttribute('r', '5');
+                    setClass(els.pointB, 'point-blue');
+                    els.pointB.setAttribute('r', '5');
+                    show(els.highlightA);
+                    show(els.highlightB);
+                    show(els.noteStep1A);
+                    show(els.noteStep1B);
+                    break;
+
+                case 2:
+                    // 步骤2：确定北极方向
+                    setClass(els.meridians['140e'], 'meridian-dim');
+                    setClass(els.meridians['160w'], 'meridian-dim');
+                    setClass(els.meridians['140w'], 'meridian-dim');
+                    setClass(els.meridians['120w'], 'meridian-dim');
+                    setClass(els.meridians['160e'], 'meridian-red');
+                    setClass(els.meridians['180'], 'meridian-blue');
+                    setClass(els.parallels['40n'], 'parallel-dim');
+                    setClass(els.parallels['20n'], 'parallel-red');
+                    setClass(els.parallels['60n'], 'parallel-red');
+                    setClass(els.pointA, 'point-red');
+                    els.pointA.setAttribute('r', '5');
+                    setClass(els.pointB, 'point-blue');
+                    els.pointB.setAttribute('r', '5');
+                    show(els.highlightA);
+                    show(els.highlightB);
+                    show(els.noteStep1A);
+                    show(els.noteStep1B);
+                    setClass(els.parallels['60n'], 'parallel-green');
+                    setClass(els.parallels['40n'], 'parallel-green');
+                    setClass(els.parallels['20n'], 'parallel-green');
+                    show(els.arrowNorth);
+                    show(els.labelNorth);
+                    show(els.noteStep2);
+                    break;
+
+                case 3:
+                    // 步骤3：判断南北方向
+                    setClass(els.meridians['140e'], 'meridian-dim');
+                    setClass(els.meridians['160w'], 'meridian-dim');
+                    setClass(els.meridians['140w'], 'meridian-dim');
+                    setClass(els.meridians['120w'], 'meridian-dim');
+                    setClass(els.meridians['160e'], 'meridian-red');
+                    setClass(els.meridians['180'], 'meridian-blue');
+                    setClass(els.parallels['40n'], 'parallel-dim');
+                    setClass(els.parallels['20n'], 'parallel-red');
+                    setClass(els.parallels['60n'], 'parallel-red');
+                    setClass(els.pointA, 'point-red');
+                    els.pointA.setAttribute('r', '5');
+                    setClass(els.pointB, 'point-blue');
+                    els.pointB.setAttribute('r', '5');
+                    show(els.highlightA);
+                    show(els.highlightB);
+                    show(els.noteStep1A);
+                    show(els.noteStep1B);
+                    show(els.noteStep2);
+                    show(els.arrowSouth);
+                    show(els.labelSouth);
+                    show(els.noteStep3);
+                    break;
+
+                case 4:
+                    // 步骤4：判断东西方向
+                    setClass(els.meridians['140e'], 'meridian-dim');
+                    setClass(els.meridians['160w'], 'meridian-dim');
+                    setClass(els.meridians['140w'], 'meridian-dim');
+                    setClass(els.meridians['120w'], 'meridian-dim');
+                    setClass(els.meridians['160e'], 'meridian-red');
+                    setClass(els.meridians['180'], 'meridian-blue');
+                    setClass(els.parallels['40n'], 'parallel-dim');
+                    setClass(els.parallels['20n'], 'parallel-red');
+                    setClass(els.parallels['60n'], 'parallel-red');
+                    setClass(els.pointA, 'point-red');
+                    els.pointA.setAttribute('r', '5');
+                    setClass(els.pointB, 'point-blue');
+                    els.pointB.setAttribute('r', '5');
+                    show(els.highlightA);
+                    show(els.highlightB);
+                    show(els.noteStep1A);
+                    show(els.noteStep1B);
+                    show(els.noteStep2);
+                    show(els.noteStep3);
+                    show(els.rotationArc);
+                    show(els.labelRotation);
+                    show(els.arrowWest);
+                    show(els.labelWest);
+                    show(els.noteStep4);
+                    break;
+
+                case 5:
+                    // 步骤5：综合结论
+                    setClass(els.meridians['140e'], 'meridian-dim');
+                    setClass(els.meridians['160w'], 'meridian-dim');
+                    setClass(els.meridians['140w'], 'meridian-dim');
+                    setClass(els.meridians['120w'], 'meridian-dim');
+                    setClass(els.meridians['160e'], 'meridian-red');
+                    setClass(els.meridians['180'], 'meridian-blue');
+                    setClass(els.parallels['40n'], 'parallel-dim');
+                    setClass(els.parallels['20n'], 'parallel-red');
+                    setClass(els.parallels['60n'], 'parallel-red');
+                    setClass(els.pointA, 'point-red');
+                    els.pointA.setAttribute('r', '5');
+                    setClass(els.pointB, 'point-blue');
+                    els.pointB.setAttribute('r', '5');
+                    show(els.highlightA);
+                    show(els.highlightB);
+                    show(els.noteStep1A);
+                    show(els.noteStep1B);
+                    show(els.noteStep2);
+                    show(els.noteStep3);
+                    show(els.noteStep4);
+                    show(els.crossN);
+                    show(els.crossS);
+                    show(els.crossE);
+                    show(els.crossW);
+                    show(els.crossLabelN);
+                    show(els.crossLabelS);
+                    show(els.crossLabelE);
+                    show(els.crossLabelW);
+                    show(els.arrowSouthwest);
+                    show(els.conclusionText);
+                    break;
+            }
+        }
+
+        // 按钮事件
+        els.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+
+        els.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

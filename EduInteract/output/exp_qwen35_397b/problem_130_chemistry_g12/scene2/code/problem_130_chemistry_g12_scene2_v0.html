@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>异戊烷碳骨架及氯取代位置</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { font-size: 14px; padding: 8px 12px; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 碳骨架主链：水平线段 -->
+            <line id="scene2-skeleton-main1" x1="150" y1="280" x2="275" y2="280" stroke="#000000" stroke-width="4" />
+            <line id="scene2-skeleton-main2" x1="275" y1="280" x2="400" y2="280" stroke="#000000" stroke-width="4" />
+            <line id="scene2-skeleton-main3" x1="400" y1="280" x2="525" y2="280" stroke="#000000" stroke-width="4" />
+            
+            <!-- 分支甲基键：从 C2 向上 -->
+            <line id="scene2-skeleton-branch" x1="275" y1="280" x2="275" y2="200" stroke="#000000" stroke-width="4" />
+            
+            <!-- 碳原子标签 -->
+            <text id="scene2-c1-label" x="150" y="275" text-anchor="middle" font-size="16px" fill="#000000">CH₃</text>
+            <text id="scene2-c2-label" x="275" y="275" text-anchor="middle" font-size="16px" fill="#000000">CH</text>
+            <text id="scene2-c3-label" x="400" y="275" text-anchor="middle" font-size="16px" fill="#000000">CH₂</text>
+            <text id="scene2-c4-label" x="525" y="275" text-anchor="middle" font-size="16px" fill="#000000">CH₃</text>
+            
+            <!-- 分支甲基标签（绿色） -->
+            <text id="scene2-branch-label" x="275" y="185" text-anchor="middle" font-size="16px" fill="#2e7d32">CH₃</text>
+            
+            <!-- 碳原子编号（主链下方） -->
+            <text id="scene2-c1-num" x="150" y="310" text-anchor="middle" font-size="14px" fill="#000000">C₁</text>
+            <text id="scene2-c2-num" x="275" y="310" text-anchor="middle" font-size="14px" fill="#000000">C₂</text>
+            <text id="scene2-c3-num" x="400" y="310" text-anchor="middle" font-size="14px" fill="#000000">C₃</text>
+            <text id="scene2-c4-num" x="525" y="310" text-anchor="middle" font-size="14px" fill="#000000">C₄</text>
+            
+            <!-- 取代位置圆圈（初始隐藏） -->
+            <circle id="scene2-pos1-circle" cx="120" cy="260" r="18" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2" opacity="0" />
+            <circle id="scene2-pos2-circle" cx="275" cy="250" r="18" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2" opacity="0" />
+            <circle id="scene2-pos3-circle" cx="400" cy="260" r="18" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2" opacity="0" />
+            <circle id="scene2-pos4-circle" cx="555" cy="260" r="18" fill="#1565c0" fill-opacity="0.3" stroke="#1565c0" stroke-width="2" opacity="0" />
+            
+            <!-- 取代位置编号（初始隐藏） -->
+            <text id="scene2-pos1-num" x="120" y="240" text-anchor="middle" font-size="14px" fill="#1565c0" opacity="0">①</text>
+            <text id="scene2-pos2-num" x="275" y="230" text-anchor="middle" font-size="14px" fill="#1565c0" opacity="0">②</text>
+            <text id="scene2-pos3-num" x="400" y="240" text-anchor="middle" font-size="14px" fill="#1565c0" opacity="0">③</text>
+            <text id="scene2-pos4-num" x="555" y="240" text-anchor="middle" font-size="14px" fill="#1565c0" opacity="0">④</text>
+            
+            <!-- Cl 示意框（虚线矩形，初始隐藏） -->
+            <rect id="scene2-cl-box" x="0" y="0" width="50" height="30" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="4,4" opacity="0" />
+            <text id="scene2-cl-text" x="0" y="0" font-size="14px" fill="#c62828" opacity="0">Cl</text>
+            
+            <!-- 汇总文字（初始隐藏） -->
+            <text id="scene2-summary" x="400" y="360" text-anchor="middle" font-size="16px" fill="#000000" opacity="0">共 4 种位置异构</text>
+        </svg>
+        
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：异戊烷碳骨架及氯取代位置
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        // 元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 取代位置圆圈
+        const posCircles = [
+            document.getElementById('scene2-pos1-circle'),
+            document.getElementById('scene2-pos2-circle'),
+            document.getElementById('scene2-pos3-circle'),
+            document.getElementById('scene2-pos4-circle')
+        ];
+        
+        // 取代位置编号
+        const posNums = [
+            document.getElementById('scene2-pos1-num'),
+            document.getElementById('scene2-pos2-num'),
+            document.getElementById('scene2-pos3-num'),
+            document.getElementById('scene2-pos4-num')
+        ];
+        
+        // Cl 示意框和文字
+        const clBox = document.getElementById('scene2-cl-box');
+        const clText = document.getElementById('scene2-cl-text');
+        
+        // 汇总文字
+        const summaryText = document.getElementById('scene2-summary');
+        
+        // Cl 框位置配置（每个步骤对应的位置）
+        const clPositions = [
+            { x: 60, y: 245, textX: 75, textY: 265 },  // 步骤 1：位置①左侧
+            { x: 250, y: 200, textX: 265, textY: 220 }, // 步骤 2：位置②上方
+            { x: 375, y: 280, textX: 390, textY: 300 }, // 步骤 3：位置③下方
+            { x: 530, y: 245, textX: 545, textY: 265 }  // 步骤 4：位置④右侧
+        ];
+        
+        // 显示/隐藏工具函数
+        function show(el) {
+            el.style.opacity = '1';
+            el.style.display = '';
+        }
+        
+        function hide(el) {
+            el.style.opacity = '0';
+            el.style.display = 'none';
+        }
+        
+        // 渲染当前步骤
+        function renderStep() {
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+            
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === totalSteps;
+            
+            // 隐藏所有取代位置圆圈和编号
+            posCircles.forEach(el => hide(el));
+            posNums.forEach(el => hide(el));
+            
+            // 隐藏 Cl 框
+            hide(clBox);
+            hide(clText);
+            
+            // 隐藏汇总文字
+            hide(summaryText);
+            
+            // 根据当前步骤显示对应元素
+            if (currentStep === 0) {
+                // 初始状态：只显示碳骨架
+            } else if (currentStep >= 1 && currentStep <= 4) {
+                // 步骤 1-4：显示对应位置的圆圈和编号
+                const idx = currentStep - 1;
+                show(posCircles[idx]);
+                show(posNums[idx]);
+                
+                // 显示 Cl 框在对应位置
+                const pos = clPositions[idx];
+                clBox.setAttribute('x', pos.x);
+                clBox.setAttribute('y', pos.y);
+                clText.setAttribute('x', pos.textX);
+                clText.setAttribute('y', pos.textY);
+                show(clBox);
+                show(clText);
+            } else if (currentStep === 5) {
+                // 步骤 5：汇总显示所有圆圈
+                posCircles.forEach(el => show(el));
+                posNums.forEach(el => show(el));
+                show(summaryText);
+            }
+        }
+        
+        // 按钮事件
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep();
+            }
+        });
+        
+        // 初始渲染
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

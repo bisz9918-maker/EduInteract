@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半球划分与纬度带划分</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene2-grid-line {
+            stroke: #888888;
+            stroke-width: 1;
+            fill: none;
+        }
+        .scene2-point {
+            fill: #1565c0;
+        }
+        .scene2-label {
+            font-size: 14px;
+            fill: #000000;
+            font-weight: bold;
+        }
+        .scene2-axis-label {
+            font-size: 13px;
+            fill: #333333;
+        }
+        .scene2-region-north {
+            fill: #2e7d32;
+            opacity: 0.15;
+        }
+        .scene2-region-south {
+            fill: #ff9800;
+            opacity: 0.15;
+        }
+        .scene2-region-east {
+            fill: #2e7d32;
+            opacity: 0.15;
+        }
+        .scene2-region-west {
+            fill: #ff9800;
+            opacity: 0.15;
+        }
+        .scene2-region-low {
+            fill: #4caf50;
+            opacity: 0.12;
+        }
+        .scene2-region-mid {
+            fill: #ffc107;
+            opacity: 0.12;
+        }
+        .scene2-region-high {
+            fill: #f44336;
+            opacity: 0.12;
+        }
+        .scene2-boundary {
+            stroke: #000000;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+            fill: none;
+        }
+        .scene2-btn {
+            font-size: 14px;
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            background: #f5f5f5;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .scene2-btn:hover {
+            background: #e0e0e0;
+        }
+        .scene2-btn-active {
+            background: #1976d2;
+            color: #ffffff;
+            border-color: #1976d2;
+        }
+        #scene2-legend-html {
+            position: absolute;
+            bottom: 55px;
+            left: 250px;
+            font-size: 13px;
+            color: #333;
+            text-align: center;
+            background: rgba(255,255,255,0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        #scene2-buttons {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 区域填充层（状态相关）- 放在最底层 -->
+            <g id="scene2-regions"></g>
+            
+            <!-- 经纬网格层 -->
+            <g id="scene2-grid">
+                <!-- 经线 - x 从 130 开始，y 从 95 开始 -->
+                <line x1="130" y1="95" x2="130" y2="475" class="scene2-grid-line"/>
+                <line x1="243" y1="95" x2="243" y2="475" class="scene2-grid-line"/>
+                <line x1="357" y1="95" x2="357" y2="475" class="scene2-grid-line"/>
+                <line x1="470" y1="95" x2="470" y2="475" class="scene2-grid-line"/>
+                <line x1="583" y1="95" x2="583" y2="475" class="scene2-grid-line"/>
+                <line x1="697" y1="95" x2="697" y2="475" class="scene2-grid-line"/>
+                <line x1="760" y1="95" x2="760" y2="475" class="scene2-grid-line"/>
+                
+                <!-- 纬线 - y 从 95 开始 -->
+                <line x1="130" y1="95" x2="760" y2="95" class="scene2-grid-line"/>
+                <line x1="130" y1="158" x2="760" y2="158" class="scene2-grid-line"/>
+                <line x1="130" y1="222" x2="760" y2="222" class="scene2-grid-line"/>
+                <line x1="130" y1="285" x2="760" y2="285" class="scene2-grid-line"/>
+                <line x1="130" y1="348" x2="760" y2="348" class="scene2-grid-line"/>
+                <line x1="130" y1="412" x2="760" y2="412" class="scene2-grid-line"/>
+                <line x1="130" y1="475" x2="760" y2="475" class="scene2-grid-line"/>
+            </g>
+            
+            <!-- 标注点层 -->
+            <g id="scene2-points">
+                <circle id="scene2-point-a" cx="243" cy="95" r="5" class="scene2-point"/>
+                <circle id="scene2-point-b" cx="697" cy="222" r="5" class="scene2-point"/>
+                <circle id="scene2-point-c" cx="243" cy="285" r="5" class="scene2-point"/>
+                <circle id="scene2-point-d" cx="697" cy="412" r="5" class="scene2-point"/>
+            </g>
+            
+            <!-- 点标签层 - 放在填充区域上方 -->
+            <g id="scene2-point-labels">
+                <text id="scene2-label-a" x="255" y="115" class="scene2-label">A</text>
+                <text id="scene2-label-b" x="709" y="242" class="scene2-label">B</text>
+                <text id="scene2-label-c" x="255" y="305" class="scene2-label">C</text>
+                <text id="scene2-label-d" x="709" y="432" class="scene2-label">D</text>
+            </g>
+            
+            <!-- 经度标签层 - y=80，在网格上方 -->
+            <g id="scene2-lon-labels">
+                <text x="130" y="80" text-anchor="middle" class="scene2-axis-label">120°E</text>
+                <text x="243" y="80" text-anchor="middle" class="scene2-axis-label">140°E</text>
+                <text x="357" y="80" text-anchor="middle" class="scene2-axis-label">160°E</text>
+                <text x="470" y="80" text-anchor="middle" class="scene2-axis-label">180°</text>
+                <text x="583" y="80" text-anchor="middle" class="scene2-axis-label">160°W</text>
+                <text x="697" y="80" text-anchor="middle" class="scene2-axis-label">140°W</text>
+                <text x="760" y="80" text-anchor="middle" class="scene2-axis-label">120°W</text>
+            </g>
+            
+            <!-- 纬度标签层 - x=120，在网格左侧 -->
+            <g id="scene2-lat-labels">
+                <text x="120" y="100" text-anchor="end" class="scene2-axis-label">80°</text>
+                <text x="120" y="163" text-anchor="end" class="scene2-axis-label">60°</text>
+                <text x="120" y="227" text-anchor="end" class="scene2-axis-label">40°</text>
+                <text x="120" y="290" text-anchor="end" class="scene2-axis-label">20°</text>
+                <text x="120" y="353" text-anchor="end" class="scene2-axis-label">0°</text>
+                <text x="120" y="417" text-anchor="end" class="scene2-axis-label">20°</text>
+            </g>
+            
+            <!-- 分界线层（状态相关）- 放在填充区域上方 -->
+            <g id="scene2-boundaries"></g>
+        </svg>
+        
+        <!-- HTML 图例 -->
+        <div id="scene2-legend-html">点击按钮查看不同划分方式</div>
+        
+        <!-- HTML 按钮控件 -->
+        <div id="scene2-buttons">
+            <button id="scene2-btn-base" class="scene2-btn scene2-btn-active">基础</button>
+            <button id="scene2-btn-northsouth" class="scene2-btn">南北半球</button>
+            <button id="scene2-btn-eastwest" class="scene2-btn">东西半球</button>
+            <button id="scene2-btn-latitude" class="scene2-btn">纬度带</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表参考（整体右移 50px，下移 55px 为标签留出空间）：
+        // 经线 x: 120°E=130, 140°E=243, 160°E=357, 180°=470, 160°W=583, 140°W=697, 120°W=760
+        // 纬线 y: 80°N=95, 60°N=158, 40°N=222, 20°N=285, 0°=348, 20°S=412, 30°S=475
+        // 点坐标：A(243,95), B(697,222), C(243,285), D(697,412)
+        // 点标签：A(255,115), B(709,242), C(255,305), D(709,432) - 在点右侧下方
+        // 经度标签 y=80, 纬度标签 x=120
+        
+        let currentState = 0;
+        
+        const regionsGroup = document.getElementById('scene2-regions');
+        const boundariesGroup = document.getElementById('scene2-boundaries');
+        const legendText = document.getElementById('scene2-legend-html');
+        
+        const btnBase = document.getElementById('scene2-btn-base');
+        const btnNorthSouth = document.getElementById('scene2-btn-northsouth');
+        const btnEastWest = document.getElementById('scene2-btn-eastwest');
+        const btnLatitude = document.getElementById('scene2-btn-latitude');
+        
+        function clearRegions() {
+            regionsGroup.innerHTML = '';
+        }
+        
+        function clearBoundaries() {
+            boundariesGroup.innerHTML = '';
+        }
+        
+        function updateButtons(activeIndex) {
+            const buttons = [btnBase, btnNorthSouth, btnEastWest, btnLatitude];
+            buttons.forEach((btn, idx) => {
+                if (idx === activeIndex) {
+                    btn.classList.add('scene2-btn-active');
+                } else {
+                    btn.classList.remove('scene2-btn-active');
+                }
+            });
+        }
+        
+        function showState0() {
+            // 基础状态：清除所有填充和分界线
+            clearRegions();
+            clearBoundaries();
+            legendText.textContent = '基础经纬网';
+        }
+        
+        function showState1() {
+            // 南北半球划分
+            clearRegions();
+            clearBoundaries();
+            
+            // 北半球填充 (y=95~348) - 使用较低透明度
+            const northRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            northRect.setAttribute('x', '130');
+            northRect.setAttribute('y', '95');
+            northRect.setAttribute('width', '630');
+            northRect.setAttribute('height', '253');
+            northRect.setAttribute('class', 'scene2-region-north');
+            regionsGroup.appendChild(northRect);
+            
+            // 南半球填充 (y=348~475)
+            const southRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            southRect.setAttribute('x', '130');
+            southRect.setAttribute('y', '348');
+            southRect.setAttribute('width', '630');
+            southRect.setAttribute('height', '127');
+            southRect.setAttribute('class', 'scene2-region-south');
+            regionsGroup.appendChild(southRect);
+            
+            // 赤道分界线
+            const equatorLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            equatorLine.setAttribute('x1', '130');
+            equatorLine.setAttribute('y1', '348');
+            equatorLine.setAttribute('x2', '760');
+            equatorLine.setAttribute('y2', '348');
+            equatorLine.setAttribute('class', 'scene2-boundary');
+            boundariesGroup.appendChild(equatorLine);
+            
+            legendText.textContent = '绿色=北半球，橙色=南半球';
+        }
+        
+        function showState2() {
+            // 东西半球划分
+            clearRegions();
+            clearBoundaries();
+            
+            // 东半球填充 (x=130~357，即 120°E 到 160°E)
+            const eastRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            eastRect.setAttribute('x', '130');
+            eastRect.setAttribute('y', '95');
+            eastRect.setAttribute('width', '227');
+            eastRect.setAttribute('height', '380');
+            eastRect.setAttribute('class', 'scene2-region-east');
+            regionsGroup.appendChild(eastRect);
+            
+            // 西半球填充 (x=357~760，即 160°E 到 120°W)
+            const westRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            westRect.setAttribute('x', '357');
+            westRect.setAttribute('y', '95');
+            westRect.setAttribute('width', '403');
+            westRect.setAttribute('height', '380');
+            westRect.setAttribute('class', 'scene2-region-west');
+            regionsGroup.appendChild(westRect);
+            
+            // 160°E 分界线
+            const line160E = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line160E.setAttribute('x1', '357');
+            line160E.setAttribute('y1', '95');
+            line160E.setAttribute('x2', '357');
+            line160E.setAttribute('y2', '475');
+            line160E.setAttribute('class', 'scene2-boundary');
+            boundariesGroup.appendChild(line160E);
+            
+            legendText.textContent = '绿色=东半球，橙色=西半球';
+        }
+        
+        function showState3() {
+            // 纬度带划分
+            clearRegions();
+            clearBoundaries();
+            
+            // 高纬度填充 (y=95~158，60°N 以北)
+            const highNorthRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            highNorthRect.setAttribute('x', '130');
+            highNorthRect.setAttribute('y', '95');
+            highNorthRect.setAttribute('width', '630');
+            highNorthRect.setAttribute('height', '63');
+            highNorthRect.setAttribute('class', 'scene2-region-high');
+            regionsGroup.appendChild(highNorthRect);
+            
+            // 中纬度填充北 (y=158~285，30°N-60°N)
+            const midNorthRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            midNorthRect.setAttribute('x', '130');
+            midNorthRect.setAttribute('y', '158');
+            midNorthRect.setAttribute('width', '630');
+            midNorthRect.setAttribute('height', '127');
+            midNorthRect.setAttribute('class', 'scene2-region-mid');
+            regionsGroup.appendChild(midNorthRect);
+            
+            // 低纬度填充 (y=285~412，0°-30°)
+            const lowRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            lowRect.setAttribute('x', '130');
+            lowRect.setAttribute('y', '285');
+            lowRect.setAttribute('width', '630');
+            lowRect.setAttribute('height', '127');
+            lowRect.setAttribute('class', 'scene2-region-low');
+            regionsGroup.appendChild(lowRect);
+            
+            // 中纬度填充南 (y=412~475，20°S-30°S)
+            const midSouthRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            midSouthRect.setAttribute('x', '130');
+            midSouthRect.setAttribute('y', '412');
+            midSouthRect.setAttribute('width', '630');
+            midSouthRect.setAttribute('height', '63');
+            midSouthRect.setAttribute('class', 'scene2-region-mid');
+            regionsGroup.appendChild(midSouthRect);
+            
+            // 60°N 纬线（高/中纬分界）
+            const line60N = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line60N.setAttribute('x1', '130');
+            line60N.setAttribute('y1', '158');
+            line60N.setAttribute('x2', '760');
+            line60N.setAttribute('y2', '158');
+            line60N.setAttribute('class', 'scene2-boundary');
+            boundariesGroup.appendChild(line60N);
+            
+            // 30°N 纬线（中/低纬分界）- 在 20°N(y=285) 和 40°N(y=222) 之间
+            // 30°N 在 20°N 以北约 10°，每 20°=63px，10°≈31.5px，所以 30°N 在 y=285-31.5≈253.5
+            const line30N = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line30N.setAttribute('x1', '130');
+            line30N.setAttribute('y1', '253');
+            line30N.setAttribute('x2', '760');
+            line30N.setAttribute('y2', '253');
+            line30N.setAttribute('class', 'scene2-boundary');
+            boundariesGroup.appendChild(line30N);
+            
+            // 30°S 纬线（低/中纬分界）- 在 20°S(y=412) 以南约 10°
+            // y=412+31.5≈443.5
+            const line30S = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line30S.setAttribute('x1', '130');
+            line30S.setAttribute('y1', '443');
+            line30S.setAttribute('x2', '760');
+            line30S.setAttribute('y2', '443');
+            line30S.setAttribute('class', 'scene2-boundary');
+            boundariesGroup.appendChild(line30S);
+            
+            legendText.textContent = '绿=低纬 (0°-30°)，黄=中纬 (30°-60°)，红=高纬 (60°-90°)';
+        }
+        
+        function switchState(state) {
+            currentState = state;
+            switch(state) {
+                case 0:
+                    showState0();
+                    updateButtons(0);
+                    break;
+                case 1:
+                    showState1();
+                    updateButtons(1);
+                    break;
+                case 2:
+                    showState2();
+                    updateButtons(2);
+                    break;
+                case 3:
+                    showState3();
+                    updateButtons(3);
+                    break;
+            }
+        }
+        
+        // 按钮事件绑定
+        btnBase.addEventListener('click', function() {
+            switchState(0);
+        });
+        
+        btnNorthSouth.addEventListener('click', function() {
+            switchState(1);
+        });
+        
+        btnEastWest.addEventListener('click', function() {
+            switchState(2);
+        });
+        
+        btnLatitude.addEventListener('click', function() {
+            switchState(3);
+        });
+        
+        // 初始化
+        switchState(0);
+    })();
+    </script>
+</body>
+</html>

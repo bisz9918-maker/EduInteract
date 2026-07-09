@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>南极俯视图 - 晨昏线与日期分界线</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        .scene1-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            border: 2px solid #1565c0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #1565c0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #1565c0;
+            color: #ffffff;
+        }
+        .scene1-btn:disabled {
+            border-color: #cccccc;
+            color: #999999;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素可见性控制 */
+        .scene1-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene1-visible {
+            opacity: 1;
+            display: block;
+        }
+        /* 动画效果 */
+        .scene1-fade-in {
+            animation: scene1FadeIn 0.5s ease-out;
+        }
+        @keyframes scene1FadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .scene1-pulse {
+            animation: scene1Pulse 0.8s ease-in-out 2;
+        }
+        @keyframes scene1Pulse {
+            0%, 100% { r: 6; }
+            50% { r: 10; }
+        }
+        .scene1-draw-line {
+            stroke-dasharray: 200;
+            stroke-dashoffset: 200;
+            animation: scene1DrawLine 0.8s ease-out forwards;
+        }
+        @keyframes scene1DrawLine {
+            to { stroke-dashoffset: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 外圆（赤道）- 虚线半圆 -->
+            <path id="scene1-outer-circle" d="M 220,300 A 180,180 0 0,1 580,300" 
+                  fill="none" stroke="#888888" stroke-width="1" stroke-dasharray="5,5"/>
+            
+            <!-- 内圆（70°纬线） -->
+            <circle id="scene1-inner-circle" cx="400" cy="300" r="60" 
+                    fill="none" stroke="#000000" stroke-width="1"/>
+            
+            <!-- 阴影区域（150°~180°扇形） -->
+            <path id="scene1-shadow-area" d="M 400,300 L 254,154 A 180,180 0 0,1 220,300 Z" 
+                  fill="#888888" fill-opacity="0" class="scene1-hidden"/>
+            
+            <!-- 经线（6条黑色细线） -->
+            <!-- 经线 1: 0°方向（右水平） -->
+            <line id="scene1-meridian-1" x1="400" y1="300" x2="580" y2="300" 
+                  stroke="#000000" stroke-width="1"/>
+            <!-- 经线 2: 45°方向 -->
+            <line id="scene1-meridian-2" x1="400" y1="300" x2="527" y2="227" 
+                  stroke="#000000" stroke-width="1"/>
+            <!-- 经线 3: 90°方向（上垂直） -->
+            <line id="scene1-meridian-3" x1="400" y1="300" x2="400" y2="120" 
+                  stroke="#000000" stroke-width="1"/>
+            <!-- 经线 4: 135°方向 -->
+            <line id="scene1-meridian-4" x1="400" y1="300" x2="273" y2="227" 
+                  stroke="#000000" stroke-width="1"/>
+            <!-- 经线 B: 150°方向（加粗绿色） -->
+            <line id="scene1-meridian-b" x1="400" y1="300" x2="254" y2="154" 
+                  stroke="#2e7d32" stroke-width="1" class="scene1-hidden"/>
+            <!-- 经线 5: 180°方向（左水平） -->
+            <line id="scene1-meridian-5" x1="400" y1="300" x2="220" y2="300" 
+                  stroke="#000000" stroke-width="1"/>
+            
+            <!-- 晨昏线 MA（蓝色弧线） -->
+            <path id="scene1-morning-line" d="M 400,240 Q 480,220 565,265" 
+                  fill="none" stroke="#1565c0" stroke-width="2" class="scene1-hidden"/>
+            
+            <!-- 南极点 O -->
+            <circle id="scene1-point-o" cx="400" cy="300" r="3" fill="#000000"/>
+            
+            <!-- 切点 M（红色实心） -->
+            <circle id="scene1-point-m" cx="400" cy="240" r="6" fill="#c62828" class="scene1-hidden"/>
+            
+            <!-- 自转方向箭头（顺时针） -->
+            <path id="scene1-rotation-arrow" d="M 480,320 A 40,30 0 0,0 520,320" 
+                  fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#scene1-arrowhead)" 
+                  class="scene1-hidden"/>
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" 
+                        orient="auto" markerUnits="strokeWidth">
+                    <path d="M 0,0 L 10,3 L 0,6 Z" fill="#1565c0"/>
+                </marker>
+            </defs>
+            
+            <!-- 标签 -->
+            <!-- 标签 O -->
+            <text id="scene1-label-o" x="400" y="320" text-anchor="middle" 
+                  font-size="14" fill="#000000">O</text>
+            
+            <!-- 标签 70° -->
+            <text id="scene1-label-70" x="430" y="305" text-anchor="middle" 
+                  font-size="13" fill="#000000">70°</text>
+            
+            <!-- 标签 M -->
+            <text id="scene1-label-m" x="385" y="230" text-anchor="end" 
+                  font-size="14" fill="#000000" class="scene1-hidden">M</text>
+            
+            <!-- 标签 A -->
+            <text id="scene1-label-a" x="575" y="265" text-anchor="start" 
+                  font-size="14" fill="#000000" class="scene1-hidden">A</text>
+            
+            <!-- 标签 B -->
+            <text id="scene1-label-b" x="240" y="145" text-anchor="end" 
+                  font-size="14" fill="#000000" class="scene1-hidden">B</text>
+            
+            <!-- 标签 晨昏线 -->
+            <text id="scene1-label-morning" x="490" y="250" text-anchor="start" 
+                  font-size="13" fill="#1565c0" class="scene1-hidden">晨昏线</text>
+            
+            <!-- 标签 阴影区 -->
+            <text id="scene1-label-shadow" x="290" y="260" text-anchor="middle" 
+                  font-size="12" fill="#555555" class="scene1-hidden">阴影区</text>
+            
+            <!-- 自转方向标签 -->
+            <text id="scene1-label-rotation" x="510" y="345" text-anchor="start" 
+                  font-size="12" fill="#1565c0" class="scene1-hidden">自转</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/6</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1: 南极俯视图基础框架与要素标注
+        // 布局坐标表（实现对照依据）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | 外圆（赤道） | 圆弧 | 圆心 (400,300), 半径 180 | 半圆（上半部分） | - | 虚线灰色 |
+        // | 内圆（70°纬线） | 圆 | 圆心 (400,300), 半径 60 | 完整圆 | - | 实线黑色 |
+        // | 南极点 O | 圆点 | (400,300) | 直径 5px | 下方 10px | 实心黑点 |
+        // | 经线 1-5 | 线段 | 从 (400,300) 辐射 | 180px | - | 间隔 30-45° |
+        // | 经线 B | 线段 | 150°方向 | 180px | 端点外侧 | 加粗绿色 |
+        // | 切点 M | 圆点 | (400,240) | 直径 6px | 左上方 | 红色实心 |
+        // | 晨昏线 MA | 弧线 | M(400,240) 到 A(565,265) | 弧长~180px | - | 蓝色实线 |
+        // | 阴影区域 | 扇形 | 从 150°到 180°经线间 | 半径 180px | - | 灰色 20% |
+        // | 自转箭头 | 弧形箭头 | (480,320) 顺时针 | 40×30 | - | 蓝色 |
+
+        let stateIndex = 0;
+        const totalSteps = 6;
+
+        // 步骤配置：每个步骤显示哪些元素
+        const steps = [
+            // 步骤 0: 基础框架
+            {
+                visible: ['scene1-outer-circle', 'scene1-inner-circle', 'scene1-point-o', 
+                          'scene1-meridian-1', 'scene1-meridian-2', 'scene1-meridian-3', 
+                          'scene1-meridian-4', 'scene1-meridian-5', 'scene1-label-o', 'scene1-label-70'],
+                hidden: ['scene1-morning-line', 'scene1-point-m', 'scene1-meridian-b', 
+                         'scene1-shadow-area', 'scene1-rotation-arrow', 'scene1-label-m', 
+                         'scene1-label-a', 'scene1-label-b', 'scene1-label-morning', 
+                         'scene1-label-shadow', 'scene1-label-rotation']
+            },
+            // 步骤 1: 标注晨昏线 MA
+            {
+                visible: ['scene1-outer-circle', 'scene1-inner-circle', 'scene1-point-o', 
+                          'scene1-meridian-1', 'scene1-meridian-2', 'scene1-meridian-3', 
+                          'scene1-meridian-4', 'scene1-meridian-5', 'scene1-label-o', 'scene1-label-70',
+                          'scene1-morning-line', 'scene1-label-m', 'scene1-label-a', 'scene1-label-morning'],
+                hidden: ['scene1-point-m', 'scene1-meridian-b', 'scene1-shadow-area', 
+                         'scene1-rotation-arrow', 'scene1-label-b', 'scene1-label-shadow', 'scene1-label-rotation']
+            },
+            // 步骤 2: 高亮切点 M 及 70°纬线
+            {
+                visible: ['scene1-outer-circle', 'scene1-inner-circle', 'scene1-point-o', 
+                          'scene1-meridian-1', 'scene1-meridian-2', 'scene1-meridian-3', 
+                          'scene1-meridian-4', 'scene1-meridian-5', 'scene1-label-o', 'scene1-label-70',
+                          'scene1-morning-line', 'scene1-point-m', 'scene1-label-m', 'scene1-label-a', 'scene1-label-morning'],
+                hidden: ['scene1-meridian-b', 'scene1-shadow-area', 'scene1-rotation-arrow', 
+                         'scene1-label-b', 'scene1-label-shadow', 'scene1-label-rotation']
+            },
+            // 步骤 3: 标注经线 B
+            {
+                visible: ['scene1-outer-circle', 'scene1-inner-circle', 'scene1-point-o', 
+                          'scene1-meridian-1', 'scene1-meridian-2', 'scene1-meridian-3', 
+                          'scene1-meridian-4', 'scene1-meridian-5', 'scene1-label-o', 'scene1-label-70',
+                          'scene1-morning-line', 'scene1-point-m', 'scene1-meridian-b', 
+                          'scene1-label-m', 'scene1-label-a', 'scene1-label-b', 'scene1-label-morning'],
+                hidden: ['scene1-shadow-area', 'scene1-rotation-arrow', 'scene1-label-shadow', 'scene1-label-rotation']
+            },
+            // 步骤 4: 显示阴影区域
+            {
+                visible: ['scene1-outer-circle', 'scene1-inner-circle', 'scene1-point-o', 
+                          'scene1-meridian-1', 'scene1-meridian-2', 'scene1-meridian-3', 
+                          'scene1-meridian-4', 'scene1-meridian-5', 'scene1-label-o', 'scene1-label-70',
+                          'scene1-morning-line', 'scene1-point-m', 'scene1-meridian-b', 'scene1-shadow-area',
+                          'scene1-label-m', 'scene1-label-a', 'scene1-label-b', 'scene1-label-morning', 'scene1-label-shadow'],
+                hidden: ['scene1-rotation-arrow', 'scene1-label-rotation']
+            },
+            // 步骤 5: 添加自转方向箭头
+            {
+                visible: ['scene1-outer-circle', 'scene1-inner-circle', 'scene1-point-o', 
+                          'scene1-meridian-1', 'scene1-meridian-2', 'scene1-meridian-3', 
+                          'scene1-meridian-4', 'scene1-meridian-5', 'scene1-label-o', 'scene1-label-70',
+                          'scene1-morning-line', 'scene1-point-m', 'scene1-meridian-b', 'scene1-shadow-area',
+                          'scene1-rotation-arrow', 'scene1-label-m', 'scene1-label-a', 'scene1-label-b', 
+                          'scene1-label-morning', 'scene1-label-shadow', 'scene1-label-rotation'],
+                hidden: []
+            }
+        ];
+
+        // 工具函数：显示元素
+        function showElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-hidden');
+                el.classList.add('scene1-visible');
+                el.style.display = 'block';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('scene1-visible');
+                el.classList.add('scene1-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 更新场景显示
+        function updateScene() {
+            const step = steps[stateIndex];
+            
+            // 显示当前步骤应有的元素
+            step.visible.forEach(id => showElement(id));
+            step.hidden.forEach(id => hideElement(id));
+            
+            // 特殊动画效果
+            if (stateIndex === 1) {
+                // 步骤 1: 晨昏线绘制动画
+                const morningLine = document.getElementById('scene1-morning-line');
+                if (morningLine) {
+                    morningLine.classList.remove('scene1-draw-line');
+                    void morningLine.offsetWidth; // 触发重绘
+                    morningLine.classList.add('scene1-draw-line');
+                }
+            }
+            if (stateIndex === 2) {
+                // 步骤 2: M 点脉冲动画
+                const pointM = document.getElementById('scene1-point-m');
+                if (pointM) {
+                    pointM.classList.remove('scene1-pulse');
+                    void pointM.offsetWidth;
+                    pointM.classList.add('scene1-pulse');
+                }
+                // 70°纬线加粗变蓝
+                const innerCircle = document.getElementById('scene1-inner-circle');
+                if (innerCircle) {
+                    innerCircle.setAttribute('stroke', '#1565c0');
+                    innerCircle.setAttribute('stroke-width', '2');
+                }
+            }
+            if (stateIndex === 3) {
+                // 步骤 3: 经线 B 绘制动画
+                const meridianB = document.getElementById('scene1-meridian-b');
+                if (meridianB) {
+                    meridianB.classList.remove('scene1-draw-line');
+                    void meridianB.offsetWidth;
+                    meridianB.classList.add('scene1-draw-line');
+                }
+            }
+            if (stateIndex === 4) {
+                // 步骤 4: 阴影区淡入
+                const shadowArea = document.getElementById('scene1-shadow-area');
+                if (shadowArea) {
+                    shadowArea.classList.remove('scene1-fade-in');
+                    void shadowArea.offsetWidth;
+                    shadowArea.classList.add('scene1-fade-in');
+                }
+            }
+            if (stateIndex === 5) {
+                // 步骤 5: 自转箭头绘制
+                const rotationArrow = document.getElementById('scene1-rotation-arrow');
+                if (rotationArrow) {
+                    rotationArrow.classList.remove('scene1-draw-line');
+                    void rotationArrow.offsetWidth;
+                    rotationArrow.classList.add('scene1-draw-line');
+                }
+            }
+            
+            // 更新步骤指示器
+            document.getElementById('scene1-step-indicator').textContent = `步骤 ${stateIndex + 1}/${totalSteps}`;
+            
+            // 更新按钮状态
+            document.getElementById('scene1-btn-prev').disabled = (stateIndex === 0);
+            document.getElementById('scene1-btn-next').disabled = (stateIndex === totalSteps - 1);
+        }
+
+        // 初始化
+        function init() {
+            const btnPrev = document.getElementById('scene1-btn-prev');
+            const btnNext = document.getElementById('scene1-btn-next');
+            
+            btnPrev.addEventListener('click', function() {
+                if (stateIndex > 0) {
+                    stateIndex--;
+                    updateScene();
+                }
+            });
+            
+            btnNext.addEventListener('click', function() {
+                if (stateIndex < totalSteps - 1) {
+                    stateIndex++;
+                    updateScene();
+                }
+            });
+            
+            // 初始显示步骤 0
+            updateScene();
+        }
+
+        // DOM 加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    })();
+    </script>
+</body>
+</html>

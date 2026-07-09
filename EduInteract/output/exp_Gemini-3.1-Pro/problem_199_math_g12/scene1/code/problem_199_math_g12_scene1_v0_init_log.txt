@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualSolver Scene</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* SVG Styles */
+        svg { position: absolute; top: 0; left: 0; }
+        .scene1-axis { stroke: #000000; stroke-width: 1.5; }
+        .scene1-axis-arrow { fill: #000000; }
+        .scene1-hexagon { fill: none; stroke: #000000; stroke-width: 1.5; }
+        .scene1-line-L { stroke: #1565c0; stroke-width: 2; }
+        .scene1-line-L-prime { stroke: #c62828; stroke-width: 2; }
+        .scene1-triangle-blue { fill: #1565c0; fill-opacity: 0.2; stroke: #1565c0; stroke-width: 1.5; }
+        .scene1-triangle-red { fill: #c62828; fill-opacity: 0.2; stroke: #c62828; stroke-width: 1.5; }
+        .scene1-dashed-line { stroke: #888888; stroke-width: 2; stroke-dasharray: 5, 5; }
+        .scene1-point { fill: #000000; }
+        .scene1-point-blue { fill: #1565c0; }
+        .scene1-point-red { fill: #c62828; }
+        .scene1-label { font-size: 16px; font-family: sans-serif; fill: #000000; }
+        
+        /* Transitions */
+        .scene1-fade { transition: opacity 0.5s ease-in-out; }
+        
+        /* Animations */
+        @keyframes scene1-dash-anim {
+            from { stroke-dashoffset: 300; }
+            to { stroke-dashoffset: 0; }
+        }
+        .scene1-draw-dash {
+            stroke-dasharray: 300;
+            stroke-dashoffset: 300;
+            animation: scene1-dash-anim 1s forwards;
+        }
+        
+        @keyframes scene1-blink {
+            0% { fill-opacity: 0.2; }
+            100% { fill-opacity: 0.6; }
+        }
+        .scene1-blinking {
+            animation: scene1-blink 1.5s infinite alternate;
+        }
+        
+        /* MathJax container */
+        #scene1-math-conclusion {
+            position: absolute;
+            left: 50%;
+            bottom: 60px;
+            transform: translateX(-50%);
+            font-size: 18px;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- 坐标系 -->
+            <line x1="50" y1="220" x2="750" y2="220" class="scene1-axis" />
+            <polygon points="750,220 740,215 740,225" class="scene1-axis-arrow" />
+            <text x="740" y="245" class="scene1-label">x</text>
+            
+            <line x1="400" y1="400" x2="400" y2="40" class="scene1-axis" />
+            <polygon points="400,40 395,50 405,50" class="scene1-axis-arrow" />
+            <text x="415" y="45" class="scene1-label">y</text>
+            
+            <!-- 正六边形 -->
+            <!-- 顶点坐标: A(325,350), B(475,350), C(550,220), D(475,90), E(325,90), F(250,220) -->
+            <polygon points="325,350 475,350 550,220 475,90 325,90 250,220" class="scene1-hexagon" />
+            
+            <!-- 顶点标签 -->
+            <text x="305" y="370" class="scene1-label">A</text>
+            <text x="485" y="370" class="scene1-label">B</text>
+            <text x="565" y="225" class="scene1-label">C</text>
+            <text x="485" y="80" class="scene1-label">D</text>
+            <text x="305" y="80" class="scene1-label">E</text>
+            <text x="230" y="225" class="scene1-label">F</text>
+            
+            <!-- 辅助线 (Step 2) -->
+            <g id="scene1-step2-lines" class="scene1-fade" style="opacity: 0; display: none;">
+                <line x1="304" y1="314" x2="496" y2="126" class="scene1-dashed-line" id="scene1-line-mm" />
+                <line x1="453" y1="90" x2="347" y2="350" class="scene1-dashed-line" id="scene1-line-nn" />
+            </g>
+            
+            <!-- 初始状态 (Step 0) -->
+            <g id="scene1-step0-elements">
+                <!-- 直线 L -->
+                <line x1="250" y1="395" x2="500" y2="20" class="scene1-line-L" />
+                <text x="510" y="30" class="scene1-label">L</text>
+                
+                <!-- △OMN -->
+                <polygon points="400,220 304,314 453,90" class="scene1-triangle-blue" id="scene1-tri-omn" />
+                
+                <!-- 交点 M, N -->
+                <circle cx="304" cy="314" r="4" class="scene1-point-blue" />
+                <text x="280" y="310" class="scene1-label">M</text>
+                
+                <circle cx="453" cy="90" r="4" class="scene1-point-blue" />
+                <text x="435" y="75" class="scene1-label">N</text>
+            </g>
+            
+            <!-- 步骤 1 元素 -->
+            <g id="scene1-step1-elements" class="scene1-fade" style="opacity: 0; display: none;">
+                <!-- 直线 L' -->
+                <line x1="300" y1="420" x2="550" y2="45" class="scene1-line-L-prime" />
+                <text x="560" y="55" class="scene1-label">L'</text>
+                
+                <!-- △OM'N' -->
+                <polygon points="400,220 496,126 347,350" class="scene1-triangle-red" id="scene1-tri-ompnp" />
+                
+                <!-- 交点 M', N' -->
+                <circle cx="496" cy="126" r="4" class="scene1-point-red" />
+                <text x="510" y="120" class="scene1-label">M'</text>
+                
+                <circle cx="347" cy="350" r="4" class="scene1-point-red" />
+                <text x="355" y="370" class="scene1-label">N'</text>
+            </g>
+            
+            <!-- 原点 O (需在顶层) -->
+            <circle cx="400" cy="220" r="4" class="scene1-point" id="scene1-point-o" style="transition: all 0.5s;" />
+            <text x="410" y="205" class="scene1-label">O</text>
+            
+        </svg>
+        
+        <!-- 结论文本 -->
+        <div id="scene1-math-conclusion">
+            $f(t) = f(-t)$ (偶函数)
+        </div>
+        
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const step1Elements = document.getElementById('scene1-step1-elements');
+        const step2Lines = document.getElementById('scene1-step2-lines');
+        const pointO = document.getElementById('scene1-point-o');
+        const lineMM = document.getElementById('scene1-line-mm');
+        const lineNN = document.getElementById('scene1-line-nn');
+        const triOMN = document.getElementById('scene1-tri-omn');
+        const triOMPNP = document.getElementById('scene1-tri-ompnp');
+        const mathConclusion = document.getElementById('scene1-math-conclusion');
+        
+        function show(el) {
+            el.style.display = '';
+            // Force reflow
+            void el.offsetWidth;
+            el.style.opacity = '1';
+        }
+        
+        function hide(el) {
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (el.style.opacity === '0') {
+                    el.style.display = 'none';
+                }
+            }, 500);
+        }
+        
+        function updateScene() {
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            
+            // Step 1: Show L', M', N', △OM'N'
+            if (currentStep >= 1) {
+                show(step1Elements);
+            } else {
+                hide(step1Elements);
+            }
+            
+            // Step 2: Highlight O, draw dashed lines
+            if (currentStep >= 2) {
+                show(step2Lines);
+                pointO.style.fill = '#2e7d32';
+                pointO.setAttribute('r', '6');
+                
+                // Trigger drawing animation if just entered step 2
+                if (currentStep === 2) {
+                    lineMM.classList.remove('scene1-draw-dash');
+                    lineNN.classList.remove('scene1-draw-dash');
+                    void lineMM.offsetWidth; // reflow
+                    lineMM.classList.add('scene1-draw-dash');
+                    lineNN.classList.add('scene1-draw-dash');
+                }
+            } else {
+                hide(step2Lines);
+                pointO.style.fill = '#000000';
+                pointO.setAttribute('r', '4');
+                lineMM.classList.remove('scene1-draw-dash');
+                lineNN.classList.remove('scene1-draw-dash');
+            }
+            
+            // Step 3: Blinking triangles, show conclusion
+            if (currentStep >= 3) {
+                triOMN.classList.add('scene1-blinking');
+                triOMPNP.classList.add('scene1-blinking');
+                mathConclusion.style.opacity = '1';
+            } else {
+                triOMN.classList.remove('scene1-blinking');
+                triOMPNP.classList.remove('scene1-blinking');
+                mathConclusion.style.opacity = '0';
+            }
+        }
+        
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+        
+        // Initial setup
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

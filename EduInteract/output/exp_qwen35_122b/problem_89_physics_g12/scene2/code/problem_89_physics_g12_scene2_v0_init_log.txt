@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 速度矢量分解与合成分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 10; }
+        #scene2-step-indicator { font-size: 16px; font-weight: bold; color: #333; }
+        #scene2-btn-group { display: flex; gap: 12px; }
+        .scene2-btn { padding: 8px 20px; font-size: 14px; border: 2px solid #1565c0; border-radius: 6px; background: #fff; color: #1565c0; cursor: pointer; transition: all 0.2s; }
+        .scene2-btn:hover { background: #1565c0; color: #fff; }
+        .scene2-btn:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
+        .scene2-hidden { display: none !important; }
+        .scene2-fade { transition: opacity 0.3s ease; }
+        text { font-family: "Microsoft YaHei", sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" id="scene2-svg">
+            <!-- 坐标轴 x -->
+            <line x1="80" y1="400" x2="750" y2="400" stroke="#000" stroke-width="2" id="scene2-axis-x"/>
+            <polygon points="750,400 740,395 740,405" fill="#000" id="scene2-axis-x-arrow"/>
+            <text x="760" y="405" font-size="16" fill="#000">x</text>
+            
+            <!-- 坐标轴 y -->
+            <line x1="80" y1="400" x2="80" y2="50" stroke="#000" stroke-width="2" id="scene2-axis-y"/>
+            <polygon points="80,50 75,60 85,60" fill="#000" id="scene2-axis-y-arrow"/>
+            <text x="75" y="40" font-size="16" fill="#000">y</text>
+            
+            <!-- 原点 O -->
+            <text x="65" y="425" font-size="16" fill="#000">O</text>
+            
+            <!-- 虚线 ab (分界线) -->
+            <line x1="280" y1="50" x2="280" y2="400" stroke="#000" stroke-width="2" stroke-dasharray="8,4" id="scene2-line-ab"/>
+            <text x="275" y="45" font-size="14" fill="#000">a</text>
+            <text x="275" y="420" font-size="14" fill="#000">b</text>
+            
+            <!-- E₁区域边框 -->
+            <rect x="80" y="50" width="200" height="350" fill="none" stroke="#1565c0" stroke-width="2" id="scene2-region-e1"/>
+            <text x="130" y="40" font-size="18" fill="#1565c0" font-weight="bold">E₁</text>
+            
+            <!-- E₂区域边框 -->
+            <rect x="280" y="50" width="470" height="350" fill="none" stroke="#c62828" stroke-width="2" id="scene2-region-e2"/>
+            <text x="450" y="40" font-size="18" fill="#c62828" font-weight="bold">E₂</text>
+            
+            <!-- E₁电场线 (4 条水平向右箭头) -->
+            <g id="scene2-e1-field">
+                <line x1="100" y1="350" x2="260" y2="350" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="260,350 250,345 250,355" fill="#1565c0"/>
+                
+                <line x1="100" y1="275" x2="260" y2="275" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="260,275 250,270 250,280" fill="#1565c0"/>
+                
+                <line x1="100" y1="200" x2="260" y2="200" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="260,200 250,195 250,205" fill="#1565c0"/>
+                
+                <line x1="100" y1="125" x2="260" y2="125" stroke="#1565c0" stroke-width="2"/>
+                <polygon points="260,125 250,120 250,130" fill="#1565c0"/>
+            </g>
+            
+            <!-- E₂电场线 (4 条竖直向下箭头) -->
+            <g id="scene2-e2-field">
+                <line x1="350" y1="100" x2="350" y2="380" stroke="#c62828" stroke-width="2"/>
+                <polygon points="350,380 345,370 355,370" fill="#c62828"/>
+                
+                <line x1="450" y1="100" x2="450" y2="380" stroke="#c62828" stroke-width="2"/>
+                <polygon points="450,380 445,370 455,370" fill="#c62828"/>
+                
+                <line x1="550" y1="100" x2="550" y2="380" stroke="#c62828" stroke-width="2"/>
+                <polygon points="550,380 545,370 555,370" fill="#c62828"/>
+                
+                <line x1="650" y1="100" x2="650" y2="380" stroke="#c62828" stroke-width="2"/>
+                <polygon points="650,380 645,370 655,370" fill="#c62828"/>
+            </g>
+            
+            <!-- P 点 -->
+            <circle cx="80" cy="200" r="5" fill="#c62828" id="scene2-point-p"/>
+            <text x="60" y="205" font-size="16" fill="#c62828" font-weight="bold">P</text>
+            
+            <!-- Q 点 -->
+            <circle cx="600" cy="400" r="5" fill="#2e7d32" id="scene2-point-q"/>
+            <text x="595" y="430" font-size="16" fill="#2e7d32" font-weight="bold">Q</text>
+            
+            <!-- 步骤 0: v₀=0 标签 -->
+            <text x="25" y="220" font-size="14" fill="#000" id="scene2-label-v0" class="scene2-fade">v₀=0</text>
+            
+            <!-- 步骤 1: v₁矢量 -->
+            <g id="scene2-vec-v1-group" class="scene2-hidden scene2-fade">
+                <line x1="280" y1="200" x2="400" y2="200" stroke="#1565c0" stroke-width="3" id="scene2-vec-v1"/>
+                <polygon points="400,200 390,195 390,205" fill="#1565c0"/>
+                <text x="340" y="175" font-size="16" fill="#1565c0" font-weight="bold" id="scene2-label-v1">v₁</text>
+            </g>
+            
+            <!-- 步骤 2: 速度分解矢量 -->
+            <g id="scene2-vec-decomp-group" class="scene2-hidden scene2-fade">
+                <!-- 合成三角形虚线 -->
+                <polygon points="600,400 700,400 700,280 600,400" fill="none" stroke="#888888" stroke-width="2" stroke-dasharray="6,4" id="scene2-triangle"/>
+                
+                <!-- v_x 矢量 (水平分量，蓝色) -->
+                <line x1="600" y1="400" x2="700" y2="400" stroke="#1565c0" stroke-width="3" id="scene2-vec-vx"/>
+                <polygon points="700,400 690,395 690,405" fill="#1565c0"/>
+                <text x="645" y="425" font-size="16" fill="#1565c0" font-weight="bold" id="scene2-label-vx">vₓ</text>
+                
+                <!-- v_y 矢量 (竖直分量，红色) -->
+                <line x1="700" y1="400" x2="700" y2="280" stroke="#c62828" stroke-width="3" id="scene2-vec-vy"/>
+                <polygon points="700,280 695,290 705,290" fill="#c62828"/>
+                <text x="725" y="340" font-size="16" fill="#c62828" font-weight="bold" id="scene2-label-vy">vᵧ</text>
+                
+                <!-- v₂矢量 (合速度，绿色) -->
+                <line x1="600" y1="400" x2="700" y2="280" stroke="#2e7d32" stroke-width="3" id="scene2-vec-v2"/>
+                <polygon points="700,280 692,288 695,278" fill="#2e7d32"/>
+                <text x="585" y="340" font-size="16" fill="#2e7d32" font-weight="bold" id="scene2-label-v2">v₂</text>
+            </g>
+            
+            <!-- 步骤 3: 公式标签 -->
+            <text x="480" y="120" font-size="18" fill="#000" id="scene2-label-formula" class="scene2-hidden scene2-fade">v₂=√(v₁²+vᵧ²)</text>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <div id="scene2-step-indicator">步骤 1/4</div>
+            <div id="scene2-btn-group">
+                <button class="scene2-btn" id="scene2-btn-prev" disabled>◀ 上一步</button>
+                <button class="scene2-btn" id="scene2-btn-next">下一步 ▶</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现 - 速度矢量分解与合成分析
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // | 坐标轴 x | 线段 | (80,400)-(750,400) | 670×2 | - | 水平轴，箭头向右 |
+        // | 坐标轴 y | 线段 | (80,400)-(80,50) | 2×350 | - | 竖直轴，箭头向上 |
+        // | 原点 O | 点 | (80,400) | - | 左下 (65,415) | 坐标原点 |
+        // | 虚线 ab | 线段 | (280,50)-(280,400) | 2×350 | - | x=L 分界线 |
+        // | E₁区域 | 矩形边框 | (80,50)-(280,400) | 200×350 | - | 左区电场范围 |
+        // | E₂区域 | 矩形边框 | (280,50)-(750,400) | 470×350 | - | 右区电场范围 |
+        // | P 点 | 实心圆 | (80,200) | 5px 半径 | - | (0,h) 位置 |
+        // | Q 点 | 实心圆 | (600,400) | 5px 半径 | - | x 轴上出射点 |
+        // | v₁矢量 | 箭头 | (280,200)-(400,200) | 120×3 | - | 步骤 1 显示，水平向右 |
+        // | v₂矢量 | 箭头 | (600,400)-(700,280) | - | - | 步骤 2 显示，斜向左上 |
+        // | v_x 矢量 | 箭头 | (600,400)-(700,400) | 100×3 | - | 水平分量，蓝色 |
+        // | v_y 矢量 | 箭头 | (700,400)-(700,280) | 3×120 | - | 竖直分量，红色 |
+        
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+        
+        // DOM 元素引用
+        const els = {
+            stepIndicator: document.getElementById('scene2-step-indicator'),
+            btnPrev: document.getElementById('scene2-btn-prev'),
+            btnNext: document.getElementById('scene2-btn-next'),
+            // 步骤 0 元素
+            labelV0: document.getElementById('scene2-label-v0'),
+            // 步骤 1 元素
+            vecV1Group: document.getElementById('scene2-vec-v1-group'),
+            // 步骤 2 元素
+            vecDecompGroup: document.getElementById('scene2-vec-decomp-group'),
+            // 步骤 3 元素
+            labelFormula: document.getElementById('scene2-label-formula')
+        };
+        
+        // 工具函数：显示元素
+        function show(el) {
+            if (!el) return;
+            el.classList.remove('scene2-hidden');
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            if (!el) return;
+            el.classList.add('scene2-hidden');
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+        
+        // 更新场景显示
+        function updateScene() {
+            // 更新步骤指示器
+            els.stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            els.btnPrev.disabled = (currentStep === 0);
+            els.btnNext.disabled = (currentStep === TOTAL_STEPS - 1);
+            if (currentStep === TOTAL_STEPS - 1) {
+                els.btnNext.textContent = '完成';
+            } else {
+                els.btnNext.textContent = '下一步 ▶';
+            }
+            
+            // 根据当前步骤显示/隐藏元素
+            switch(currentStep) {
+                case 0:
+                    // 步骤 0: 显示 v₀=0 标签，隐藏所有速度矢量
+                    show(els.labelV0);
+                    hide(els.vecV1Group);
+                    hide(els.vecDecompGroup);
+                    hide(els.labelFormula);
+                    break;
+                    
+                case 1:
+                    // 步骤 1: 显示 v₁矢量，隐藏 v₀=0
+                    hide(els.labelV0);
+                    show(els.vecV1Group);
+                    hide(els.vecDecompGroup);
+                    hide(els.labelFormula);
+                    break;
+                    
+                case 2:
+                    // 步骤 2: 显示速度分解矢量
+                    hide(els.labelV0);
+                    hide(els.vecV1Group);
+                    show(els.vecDecompGroup);
+                    hide(els.labelFormula);
+                    break;
+                    
+                case 3:
+                    // 步骤 3: 显示公式
+                    hide(els.labelV0);
+                    hide(els.vecV1Group);
+                    show(els.vecDecompGroup);
+                    show(els.labelFormula);
+                    break;
+            }
+        }
+        
+        // 下一步
+        function nextStep() {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateScene();
+            }
+        }
+        
+        // 上一步
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        }
+        
+        // 事件绑定
+        els.btnNext.addEventListener('click', nextStep);
+        els.btnPrev.addEventListener('click', prevStep);
+        
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

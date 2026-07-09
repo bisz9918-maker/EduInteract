@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2: 正六边形与直线交点面积</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .scene2-btn { padding: 8px 16px; background: #2e7d32; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .scene2-btn:hover { background: #1b5e20; }
+        .scene2-btn:disabled { background: #9e9e9e; cursor: not-allowed; }
+        #scene2-slider-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 300px; }
+        #scene2-slider { width: 100%; cursor: pointer; }
+        #scene2-info-panel { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.95); padding: 10px; border-radius: 4px; border: 1px solid #ccc; }
+        #scene2-area-display { font-size: 18px; font-weight: bold; color: #c62828; }
+        #scene2-t-display { font-size: 14px; color: #000; margin-top: 5px; }
+        #scene2-label-l { font-size: 14px; color: #1565c0; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 坐标轴 -->
+            <line id="scene2-xaxis" x1="200" y1="250" x2="600" y2="250" stroke="#000" stroke-width="2"/>
+            <polygon id="scene2-xarrow" points="600,250 590,245 590,255" fill="#000"/>
+            <line id="scene2-yaxis" x1="400" y1="100" x2="400" y2="400" stroke="#000" stroke-width="2"/>
+            <polygon id="scene2-yarrow" points="400,100 395,110 405,110" fill="#000"/>
+            
+            <!-- 正六边形 -->
+            <polygon id="scene2-hexagon" points="350,336.6 450,336.6 500,250 450,163.4 350,163.4 300,250" 
+                     fill="none" stroke="#000" stroke-width="2" opacity="0.3"/>
+            
+            <!-- 顶点标签（移到六边形外侧更远处，O 标签移到六边形下方） -->
+            <text id="scene2-label-o" x="415" y="355" font-size="14" fill="#000">O</text>
+            <text id="scene2-label-a" x="365" y="370" font-size="14" fill="#000">A</text>
+            <text id="scene2-label-b" x="455" y="370" font-size="14" fill="#000">B</text>
+            <text id="scene2-label-c" x="520" y="255" font-size="14" fill="#000">C</text>
+            <text id="scene2-label-d" x="455" y="145" font-size="14" fill="#000">D</text>
+            <text id="scene2-label-e" x="335" y="145" font-size="14" fill="#000">E</text>
+            <text id="scene2-label-f" x="275" y="255" font-size="14" fill="#000">F</text>
+            
+            <!-- 轴标签 -->
+            <text id="scene2-label-x" x="610" y="250" font-size="14" fill="#000">x</text>
+            <text id="scene2-label-y" x="405" y="90" font-size="14" fill="#000">y</text>
+            
+            <!-- △OMN（动态） -->
+            <polygon id="scene2-triangle" fill="#1565c0" opacity="0.2" stroke="#1565c0" stroke-width="1"/>
+            
+            <!-- 直线 L（动态） -->
+            <line id="scene2-line" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 交点 M、N（动态） -->
+            <circle id="scene2-point-m" r="6" fill="#c62828"/>
+            <circle id="scene2-point-n" r="6" fill="#c62828"/>
+            
+            <!-- 交点标签（动态，远离交点） -->
+            <text id="scene2-label-m" font-size="14" fill="#c62828" font-weight="bold"/>
+            <text id="scene2-label-n" font-size="14" fill="#c62828" font-weight="bold"/>
+        </svg>
+        
+        <!-- 信息面板 -->
+        <div id="scene2-info-panel">
+            <div id="scene2-area-display">S = 0.00</div>
+            <div id="scene2-t-display">t = 0</div>
+            <div id="scene2-label-l" style="margin-top: 10px;">L: y = 0.8x + t</div>
+        </div>
+        
+        <!-- 滑块控件 -->
+        <div id="scene2-slider-container">
+            <input type="range" id="scene2-slider" min="-80" max="80" value="0" step="1">
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现：正六边形与直线交点面积
+        // 画布尺寸：800×500px，原点 O 位于 (400, 250)
+        // 正六边形顶点：A(350,337), B(450,337), C(500,250), D(450,163), E(350,163), F(300,250)
+        // 边长 a = 100px，中心在原点 (400, 250)
+        // 直线 L: y = kx + t (标准坐标系)
+        // 在 SVG 坐标系中（y 向下为正）：y_svg = centerY - (k * (x_svg - centerX) + t)
+        // 即：y_svg = centerY - k * (x_svg - centerX) - t
+        
+        const svg = document.getElementById('scene2-svg');
+        const lineEl = document.getElementById('scene2-line');
+        const triangleEl = document.getElementById('scene2-triangle');
+        const pointM = document.getElementById('scene2-point-m');
+        const pointN = document.getElementById('scene2-point-n');
+        const labelM = document.getElementById('scene2-label-m');
+        const labelN = document.getElementById('scene2-label-n');
+        const areaDisplay = document.getElementById('scene2-area-display');
+        const tDisplay = document.getElementById('scene2-t-display');
+        const slider = document.getElementById('scene2-slider');
+        
+        // 正六边形顶点坐标（像素）
+        const hexVertices = {
+            A: { x: 350, y: 336.6 },
+            B: { x: 450, y: 336.6 },
+            C: { x: 500, y: 250 },
+            D: { x: 450, y: 163.4 },
+            E: { x: 350, y: 163.4 },
+            F: { x: 300, y: 250 }
+        };
+        
+        // 六边形的六条边
+        const hexEdges = [
+            { p1: hexVertices.A, p2: hexVertices.B, name: 'AB' },
+            { p1: hexVertices.B, p2: hexVertices.C, name: 'BC' },
+            { p1: hexVertices.C, p2: hexVertices.D, name: 'CD' },
+            { p1: hexVertices.D, p2: hexVertices.E, name: 'DE' },
+            { p1: hexVertices.E, p2: hexVertices.F, name: 'EF' },
+            { p1: hexVertices.F, p2: hexVertices.A, name: 'FA' }
+        ];
+        
+        // 直线参数
+        const k = 0.8;  // 斜率
+        const centerX = 400;
+        const centerY = 250;
+        
+        // 当前 t 值
+        let currentT = 0;
+        
+        // SVG 坐标系中的直线方程：y = -k * (x - centerX) + centerY - t
+        // 即：y = -k*x + k*centerX + centerY - t
+        // 斜率 m_svg = -k, 截距 b_svg = k*centerX + centerY - t
+        
+        // 求直线与线段 p1-p2 的交点
+        function intersectLineSegment(p1, p2) {
+            // 直线 L: y = -k * (x - centerX) + centerY - t
+            // 线段：x = p1.x + u * (p2.x - p1.x), y = p1.y + u * (p2.y - p1.y)
+            
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            
+            // 代入直线方程：p1.y + u*dy = -k * (p1.x + u*dx - centerX) + centerY - t
+            // p1.y + u*dy = -k*p1.x - k*u*dx + k*centerX + centerY - t
+            // u*dy + k*u*dx = -k*p1.x + k*centerX + centerY - t - p1.y
+            // u * (dy + k*dx) = k*(centerX - p1.x) + centerY - t - p1.y
+            
+            const denom = dy + k * dx;
+            
+            if (Math.abs(denom) < 1e-10) {
+                return null;  // 平行
+            }
+            
+            const u = (k * (centerX - p1.x) + centerY - t - p1.y) / denom;
+            
+            if (u < 0 || u > 1) {
+                return null;  // 交点不在线段上
+            }
+            
+            const x = p1.x + u * dx;
+            const y = p1.y + u * dy;
+            
+            return { x, y };
+        }
+        
+        // 计算直线与正六边形的两个交点
+        function findIntersections() {
+            const intersections = [];
+            
+            for (const edge of hexEdges) {
+                const pt = intersectLineSegment(edge.p1, edge.p2);
+                if (pt) {
+                    intersections.push(pt);
+                }
+            }
+            
+            if (intersections.length >= 2) {
+                // 按 x 坐标排序，左边的为 M，右边的为 N
+                intersections.sort((a, b) => a.x - b.x);
+                return { M: intersections[0], N: intersections[1] };
+            }
+            
+            return null;
+        }
+        
+        // 计算△OMN 的面积（使用向量叉积）
+        function calculateArea(M, N) {
+            const omx = M.x - centerX;
+            const omy = M.y - centerY;
+            const onx = N.x - centerX;
+            const ony = N.y - centerY;
+            
+            return 0.5 * Math.abs(omx * ony - omy * onx);
+        }
+        
+        // 更新画面
+        function update(t) {
+            currentT = t;
+            slider.value = t;
+            
+            const intersections = findIntersections();
+            
+            if (intersections) {
+                const { M, N } = intersections;
+                const area = calculateArea(M, N);
+                
+                // 更新直线 L（绘制范围 x 从 150 到 650）
+                const x1 = 150, x2 = 650;
+                const y1 = -k * (x1 - centerX) + centerY - t;
+                const y2 = -k * (x2 - centerX) + centerY - t;
+                
+                lineEl.setAttribute('x1', x1);
+                lineEl.setAttribute('y1', y1);
+                lineEl.setAttribute('x2', x2);
+                lineEl.setAttribute('y2', y2);
+                
+                // 更新交点 M、N
+                pointM.setAttribute('cx', M.x);
+                pointM.setAttribute('cy', M.y);
+                pointN.setAttribute('cx', N.x);
+                pointN.setAttribute('cy', N.y);
+                
+                // 更新交点标签位置（远离交点，避免重叠）
+                // M 点在左侧，标签放在左下方
+                labelM.setAttribute('x', M.x - 30);
+                labelM.setAttribute('y', M.y + 20);
+                labelM.textContent = 'M';
+                
+                // N 点在右侧，标签放在右上方
+                labelN.setAttribute('x', N.x + 20);
+                labelN.setAttribute('y', N.y - 20);
+                labelN.textContent = 'N';
+                
+                // 更新△OMN
+                triangleEl.setAttribute('points', `${centerX},${centerY} ${M.x},${M.y} ${N.x},${N.y}`);
+                triangleEl.style.display = 'block';
+                
+                // 更新面积和 t 值显示
+                areaDisplay.textContent = `S = ${area.toFixed(2)}`;
+                tDisplay.textContent = `t = ${t}`;
+            } else {
+                // 无交点时隐藏动态元素
+                lineEl.setAttribute('x1', 0);
+                lineEl.setAttribute('y1', 0);
+                lineEl.setAttribute('x2', 0);
+                lineEl.setAttribute('y2', 0);
+                triangleEl.style.display = 'none';
+                pointM.setAttribute('cx', -100);
+                pointM.setAttribute('cy', -100);
+                pointN.setAttribute('cx', -100);
+                pointN.setAttribute('cy', -100);
+                labelM.textContent = '';
+                labelN.textContent = '';
+                areaDisplay.textContent = 'S = --';
+                tDisplay.textContent = `t = ${t}`;
+            }
+        }
+        
+        // 滑块事件处理
+        slider.addEventListener('input', function(e) {
+            const t = parseInt(e.target.value);
+            update(t);
+        });
+        
+        // 初始化
+        update(0);
+    })();
+    </script>
+</body>
+</html>

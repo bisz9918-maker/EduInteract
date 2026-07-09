@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雄果蝇 M 的染色体与基因位置关系</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        .chromosome {
+            fill: #5d4037;
+            fill-opacity: 0.2;
+            stroke: #5d4037;
+            stroke-width: 2;
+        }
+        .chromosome-highlight-sex {
+            fill: #1565c0;
+            fill-opacity: 0.3;
+            stroke: #1565c0;
+            stroke-width: 2;
+        }
+        .chromosome-highlight-34 {
+            fill: #2e7d32;
+            fill-opacity: 0.3;
+            stroke: #2e7d32;
+            stroke-width: 2;
+        }
+        .chromosome-highlight-56 {
+            fill: #c62828;
+            fill-opacity: 0.3;
+            stroke: #c62828;
+            stroke-width: 2;
+        }
+        .chromosome-highlight-dot {
+            fill: #ff9800;
+            fill-opacity: 0.3;
+            stroke: #ff9800;
+            stroke-width: 2;
+        }
+        .gene-dot {
+            fill: #ff9800;
+        }
+        .gene-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #000000;
+        }
+        .chrom-number {
+            font-size: 12px;
+            fill: #000000;
+        }
+        .homolog-line {
+            stroke: #888888;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+            fill: none;
+        }
+        .legend-text {
+            font-size: 12px;
+            fill: #333333;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 同源染色体连线（底层） -->
+            <line id="scene1-homolog-34" class="homolog-line" x1="280" y1="170" x2="300" y2="290" />
+            <line id="scene1-homolog-56" class="homolog-line" x1="530" y1="170" x2="550" y2="290" />
+            <line id="scene1-homolog-78" class="homolog-line" x1="390" y1="250" x2="410" y2="250" />
+
+            <!-- 染色体 3 号（左侧上） -->
+            <path id="scene1-chrom-3" class="chromosome" d="M 240,160 Q 260,180 280,200 Q 300,220 310,260 L 300,270 Q 290,240 270,220 Q 250,200 230,170 Z" />
+            
+            <!-- 染色体 4 号（左侧下，与 3 号同源） -->
+            <path id="scene1-chrom-4" class="chromosome" d="M 260,180 Q 280,200 300,220 Q 320,240 330,280 L 320,290 Q 310,260 290,240 Q 270,220 250,190 Z" />
+            
+            <!-- 染色体 5 号（右侧上） -->
+            <path id="scene1-chrom-5" class="chromosome" d="M 560,160 Q 540,180 520,200 Q 500,220 490,260 L 500,270 Q 510,240 530,220 Q 550,200 570,170 Z" />
+            
+            <!-- 染色体 6 号（右侧下，与 5 号同源） -->
+            <path id="scene1-chrom-6" class="chromosome" d="M 580,180 Q 560,200 540,220 Q 520,240 510,280 L 520,290 Q 530,260 550,240 Q 570,220 590,190 Z" />
+            
+            <!-- 染色体 7 号（中心点状，左） -->
+            <circle id="scene1-chrom-7" class="chromosome" cx="390" cy="250" r="7" />
+            
+            <!-- 染色体 8 号（中心点状，右） -->
+            <circle id="scene1-chrom-8" class="chromosome" cx="410" cy="250" r="7" />
+            
+            <!-- 染色体 1 号（X 染色体，底部左） -->
+            <path id="scene1-chrom-1" class="chromosome" d="M 365,300 Q 370,320 375,340 Q 380,355 385,360 L 375,365 Q 370,355 365,335 Q 360,315 355,300 Z" />
+            
+            <!-- 染色体 2 号（Y 染色体，底部右） -->
+            <path id="scene1-chrom-2" class="chromosome" d="M 435,300 Q 440,320 445,335 Q 450,350 455,355 L 445,360 Q 440,350 435,330 Q 430,315 425,300 Z" />
+
+            <!-- 基因标记点（初始隐藏） -->
+            <circle id="scene1-gene-E" class="gene-dot" cx="370" cy="330" r="5" style="display: none;" />
+            <circle id="scene1-gene-B" class="gene-dot" cx="265" cy="190" r="5" style="display: none;" />
+            <circle id="scene1-gene-v" class="gene-dot" cx="275" cy="240" r="5" style="display: none;" />
+            <circle id="scene1-gene-b" class="gene-dot" cx="295" cy="210" r="5" style="display: none;" />
+            <circle id="scene1-gene-V" class="gene-dot" cx="305" cy="260" r="5" style="display: none;" />
+            <circle id="scene1-gene-R" class="gene-dot" cx="515" cy="190" r="5" style="display: none;" />
+            <circle id="scene1-gene-r" class="gene-dot" cx="555" cy="260" r="5" style="display: none;" />
+
+            <!-- 基因标签（初始隐藏） -->
+            <text id="scene1-label-E" class="gene-label" x="382" y="330" style="display: none;">E</text>
+            <text id="scene1-label-B" class="gene-label" x="250" y="190" style="display: none;">B</text>
+            <text id="scene1-label-v" class="gene-label" x="260" y="240" style="display: none;">v</text>
+            <text id="scene1-label-b" class="gene-label" x="310" y="210" style="display: none;">b</text>
+            <text id="scene1-label-V" class="gene-label" x="320" y="260" style="display: none;">V</text>
+            <text id="scene1-label-R" class="gene-label" x="500" y="190" style="display: none;">R</text>
+            <text id="scene1-label-r" class="gene-label" x="570" y="260" style="display: none;">r</text>
+
+            <!-- 染色体编号标签 -->
+            <text id="scene1-num-1" class="chrom-number" x="375" y="375">1</text>
+            <text id="scene1-num-2" class="chrom-number" x="445" y="375">2</text>
+            <text id="scene1-num-3" class="chrom-number" x="230" y="150">3</text>
+            <text id="scene1-num-4" class="chrom-number" x="250" y="295">4</text>
+            <text id="scene1-num-5" class="chrom-number" x="570" y="150">5</text>
+            <text id="scene1-num-6" class="chrom-number" x="590" y="295">6</text>
+            <text id="scene1-num-7" class="chrom-number" x="390" y="235">7</text>
+            <text id="scene1-num-8" class="chrom-number" x="410" y="235">8</text>
+
+            <!-- 图例文本（步骤 5 显示，初始隐藏） -->
+            <text id="scene1-legend-1" class="legend-text" x="50" y="410" style="display: none;">性染色体：1(X)、2(Y)</text>
+            <text id="scene1-legend-2" class="legend-text" x="200" y="410" style="display: none;">常染色体：3-6 号</text>
+            <text id="scene1-legend-3" class="legend-text" x="380" y="410" style="display: none;">点状染色体：7-8 号</text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现：雄果蝇 M 的染色体与基因位置关系
+
+        // 颜色常量
+        const COLOR_BASE = "#5d4037";
+        const COLOR_SEX_HIGHLIGHT = "#1565c0";
+        const COLOR_CHROM34_HIGHLIGHT = "#2e7d32";
+        const COLOR_CHROM56_HIGHLIGHT = "#c62828";
+        const COLOR_DOT_HIGHLIGHT = "#ff9800";
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // DOM 元素引用
+        const btnPrev = document.getElementById("scene1-btn-prev");
+        const btnNext = document.getElementById("scene1-btn-next");
+        const stepIndicator = document.getElementById("scene1-step-indicator");
+
+        // 染色体元素
+        const chromosomes = {
+            1: document.getElementById("scene1-chrom-1"),
+            2: document.getElementById("scene1-chrom-2"),
+            3: document.getElementById("scene1-chrom-3"),
+            4: document.getElementById("scene1-chrom-4"),
+            5: document.getElementById("scene1-chrom-5"),
+            6: document.getElementById("scene1-chrom-6"),
+            7: document.getElementById("scene1-chrom-7"),
+            8: document.getElementById("scene1-chrom-8")
+        };
+
+        // 基因标记和标签
+        const genes = ["E", "B", "v", "b", "V", "R", "r"];
+        const geneDots = {};
+        const geneLabels = {};
+        genes.forEach(g => {
+            geneDots[g] = document.getElementById("scene1-gene-" + g);
+            geneLabels[g] = document.getElementById("scene1-label-" + g);
+        });
+
+        // 图例元素
+        const legends = [
+            document.getElementById("scene1-legend-1"),
+            document.getElementById("scene1-legend-2"),
+            document.getElementById("scene1-legend-3")
+        ];
+
+        // 重置所有染色体为基础色
+        function resetChromosomes() {
+            for (let i = 1; i <= 8; i++) {
+                chromosomes[i].classList.remove("chromosome-highlight-sex", "chromosome-highlight-34", "chromosome-highlight-56", "chromosome-highlight-dot");
+                chromosomes[i].classList.add("chromosome");
+            }
+        }
+
+        // 显示/隐藏基因
+        function showGenes(geneList) {
+            // 先隐藏所有
+            genes.forEach(g => {
+                geneDots[g].style.display = "none";
+                geneLabels[g].style.display = "none";
+            });
+            // 显示指定的
+            geneList.forEach(g => {
+                geneDots[g].style.display = "block";
+                geneLabels[g].style.display = "block";
+            });
+        }
+
+        // 显示/隐藏图例
+        function showLegends(show) {
+            legends.forEach(el => {
+                el.style.display = show ? "block" : "none";
+            });
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            stepIndicator.textContent = "步骤 " + currentStep + "/" + totalSteps + (currentStep === totalSteps ? " 结论" : "");
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            resetChromosomes();
+            showLegends(false);
+
+            switch (currentStep) {
+                case 0:
+                    // 初始状态：显示所有染色体，不显示基因
+                    showGenes([]);
+                    break;
+                case 1:
+                    // 高亮性染色体，显示 E 基因
+                    chromosomes[1].classList.remove("chromosome");
+                    chromosomes[1].classList.add("chromosome-highlight-sex");
+                    chromosomes[2].classList.remove("chromosome");
+                    chromosomes[2].classList.add("chromosome-highlight-sex");
+                    showGenes(["E"]);
+                    break;
+                case 2:
+                    // 高亮 3-4 号染色体，显示 B/b/V/v 基因
+                    chromosomes[3].classList.remove("chromosome");
+                    chromosomes[3].classList.add("chromosome-highlight-34");
+                    chromosomes[4].classList.remove("chromosome");
+                    chromosomes[4].classList.add("chromosome-highlight-34");
+                    showGenes(["E", "B", "v", "b", "V"]);
+                    break;
+                case 3:
+                    // 高亮 5-6 号染色体，显示 R/r 基因
+                    chromosomes[5].classList.remove("chromosome");
+                    chromosomes[5].classList.add("chromosome-highlight-56");
+                    chromosomes[6].classList.remove("chromosome");
+                    chromosomes[6].classList.add("chromosome-highlight-56");
+                    showGenes(["E", "B", "v", "b", "V", "R", "r"]);
+                    break;
+                case 4:
+                    // 高亮 7-8 号点状染色体
+                    chromosomes[7].classList.remove("chromosome");
+                    chromosomes[7].classList.add("chromosome-highlight-dot");
+                    chromosomes[8].classList.remove("chromosome");
+                    chromosomes[8].classList.add("chromosome-highlight-dot");
+                    showGenes(["E", "B", "v", "b", "V", "R", "r"]);
+                    break;
+                case 5:
+                    // 结论：所有染色体恢复基础色，显示所有基因和图例
+                    showGenes(["E", "B", "v", "b", "V", "R", "r"]);
+                    showLegends(true);
+                    break;
+            }
+
+            updateButtons();
+        }
+
+        // 按钮事件处理
+        btnPrev.addEventListener("click", function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        btnNext.addEventListener("click", function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

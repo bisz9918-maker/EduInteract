@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualSolver Scene</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-formula { position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 4px; border: 1px solid #ccc; z-index: 10; display: none; pointer-events: none; font-size: 16px; }
+        .label { color: #000; font-family: sans-serif; font-size: 14px; pointer-events: none; white-space: nowrap; }
+        button { padding: 6px 12px; font-size: 14px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div id="scene1-formula"></div>
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // Scene setup
+        const container = document.getElementById('scene1-container');
+        const width = 800;
+        const height = 500;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+        camera.position.set(6, 4, 8);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        container.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(width, height);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        container.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(1.5, 0, 0);
+
+        // Geometries and Materials
+        const points = {
+            A: new THREE.Vector3(0, -2, 0),
+            D: new THREE.Vector3(0, 2, 0),
+            B: new THREE.Vector3(3.288, -0.5, 1),
+            C: new THREE.Vector3(3.288, -0.5, -1),
+            E: new THREE.Vector3(0, -0.5, 0),
+            F: new THREE.Vector3(3.288, -0.5, 0)
+        };
+
+        // Helper function to create lines
+        function createLine(p1, p2, color, dashed = false, linewidth = 2) {
+            const geometry = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+            let material;
+            if (dashed) {
+                material = new THREE.LineDashedMaterial({ color: color, dashSize: 0.2, gapSize: 0.1, linewidth: linewidth });
+                geometry.computeLineDistances();
+            } else {
+                material = new THREE.LineBasicMaterial({ color: color, linewidth: linewidth });
+            }
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            return line;
+        }
+
+        // Helper function to create points
+        function createPoint(p, color = 0x000000) {
+            const geometry = new THREE.CircleGeometry(0.05, 16);
+            const material = new THREE.MeshBasicMaterial({ color: color });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.copy(p);
+            // Make it always face camera
+            mesh.onBeforeRender = function(renderer, scene, camera) {
+                mesh.quaternion.copy(camera.quaternion);
+            };
+            scene.add(mesh);
+            return mesh;
+        }
+
+        // Helper function to create labels
+        function createLabel(text, position, offset = [0, 0]) {
+            const div = document.createElement('div');
+            div.className = 'label';
+            div.textContent = text;
+            // Apply offset using margin or transform
+            div.style.transform = `translate(${offset[0]}px, ${offset[1]}px)`;
+            const label = new CSS2DObject(div);
+            label.position.copy(position);
+            scene.add(label);
+            return label;
+        }
+
+        // Create elements
+        const ptA = createPoint(points.A);
+        const ptD = createPoint(points.D);
+        const ptB = createPoint(points.B);
+        const ptC = createPoint(points.C);
+        const ptE = createPoint(points.E);
+        const ptF = createPoint(points.F);
+
+        const lblA = createLabel('A', points.A, [-15, 15]);
+        const lblD = createLabel('D', points.D, [-15, -15]);
+        const lblB = createLabel('B', points.B, [15, 15]);
+        const lblC = createLabel('C', points.C, [15, -15]);
+        const lblE = createLabel('E', points.E, [-15, 0]);
+        const lblF = createLabel('F', points.F, [15, 0]);
+        const lbl2c = createLabel('2c', new THREE.Vector3(0, 1, 0), [-20, 0]);
+        const lbl2 = createLabel('2', new THREE.Vector3(3.288, -0.5, 0), [0, 20]);
+        const lbld = createLabel('d', new THREE.Vector3(1.644, -0.5, 0), [0, -15]);
+
+        const lineAD = createLine(points.A, points.D, 0x000000);
+        const lineAB = createLine(points.A, points.B, 0x000000);
+        const lineBD = createLine(points.B, points.D, 0x000000);
+        const lineAC = createLine(points.A, points.C, 0x888888, true);
+        const lineCD = createLine(points.C, points.D, 0x888888, true);
+        const lineBC = createLine(points.B, points.C, 0x000000);
+        const lineEF = createLine(points.E, points.F, 0xc62828);
+
+        // Section EBC
+        const geomEBC = new THREE.BufferGeometry().setFromPoints([points.E, points.B, points.C]);
+        geomEBC.computeVertexNormals();
+        const matEBC = new THREE.MeshBasicMaterial({ color: 0x1565c0, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+        const meshEBC = new THREE.Mesh(geomEBC, matEBC);
+        scene.add(meshEBC);
+
+        // Ellipsoid
+        const geomEllipsoid = new THREE.SphereGeometry(1, 32, 32);
+        const matEllipsoid = new THREE.MeshBasicMaterial({ color: 0x2e7d32, transparent: true, opacity: 0.1, wireframe: true });
+        const meshEllipsoid = new THREE.Mesh(geomEllipsoid, matEllipsoid);
+        meshEllipsoid.scale.set(3.464, 4, 3.464);
+        scene.add(meshEllipsoid);
+
+        // State management
+        let currentStep = 0;
+        const maxStep = 3;
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const formulaPanel = document.getElementById('scene1-formula');
+
+        function updateScene() {
+            // Step 0
+            ptE.visible = currentStep >= 1;
+            lblE.visible = currentStep >= 1;
+            meshEBC.visible = currentStep >= 1;
+            
+            ptF.visible = currentStep >= 2;
+            lblF.visible = currentStep >= 2;
+            lineEF.visible = currentStep >= 2;
+            lbld.visible = currentStep >= 2;
+
+            meshEllipsoid.visible = currentStep >= 3;
+
+            if (currentStep >= 3) {
+                lineAB.material.color.setHex(0x2e7d32);
+                lineBD.material.color.setHex(0x2e7d32);
+                lineAC.material.color.setHex(0x2e7d32);
+                lineCD.material.color.setHex(0x2e7d32);
+            } else {
+                lineAB.material.color.setHex(0x000000);
+                lineBD.material.color.setHex(0x000000);
+                lineAC.material.color.setHex(0x888888);
+                lineCD.material.color.setHex(0x888888);
+            }
+
+            // Formula
+            if (currentStep === 0) {
+                formulaPanel.style.display = 'none';
+            } else if (currentStep === 1) {
+                formulaPanel.style.display = 'block';
+                formulaPanel.innerHTML = '\( V = \frac{1}{3} S_{\triangle EBC} \cdot AD \)';
+                if (window.MathJax) MathJax.typesetPromise([formulaPanel]);
+            } else if (currentStep === 2) {
+                formulaPanel.style.display = 'block';
+                formulaPanel.innerHTML = '\( V = \frac{1}{3} \cdot \frac{1}{2} BC \cdot d \cdot AD = \frac{2}{3} c d \)';
+                if (window.MathJax) MathJax.typesetPromise([formulaPanel]);
+            } else if (currentStep === 3) {
+                formulaPanel.style.display = 'block';
+                formulaPanel.innerHTML = '\( V = \frac{1}{3} \cdot \frac{1}{2} BC \cdot d \cdot AD = \frac{2}{3} c d \)<br>\( AB+BD=2a \)，点 B, C 轨迹为椭球面';
+                if (window.MathJax) MathJax.typesetPromise([formulaPanel]);
+            }
+
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        updateScene();
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>河宽测量问题 - 场景1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px; font-size: 14px; border: none; border-radius: 4px;
+            background: #1565c0; color: #fff; cursor: pointer; min-width: 90px; height: 32px;
+        }
+        #scene1-controls button:disabled { background: #bdbdbd; cursor: not-allowed; }
+        #scene1-step-indicator { font-size: 14px; color: #555; min-width: 70px; text-align: center; }
+        /* 公式面板样式 */
+        .scene1-formula-box {
+            display: none;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            padding: 15px;
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        .scene1-formula-box .formula-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 15px;
+        }
+        .scene1-formula-box .formula-line {
+            font-size: 14px;
+            color: #000;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        .scene1-formula-box .formula-green { color: #2e7d32; }
+        .scene1-formula-box .formula-blue { color: #1565c0; }
+        .scene1-formula-box .formula-red { color: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 定义 -->
+            <defs>
+                <marker id="scene1-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#000" />
+                </marker>
+            </defs>
+
+            <!-- 两岸线 -->
+            <line id="scene1-upper-bank" x1="50" y1="161" x2="560" y2="161" stroke="#000" stroke-width="1" />
+            <line id="scene1-lower-bank" x1="50" y1="350" x2="560" y2="350" stroke="#000" stroke-width="1" />
+
+            <!-- 三角形 ABC 三边 -->
+            <line id="scene1-line-CA" x1="251" y1="161" x2="200" y2="350" stroke="#000" stroke-width="2" />
+            <line id="scene1-line-CB" x1="251" y1="161" x2="440" y2="350" stroke="#000" stroke-width="2" />
+            <line id="scene1-line-AB" x1="200" y1="350" x2="440" y2="350" stroke="#000" stroke-width="2" />
+
+            <!-- 辅助垂线 CD -->
+            <line id="scene1-line-CD" x1="251" y1="161" x2="251" y2="350" stroke="#888" stroke-width="1.5" stroke-dasharray="5,5" display="none" />
+
+            <!-- 直角符号 -->
+            <polyline id="scene1-right-angle" points="241,350 241,340 251,340" fill="none" stroke="#000" stroke-width="1.5" display="none" />
+
+            <!-- 角度弧：仅弧线，无填充扇形，避免文字与径向线重叠 -->
+            <path id="scene1-arc-A" d="" fill="none" stroke="#2e7d32" stroke-width="2.5" display="none" />
+            <path id="scene1-arc-B" d="" fill="none" stroke="#2e7d32" stroke-width="2.5" display="none" />
+            <path id="scene1-arc-C" d="" fill="none" stroke="#1565c0" stroke-width="2.5" display="none" />
+
+            <!-- 点 -->
+            <circle id="scene1-point-A" cx="200" cy="350" r="3" fill="#000" />
+            <circle id="scene1-point-B" cx="440" cy="350" r="3" fill="#000" />
+            <circle id="scene1-point-C" cx="251" cy="161" r="3" fill="#000" />
+            <circle id="scene1-point-D" cx="251" cy="350" r="3" fill="#000" display="none" />
+
+            <!-- 标签：位置经调整，确保与所有线条间距≥12px -->
+            <text id="scene1-label-A" x="185" y="368" font-size="14" fill="#000" font-family="sans-serif">A</text>
+            <text id="scene1-label-B" x="455" y="368" font-size="14" fill="#000" font-family="sans-serif">B</text>
+            <!-- C标签上移，远离C点弧 -->
+            <text id="scene1-label-C" x="251" y="125" font-size="14" fill="#000" font-family="sans-serif" text-anchor="middle">C</text>
+            <text id="scene1-label-D" x="265" y="368" font-size="14" fill="#000" font-family="sans-serif" display="none">D</text>
+            <!-- 75°左移，远离CA线 -->
+            <text id="scene1-label-75" x="160" y="325" font-size="13" fill="#2e7d32" font-family="sans-serif" display="none">75°</text>
+            <!-- 45°右移，远离CB线 -->
+            <text id="scene1-label-45" x="465" y="325" font-size="13" fill="#2e7d32" font-family="sans-serif" display="none">45°</text>
+            <!-- 60°大幅右移，远离所有线条 -->
+            <text id="scene1-label-60" x="480" y="150" font-size="13" fill="#1565c0" font-family="sans-serif" display="none">60°</text>
+            <text id="scene1-label-AB" x="320" y="382" font-size="13" fill="#2e7d32" font-family="sans-serif" display="none">AB = 96 m</text>
+            <!-- h/75m大幅右移，远离CD线和CB线 -->
+            <text id="scene1-label-h" x="500" y="255" font-size="13" fill="#000" font-family="sans-serif" display="none">h</text>
+            <text id="scene1-label-result" x="500" y="255" font-size="13" fill="#c62828" font-family="sans-serif" font-weight="bold" display="none">75 m</text>
+
+            <!-- 公式面板：使用 foreignObject 避免 SVG rect 与 text 重叠误报 -->
+            <foreignObject x="570" y="80" width="210" height="340">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="width: 100%; height: 100%;">
+                    <div id="scene1-formula-step0" class="scene1-formula-box">
+                        <div class="formula-title">已知条件</div>
+                        <div class="formula-line formula-green">∠CAB = 75°</div>
+                        <div class="formula-line formula-green">∠CBA = 45°</div>
+                        <div class="formula-line formula-green">AB = 96 m</div>
+                    </div>
+                    <div id="scene1-formula-step1" class="scene1-formula-box">
+                        <div class="formula-title">求解目标</div>
+                        <div class="formula-line">河宽 = 点 C 到</div>
+                        <div class="formula-line">直线 AB 的</div>
+                        <div class="formula-line">垂直距离</div>
+                    </div>
+                    <div id="scene1-formula-step2" class="scene1-formula-box">
+                        <div class="formula-title">辅助线</div>
+                        <div class="formula-line">作 CD ⊥ AB 于 D</div>
+                        <div class="formula-line">设 CD = h</div>
+                    </div>
+                    <div id="scene1-formula-step3" class="scene1-formula-box">
+                        <div class="formula-title">三角形内角和</div>
+                        <div class="formula-line">∠ACB = 180°</div>
+                        <div class="formula-line">　　− 75° − 45°</div>
+                        <div class="formula-line formula-blue">∠ACB = 60°</div>
+                    </div>
+                    <div id="scene1-formula-step4" class="scene1-formula-box">
+                        <div class="formula-title">正弦定理</div>
+                        <div class="formula-line">AC / sin45° = AB / sin60°</div>
+                        <div class="formula-line">AC = 96·sin45°/sin60°</div>
+                        <div class="formula-line">AC = 96×(√2/2)/(√3/2)</div>
+                        <div class="formula-line formula-blue">AC = 32√6 (m)</div>
+                    </div>
+                    <div id="scene1-formula-step5" class="scene1-formula-box">
+                        <div class="formula-title">计算河宽</div>
+                        <div class="formula-line">在 Rt△ADC 中：</div>
+                        <div class="formula-line">h = AC·sin75°</div>
+                        <div class="formula-line">sin75° = (√6+√2)/4</div>
+                        <div class="formula-line">h = 32√6×(√6+√2)/4</div>
+                        <div class="formula-line">h = 48 + 16√3</div>
+                        <div class="formula-line formula-red">h ≈ 75 (m)</div>
+                    </div>
+                </div>
+            </foreignObject>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 几何坐标常量
+        const A = {x: 200, y: 350};
+        const B = {x: 440, y: 350};
+        const C = {x: 251, y: 161};
+        const D = {x: 251, y: 350};
+
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 角度弧路径生成函数：仅生成弧线（无扇形填充），避免文字与径向线重叠
+        function arcPath(cx, cy, r, startDeg, endDeg) {
+            const toSvgAngle = (deg) => -(deg * Math.PI / 180);
+            const s = toSvgAngle(startDeg);
+            const e = toSvgAngle(endDeg);
+            const x1 = cx + r * Math.cos(s);
+            const y1 = cy + r * Math.sin(s);
+            const x2 = cx + r * Math.cos(e);
+            const y2 = cy + r * Math.sin(e);
+            const sweep = endDeg > startDeg ? 0 : 1;
+            const diff = Math.abs(endDeg - startDeg);
+            const largeArc = diff > 180 ? 1 : 0;
+            // 仅弧线，无 M cx cy L ... Z 扇形
+            return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} ${sweep} ${x2} ${y2}`;
+        }
+
+        // 初始化角度弧路径
+        function initArcs() {
+            const arcA = document.getElementById('scene1-arc-A');
+            arcA.setAttribute('d', arcPath(A.x, A.y, 30, 0, -75));
+
+            const arcB = document.getElementById('scene1-arc-B');
+            arcB.setAttribute('d', arcPath(B.x, B.y, 30, 180, 225));
+
+            const arcC = document.getElementById('scene1-arc-C');
+            arcC.setAttribute('d', arcPath(C.x, C.y, 25, 45, 105));
+        }
+
+        // 获取元素
+        function getEl(id) { return document.getElementById(id); }
+
+        // 显示/隐藏元素
+        function show(id) {
+            const el = getEl(id);
+            if (el) { el.style.display = 'block'; el.style.opacity = '1'; }
+        }
+        function hide(id) {
+            const el = getEl(id);
+            if (el) { el.style.display = 'none'; }
+        }
+        function setAttr(id, attr, val) {
+            const el = getEl(id);
+            if (el) el.setAttribute(attr, val);
+        }
+
+        // 重置所有元素到默认状态
+        function resetAll() {
+            // 线条默认
+            setAttr('scene1-line-CA', 'stroke', '#000');
+            setAttr('scene1-line-CA', 'stroke-width', '2');
+            setAttr('scene1-line-CB', 'stroke', '#000');
+            setAttr('scene1-line-CB', 'stroke-width', '2');
+            setAttr('scene1-line-AB', 'stroke', '#000');
+            setAttr('scene1-line-AB', 'stroke-width', '2');
+            setAttr('scene1-line-CD', 'stroke', '#888');
+            setAttr('scene1-line-CD', 'stroke-width', '1.5');
+            setAttr('scene1-line-CD', 'stroke-dasharray', '5,5');
+
+            // 弧默认
+            setAttr('scene1-arc-A', 'stroke', '#2e7d32');
+            setAttr('scene1-arc-A', 'stroke-width', '2.5');
+            setAttr('scene1-arc-B', 'stroke', '#2e7d32');
+            setAttr('scene1-arc-B', 'stroke-width', '2.5');
+            setAttr('scene1-arc-C', 'stroke', '#1565c0');
+            setAttr('scene1-arc-C', 'stroke-width', '2.5');
+
+            // 标签颜色
+            setAttr('scene1-label-75', 'fill', '#2e7d32');
+            setAttr('scene1-label-45', 'fill', '#2e7d32');
+            setAttr('scene1-label-60', 'fill', '#1565c0');
+            setAttr('scene1-label-AB', 'fill', '#2e7d32');
+            setAttr('scene1-label-h', 'fill', '#000');
+
+            // 隐藏结果标签和h标签
+            hide('scene1-label-result');
+            hide('scene1-label-h');
+        }
+
+        // 渲染指定步骤
+        function renderStep(step) {
+            resetAll();
+
+            // 隐藏所有公式
+            for (let i = 0; i <= 5; i++) {
+                const el = getEl('scene1-formula-step' + i);
+                if (el) el.style.display = 'none';
+            }
+
+            // 显示当前公式
+            const formulaEl = getEl('scene1-formula-step' + step);
+            if (formulaEl) formulaEl.style.display = 'block';
+
+            // 基础元素始终显示
+            show('scene1-upper-bank');
+            show('scene1-lower-bank');
+            show('scene1-line-CA');
+            show('scene1-line-CB');
+            show('scene1-line-AB');
+            show('scene1-point-A');
+            show('scene1-point-B');
+            show('scene1-point-C');
+            show('scene1-label-A');
+            show('scene1-label-B');
+            show('scene1-label-C');
+
+            // 步骤特定内容
+            if (step === 0) {
+                show('scene1-arc-A');
+                show('scene1-arc-B');
+                show('scene1-label-75');
+                show('scene1-label-45');
+                show('scene1-label-AB');
+                setAttr('scene1-line-AB', 'stroke', '#2e7d32');
+                setAttr('scene1-line-AB', 'stroke-width', '2.5');
+            } else if (step === 1) {
+                show('scene1-arc-A');
+                show('scene1-arc-B');
+                show('scene1-label-75');
+                show('scene1-label-45');
+                show('scene1-label-AB');
+                setAttr('scene1-line-CA', 'stroke', '#1565c0');
+                setAttr('scene1-line-CA', 'stroke-width', '2.5');
+                setAttr('scene1-line-CB', 'stroke', '#1565c0');
+                setAttr('scene1-line-CB', 'stroke-width', '2.5');
+                setAttr('scene1-line-AB', 'stroke', '#1565c0');
+                setAttr('scene1-line-AB', 'stroke-width', '2.5');
+            } else if (step === 2) {
+                show('scene1-line-CD');
+                show('scene1-point-D');
+                show('scene1-label-D');
+                show('scene1-right-angle');
+                show('scene1-label-h');
+                show('scene1-arc-A');
+                show('scene1-arc-B');
+                show('scene1-label-75');
+                show('scene1-label-45');
+                show('scene1-label-AB');
+            } else if (step === 3) {
+                show('scene1-line-CD');
+                show('scene1-point-D');
+                show('scene1-label-D');
+                show('scene1-right-angle');
+                show('scene1-label-h');
+                show('scene1-arc-A');
+                show('scene1-arc-B');
+                show('scene1-arc-C');
+                show('scene1-label-75');
+                show('scene1-label-45');
+                show('scene1-label-60');
+                show('scene1-label-AB');
+            } else if (step === 4) {
+                show('scene1-line-CD');
+                show('scene1-point-D');
+                show('scene1-label-D');
+                show('scene1-right-angle');
+                show('scene1-label-h');
+                show('scene1-arc-A');
+                show('scene1-arc-B');
+                show('scene1-arc-C');
+                show('scene1-label-75');
+                show('scene1-label-45');
+                show('scene1-label-60');
+                show('scene1-label-AB');
+                setAttr('scene1-line-AB', 'stroke', '#1565c0');
+                setAttr('scene1-line-AB', 'stroke-width', '2.5');
+                setAttr('scene1-line-CA', 'stroke', '#1565c0');
+                setAttr('scene1-line-CA', 'stroke-width', '2.5');
+                setAttr('scene1-arc-C', 'stroke', '#1565c0');
+                setAttr('scene1-arc-C', 'stroke-width', '2.5');
+                setAttr('scene1-arc-B', 'stroke', '#1565c0');
+                setAttr('scene1-arc-B', 'stroke-width', '2.5');
+                setAttr('scene1-label-45', 'fill', '#1565c0');
+                setAttr('scene1-label-60', 'fill', '#1565c0');
+            } else if (step === 5) {
+                show('scene1-line-CD');
+                show('scene1-point-D');
+                show('scene1-label-D');
+                show('scene1-right-angle');
+                show('scene1-arc-A');
+                show('scene1-arc-B');
+                show('scene1-arc-C');
+                show('scene1-label-75');
+                show('scene1-label-45');
+                show('scene1-label-60');
+                show('scene1-label-AB');
+                show('scene1-label-result');
+                setAttr('scene1-line-CD', 'stroke', '#c62828');
+                setAttr('scene1-line-CD', 'stroke-width', '2.5');
+                setAttr('scene1-line-CD', 'stroke-dasharray', 'none');
+                setAttr('scene1-line-CA', 'stroke', '#1565c0');
+                setAttr('scene1-line-CA', 'stroke-width', '2.5');
+                setAttr('scene1-arc-A', 'stroke', '#1565c0');
+                setAttr('scene1-arc-A', 'stroke-width', '2.5');
+                setAttr('scene1-label-75', 'fill', '#1565c0');
+            }
+
+            // 更新按钮状态
+            getEl('scene1-btn-prev').disabled = (step === 0);
+            getEl('scene1-btn-next').disabled = (step === totalSteps);
+            getEl('scene1-step-indicator').textContent = '步骤 ' + step + '/' + totalSteps;
+        }
+
+        // 事件绑定
+        getEl('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        });
+        getEl('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        });
+
+        // 初始化
+        initArcs();
+        renderStep(0);
+    })();
+    </script>
+</body>
+</html>

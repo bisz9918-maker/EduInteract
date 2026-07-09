@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太阳直射点与时间计算</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            opacity: 0;
+            display: none;
+        }
+        .scene2-visible {
+            opacity: 1;
+            display: block;
+        }
+        /* 按钮样式 */
+        .scene2-btn {
+            width: 80px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: opacity 0.2s ease;
+        }
+        .scene2-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene2-btn-prev {
+            background: #9e9e9e;
+            color: white;
+        }
+        #scene2-btn-next {
+            background: #1565c0;
+            color: white;
+        }
+        #scene2-step-indicator {
+            position: absolute;
+            left: 380px;
+            top: 465px;
+            font-size: 14px;
+            color: #333;
+        }
+        /* 淡入动画 */
+        .scene2-fade-in {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 标题 -->
+            <text id="scene2-title" x="400" y="35" text-anchor="middle" font-size="16px" fill="#000000">太阳直射点与时间计算</text>
+            
+            <!-- 经度轴线 -->
+            <line id="scene2-axis" x1="150" y1="250" x2="650" y2="250" stroke="#000000" stroke-width="3"/>
+            
+            <!-- 120°E刻度（绿色） -->
+            <line id="scene2-tick-120" x1="200" y1="240" x2="200" y2="260" stroke="#2e7d32" stroke-width="2"/>
+            
+            <!-- 160°E刻度（蓝色） -->
+            <line id="scene2-tick-160" x1="600" y1="240" x2="600" y2="260" stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- 120°E标签 -->
+            <text id="scene2-label-120E" x="200" y="280" text-anchor="middle" font-size="14px" fill="#2e7d32">120°E</text>
+            
+            <!-- 160°E标签 -->
+            <text id="scene2-label-160E" x="600" y="280" text-anchor="middle" font-size="14px" fill="#1565c0">160°E</text>
+            
+            <!-- 120°E时间标签（初始为?，步骤3变为9:20） -->
+            <text id="scene2-time-120" x="200" y="210" text-anchor="middle" font-size="14px" fill="#2e7d32">?</text>
+            
+            <!-- 160°E时间标签 -->
+            <text id="scene2-time-160" x="600" y="210" text-anchor="middle" font-size="14px" fill="#1565c0">12:00</text>
+            
+            <!-- 经度差双向箭头（步骤1显示） -->
+            <g id="scene2-arc-degree" class="scene2-hidden">
+                <!-- 双向箭头线段 -->
+                <line x1="200" y1="190" x2="600" y2="190" stroke="#888888" stroke-width="2"/>
+                <!-- 左箭头 -->
+                <polygon points="200,190 210,185 210,195" fill="#888888"/>
+                <!-- 右箭头 -->
+                <polygon points="600,190 590,185 590,195" fill="#888888"/>
+                <!-- 经度差标注 -->
+                <text x="400" y="180" text-anchor="middle" font-size="14px" fill="#888888">经度差 40°</text>
+            </g>
+            
+            <!-- 时间差弧形箭头（步骤2显示） -->
+            <g id="scene2-arc-time" class="scene2-hidden">
+                <!-- 弧形箭头路径 -->
+                <path id="scene2-time-arc-path" d="M 360 260 A 40 40 0 0 1 440 260" fill="none" stroke="#888888" stroke-width="2" marker-end="url(#scene2-arrowhead)"/>
+                <!-- 时间差标注 -->
+                <text id="scene2-label-time" x="400" y="310" text-anchor="middle" font-size="14px" fill="#888888">时间差 2h40m</text>
+            </g>
+            
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="scene2-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#888888"/>
+                </marker>
+            </defs>
+            
+            <!-- 结论框（步骤3显示） -->
+            <g id="scene2-result-box" class="scene2-hidden">
+                <rect x="280" y="340" width="240" height="40" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+                <text id="scene2-result-text" x="400" y="365" text-anchor="middle" font-size="14px" fill="#2e7d32">北京时间 9:20</text>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <button id="scene2-btn-prev" class="scene2-btn" style="position: absolute; left: 280px; top: 460px;">◀ 上一步</button>
+        <div id="scene2-step-indicator">步骤 1/4</div>
+        <button id="scene2-btn-next" class="scene2-btn" style="position: absolute; left: 440px; top: 460px;">下一步 ▶</button>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2: 太阳直射点与时间计算
+        
+        // 状态管理
+        let currentState = 0;
+        const totalSteps = 4;
+        
+        // 元素引用
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        const time120Label = document.getElementById('scene2-time-120');
+        const arcDegree = document.getElementById('scene2-arc-degree');
+        const arcTime = document.getElementById('scene2-arc-time');
+        const resultBox = document.getElementById('scene2-result-box');
+        
+        // 工具函数：显示元素
+        function show(el) {
+            el.classList.remove('scene2-hidden');
+            el.classList.add('scene2-visible');
+            el.style.opacity = '1';
+            el.style.display = (el.tagName === 'g') ? 'block' : 'block';
+        }
+        
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.classList.remove('scene2-visible');
+            el.classList.add('scene2-hidden');
+            el.style.opacity = '0';
+            el.style.display = 'none';
+        }
+        
+        // 更新场景状态
+        function updateScene() {
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentState + 1) + '/' + totalSteps;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentState === 0);
+            btnNext.disabled = (currentState === totalSteps - 1);
+            
+            // 根据状态显示/隐藏元素
+            if (currentState === 0) {
+                // 初始状态：只显示基础元素
+                hide(arcDegree);
+                hide(arcTime);
+                hide(resultBox);
+                time120Label.textContent = '?';
+            } else if (currentState === 1) {
+                // 步骤1：显示经度差
+                show(arcDegree);
+                hide(arcTime);
+                hide(resultBox);
+                time120Label.textContent = '?';
+            } else if (currentState === 2) {
+                // 步骤2：显示时间差
+                show(arcDegree);
+                show(arcTime);
+                hide(resultBox);
+                time120Label.textContent = '?';
+            } else if (currentState === 3) {
+                // 步骤3：显示结论
+                show(arcDegree);
+                show(arcTime);
+                show(resultBox);
+                time120Label.textContent = '9:20';
+            }
+        }
+        
+        // 事件绑定
+        btnPrev.addEventListener('click', function() {
+            if (currentState > 0) {
+                currentState--;
+                updateScene();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentState < totalSteps - 1) {
+                currentState++;
+                updateScene();
+            }
+        });
+        
+        // 初始化
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

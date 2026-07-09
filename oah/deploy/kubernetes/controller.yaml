@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oah-controller
+  labels:
+    app.kubernetes.io/name: oah-controller
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: open-agent-harness
+spec:
+  replicas: 2
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oah-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oah-controller
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/part-of: open-agent-harness
+    spec:
+      terminationGracePeriodSeconds: 30
+      serviceAccountName: oah-controller
+      containers:
+        - name: controller
+          image: ghcr.io/open-agent-harness/open-agent-harness:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/index.js", "--config", "/etc/oah/server.yaml"]
+          ports:
+            - name: http
+              containerPort: 8788
+          env:
+            - name: OAH_CONFIG
+              value: /etc/oah/server.yaml
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=80"
+            - name: OAH_PROCESS_ROLE
+              value: controller
+            - name: OAH_POSTGRES_POOL_MAX
+              value: "2"
+            - name: OAH_METADATA_RETENTION_ROLE
+              value: auto
+            - name: OAH_REDIS_READY_QUEUE_CLAIM_SCAN_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_PRESSURE_SCAN_LIMIT
+              value: "100"
+            - name: OAH_REDIS_READY_QUEUE_INSPECT_LIMIT
+              value: "100"
+            - name: OAH_CONTROLLER_LEADER_ELECTION_TYPE
+              value: kubernetes
+            - name: OAH_CONTROLLER_LEASE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OAH_CONTROLLER_LEASE_NAME
+              value: oah-controller
+            - name: OAH_CONTROLLER_TARGET_TYPE
+              value: kubernetes
+            - name: OAH_CONTROLLER_TARGET_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OAH_CONTROLLER_TARGET_LABEL_SELECTOR
+              value: app.kubernetes.io/component=sandbox
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: oah-config
+              mountPath: /etc/oah
+              readOnly: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: oah-config
+          configMap:
+            name: oah-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oah-controller
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8788"
+spec:
+  selector:
+    app.kubernetes.io/name: oah-controller
+  ports:
+    - name: http
+      port: 8788
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: oah-controller
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oah-controller

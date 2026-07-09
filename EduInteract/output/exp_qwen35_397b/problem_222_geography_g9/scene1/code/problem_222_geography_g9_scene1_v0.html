@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网读图与点位坐标识别</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        #scene1-btn-prev, #scene1-btn-next {
+            width: 80px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        #scene1-btn-prev:disabled, #scene1-btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #scene1-step-display {
+            font-size: 16px;
+            font-weight: bold;
+            min-width: 60px;
+            text-align: center;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 经纬网网格 -->
+            <g id="scene1-grid-group">
+                <!-- 经线 -->
+                <line x1="60" y1="40" x2="60" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="129" y1="40" x2="129" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="198" y1="40" x2="198" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="267" y1="40" x2="267" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="336" y1="40" x2="336" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="405" y1="40" x2="405" y2="440" stroke="#000" stroke-width="2"/>
+                <line x1="474" y1="40" x2="474" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="543" y1="40" x2="543" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="612" y1="40" x2="612" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="681" y1="40" x2="681" y2="440" stroke="#000" stroke-width="1"/>
+                <line x1="750" y1="40" x2="750" y2="440" stroke="#000" stroke-width="1"/>
+                
+                <!-- 纬线 -->
+                <line x1="60" y1="40" x2="750" y2="40" stroke="#000" stroke-width="1"/>
+                <line x1="60" y1="120" x2="750" y2="120" stroke="#000" stroke-width="1"/>
+                <line x1="60" y1="200" x2="750" y2="200" stroke="#000" stroke-width="1"/>
+                <line x1="60" y1="280" x2="750" y2="280" stroke="#000" stroke-width="1"/>
+                <line x1="60" y1="360" x2="750" y2="360" stroke="#000" stroke-width="2"/>
+                <line x1="60" y1="440" x2="750" y2="440" stroke="#000" stroke-width="1"/>
+                
+                <!-- 经度标注 (顶部 y=25) -->
+                <text x="60" y="25" text-anchor="middle" font-size="14">150°</text>
+                <text x="129" y="25" text-anchor="middle" font-size="14">120°</text>
+                <text x="198" y="25" text-anchor="middle" font-size="14">90°</text>
+                <text x="267" y="25" text-anchor="middle" font-size="14">60°</text>
+                <text x="336" y="25" text-anchor="middle" font-size="14">30°</text>
+                <text x="405" y="25" text-anchor="middle" font-size="14">0°</text>
+                <text x="474" y="25" text-anchor="middle" font-size="14">30°</text>
+                <text x="543" y="25" text-anchor="middle" font-size="14">60°</text>
+                <text x="612" y="25" text-anchor="middle" font-size="14">90°</text>
+                <text x="681" y="25" text-anchor="middle" font-size="14">120°</text>
+                <text x="750" y="25" text-anchor="middle" font-size="14">150°</text>
+                
+                <!-- 纬度标注 (右侧 x=765) -->
+                <text x="765" y="45" font-size="14">40°N</text>
+                <text x="765" y="125" font-size="14">30°N</text>
+                <text x="765" y="205" font-size="14">20°N</text>
+                <text x="765" y="285" font-size="14">10°N</text>
+                <text x="765" y="365" font-size="14">0°</text>
+                <text x="765" y="445" font-size="14">10°S</text>
+            </g>
+            
+            <!-- 步骤 1: 点① -->
+            <g id="scene1-point1-group" style="display: none;">
+                <circle cx="129" cy="360" r="5" fill="#1565c0"/>
+                <text x="115" y="375" font-size="16" fill="#1565c0">①</text>
+                <line x1="129" y1="360" x2="100" y2="395" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+                <text x="100" y="395" font-size="14" fill="#1565c0">120°W, 0°</text>
+            </g>
+            
+            <!-- 步骤 2: 点② -->
+            <g id="scene1-point2-group" style="display: none;">
+                <circle cx="612" cy="360" r="5" fill="#1565c0"/>
+                <text x="625" y="375" font-size="16" fill="#1565c0">②</text>
+                <line x1="612" y1="360" x2="640" y2="395" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+                <text x="640" y="395" font-size="14" fill="#1565c0">90°E, 0°</text>
+            </g>
+            
+            <!-- 步骤 3: 点③ -->
+            <g id="scene1-point3-group" style="display: none;">
+                <circle cx="681" cy="80" r="5" fill="#1565c0"/>
+                <text x="695" y="70" font-size="16" fill="#1565c0">③</text>
+                <line x1="681" y1="80" x2="710" y2="50" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+                <text x="710" y="50" font-size="14" fill="#1565c0">120°E, 35°N</text>
+            </g>
+            
+            <!-- 步骤 4: 点④ -->
+            <g id="scene1-point4-group" style="display: none;">
+                <circle cx="129" cy="80" r="5" fill="#1565c0"/>
+                <text x="115" y="70" font-size="16" fill="#1565c0">④</text>
+                <line x1="129" y1="80" x2="100" y2="50" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+                <text x="100" y="50" font-size="14" fill="#1565c0">120°W, 35°N</text>
+            </g>
+            
+            <!-- 步骤 5: 新加坡标记和点②高亮 -->
+            <g id="scene1-singapore-group" style="display: none;">
+                <!-- 新加坡五角星 -->
+                <polygon id="scene1-singapore-star" points="644,346 647,355 656,355 649,361 651,370 644,364 637,370 639,361 632,355 641,355" fill="#c62828"/>
+                <text x="660" y="340" font-size="14" fill="#c62828">新加坡</text>
+                <!-- 点②高亮圈 -->
+                <circle cx="612" cy="360" r="12" stroke="#2e7d32" stroke-width="2" fill="none"/>
+            </g>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-display">步骤 0/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 1 实现：经纬网读图与点位坐标识别
+        
+        let currentStep = 0;
+        const totalSteps = 5;
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepDisplay = document.getElementById('scene1-step-display');
+        
+        const point1Group = document.getElementById('scene1-point1-group');
+        const point2Group = document.getElementById('scene1-point2-group');
+        const point3Group = document.getElementById('scene1-point3-group');
+        const point4Group = document.getElementById('scene1-point4-group');
+        const singaporeGroup = document.getElementById('scene1-singapore-group');
+        
+        function updateDisplay() {
+            // 更新步骤显示
+            stepDisplay.textContent = '步骤 ' + currentStep + '/' + totalSteps;
+            
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+            
+            // 根据当前步骤显示对应元素
+            point1Group.style.display = (currentStep >= 1) ? 'block' : 'none';
+            point2Group.style.display = (currentStep >= 2) ? 'block' : 'none';
+            point3Group.style.display = (currentStep >= 3) ? 'block' : 'none';
+            point4Group.style.display = (currentStep >= 4) ? 'block' : 'none';
+            singaporeGroup.style.display = (currentStep >= 5) ? 'block' : 'none';
+            
+            // 添加淡入动画
+            if (currentStep >= 1) point1Group.classList.add('fade-in');
+            if (currentStep >= 2) point2Group.classList.add('fade-in');
+            if (currentStep >= 3) point3Group.classList.add('fade-in');
+            if (currentStep >= 4) point4Group.classList.add('fade-in');
+            if (currentStep >= 5) singaporeGroup.classList.add('fade-in');
+        }
+        
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+        
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+        
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

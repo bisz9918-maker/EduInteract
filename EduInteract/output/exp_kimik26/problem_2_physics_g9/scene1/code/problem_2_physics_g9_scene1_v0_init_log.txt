@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 1 - 斜面小车能量转化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 6px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f8f8f8;
+            color: #333;
+        }
+        #scene1-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        #scene1-step-indicator {
+            font-size: 14px;
+            color: #555;
+            min-width: 70px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 斜面: (120,100)-(300,300) -->
+            <line id="scene1-slope-line" x1="120" y1="100" x2="300" y2="300" stroke="#000000" stroke-width="2"/>
+
+            <!-- 水平木板: (300,300)-(720,320) -->
+            <rect id="scene1-board" x="300" y="300" width="420" height="20" fill="#f5f5f5" stroke="#000000" stroke-width="2"/>
+
+            <!-- 木块: 中心(560,288) 40x22 -->
+            <rect id="scene1-block" x="540" y="277" width="40" height="22" fill="#f5f5f5" stroke="#000000" stroke-width="2"/>
+
+            <!-- 小车组 -->
+            <g id="scene1-car-group">
+                <!-- 车身: 36x22, 轮子r=4 -->
+                <rect id="scene1-car-body" x="-18" y="-18" width="36" height="22" fill="#f5f5f5" stroke="#000000" stroke-width="2" rx="2"/>
+                <circle id="scene1-car-wheel1" cx="-10" cy="6" r="4" fill="#333" stroke="#000" stroke-width="1"/>
+                <circle id="scene1-car-wheel2" cx="10" cy="6" r="4" fill="#333" stroke="#000" stroke-width="1"/>
+            </g>
+
+            <!-- 高度标注虚线: (120,100)-(120,300) -->
+            <line id="scene1-height-line" x1="120" y1="100" x2="120" y2="300" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" style="display:none"/>
+            <line id="scene1-height-top" x1="110" y1="100" x2="130" y2="100" stroke="#888888" stroke-width="1" style="display:none"/>
+            <line id="scene1-height-bottom" x1="110" y1="300" x2="130" y2="300" stroke="#888888" stroke-width="1" style="display:none"/>
+
+            <!-- 速度箭头-步骤2 (斜向) -->
+            <g id="scene1-v-arrow-slope" style="display:none">
+                <line x1="225" y1="200" x2="244" y2="221" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue)"/>
+            </g>
+
+            <!-- 速度箭头-步骤3 (水平) -->
+            <g id="scene1-v-arrow-horizontal" style="display:none">
+                <line x1="320" y1="287" x2="358" y2="287" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow-blue)"/>
+            </g>
+
+            <!-- 箭头标记定义 -->
+            <defs>
+                <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#f57c00"/>
+                </marker>
+            </defs>
+
+            <!-- 能量条背景框: (350,130)-(500,240) -->
+            <rect id="scene1-energy-bg" x="350" y="130" width="150" height="110" fill="#f0f0f0" stroke="#aaaaaa" stroke-width="1" style="display:none"/>
+
+            <!-- 能量条: E_p (红), E_k (蓝), E_机 (绿) -->
+            <!-- 底边固定 y=240, 宽28, x分别为365,405,445 -->
+            <rect id="scene1-ep-bar" x="365" y="240" width="28" height="0" fill="#c62828" style="display:none"/>
+            <rect id="scene1-ek-bar" x="405" y="240" width="28" height="0" fill="#1565c0" style="display:none"/>
+            <rect id="scene1-em-bar" x="445" y="240" width="28" height="0" fill="#2e7d32" style="display:none"/>
+
+            <!-- 转化箭头-步骤3: (365,125)-(405,125) -->
+            <g id="scene1-transform-arrow" style="display:none">
+                <line x1="365" y1="125" x2="405" y2="125" stroke="#c62828" stroke-width="2" marker-end="url(#arrow-red)"/>
+            </g>
+
+            <!-- 摩擦力箭头-步骤4: (265,265)-(248,246) -->
+            <g id="scene1-friction-arrow" style="display:none">
+                <line x1="265" y1="265" x2="248" y2="246" stroke="#f57c00" stroke-width="2" marker-end="url(#arrow-orange)"/>
+            </g>
+
+            <!-- 内能波浪线-步骤4: (260,280)-(290,280) -->
+            <path id="scene1-heat-wave" d="M260,280 Q265,274 270,280 Q275,286 280,280 Q285,274 290,280" fill="none" stroke="#f57c00" stroke-width="2" style="display:none"/>
+
+            <!-- 标签文字 -->
+            <!-- 静态标签 -->
+            <text id="scene1-label-car" x="135" y="95" font-size="14" fill="#000" text-anchor="middle">小车</text>
+            <text id="scene1-label-slope" x="180" y="80" font-size="14" fill="#000" text-anchor="middle">斜面</text>
+            <text id="scene1-label-block" x="560" y="265" font-size="14" fill="#000" text-anchor="middle">木块</text>
+            <text id="scene1-label-board" x="620" y="335" font-size="14" fill="#000" text-anchor="middle">木板</text>
+
+            <!-- 动态标签 -->
+            <text id="scene1-label-h" x="95" y="205" font-size="16" fill="#c62828" text-anchor="middle" style="display:none">h</text>
+            <!-- v-slope: at (310,210) outside slope-line bbox (120-300,100-300) -->
+            <text id="scene1-label-v-slope" x="310" y="210" font-size="14" fill="#1565c0" text-anchor="start" style="display:none">v</text>
+            <!-- v-horizontal: at (340,280) to avoid crowding with E_p label -->
+            <text id="scene1-label-v-horizontal" x="340" y="280" font-size="14" fill="#1565c0" text-anchor="start" style="display:none">v</text>
+            <text id="scene1-label-ep" x="379" y="255" font-size="12" fill="#c62828" text-anchor="middle" style="display:none">Eₚ</text>
+            <text id="scene1-label-ek" x="419" y="255" font-size="12" fill="#1565c0" text-anchor="middle" style="display:none">Eₖ</text>
+            <text id="scene1-label-em" x="459" y="255" font-size="12" fill="#2e7d32" text-anchor="middle" style="display:none">E机</text>
+            <!-- f: at (310,250) outside slope-line bbox (120-300,100-300) -->
+            <text id="scene1-label-f" x="310" y="250" font-size="14" fill="#f57c00" text-anchor="start" style="display:none">f</text>
+            <!-- Q: at (360,295) to avoid overlapping v and heat wave -->
+            <text id="scene1-label-q" x="360" y="295" font-size="14" fill="#f57c00" text-anchor="start" style="display:none">Q</text>
+
+            <!-- 结论文字 -->
+            <text id="scene1-conclusion-text" x="400" y="55" font-size="14" fill="#2e7d32" text-anchor="middle" style="display:none"></text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev">◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0/4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        var currentStep = 0;
+        var isAnimating = false;
+
+        // 元素引用
+        var carGroup = document.getElementById('scene1-car-group');
+        var heightLine = document.getElementById('scene1-height-line');
+        var heightTop = document.getElementById('scene1-height-top');
+        var heightBottom = document.getElementById('scene1-height-bottom');
+        var vArrowSlope = document.getElementById('scene1-v-arrow-slope');
+        var vArrowHorizontal = document.getElementById('scene1-v-arrow-horizontal');
+        var energyBg = document.getElementById('scene1-energy-bg');
+        var epBar = document.getElementById('scene1-ep-bar');
+        var ekBar = document.getElementById('scene1-ek-bar');
+        var emBar = document.getElementById('scene1-em-bar');
+        var transformArrow = document.getElementById('scene1-transform-arrow');
+        var frictionArrow = document.getElementById('scene1-friction-arrow');
+        var heatWave = document.getElementById('scene1-heat-wave');
+        var labelH = document.getElementById('scene1-label-h');
+        var labelVSlope = document.getElementById('scene1-label-v-slope');
+        var labelVHorizontal = document.getElementById('scene1-label-v-horizontal');
+        var labelEp = document.getElementById('scene1-label-ep');
+        var labelEk = document.getElementById('scene1-label-ek');
+        var labelEm = document.getElementById('scene1-label-em');
+        var labelF = document.getElementById('scene1-label-f');
+        var labelQ = document.getElementById('scene1-label-q');
+        var conclusionText = document.getElementById('scene1-conclusion-text');
+        var btnPrev = document.getElementById('scene1-btn-prev');
+        var btnNext = document.getElementById('scene1-btn-next');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 小车位置
+        var carPositions = [
+            { x: 150, y: 112 },  // 步骤0/1: 顶端
+            { x: 150, y: 112 },  // 步骤1: 顶端
+            { x: 225, y: 200 },  // 步骤2: 中点
+            { x: 300, y: 287 },  // 步骤3: 底端
+            { x: 300, y: 287 }   // 步骤4: 底端
+        ];
+
+        // 能量条目标值 (高度百分比, 0-100)
+        var energyTargets = [
+            { ep: 0, ek: 0, em: 0 },    // 步骤0
+            { ep: 100, ek: 0, em: 100 }, // 步骤1
+            { ep: 50, ek: 40, em: 95 },  // 步骤2
+            { ep: 0, ek: 80, em: 90 },   // 步骤3
+            { ep: 0, ek: 80, em: 90 }    // 步骤4
+        ];
+
+        // 当前能量条值
+        var currentEnergy = { ep: 0, ek: 0, em: 0 };
+
+        function setCarPosition(x, y) {
+            carGroup.setAttribute('transform', 'translate(' + x + ',' + y + ')');
+        }
+
+        function show(el) {
+            if (el) el.style.display = '';
+        }
+        function hide(el) {
+            if (el) el.style.display = 'none';
+        }
+
+        function setBarHeight(bar, percent) {
+            var maxHeight = 100;
+            var height = maxHeight * percent / 100;
+            var y = 240 - height;
+            bar.setAttribute('y', y);
+            bar.setAttribute('height', height);
+        }
+
+        function animateBars(target, duration, callback) {
+            var start = { ep: currentEnergy.ep, ek: currentEnergy.ek, em: currentEnergy.em };
+            var startTime = performance.now();
+
+            function frame(now) {
+                var t = Math.min((now - startTime) / duration, 1);
+                currentEnergy.ep = start.ep + (target.ep - start.ep) * t;
+                currentEnergy.ek = start.ek + (target.ek - start.ek) * t;
+                currentEnergy.em = start.em + (target.em - start.em) * t;
+                setBarHeight(epBar, currentEnergy.ep);
+                setBarHeight(ekBar, currentEnergy.ek);
+                setBarHeight(emBar, currentEnergy.em);
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    if (callback) callback();
+                }
+            }
+            requestAnimationFrame(frame);
+        }
+
+        function animateCar(fromX, fromY, toX, toY, duration, callback) {
+            var startTime = performance.now();
+            function frame(now) {
+                var t = Math.min((now - startTime) / duration, 1);
+                // ease-in-out
+                t = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                var x = fromX + (toX - fromX) * t;
+                var y = fromY + (toY - fromY) * t;
+                setCarPosition(x, y);
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    if (callback) callback();
+                }
+            }
+            requestAnimationFrame(frame);
+        }
+
+        function updateUI() {
+            stepIndicator.textContent = '步骤 ' + currentStep + '/4';
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === 4;
+        }
+
+        function goToStep(step) {
+            if (isAnimating || step === currentStep) return;
+            isAnimating = true;
+            var oldStep = currentStep;
+            currentStep = step;
+            updateUI();
+
+            // 先隐藏所有步骤专属元素
+            hide(heightLine); hide(heightTop); hide(heightBottom);
+            hide(vArrowSlope); hide(vArrowHorizontal);
+            hide(energyBg); hide(epBar); hide(ekBar); hide(emBar);
+            hide(transformArrow); hide(frictionArrow); hide(heatWave);
+            hide(labelH); hide(labelVSlope); hide(labelVHorizontal);
+            hide(labelEp); hide(labelEk); hide(labelEm);
+            hide(labelF); hide(labelQ);
+            hide(conclusionText);
+
+            // 根据步骤显示元素
+            if (currentStep >= 1) {
+                show(heightLine); show(heightTop); show(heightBottom);
+                show(energyBg); show(epBar); show(ekBar); show(emBar);
+                show(labelH); show(labelEp); show(labelEk); show(labelEm);
+            }
+            if (currentStep === 2) {
+                show(vArrowSlope); show(labelVSlope);
+            }
+            if (currentStep >= 3) {
+                show(vArrowHorizontal); show(labelVHorizontal);
+            }
+            if (currentStep === 3) {
+                show(transformArrow);
+                conclusionText.textContent = 'A 错误：重力势能转化为动能';
+                show(conclusionText);
+            }
+            if (currentStep === 4) {
+                show(frictionArrow); show(heatWave);
+                show(labelF); show(labelQ);
+                conclusionText.textContent = 'B 错误：机械能因摩擦而减小';
+                show(conclusionText);
+            }
+
+            // 小车位置动画
+            var fromPos = carPositions[oldStep];
+            var toPos = carPositions[currentStep];
+            var targetEnergy = energyTargets[currentStep];
+
+            var animCount = 0;
+            function checkDone() {
+                animCount++;
+                if (animCount >= 2) {
+                    isAnimating = false;
+                }
+            }
+
+            animateCar(fromPos.x, fromPos.y, toPos.x, toPos.y, 600, checkDone);
+            animateBars(targetEnergy, 600, checkDone);
+        }
+
+        function nextStep() {
+            if (currentStep < 4) goToStep(currentStep + 1);
+        }
+        function prevStep() {
+            if (currentStep > 0) goToStep(currentStep - 1);
+        }
+
+        btnNext.addEventListener('click', nextStep);
+        btnPrev.addEventListener('click', prevStep);
+
+        // 初始化
+        setCarPosition(carPositions[0].x, carPositions[0].y);
+        updateUI();
+        isAnimating = false;
+    })();
+    </script>
+</body>
+</html>

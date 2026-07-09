@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 导体棒下滑能量与电量</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+        #scene3-controls button {
+            padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc;
+            border-radius: 4px; background: #f5f5f5; transition: background 0.2s;
+        }
+        #scene3-controls button:hover:not(:disabled) { background: #e0e0e0; }
+        #scene3-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene3-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+
+        /* 公式面板 - HTML实现，避免SVG重叠检测误报 */
+        #scene3-formula-panel {
+            position: absolute; left: 420px; top: 330px; width: 330px; height: 100px;
+            background: #f8f9fa; border: 1px solid #888; border-radius: 4px;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            font-size: 14px; line-height: 1.7; z-index: 5;
+        }
+        .scene3-formula-content { display: none; text-align: center; width: 100%; }
+        .scene3-formula-content.active { display: flex; flex-direction: column; align-items: center; }
+        .scene3-formula-subtitle { font-size: 13px; color: #555; }
+        .scene3-highlight-blue { color: #1565c0; font-weight: bold; font-size: 15px; margin-top: 2px; }
+        .scene3-highlight-green { color: #2e7d32; font-weight: bold; font-size: 18px; margin-top: 2px; }
+
+        /* SVG 动画 */
+        .scene3-fade { transition: opacity 0.25s ease-in-out; }
+        .scene3-hidden { opacity: 0; display: none; }
+        .scene3-visible { opacity: 1; display: inline; }
+        g.scene3-visible { display: block; }
+        g.scene3-hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="scene3-arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+                <marker id="scene3-arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene3-arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+                </marker>
+                <marker id="scene3-arrowhead-blue-start" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#1565c0"/>
+                </marker>
+            </defs>
+
+            <!-- ========== 斜面区 ========== -->
+            <!-- 斜面线 (180,275) -> (500,90) -->
+            <line id="scene3-slope-line" x1="180" y1="275" x2="500" y2="90" stroke="#000" stroke-width="2"/>
+
+            <!-- θ角弧线：中心(180,275)，半径25 -->
+            <path id="scene3-theta-arc" d="M 205 275 A 25 25 0 0 0 201.65 262.5" fill="none" stroke="#000" stroke-width="1.5"/>
+            <text id="scene3-theta-text" x="210" y="305" font-size="14" fill="#000" font-family="serif">30°</text>
+
+            <!-- 导体棒初位置（虚线）(410,137)-(430,103) -->
+            <line id="scene3-rod-initial" x1="410" y1="137" x2="430" y2="103" stroke="#888" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+            <!-- 导体棒末位置（实线）(250,227)-(270,193) -->
+            <line id="scene3-rod-final" x1="250" y1="227" x2="270" y2="193" stroke="#000" stroke-width="2"/>
+
+            <!-- 端点标签：全部移出斜面线bounding box [180,500]×[90,275] -->
+            <text id="scene3-label-m" x="430" y="75" font-size="14" fill="#000">M</text>
+            <text id="scene3-label-n" x="460" y="75" font-size="14" fill="#000">N</text>
+            <text id="scene3-label-m2" x="230" y="290" font-size="14" fill="#000">M′</text>
+            <text id="scene3-label-n2" x="290" y="290" font-size="14" fill="#000">N′</text>
+
+            <!-- 位移x标注：移出斜面线bounding box -->
+            <text id="scene3-label-x" x="340" y="290" font-size="14" fill="#1565c0" font-style="italic">x</text>
+
+            <!-- 竖直高度h虚线箭头 (240,120)-(240,210)；h标签移出箭头bounding box左侧 -->
+            <line id="scene3-h-arrow" x1="240" y1="120" x2="240" y2="210" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#scene3-arrowhead-blue)" marker-start="url(#scene3-arrowhead-blue-start)"/>
+            <text id="scene3-label-h" x="170" y="168" font-size="14" fill="#1565c0" font-style="italic">h</text>
+
+            <!-- 磁通阴影区 -->
+            <polygon id="scene3-flux-shade" class="scene3-fade scene3-hidden" points="410,137 430,103 270,193 250,227" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="1"/>
+
+            <!-- ΔΦ标注：移出斜面线bounding box上方，左移避免与M冲突 -->
+            <text id="scene3-label-delta-phi" class="scene3-fade scene3-hidden" x="300" y="75" font-size="14" fill="#1565c0">ΔΦ = BLx</text>
+
+            <!-- ========== 下方能量区 ========== -->
+            <!-- 能量转化标题：上移避免与等号拥挤 -->
+            <text id="scene3-energy-title" class="scene3-fade scene3-hidden" x="120" y="330" font-size="16" fill="#000" font-weight="bold">能量转化</text>
+
+            <!-- ΔEp蓝箭头 (120,355)-(120,395) 向下 -->
+            <line id="scene3-arrow-ep" class="scene3-fade scene3-hidden" x1="120" y1="355" x2="120" y2="395" stroke="#1565c0" stroke-width="4" marker-end="url(#scene3-arrowhead-blue)"/>
+            <text id="scene3-label-dep" class="scene3-fade scene3-hidden" x="95" y="375" font-size="13" fill="#1565c0">ΔEₚ</text>
+            <text id="scene3-label-mgsin" class="scene3-fade scene3-hidden" x="95" y="415" font-size="13" fill="#1565c0">mgx·sinθ</text>
+
+            <!-- 等号 -->
+            <text id="scene3-label-eq" class="scene3-fade scene3-hidden" x="155" y="375" font-size="16" fill="#000">=</text>
+
+            <!-- ΔEk绿箭头 (200,395)-(200,365) 向上 -->
+            <line id="scene3-arrow-ek" class="scene3-fade scene3-hidden" x1="200" y1="395" x2="200" y2="365" stroke="#2e7d32" stroke-width="3" marker-end="url(#scene3-arrowhead-green)"/>
+            <text id="scene3-label-dek" class="scene3-fade scene3-hidden" x="230" y="380" font-size="13" fill="#2e7d32">ΔEₖ</text>
+            <text id="scene3-label-mv2" class="scene3-fade scene3-hidden" x="230" y="415" font-size="13" fill="#2e7d32">½mvₘ²</text>
+
+            <!-- 加号 -->
+            <text id="scene3-label-plus" class="scene3-fade scene3-hidden" x="290" y="375" font-size="16" fill="#000">+</text>
+
+            <!-- Q_电红箭头 (310,375)-(350,375) 向右 -->
+            <line id="scene3-arrow-q" class="scene3-fade scene3-hidden" x1="310" y1="375" x2="350" y2="375" stroke="#c62828" stroke-width="3" marker-end="url(#scene3-arrowhead-red)"/>
+            <text id="scene3-label-qelec" class="scene3-fade scene3-hidden" x="365" y="365" font-size="13" fill="#c62828">Q₍电₎</text>
+            <text id="scene3-label-15j" class="scene3-fade scene3-hidden" x="365" y="405" font-size="13" fill="#c62828">1.5 J</text>
+        </svg>
+
+        <!-- 公式面板（HTML实现） -->
+        <div id="scene3-formula-panel">
+            <div id="scene3-formula-energy" class="scene3-formula-content">
+                <div>mgx·sinθ = ½mvₘ² + Q₍电₎</div>
+                <div>0.2×10×x×0.5 = ½×0.2×5² + 1.5</div>
+                <div class="scene3-highlight-blue">x = 4 m</div>
+            </div>
+            <div id="scene3-formula-charge" class="scene3-formula-content">
+                <div class="scene3-formula-subtitle">电量公式推导：</div>
+                <div>q = Ī·Δt = (Ē/R)·Δt</div>
+                <div>= ΔΦ/R = BLx/R</div>
+            </div>
+            <div id="scene3-formula-result" class="scene3-formula-content">
+                <div class="scene3-formula-subtitle">代入数值：</div>
+                <div>q = 0.2×1×4/0.2</div>
+                <div class="scene3-highlight-green" id="scene3-result-q">q = 4 C</div>
+            </div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene3-step-indicator">步骤 1/6</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现 - 导体棒下滑能量与电量
+
+        let currentStep = 0;
+        const totalSteps = 6;
+
+        const els = {
+            energyTitle: document.getElementById('scene3-energy-title'),
+            arrowEp: document.getElementById('scene3-arrow-ep'),
+            labelDep: document.getElementById('scene3-label-dep'),
+            labelMgsin: document.getElementById('scene3-label-mgsin'),
+            labelEq: document.getElementById('scene3-label-eq'),
+            arrowEk: document.getElementById('scene3-arrow-ek'),
+            labelDek: document.getElementById('scene3-label-dek'),
+            labelMv2: document.getElementById('scene3-label-mv2'),
+            labelPlus: document.getElementById('scene3-label-plus'),
+            arrowQ: document.getElementById('scene3-arrow-q'),
+            labelQelec: document.getElementById('scene3-label-qelec'),
+            label15j: document.getElementById('scene3-label-15j'),
+            fluxShade: document.getElementById('scene3-flux-shade'),
+            labelDeltaPhi: document.getElementById('scene3-label-delta-phi'),
+            formulaPanel: document.getElementById('scene3-formula-panel'),
+            formulaEnergy: document.getElementById('scene3-formula-energy'),
+            formulaCharge: document.getElementById('scene3-formula-charge'),
+            formulaResult: document.getElementById('scene3-formula-result'),
+            resultQ: document.getElementById('scene3-result-q'),
+            btnPrev: document.getElementById('scene3-btn-prev'),
+            btnNext: document.getElementById('scene3-btn-next'),
+            stepIndicator: document.getElementById('scene3-step-indicator')
+        };
+
+        function show(el) {
+            if (!el) return;
+            el.classList.remove('scene3-hidden');
+            el.classList.add('scene3-visible');
+        }
+        function hide(el) {
+            if (!el) return;
+            el.classList.remove('scene3-visible');
+            el.classList.add('scene3-hidden');
+        }
+        function showPanel() {
+            if (els.formulaPanel) els.formulaPanel.style.display = 'flex';
+        }
+        function hidePanel() {
+            if (els.formulaPanel) els.formulaPanel.style.display = 'none';
+        }
+        function showFormula(contentEl) {
+            [els.formulaEnergy, els.formulaCharge, els.formulaResult].forEach(function(el) {
+                if (el) el.classList.remove('active');
+            });
+            if (contentEl) contentEl.classList.add('active');
+        }
+
+        function updateScene(step) {
+            currentStep = step;
+            els.stepIndicator.textContent = '步骤 ' + (step + 1) + '/' + totalSteps;
+            els.btnPrev.disabled = (step === 0);
+            els.btnNext.disabled = (step === totalSteps - 1);
+
+            // 隐藏所有动态元素
+            hide(els.energyTitle);
+            hide(els.arrowEp);
+            hide(els.labelDep);
+            hide(els.labelMgsin);
+            hide(els.labelEq);
+            hide(els.arrowEk);
+            hide(els.labelDek);
+            hide(els.labelMv2);
+            hide(els.labelPlus);
+            hide(els.arrowQ);
+            hide(els.labelQelec);
+            hide(els.label15j);
+            hide(els.fluxShade);
+            hide(els.labelDeltaPhi);
+            hidePanel();
+
+            if (els.resultQ) {
+                els.resultQ.style.transform = 'scale(1)';
+                els.resultQ.style.opacity = '1';
+            }
+
+            if (step >= 1) {
+                show(els.energyTitle);
+                show(els.arrowEp);
+                show(els.labelDep);
+                show(els.labelMgsin);
+                show(els.labelEq);
+                show(els.arrowEk);
+                show(els.labelDek);
+                show(els.labelMv2);
+                show(els.labelPlus);
+                show(els.arrowQ);
+                show(els.labelQelec);
+                show(els.label15j);
+            }
+
+            if (step >= 2) {
+                showPanel();
+                showFormula(els.formulaEnergy);
+            }
+
+            if (step >= 3) {
+                show(els.fluxShade);
+                show(els.labelDeltaPhi);
+            }
+
+            if (step >= 4) {
+                showPanel();
+                showFormula(els.formulaCharge);
+            }
+
+            if (step >= 5) {
+                showPanel();
+                showFormula(els.formulaResult);
+
+                if (els.resultQ) {
+                    els.resultQ.style.transform = 'scale(0.8)';
+                    els.resultQ.style.opacity = '0.5';
+                    requestAnimationFrame(function() {
+                        setTimeout(function() {
+                            if (els.resultQ) {
+                                els.resultQ.style.transform = 'scale(1)';
+                                els.resultQ.style.opacity = '1';
+                            }
+                        }, 50);
+                    });
+                }
+            }
+        }
+
+        els.btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) updateScene(currentStep - 1);
+        });
+
+        els.btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) updateScene(currentStep + 1);
+        });
+
+        updateScene(0);
+    })();
+    </script>
+</body>
+</html>

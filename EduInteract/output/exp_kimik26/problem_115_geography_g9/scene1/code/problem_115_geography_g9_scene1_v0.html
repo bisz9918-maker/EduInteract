@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬网定位与半球五带综合读图</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+
+        /* 背景覆盖层（HTML div，位于SVG后方） */
+        .step-overlay { position: absolute; top: 0; left: 0; width: 800px; height: 500px; pointer-events: none; }
+        .overlay-east { position: absolute; left: 140px; top: 60px; width: 380px; height: 340px; background: rgba(21, 101, 192, 0.15); }
+        .overlay-west { position: absolute; left: 80px; top: 60px; width: 60px; height: 340px; background: rgba(198, 40, 40, 0.15); }
+        .overlay-arctic { position: absolute; left: 80px; top: 60px; width: 440px; height: 40px; background: rgba(123, 31, 162, 0.15); }
+        .overlay-temperate { position: absolute; left: 80px; top: 100px; width: 440px; height: 90px; background: rgba(46, 125, 50, 0.15); }
+        .overlay-tropical { position: absolute; left: 80px; top: 190px; width: 440px; height: 180px; background: rgba(249, 168, 37, 0.15); }
+
+        /* 控件栏 */
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 18px; font-size: 14px; border: none; border-radius: 4px;
+            background: #1565c0; color: #fff; cursor: pointer; transition: background 0.2s;
+        }
+        #scene1-controls button:disabled { background: #9e9e9e; cursor: not-allowed; }
+        #scene1-controls button:hover:not(:disabled) { background: #0d47a1; }
+        #scene1-step-indicator { font-size: 14px; color: #333; min-width: 80px; text-align: center; }
+
+        /* 右侧说明区 */
+        #scene1-info-panel {
+            position: absolute; left: 540px; top: 60px; width: 240px; height: 340px;
+            border: 1px solid #e0e0e0; border-radius: 4px; background: #fff;
+            padding: 12px; box-sizing: border-box; font-size: 14px; line-height: 1.6; z-index: 10;
+        }
+        #scene1-info-title { font-weight: bold; font-size: 15px; margin-bottom: 10px; color: #1565c0; }
+        #scene1-info-content { color: #333; }
+
+        /* SVG 样式 */
+        svg { display: block; position: relative; z-index: 5; }
+        .grid-line { stroke: #000; stroke-width: 1.5; stroke-dasharray: 6,4; }
+        .point { fill: #000; }
+        .point-label { font-size: 14px; fill: #000; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        .lat-label, .lon-label { font-size: 14px; fill: #000; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+
+        /* 步骤组默认隐藏（由JS控制display） */
+        .step-group { display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <!-- 步骤2 东西半球背景层 -->
+        <div id="scene1-step2-overlay" class="step-overlay" style="display: none;">
+            <div class="overlay-east"></div>
+            <div class="overlay-west"></div>
+        </div>
+
+        <!-- 步骤3 五带划分背景层 -->
+        <div id="scene1-step3-overlay" class="step-overlay" style="display: none;">
+            <div class="overlay-arctic"></div>
+            <div class="overlay-temperate"></div>
+            <div class="overlay-tropical"></div>
+        </div>
+
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 标题 -->
+            <text x="400" y="40" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">经纬网定位与半球五带综合读图</text>
+
+            <!-- 经纬网格 -->
+            <g id="scene1-grid-group">
+                <!-- 经线 -->
+                <line class="grid-line" x1="140" y1="60" x2="140" y2="400" />
+                <line class="grid-line" x1="260" y1="60" x2="260" y2="400" />
+                <line class="grid-line" x1="380" y1="60" x2="380" y2="400" />
+                <line class="grid-line" x1="500" y1="60" x2="500" y2="400" />
+                <!-- 纬线 -->
+                <line class="grid-line" x1="80" y1="100" x2="520" y2="100" />
+                <line class="grid-line" x1="80" y1="190" x2="520" y2="190" />
+                <line class="grid-line" x1="80" y1="280" x2="520" y2="280" />
+                <line class="grid-line" x1="80" y1="370" x2="520" y2="370" />
+            </g>
+
+            <!-- 定位点 -->
+            <g id="scene1-points-group">
+                <circle id="scene1-point-jia" class="point" cx="260" cy="100" r="4" />
+                <circle id="scene1-point-yi" class="point" cx="140" cy="190" r="4" />
+                <circle id="scene1-point-bing" class="point" cx="260" cy="280" r="4" />
+                <circle id="scene1-point-ding" class="point" cx="380" cy="370" r="4" />
+                <circle id="scene1-point-e" class="point" cx="380" cy="190" r="4" />
+                <circle id="scene1-point-f" class="point" cx="500" cy="100" r="4" />
+            </g>
+
+            <!-- 点标签 -->
+            <g id="scene1-point-labels">
+                <text class="point-label" x="270" y="92" text-anchor="start">甲</text>
+                <text class="point-label" x="130" y="182" text-anchor="end">乙</text>
+                <text class="point-label" x="250" y="292" text-anchor="end">丙</text>
+                <text class="point-label" x="390" y="378" text-anchor="start">丁</text>
+                <text class="point-label" x="390" y="182" text-anchor="start">E</text>
+                <text class="point-label" x="510" y="92" text-anchor="start">F</text>
+            </g>
+
+            <!-- 纬度标注 -->
+            <g id="scene1-lat-labels">
+                <text class="lat-label" x="75" y="105" text-anchor="end">66.5°N</text>
+                <text class="lat-label" x="75" y="195" text-anchor="end">23.5°N</text>
+                <text class="lat-label" x="85" y="285" text-anchor="end">0°</text>
+                <text class="lat-label" x="75" y="375" text-anchor="end">23.5°S</text>
+            </g>
+
+            <!-- 经度标注 -->
+            <g id="scene1-lon-labels">
+                <text class="lon-label" x="140" y="420" text-anchor="middle">20°W</text>
+                <text class="lon-label" x="260" y="420" text-anchor="middle">0°</text>
+                <text class="lon-label" x="380" y="420" text-anchor="middle">20°E</text>
+                <text class="lon-label" x="500" y="420" text-anchor="middle">40°E</text>
+            </g>
+
+            <!-- 步骤1: 方向判断 -->
+            <g id="scene1-step1-group" class="step-group">
+                <!-- E、F高亮圈 -->
+                <circle cx="380" cy="190" r="6" fill="none" stroke="#1565c0" stroke-width="2" />
+                <circle cx="500" cy="100" r="6" fill="none" stroke="#c62828" stroke-width="2" />
+                <!-- 指引折线 -->
+                <line x1="500" y1="100" x2="500" y2="190" stroke="#888" stroke-width="1.5" stroke-dasharray="5,3" />
+                <line x1="500" y1="190" x2="380" y2="190" stroke="#888" stroke-width="1.5" stroke-dasharray="5,3" />
+                <!-- 箭头 -->
+                <polygon points="380,190 390,185 390,195" fill="#888" />
+                <!-- 结论 -->
+                <text x="440" y="145" text-anchor="middle" font-size="14" font-weight="bold" fill="#1565c0">西南方向</text>
+            </g>
+
+            <!-- 步骤2: 东西半球（背景色块已移至HTML div，此处仅保留分界线和文字） -->
+            <g id="scene1-step2-group" class="step-group">
+                <!-- 20°W高亮 -->
+                <line x1="140" y1="60" x2="140" y2="400" stroke="#c62828" stroke-width="3" />
+                <!-- 半球标注 -->
+                <text x="330" y="250" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">东半球</text>
+                <text x="110" y="250" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold">西半球</text>
+            </g>
+
+            <!-- 步骤3: 五带划分（背景色块已移至HTML div，此处仅保留特征文字） -->
+            <g id="scene1-step3-group" class="step-group">
+                <text x="420" y="85" text-anchor="start" font-size="13" fill="#7b1fa2">极昼极夜</text>
+                <text x="420" y="145" text-anchor="start" font-size="13" fill="#2e7d32">四季变化明显</text>
+                <text x="420" y="280" text-anchor="start" font-size="13" fill="#d84315">太阳直射</text>
+            </g>
+
+            <!-- 步骤4: 综合定位 -->
+            <g id="scene1-step4-group" class="step-group">
+                <!-- 20°W高亮 -->
+                <line x1="140" y1="60" x2="140" y2="400" stroke="#c62828" stroke-width="3" />
+                <!-- 23.5°N高亮 -->
+                <line x1="80" y1="190" x2="520" y2="190" stroke="#2e7d32" stroke-width="3" />
+                <!-- 乙点高亮 -->
+                <circle cx="140" cy="190" r="10" fill="none" stroke="#2e7d32" stroke-width="3" />
+                <!-- 结论 -->
+                <text x="140" y="145" text-anchor="middle" font-size="14" font-weight="bold" fill="#2e7d32">乙点（正确答案）</text>
+            </g>
+        </svg>
+
+        <!-- 右侧说明区 -->
+        <div id="scene1-info-panel">
+            <div id="scene1-info-title">基础定位</div>
+            <div id="scene1-info-content">
+                甲(0°, 66.5°N)<br>
+                乙(20°W, 23.5°N)<br>
+                丙(0°, 0°)<br>
+                丁(20°E, 23.5°S)<br>
+                E(20°E, 23.5°N)<br>
+                F(40°E, 66.5°N)
+            </div>
+        </div>
+
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 1/5</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+        const infoTitle = document.getElementById('scene1-info-title');
+        const infoContent = document.getElementById('scene1-info-content');
+
+        // SVG 步骤组
+        const stepSvgGroups = [
+            null, // step0 无额外SVG组
+            document.getElementById('scene1-step1-group'),
+            document.getElementById('scene1-step2-group'),
+            document.getElementById('scene1-step3-group'),
+            document.getElementById('scene1-step4-group')
+        ];
+
+        // HTML 背景覆盖层
+        const stepHtmlOverlays = [
+            null,
+            null, // step1 无覆盖层
+            document.getElementById('scene1-step2-overlay'),
+            document.getElementById('scene1-step3-overlay'),
+            null  // step4 无覆盖层
+        ];
+
+        const stepTitles = [
+            '基础定位',
+            '方向判断',
+            '东西半球',
+            '五带划分',
+            '综合定位'
+        ];
+
+        const stepContents = [
+            '甲(0°, 66.5°N)<br>乙(20°W, 23.5°N)<br>丙(0°, 0°)<br>丁(20°E, 23.5°S)<br>E(20°E, 23.5°N)<br>F(40°E, 66.5°N)',
+            'E点坐标：(20°E, 23.5°N)<br>F点坐标：(40°E, 66.5°N)<br><br>经线指示南北方向，纬线指示东西方向。<br>从F向南再向西到达E，因此E在F的西南方向。',
+            '东西半球分界线：20°W 和 160°E<br><br>20°W 以东 → 东半球<br>20°W 以西 → 西半球<br><br>图示区域大部分位于东半球。',
+            '北寒带：66.5°N ~ 90°N<br>北温带：23.5°N ~ 66.5°N<br>热带：23.5°N ~ 23.5°S<br><br>回归线与极圈是五带的分界线。',
+            '条件分析：<br>1. 东部东半球，西部西半球 → 20°W<br>2. 北部四季变化明显，南部太阳直射 → 23.5°N<br><br>交点为乙(20°W, 23.5°N)'
+        ];
+
+        function show(el) {
+            el.style.display = '';
+            el.style.opacity = '1';
+        }
+
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        function updateStep(step) {
+            currentStep = step;
+
+            // 更新按钮状态
+            btnPrev.disabled = currentStep === 0;
+            if (currentStep === totalSteps - 1) {
+                btnNext.textContent = '完成';
+            } else {
+                btnNext.textContent = '下一步 ▶';
+            }
+
+            // 更新步骤指示器
+            stepIndicator.textContent = '步骤 ' + (currentStep + 1) + '/' + totalSteps;
+
+            // 更新说明区
+            infoTitle.textContent = stepTitles[currentStep];
+            infoContent.innerHTML = stepContents[currentStep];
+
+            // 隐藏所有SVG步骤组
+            for (let i = 1; i < stepSvgGroups.length; i++) {
+                if (stepSvgGroups[i]) hide(stepSvgGroups[i]);
+            }
+            // 显示当前SVG步骤组
+            if (stepSvgGroups[currentStep]) show(stepSvgGroups[currentStep]);
+
+            // 隐藏所有HTML覆盖层
+            for (let i = 1; i < stepHtmlOverlays.length; i++) {
+                if (stepHtmlOverlays[i]) hide(stepHtmlOverlays[i]);
+            }
+            // 显示当前HTML覆盖层
+            if (stepHtmlOverlays[currentStep]) show(stepHtmlOverlays[currentStep]);
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                updateStep(currentStep - 1);
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                updateStep(currentStep + 1);
+            }
+        }
+
+        btnPrev.addEventListener('click', prevStep);
+        btnNext.addEventListener('click', nextStep);
+
+        // 初始化
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

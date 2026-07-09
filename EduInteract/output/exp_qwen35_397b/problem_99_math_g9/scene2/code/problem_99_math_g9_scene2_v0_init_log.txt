@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>等边三角形折叠演示</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #scene2-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene2-svg {
+            width: 800px;
+            height: 500px;
+        }
+        #scene2-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #scene2-prev-btn {
+            background: #757575;
+            color: white;
+        }
+        #scene2-prev-btn:hover {
+            background: #616161;
+        }
+        #scene2-prev-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        #scene2-next-btn {
+            background: #2e7d32;
+            color: white;
+        }
+        #scene2-next-btn:hover {
+            background: #1b5e20;
+        }
+        #scene2-next-btn:disabled {
+            background: #a5d6a7;
+            cursor: not-allowed;
+        }
+        #scene2-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+        /* 元素显隐控制 */
+        .scene2-hidden {
+            display: none;
+            opacity: 0;
+        }
+        .scene2-visible {
+            display: block;
+            opacity: 1;
+        }
+        /* 高亮动画 */
+        @keyframes scene2-pulse {
+            0%, 100% { stroke-width: 2; }
+            50% { stroke-width: 4; }
+        }
+        .scene2-highlight {
+            animation: scene2-pulse 0.6s ease-in-out;
+        }
+        .scene2-label-highlight {
+            transform: scale(1.1);
+            transform-origin: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500" viewBox="0 0 800 500">
+            <!-- 等边三角形 ABC 边框 -->
+            <path id="scene2-tri-abc" d="M 200 400 L 600 400 L 400 54 Z" 
+                  fill="none" stroke="#000000" stroke-width="2"/>
+            
+            <!-- CE 线段（蓝色，初始显示） -->
+            <line id="scene2-line-ce" x1="400" y1="54" x2="307" y2="215" 
+                  stroke="#1565c0" stroke-width="2"/>
+            
+            <!-- CF 线段（红色，初始显示） -->
+            <line id="scene2-line-cf" x1="400" y1="54" x2="517" y2="256" 
+                  stroke="#c62828" stroke-width="2"/>
+            
+            <!-- DE 线段（蓝色，折叠后显示） -->
+            <line id="scene2-line-de" x1="333" y1="400" x2="307" y2="215" 
+                  stroke="#1565c0" stroke-width="2" class="scene2-hidden"/>
+            
+            <!-- DF 线段（红色，折叠后显示） -->
+            <line id="scene2-line-df" x1="333" y1="400" x2="517" y2="256" 
+                  stroke="#c62828" stroke-width="2" class="scene2-hidden"/>
+            
+            <!-- 折痕 EF（绿色加粗） -->
+            <line id="scene2-line-ef" x1="307" y1="215" x2="517" y2="256" 
+                  stroke="#2e7d32" stroke-width="3"/>
+            
+            <!-- CD 连线（灰色虚线，步骤 5 显示） -->
+            <line id="scene2-line-cd" x1="400" y1="54" x2="333" y2="400" 
+                  stroke="#888888" stroke-width="2" stroke-dasharray="5,5" class="scene2-hidden"/>
+            
+            <!-- 折叠轨迹填充（步骤 1 显示） -->
+            <polygon id="scene2-fold-trace" points="400,54 307,215 517,256" 
+                     fill="#2e7d32" opacity="0" class="scene2-hidden"/>
+            
+            <!-- 直角符号（步骤 5 显示，M 点处表示 EF⊥CD） -->
+            <path id="scene2-right-angle" d="M 367 215 L 367 227 L 379 227" 
+                  fill="none" stroke="#000000" stroke-width="1.5" class="scene2-hidden"/>
+            
+            <!-- 顶点标签 -->
+            <text id="scene2-label-a" x="185" y="420" font-size="14" fill="#000000">A</text>
+            <text id="scene2-label-b" x="610" y="420" font-size="14" fill="#000000">B</text>
+            <text id="scene2-label-c" x="400" y="39" font-size="14" fill="#000000" text-anchor="middle">C</text>
+            <text id="scene2-label-d" x="333" y="418" font-size="14" fill="#000000" text-anchor="middle">D</text>
+            <text id="scene2-label-e" x="289" y="205" font-size="14" fill="#000000" text-anchor="end">E</text>
+            <text id="scene2-label-f" x="535" y="246" font-size="14" fill="#000000">F</text>
+            <text id="scene2-label-m" x="382" y="227" font-size="14" fill="#000000" class="scene2-hidden">M</text>
+            
+            <!-- 数值标注 -->
+            <text id="scene2-label-ad" x="267" y="425" font-size="13" fill="#000000" text-anchor="middle">AD=1</text>
+            <text id="scene2-label-bd" x="467" y="425" font-size="13" fill="#000000" text-anchor="middle">BD=2</text>
+            <text id="scene2-label-bf" x="560" y="330" font-size="13" fill="#000000">BF=1.25</text>
+            
+            <!-- 等量关系标注 -->
+            <text id="scene2-label-ce-de" x="250" y="150" font-size="13" fill="#1565c0" class="scene2-hidden">CE=DE</text>
+            <text id="scene2-label-cf-df" x="550" y="150" font-size="13" fill="#c62828" class="scene2-hidden">CF=DF</text>
+            
+            <!-- 垂直关系标注 -->
+            <text id="scene2-label-perp" x="400" y="480" font-size="13" fill="#000000" text-anchor="middle" class="scene2-hidden">EF⊥CD</text>
+            
+            <!-- C 点（折叠动画用） -->
+            <circle id="scene2-point-c" cx="400" cy="54" r="3" fill="#000000"/>
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn" class="scene2-btn">◀ 上一步</button>
+            <span id="scene2-step-indicator">步骤 0/5</span>
+            <button id="scene2-next-btn" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // 坐标常量
+        const POINTS = {
+            A: { x: 200, y: 400 },
+            B: { x: 600, y: 400 },
+            C: { x: 400, y: 54 },
+            D: { x: 333, y: 400 },
+            E: { x: 307, y: 215 },
+            F: { x: 517, y: 256 },
+            M: { x: 367, y: 227 }
+        };
+        
+        // 状态管理
+        let currentState = 0;
+        const TOTAL_STEPS = 5;
+        let isAnimating = false;
+        
+        // 获取元素
+        const elements = {
+            lineCE: document.getElementById('scene2-line-ce'),
+            lineCF: document.getElementById('scene2-line-cf'),
+            lineDE: document.getElementById('scene2-line-de'),
+            lineDF: document.getElementById('scene2-line-df'),
+            lineEF: document.getElementById('scene2-line-ef'),
+            lineCD: document.getElementById('scene2-line-cd'),
+            foldTrace: document.getElementById('scene2-fold-trace'),
+            rightAngle: document.getElementById('scene2-right-angle'),
+            labelC: document.getElementById('scene2-label-c'),
+            labelM: document.getElementById('scene2-label-m'),
+            labelCeDe: document.getElementById('scene2-label-ce-de'),
+            labelCfDf: document.getElementById('scene2-label-cf-df'),
+            labelPerp: document.getElementById('scene2-label-perp'),
+            pointC: document.getElementById('scene2-point-c'),
+            prevBtn: document.getElementById('scene2-prev-btn'),
+            nextBtn: document.getElementById('scene2-next-btn'),
+            stepIndicator: document.getElementById('scene2-step-indicator')
+        };
+        
+        // 显示/隐藏元素
+        function show(el) {
+            if (el) {
+                el.classList.remove('scene2-hidden');
+                el.classList.add('scene2-visible');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+        
+        function hide(el) {
+            if (el) {
+                el.classList.remove('scene2-visible');
+                el.classList.add('scene2-hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            elements.prevBtn.disabled = currentState === 0;
+            elements.nextBtn.disabled = currentState === TOTAL_STEPS;
+            elements.stepIndicator.textContent = `步骤 ${currentState}/${TOTAL_STEPS}`;
+        }
+        
+        // 重置所有高亮
+        function resetHighlights() {
+            ['scene2-line-ce', 'scene2-line-de', 'scene2-line-cf', 'scene2-line-df'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('scene2-highlight');
+                    el.style.strokeWidth = '2';
+                }
+            });
+            ['scene2-label-ce-de', 'scene2-label-cf-df'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('scene2-label-highlight');
+                }
+            });
+        }
+        
+        // 设置各步骤状态
+        function setStep(step) {
+            resetHighlights();
+            
+            // 步骤 0：初始状态
+            if (step === 0) {
+                show(elements.lineCE);
+                show(elements.lineCF);
+                hide(elements.lineDE);
+                hide(elements.lineDF);
+                hide(elements.lineCD);
+                hide(elements.foldTrace);
+                hide(elements.rightAngle);
+                show(elements.labelC);
+                hide(elements.labelM);
+                hide(elements.labelCeDe);
+                hide(elements.labelCfDf);
+                hide(elements.labelPerp);
+                show(elements.pointC);
+                elements.pointC.setAttribute('cx', POINTS.C.x);
+                elements.pointC.setAttribute('cy', POINTS.C.y);
+            }
+            // 步骤 1：开始折叠（C 点移动 50%）
+            else if (step === 1) {
+                show(elements.lineCE);
+                show(elements.lineCF);
+                hide(elements.lineDE);
+                hide(elements.lineDF);
+                hide(elements.lineCD);
+                show(elements.foldTrace);
+                elements.foldTrace.setAttribute('opacity', '0.1');
+                hide(elements.rightAngle);
+                show(elements.labelC);
+                hide(elements.labelM);
+                hide(elements.labelCeDe);
+                hide(elements.labelCfDf);
+                hide(elements.labelPerp);
+                show(elements.pointC);
+                // C 点移动到中间位置
+                const midX = (POINTS.C.x + POINTS.D.x) / 2;
+                const midY = (POINTS.C.y + POINTS.D.y) / 2;
+                elements.pointC.setAttribute('cx', midX);
+                elements.pointC.setAttribute('cy', midY);
+            }
+            // 步骤 2：折叠完成
+            else if (step === 2) {
+                hide(elements.lineCE);
+                hide(elements.lineCF);
+                show(elements.lineDE);
+                show(elements.lineDF);
+                hide(elements.lineCD);
+                hide(elements.foldTrace);
+                hide(elements.rightAngle);
+                hide(elements.labelC);
+                hide(elements.labelM);
+                show(elements.labelCeDe);
+                show(elements.labelCfDf);
+                hide(elements.labelPerp);
+                hide(elements.pointC);
+            }
+            // 步骤 3：高亮 CE=DE
+            else if (step === 3) {
+                hide(elements.lineCE);
+                hide(elements.lineCF);
+                show(elements.lineDE);
+                show(elements.lineDF);
+                hide(elements.lineCD);
+                hide(elements.foldTrace);
+                hide(elements.rightAngle);
+                hide(elements.labelC);
+                hide(elements.labelM);
+                show(elements.labelCeDe);
+                show(elements.labelCfDf);
+                hide(elements.labelPerp);
+                hide(elements.pointC);
+                // 高亮 CE=DE
+                document.getElementById('scene2-line-de').classList.add('scene2-highlight');
+                document.getElementById('scene2-label-ce-de').classList.add('scene2-label-highlight');
+            }
+            // 步骤 4：高亮 CF=DF
+            else if (step === 4) {
+                hide(elements.lineCE);
+                hide(elements.lineCF);
+                show(elements.lineDE);
+                show(elements.lineDF);
+                hide(elements.lineCD);
+                hide(elements.foldTrace);
+                hide(elements.rightAngle);
+                hide(elements.labelC);
+                hide(elements.labelM);
+                show(elements.labelCeDe);
+                show(elements.labelCfDf);
+                hide(elements.labelPerp);
+                hide(elements.pointC);
+                // 高亮 CF=DF
+                document.getElementById('scene2-line-df').classList.add('scene2-highlight');
+                document.getElementById('scene2-label-cf-df').classList.add('scene2-label-highlight');
+            }
+            // 步骤 5：显示垂直平分
+            else if (step === 5) {
+                hide(elements.lineCE);
+                hide(elements.lineCF);
+                show(elements.lineDE);
+                show(elements.lineDF);
+                show(elements.lineCD);
+                hide(elements.foldTrace);
+                show(elements.rightAngle);
+                hide(elements.labelC);
+                show(elements.labelM);
+                show(elements.labelCeDe);
+                show(elements.labelCfDf);
+                show(elements.labelPerp);
+                hide(elements.pointC);
+            }
+            
+            updateButtons();
+        }
+        
+        // 下一步
+        function stepForward() {
+            if (isAnimating || currentState >= TOTAL_STEPS) return;
+            isAnimating = true;
+            currentState++;
+            
+            if (currentState === 1) {
+                // 动画：C 点移动到中间
+                const duration = 800;
+                const startTime = performance.now();
+                const startX = POINTS.C.x, startY = POINTS.C.y;
+                const endX = (POINTS.C.x + POINTS.D.x) / 2;
+                const endY = (POINTS.C.y + POINTS.D.y) / 2;
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    // easeInOut 二次曲线
+                    const eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                    
+                    elements.pointC.setAttribute('cx', startX + (endX - startX) * eased);
+                    elements.pointC.setAttribute('cy', startY + (endY - startY) * eased);
+                    elements.foldTrace.setAttribute('opacity', 0.1 * eased);
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        setStep(currentState);
+                        isAnimating = false;
+                    }
+                }
+                requestAnimationFrame(animate);
+            } else {
+                setStep(currentState);
+                isAnimating = false;
+            }
+        }
+        
+        // 上一步
+        function stepBackward() {
+            if (isAnimating || currentState <= 0) return;
+            isAnimating = true;
+            currentState--;
+            
+            if (currentState === 0) {
+                // 动画：C 点移回原位
+                const duration = 800;
+                const startTime = performance.now();
+                const startX = (POINTS.C.x + POINTS.D.x) / 2;
+                const startY = (POINTS.C.y + POINTS.D.y) / 2;
+                const endX = POINTS.C.x, endY = POINTS.C.y;
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                    
+                    elements.pointC.setAttribute('cx', startX + (endX - startX) * eased);
+                    elements.pointC.setAttribute('cy', startY + (endY - startY) * eased);
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        setStep(currentState);
+                        isAnimating = false;
+                    }
+                }
+                requestAnimationFrame(animate);
+            } else {
+                setStep(currentState);
+                isAnimating = false;
+            }
+        }
+        
+        // 绑定事件
+        elements.prevBtn.addEventListener('click', stepBackward);
+        elements.nextBtn.addEventListener('click', stepForward);
+        
+        // 初始化
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>杠杆平衡 - 最小动力判断</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+        #scene1-controls {
+            position: absolute; bottom: 12px; left: 0; right: 0;
+            display: flex; justify-content: center; gap: 16px; z-index: 10;
+        }
+        #scene1-controls button {
+            padding: 8px 24px; font-size: 15px; border: 1px solid #555;
+            border-radius: 6px; background: #f0f0f0; cursor: pointer;
+            font-family: inherit; transition: background 0.2s;
+        }
+        #scene1-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene1-controls button:hover:not(:disabled) { background: #ddd; }
+
+        /* Transitions for step elements */
+        #scene1-step1, #scene1-step2, #scene1-step3, #scene1-step4 {
+            transition: opacity 0.35s ease;
+        }
+        #scene1-f1, #scene1-f2, #scene1-f3, #scene1-f4 {
+            transition: stroke 0.35s ease, stroke-width 0.35s ease;
+        }
+        #scene1-weight {
+            transition: stroke 0.35s ease, stroke-width 0.35s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+            <!-- ===== Definitions ===== -->
+            <defs>
+                <!-- Black arrowhead (for forces in default state) -->
+                <marker id="scene1-arr-black" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#000"/>
+                </marker>
+                <!-- Red arrowhead -->
+                <marker id="scene1-arr-red" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#c62828"/>
+                </marker>
+                <!-- Green arrowhead -->
+                <marker id="scene1-arr-green" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#2e7d32"/>
+                </marker>
+                <!-- Blue arrowhead -->
+                <marker id="scene1-arr-blue" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#1565c0"/>
+                </marker>
+                <!-- Double-arrow markers for moment arms -->
+                <marker id="scene1-arr-green-s" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 10 0 L 0 5 L 10 10 Z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene1-arr-green-e" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#2e7d32"/>
+                </marker>
+                <marker id="scene1-arr-blue-s" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 10 0 L 0 5 L 10 10 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arr-blue-e" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene1-arr-red-s" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 10 0 L 0 5 L 10 10 Z" fill="#c62828"/>
+                </marker>
+                <marker id="scene1-arr-red-e" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 Z" fill="#c62828"/>
+                </marker>
+            </defs>
+
+            <!-- ===== Static Elements (always visible) ===== -->
+
+            <!-- Lever OAB: horizontal bar -->
+            <line id="scene1-lever" x1="100" y1="200" x2="500" y2="200" stroke="#000" stroke-width="6" stroke-linecap="round"/>
+
+            <!-- Pivot O: inverted triangle support -->
+            <polygon id="scene1-pivot" points="100,200 88,232 112,232" fill="#000"/>
+
+            <!-- Weight G: rectangle hanging from A -->
+            <rect id="scene1-weight" x="213" y="200" width="40" height="60" fill="#fff" stroke="#000" stroke-width="2" rx="2"/>
+            <text id="scene1-g-label" x="233" y="238" text-anchor="middle" font-size="15" fill="#000" font-weight="bold">G</text>
+
+            <!-- Point markers (small circles) -->
+            <circle cx="100" cy="200" r="3" fill="#000"/>
+            <circle cx="233" cy="200" r="3" fill="#000"/>
+            <circle cx="500" cy="200" r="3" fill="#000"/>
+
+            <!-- Point labels -->
+            <text id="scene1-o-label" x="82" y="195" font-size="15" fill="#000" font-weight="bold">O</text>
+            <text id="scene1-a-label" x="233" y="186" text-anchor="middle" font-size="15" fill="#000" font-weight="bold">A</text>
+            <text id="scene1-b-label" x="500" y="186" text-anchor="middle" font-size="15" fill="#000" font-weight="bold">B</text>
+
+            <!-- Four forces at B (default: black, 2px) -->
+            <line id="scene1-f3" x1="500" y1="200" x2="500" y2="80" stroke="#000" stroke-width="2" marker-end="url(#scene1-arr-black)"/>
+            <line id="scene1-f2" x1="500" y1="200" x2="600" y2="100" stroke="#000" stroke-width="2" marker-end="url(#scene1-arr-black)"/>
+            <line id="scene1-f4" x1="500" y1="200" x2="400" y2="100" stroke="#000" stroke-width="2" marker-end="url(#scene1-arr-black)"/>
+            <line id="scene1-f1" x1="500" y1="200" x2="600" y2="300" stroke="#000" stroke-width="2" marker-end="url(#scene1-arr-black)"/>
+
+            <!-- Force labels -->
+            <text id="scene1-f3-label" x="515" y="72" font-size="15" fill="#000" font-weight="bold">F₃</text>
+            <text id="scene1-f2-label" x="615" y="92" font-size="15" fill="#000" font-weight="bold">F₂</text>
+            <text id="scene1-f4-label" x="380" y="92" font-size="15" fill="#000" font-weight="bold">F₄</text>
+            <text id="scene1-f1-label" x="615" y="318" font-size="15" fill="#000" font-weight="bold">F₁</text>
+
+            <!-- ===== Step 1: 高亮阻力与阻力臂 ===== -->
+            <g id="scene1-step1" style="display:none; opacity:0;">
+                <!-- Red downward arrow for resistance G -->
+                <line x1="233" y1="200" x2="233" y2="265" stroke="#c62828" stroke-width="3" marker-end="url(#scene1-arr-red)"/>
+                <!-- Resistance arm OA: red dashed with double arrows -->
+                <line x1="100" y1="210" x2="233" y2="210" stroke="#c62828" stroke-width="2" stroke-dasharray="6,4"
+                      marker-start="url(#scene1-arr-red-s)" marker-end="url(#scene1-arr-red-e)"/>
+                <text x="166" y="232" text-anchor="middle" fill="#c62828" font-size="14">阻力臂</text>
+            </g>
+
+            <!-- ===== Step 2: 展示F₃的力臂 ===== -->
+            <g id="scene1-step2" style="display:none; opacity:0;">
+                <!-- L₃ arm: green dashed from O to B (offset above lever) -->
+                <line x1="100" y1="192" x2="500" y2="192" stroke="#2e7d32" stroke-width="2" stroke-dasharray="6,4"
+                      marker-start="url(#scene1-arr-green-s)" marker-end="url(#scene1-arr-green-e)"/>
+                <text x="300" y="182" text-anchor="middle" fill="#2e7d32" font-size="14" font-weight="bold">L₃</text>
+                <!-- Right angle at B -->
+                <polyline points="490,200 490,190 500,190" fill="none" stroke="#888" stroke-width="1.2"/>
+            </g>
+
+            <!-- ===== Step 3: 展示F₁、F₂、F₄的力臂 ===== -->
+            <g id="scene1-step3" style="display:none; opacity:0;">
+                <!-- L₁ arm: blue dashed from O to perpendicular foot on F₁ line -->
+                <line x1="100" y1="200" x2="200" y2="100" stroke="#1565c0" stroke-width="2" stroke-dasharray="6,4"
+                      marker-start="url(#scene1-arr-blue-s)" marker-end="url(#scene1-arr-blue-e)"/>
+                <text x="132" y="148" fill="#1565c0" font-size="14" font-weight="bold">L₁</text>
+
+                <!-- L₄ label (same line as L₁, offset label) -->
+                <text x="155" y="118" fill="#1565c0" font-size="14" font-weight="bold">L₄</text>
+
+                <!-- L₂ arm: blue dashed from O to perpendicular foot on F₂ line -->
+                <line x1="100" y1="200" x2="300" y2="400" stroke="#1565c0" stroke-width="2" stroke-dasharray="6,4"
+                      marker-start="url(#scene1-arr-blue-s)" marker-end="url(#scene1-arr-blue-e)"/>
+                <text x="192" y="315" fill="#1565c0" font-size="14" font-weight="bold">L₂</text>
+
+                <!-- Right angle symbols at feet -->
+                <!-- At L₁/L₄ foot (200, 100) -->
+                <polyline points="193,107 200,100 207,107" fill="none" stroke="#888" stroke-width="1.2"/>
+                <!-- At L₂ foot (300, 400) -->
+                <polyline points="293,393 300,400 307,393" fill="none" stroke="#888" stroke-width="1.2"/>
+            </g>
+
+            <!-- ===== Step 4: 力臂对比与结论 ===== -->
+            <g id="scene1-step4" style="display:none; opacity:0;">
+                <text x="540" y="385" fill="#2e7d32" font-size="18" font-weight="bold">力臂 L₃ 最长 → F₃ 最小 ✓</text>
+            </g>
+        </svg>
+
+        <!-- Controls -->
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        "use strict";
+
+        // ===== Layout coordinate table (from spec) =====
+        // Lever: (100,200)-(500,200), Pivot: triangle at O, Weight G: rect at A
+        // Forces at B(500,200): F3→(500,80), F2→(600,100), F4→(400,100), F1→(600,300)
+        // Labels: O(82,195), A(233,186), B(500,186), G(233,238)
+        // Force labels: F3(515,72), F2(615,92), F4(380,92), F1(615,318)
+
+        var currentStep = 0;
+        var totalSteps = 4;
+
+        // Helper: show/hide element with both display and opacity
+        function showEl(id) {
+            var el = document.getElementById(id);
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+        function hideEl(id) {
+            var el = document.getElementById(id);
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // Helper: set force color and marker
+        function setForce(id, color, width) {
+            var el = document.getElementById(id);
+            el.setAttribute('stroke', color);
+            el.setAttribute('stroke-width', width);
+            var markerMap = {
+                '#000': 'scene1-arr-black',
+                '#c62828': 'scene1-arr-red',
+                '#2e7d32': 'scene1-arr-green',
+                '#1565c0': 'scene1-arr-blue'
+            };
+            el.setAttribute('marker-end', 'url(#' + markerMap[color] + ')');
+        }
+
+        // Main render function
+        function renderStep() {
+            // Button states
+            document.getElementById('scene1-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene1-btn-next').disabled = (currentStep === totalSteps);
+
+            // Step 1: 阻力与阻力臂
+            if (currentStep >= 1) {
+                showEl('scene1-step1');
+                document.getElementById('scene1-weight').setAttribute('stroke', '#c62828');
+                document.getElementById('scene1-weight').setAttribute('stroke-width', '3');
+            } else {
+                hideEl('scene1-step1');
+                document.getElementById('scene1-weight').setAttribute('stroke', '#000');
+                document.getElementById('scene1-weight').setAttribute('stroke-width', '2');
+            }
+
+            // Step 2: F₃力臂
+            if (currentStep >= 2) {
+                showEl('scene1-step2');
+                setForce('scene1-f3', '#2e7d32', '3');
+            } else {
+                hideEl('scene1-step2');
+                setForce('scene1-f3', '#000', '2');
+            }
+
+            // Step 3: F₁、F₂、F₄力臂
+            if (currentStep >= 3) {
+                showEl('scene1-step3');
+                setForce('scene1-f1', '#1565c0', '3');
+                setForce('scene1-f2', '#1565c0', '3');
+                setForce('scene1-f4', '#1565c0', '3');
+            } else {
+                hideEl('scene1-step3');
+                setForce('scene1-f1', '#000', '2');
+                setForce('scene1-f2', '#000', '2');
+                setForce('scene1-f4', '#000', '2');
+            }
+
+            // Step 4: 结论
+            if (currentStep >= 4) {
+                showEl('scene1-step4');
+            } else {
+                hideEl('scene1-step4');
+            }
+        }
+
+        // Event listeners
+        document.getElementById('scene1-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) { currentStep--; renderStep(); }
+        });
+        document.getElementById('scene1-btn-next').addEventListener('click', function() {
+            if (currentStep < totalSteps) { currentStep++; renderStep(); }
+        });
+
+        // Initial render
+        renderStep();
+    })();
+    </script>
+</body>
+</html>

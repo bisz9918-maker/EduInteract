@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电路状态分析</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .wire { fill: none; stroke: #000; stroke-width: 3; transition: all 0.5s ease; }
+        .wire-highlight { fill: none; stroke-width: 8; opacity: 0; transition: all 0.5s ease; stroke-linecap: round; }
+        .lamp-glow { fill: #fbc02d; opacity: 0; transition: all 0.5s ease; }
+        .switch-blade { stroke: #000; stroke-width: 4; stroke-linecap: round; transition: all 0.5s ease; }
+        .label { font-size: 16px; fill: #000; user-select: none; transition: all 0.5s ease; }
+        .status-text { font-size: 24px; font-weight: bold; opacity: 0; transition: all 0.5s ease; text-anchor: middle; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500">
+            <!-- Highlights Layer -->
+            <g id="scene1-highlights">
+                <path id="scene1-hl-neg" class="wire-highlight" d="M 200 100 C 100 100, 100 350, 200 350" />
+                <path id="scene1-hl-pos" class="wire-highlight" d="M 400 100 C 500 100, 650 80, 650 150" />
+                <path id="scene1-hl-a" class="wire-highlight" d="M 550 150 C 480 180, 480 270, 550 300" />
+                <path id="scene1-hl-b" class="wire-highlight" d="M 650 150 C 720 180, 720 270, 650 300" />
+                <path id="scene1-hl-m" class="wire-highlight" d="M 300 350 C 400 420, 600 420, 650 300" />
+                <line id="scene1-hl-switch" class="wire-highlight" x1="200" y1="350" x2="300" y2="350" />
+                <line id="scene1-hl-l2" class="wire-highlight" x1="550" y1="150" x2="650" y2="150" />
+                <line id="scene1-hl-l1" class="wire-highlight" x1="550" y1="300" x2="650" y2="300" />
+            </g>
+
+            <!-- Wires Layer -->
+            <g id="scene1-wires">
+                <path id="scene1-wire-neg" class="wire" d="M 200 100 C 100 100, 100 350, 200 350" />
+                <path id="scene1-wire-pos" class="wire" d="M 400 100 C 500 100, 650 80, 650 150" />
+                <path id="scene1-wire-a" class="wire" d="M 550 150 C 480 180, 480 270, 550 300" />
+                <path id="scene1-wire-b" class="wire" d="M 650 150 C 720 180, 720 270, 650 300" />
+                <path id="scene1-wire-m" class="wire" d="M 300 350 C 400 420, 600 420, 650 300" />
+            </g>
+
+            <!-- Components Layer -->
+            <g id="scene1-components">
+                <!-- Battery -->
+                <rect x="180" y="80" width="240" height="40" fill="#e0e0e0" stroke="#999" />
+                <rect x="220" y="70" width="160" height="40" fill="#757575" stroke="#333" />
+                <circle cx="200" cy="100" r="6" fill="#000" />
+                <circle cx="400" cy="100" r="6" fill="#000" />
+                <text x="170" y="75" class="label">-</text>
+                <text x="430" y="75" class="label">+</text>
+
+                <!-- Switch -->
+                <rect x="180" y="340" width="140" height="20" fill="#e0e0e0" stroke="#999" />
+                <circle cx="200" cy="350" r="6" fill="#000" />
+                <circle cx="300" cy="350" r="6" fill="#000" />
+                <line id="scene1-switch-blade" class="switch-blade" x1="200" y1="350" x2="280" y2="310" />
+                <text x="250" y="380" class="label" text-anchor="middle">S</text>
+
+                <!-- Lamp L2 -->
+                <rect x="530" y="140" width="140" height="20" fill="#e0e0e0" stroke="#999" />
+                <circle cx="550" cy="150" r="6" fill="#000" />
+                <circle cx="650" cy="150" r="6" fill="#000" />
+                <circle id="scene1-l2-glow" class="lamp-glow" cx="600" cy="110" r="25" />
+                <circle cx="600" cy="110" r="20" fill="none" stroke="#333" stroke-width="2" />
+                <path d="M 590 120 L 600 100 L 610 120" fill="none" stroke="#333" stroke-width="2" />
+                <text x="600" y="80" class="label" text-anchor="middle">L2</text>
+                <text x="510" y="145" class="label" text-anchor="end">C</text>
+                <text x="690" y="145" class="label" text-anchor="start">D</text>
+
+                <!-- Lamp L1 -->
+                <rect x="530" y="290" width="140" height="20" fill="#e0e0e0" stroke="#999" />
+                <circle cx="550" cy="300" r="6" fill="#000" />
+                <circle cx="650" cy="300" r="6" fill="#000" />
+                <circle id="scene1-l1-glow" class="lamp-glow" cx="600" cy="260" r="25" />
+                <circle cx="600" cy="260" r="20" fill="none" stroke="#333" stroke-width="2" />
+                <path d="M 590 270 L 600 250 L 610 270" fill="none" stroke="#333" stroke-width="2" />
+                <text x="600" y="230" class="label" text-anchor="middle">L1</text>
+                <text x="510" y="295" class="label" text-anchor="end">A</text>
+                <text x="690" y="295" class="label" text-anchor="start">B</text>
+
+                <!-- Wire Labels -->
+                <text x="470" y="230" class="label" text-anchor="end">a</text>
+                <text x="730" y="230" class="label" text-anchor="start">b</text>
+                <text id="scene1-label-m" x="450" y="415" class="label" text-anchor="middle">M</text>
+            </g>
+
+            <!-- Status Text -->
+            <text id="scene1-status" x="400" y="225" class="status-text"></text>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        
+        const switchBlade = document.getElementById('scene1-switch-blade');
+        const wireB = document.getElementById('scene1-wire-b');
+        const wireM = document.getElementById('scene1-wire-m');
+        const labelM = document.getElementById('scene1-label-m');
+        const statusText = document.getElementById('scene1-status');
+        const l1Glow = document.getElementById('scene1-l1-glow');
+        const l2Glow = document.getElementById('scene1-l2-glow');
+
+        const hlNeg = document.getElementById('scene1-hl-neg');
+        const hlPos = document.getElementById('scene1-hl-pos');
+        const hlA = document.getElementById('scene1-hl-a');
+        const hlB = document.getElementById('scene1-hl-b');
+        const hlM = document.getElementById('scene1-hl-m');
+        const hlSwitch = document.getElementById('scene1-hl-switch');
+        const hlL1 = document.getElementById('scene1-hl-l1');
+        const hlL2 = document.getElementById('scene1-hl-l2');
+
+        function updateScene() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // Reset all highlights
+            const allHl = [hlNeg, hlPos, hlA, hlB, hlM, hlSwitch, hlL1, hlL2];
+            allHl.forEach(hl => {
+                hl.style.opacity = '0';
+                hl.style.stroke = 'none';
+            });
+            l1Glow.style.opacity = '0';
+            l2Glow.style.opacity = '0';
+            statusText.style.opacity = '0';
+
+            // Reset wire shapes and styles
+            wireB.style.strokeDasharray = 'none';
+            wireB.style.stroke = '#000';
+            wireM.setAttribute('d', 'M 300 350 C 400 420, 600 420, 650 300');
+            hlM.setAttribute('d', 'M 300 350 C 400 420, 600 420, 650 300');
+            labelM.setAttribute('x', '450');
+            labelM.setAttribute('y', '415');
+
+            if (currentStep === 0) {
+                switchBlade.setAttribute('x2', '280');
+                switchBlade.setAttribute('y2', '310');
+            } else if (currentStep === 1) {
+                switchBlade.setAttribute('x2', '300');
+                switchBlade.setAttribute('y2', '350');
+                
+                // Short circuit
+                [hlPos, hlB, hlM, hlSwitch, hlNeg].forEach(hl => {
+                    hl.style.opacity = '0.5';
+                    hl.style.stroke = '#c62828';
+                });
+                
+                statusText.textContent = '电源短路';
+                statusText.style.fill = '#c62828';
+                statusText.style.opacity = '1';
+            } else if (currentStep === 2) {
+                switchBlade.setAttribute('x2', '300');
+                switchBlade.setAttribute('y2', '350');
+                
+                // Remove wire b
+                wireB.style.strokeDasharray = '5,5';
+                wireB.style.stroke = '#888';
+                
+                // Series circuit
+                [hlPos, hlL2, hlA, hlL1, hlM, hlSwitch, hlNeg].forEach(hl => {
+                    hl.style.opacity = '0.5';
+                    hl.style.stroke = '#1565c0';
+                });
+                
+                l1Glow.style.opacity = '0.5';
+                l2Glow.style.opacity = '0.5';
+                
+                statusText.textContent = '串联';
+                statusText.style.fill = '#1565c0';
+                statusText.style.opacity = '1';
+            } else if (currentStep === 3) {
+                switchBlade.setAttribute('x2', '300');
+                switchBlade.setAttribute('y2', '350');
+                
+                // Move wire M
+                wireM.setAttribute('d', 'M 300 350 C 400 380, 480 380, 550 300');
+                hlM.setAttribute('d', 'M 300 350 C 400 380, 480 380, 550 300');
+                labelM.setAttribute('x', '430');
+                labelM.setAttribute('y', '395');
+                
+                // Parallel circuit
+                // Main circuit: green
+                [hlPos, hlM, hlSwitch, hlNeg].forEach(hl => {
+                    hl.style.opacity = '0.5';
+                    hl.style.stroke = '#2e7d32';
+                });
+                // Branches: blue
+                [hlA, hlL2, hlB, hlL1].forEach(hl => {
+                    hl.style.opacity = '0.5';
+                    hl.style.stroke = '#1565c0';
+                });
+                
+                l1Glow.style.opacity = '0.5';
+                l2Glow.style.opacity = '0.5';
+                
+                statusText.textContent = '并联';
+                statusText.style.fill = '#2e7d32';
+                statusText.style.opacity = '1';
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

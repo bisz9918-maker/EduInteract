@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昆虫生长发育阶段图 - Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene1-prev-btn, #scene1-next-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        #scene1-prev-btn:hover, #scene1-next-btn:hover { background: #e0e0e0; }
+        #scene1-prev-btn:disabled, #scene1-next-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene1-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#000000" />
+                </marker>
+            </defs>
+            
+            <!-- 箭头线段：A→B→D→C→A 菱形循环 -->
+            <line id="scene1-arrow-ab" x1="400" y1="80" x2="200" y2="250" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            <line id="scene1-arrow-bd" x1="200" y1="250" x2="400" y2="420" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            <line id="scene1-arrow-dc" x1="400" y1="420" x2="600" y2="250" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            <line id="scene1-arrow-ca" x1="600" y1="250" x2="400" y2="80" stroke="#000000" stroke-width="2" marker-end="url(#scene1-arrowhead)" />
+            
+            <!-- 顶点圆点 -->
+            <circle id="scene1-vertex-a" cx="400" cy="80" r="5" fill="#000000" />
+            <circle id="scene1-vertex-b" cx="200" cy="250" r="5" fill="#000000" />
+            <circle id="scene1-vertex-d" cx="400" cy="420" r="5" fill="#000000" />
+            <circle id="scene1-vertex-c" cx="600" cy="250" r="5" fill="#000000" />
+            
+            <!-- 点标签 -->
+            <text id="scene1-label-a" x="400" y="60" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">A</text>
+            <text id="scene1-label-b" x="170" y="250" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">B</text>
+            <text id="scene1-label-d" x="400" y="445" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">D</text>
+            <text id="scene1-label-c" x="630" y="250" text-anchor="middle" font-size="16" font-weight="bold" fill="#000000">C</text>
+            
+            <!-- 阶段说明标签（初始隐藏） -->
+            <text id="scene1-label-stage-a" x="400" y="125" text-anchor="middle" font-size="14" fill="#000000" style="display:none">卵</text>
+            <text id="scene1-label-stage-b" x="135" y="295" text-anchor="middle" font-size="14" fill="#000000" style="display:none">幼虫/若虫</text>
+            <text id="scene1-label-stage-d" x="340" y="405" text-anchor="middle" font-size="14" fill="#000000" style="display:none">蛹/成虫</text>
+            <text id="scene1-label-stage-c" x="645" y="295" text-anchor="middle" font-size="14" fill="#000000" style="display:none">成虫</text>
+            
+            <!-- 高亮填充（初始隐藏） -->
+            <circle id="scene1-highlight-a" cx="400" cy="80" r="15" fill="#1565c0" opacity="0.2" style="display:none" />
+            <circle id="scene1-highlight-b" cx="200" cy="250" r="15" fill="#1565c0" opacity="0.2" style="display:none" />
+            <circle id="scene1-highlight-d" cx="400" cy="420" r="15" fill="#1565c0" opacity="0.2" style="display:none" />
+            <circle id="scene1-highlight-c" cx="600" cy="250" r="15" fill="#1565c0" opacity="0.2" style="display:none" />
+        </svg>
+        
+        <!-- 控件栏 -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn">◀上一步</button>
+            <button id="scene1-next-btn">下一步▶</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Scene 1: 昆虫生长发育周期通用模型
+        // 布局坐标表（调整后）：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // |------|------|-----------|------|-------------|------|
+        // | A 顶点 | 圆点 | (400,80) | 10×10 | - | 顶部顶点 |
+        // | B 顶点 | 圆点 | (200,250) | 10×10 | - | 左侧顶点 |
+        // | D 顶点 | 圆点 | (400,420) | 10×10 | - | 底部顶点 |
+        // | C 顶点 | 圆点 | (600,250) | 10×10 | - | 右侧顶点 |
+        // | A 点标签 | text | (400,60) | 20×20 | 上方 | 顶点上方 20px |
+        // | B 点标签 | text | (170,250) | 20×20 | 左侧 | 顶点左侧 30px |
+        // | D 点标签 | text | (400,445) | 20×20 | 下方 | 顶点下方 25px |
+        // | C 点标签 | text | (630,250) | 20×20 | 右侧 | 顶点右侧 30px |
+        // | A 阶段标签 | text | (400,125) | 60×20 | 下方 | "卵"，在 A 点下方，远离线段 |
+        // | B 阶段标签 | text | (135,295) | 80×20 | 左下方 | "幼虫/若虫"，在 B 点左下方，更远 |
+        // | D 阶段标签 | text | (340,405) | 80×20 | 左上方 | "蛹/成虫"，在 D 点左上方，远离线段 |
+        // | C 阶段标签 | text | (645,295) | 60×20 | 右下方 | "成虫"，在 C 点右下方，更远 |
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 5;
+
+        // 获取 DOM 元素
+        const prevBtn = document.getElementById('scene1-prev-btn');
+        const nextBtn = document.getElementById('scene1-next-btn');
+        const highlightA = document.getElementById('scene1-highlight-a');
+        const highlightB = document.getElementById('scene1-highlight-b');
+        const highlightD = document.getElementById('scene1-highlight-d');
+        const highlightC = document.getElementById('scene1-highlight-c');
+        const stageLabelA = document.getElementById('scene1-label-stage-a');
+        const stageLabelB = document.getElementById('scene1-label-stage-b');
+        const stageLabelD = document.getElementById('scene1-label-stage-d');
+        const stageLabelC = document.getElementById('scene1-label-stage-c');
+
+        // 工具函数：显示元素（同时处理 display 和 opacity）
+        function show(el) {
+            el.style.display = 'block';
+            el.style.opacity = '1';
+        }
+
+        // 工具函数：隐藏元素
+        function hide(el) {
+            el.style.display = 'none';
+            el.style.opacity = '0';
+        }
+
+        // 更新场景状态
+        function updateScene() {
+            // 重置所有高亮
+            hide(highlightA);
+            hide(highlightB);
+            hide(highlightD);
+            hide(highlightC);
+
+            // 重置所有阶段标签
+            hide(stageLabelA);
+            hide(stageLabelB);
+            hide(stageLabelD);
+            hide(stageLabelC);
+
+            // 根据当前步骤显示对应元素
+            switch(currentStep) {
+                case 0:
+                    // 初始状态：只显示菱形结构和点标签
+                    break;
+                case 1:
+                    // 高亮 A，显示"卵"
+                    show(highlightA);
+                    show(stageLabelA);
+                    break;
+                case 2:
+                    // 高亮 B，显示"幼虫/若虫"
+                    show(highlightB);
+                    show(stageLabelB);
+                    break;
+                case 3:
+                    // 高亮 D，显示"蛹/成虫"
+                    show(highlightD);
+                    show(stageLabelD);
+                    break;
+                case 4:
+                    // 高亮 C，显示"成虫"
+                    show(highlightC);
+                    show(stageLabelC);
+                    break;
+                case 5:
+                    // 最终状态：显示所有阶段标签
+                    show(stageLabelA);
+                    show(stageLabelB);
+                    show(stageLabelD);
+                    show(stageLabelC);
+                    break;
+            }
+
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            nextBtn.disabled = (currentStep === totalSteps);
+        }
+
+        // 按钮事件监听
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // 初始化场景
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

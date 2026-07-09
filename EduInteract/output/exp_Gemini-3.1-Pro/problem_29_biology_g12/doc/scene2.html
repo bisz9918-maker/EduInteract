@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        
+        .scene2-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            user-select: none;
+        }
+        .scene2-btn:hover { background: #e0e0e0; }
+        .scene2-btn:disabled { background: #fafafa; color: #aaa; cursor: not-allowed; border-color: #eee; }
+
+        .scene2-fade { transition: opacity 0.3s ease; }
+        
+        #scene2-stats-panel {
+            position: absolute;
+            top: 80px;
+            left: 560px;
+            width: 220px;
+            height: 280px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-sizing: border-box;
+            font-size: 14px;
+            line-height: 1.8;
+            z-index: 5;
+        }
+
+        #scene2-summary-panel {
+            position: absolute;
+            top: 120px;
+            left: 70px;
+            width: 460px;
+            height: 240px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #c62828;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+            font-size: 16px;
+            line-height: 1.8;
+            z-index: 6;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: none;
+            opacity: 0;
+        }
+
+        .scene2-highlight { color: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 图例 -->
+            <g id="scene2-legend">
+                <line x1="560" y1="35" x2="590" y2="35" stroke="#000000" stroke-width="3" />
+                <text x="600" y="40" font-size="14" fill="#000000">未标记母链</text>
+                <line x1="560" y1="55" x2="590" y2="55" stroke="#c62828" stroke-width="3" />
+                <text x="600" y="60" font-size="14" fill="#000000">32P标记新链</text>
+            </g>
+
+            <!-- 循环标签 -->
+            <g id="scene2-labels">
+                <text x="20" y="65" font-size="14" fill="#000000" class="scene2-fade" id="scene2-label-0">0次循环</text>
+                <text x="20" y="155" font-size="14" fill="#000000" class="scene2-fade" id="scene2-label-1" opacity="0">1次循环</text>
+                <text x="20" y="245" font-size="14" fill="#000000" class="scene2-fade" id="scene2-label-2" opacity="0">2次循环</text>
+                <text x="20" y="335" font-size="14" fill="#000000" class="scene2-fade" id="scene2-label-3" opacity="0">3次循环</text>
+            </g>
+
+            <!-- 树状图组 -->
+            <g id="scene2-tree-group" class="scene2-fade">
+                <!-- 连线层 -->
+                <g id="scene2-lines"></g>
+                <!-- DNA层 -->
+                <g id="scene2-dnas"></g>
+            </g>
+        </svg>
+
+        <!-- 统计面板 -->
+        <div id="scene2-stats-panel">
+            <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">数据统计</div>
+            <div>当前循环次数：<span id="scene2-stat-n">0</span></div>
+            <div>总单链数：<span id="scene2-stat-total">2</span></div>
+            <div>未标记单链数：<span id="scene2-stat-unmarked" class="scene2-highlight">2</span></div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc;">
+                不含放射性单链比例：<br>
+                <div style="text-align: center; font-size: 18px; margin-top: 5px;" id="scene2-stat-ratio" class="scene2-highlight">1</div>
+            </div>
+        </div>
+
+        <!-- 规律总结面板 -->
+        <div id="scene2-summary-panel" class="scene2-fade">
+            <h3 style="margin-top: 0; color: #c62828; text-align: center;">DNA 复制规律总结</h3>
+            <ul>
+                <li>DNA 复制方式为 <b>半保留复制</b>。</li>
+                <li>无论复制多少次，最初的 2 条母链始终保留。</li>
+                <li>经过 $n$ 次循环后：
+                    <ul>
+                        <li>DNA 分子总数：$2^n$</li>
+                        <li>总单链数：$2 	imes 2^n = 2^{n+1}$</li>
+                        <li>未标记单链数（母链）：<span class="scene2-highlight">2</span></li>
+                    </ul>
+                </li>
+            </ul>
+            <div style="text-align: center; margin-top: 15px; padding: 10px; background: #ffeeee; border-radius: 4px;">
+                不含放射性的单链占总单链的比例 = $rac{2}{2^{n+1}} = rac{1}{2^n}$
+            </div>
+        </div>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" class="scene2-btn" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next" class="scene2-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const dnas = [
+            // C0
+            { id: 'c0_0', step: 0, x: 320, y: 60, topColor: '#000000', bottomColor: '#000000' },
+            // C1
+            { id: 'c1_0', step: 1, x: 200, y: 150, topColor: '#000000', bottomColor: '#c62828', parent: 'c0_0', parentStrand: 'top' },
+            { id: 'c1_1', step: 1, x: 440, y: 150, topColor: '#c62828', bottomColor: '#000000', parent: 'c0_0', parentStrand: 'bottom' },
+            // C2
+            { id: 'c2_0', step: 2, x: 140, y: 240, topColor: '#000000', bottomColor: '#c62828', parent: 'c1_0', parentStrand: 'top' },
+            { id: 'c2_1', step: 2, x: 260, y: 240, topColor: '#c62828', bottomColor: '#c62828', parent: 'c1_0', parentStrand: 'bottom' },
+            { id: 'c2_2', step: 2, x: 380, y: 240, topColor: '#c62828', bottomColor: '#c62828', parent: 'c1_1', parentStrand: 'top' },
+            { id: 'c2_3', step: 2, x: 500, y: 240, topColor: '#c62828', bottomColor: '#000000', parent: 'c1_1', parentStrand: 'bottom' },
+            // C3
+            { id: 'c3_0', step: 3, x: 110, y: 330, topColor: '#000000', bottomColor: '#c62828', parent: 'c2_0', parentStrand: 'top' },
+            { id: 'c3_1', step: 3, x: 170, y: 330, topColor: '#c62828', bottomColor: '#c62828', parent: 'c2_0', parentStrand: 'bottom' },
+            { id: 'c3_2', step: 3, x: 230, y: 330, topColor: '#c62828', bottomColor: '#c62828', parent: 'c2_1', parentStrand: 'top' },
+            { id: 'c3_3', step: 3, x: 290, y: 330, topColor: '#c62828', bottomColor: '#c62828', parent: 'c2_1', parentStrand: 'bottom' },
+            { id: 'c3_4', step: 3, x: 350, y: 330, topColor: '#c62828', bottomColor: '#c62828', parent: 'c2_2', parentStrand: 'top' },
+            { id: 'c3_5', step: 3, x: 410, y: 330, topColor: '#c62828', bottomColor: '#c62828', parent: 'c2_2', parentStrand: 'bottom' },
+            { id: 'c3_6', step: 3, x: 470, y: 330, topColor: '#c62828', bottomColor: '#c62828', parent: 'c2_3', parentStrand: 'top' },
+            { id: 'c3_7', step: 3, x: 530, y: 330, topColor: '#c62828', bottomColor: '#000000', parent: 'c2_3', parentStrand: 'bottom' }
+        ];
+
+        const linesGroup = document.getElementById('scene2-lines');
+        const dnasGroup = document.getElementById('scene2-dnas');
+        
+        // 绘制DNA和连线
+        dnas.forEach(dna => {
+            // 绘制连线
+            if (dna.parent) {
+                const parentDna = dnas.find(d => d.id === dna.parent);
+                const py = parentDna.y + (dna.parentStrand === 'top' ? -3 : 3);
+                const cy = dna.y + (dna.parentStrand === 'top' ? -3 : 3); // 子代保留的母链位置
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', parentDna.x + 15);
+                line.setAttribute('y1', py);
+                line.setAttribute('x2', dna.x + 15);
+                line.setAttribute('y2', cy);
+                line.setAttribute('stroke', '#888888');
+                line.setAttribute('stroke-width', '1');
+                line.setAttribute('stroke-dasharray', '4,4');
+                line.setAttribute('class', `scene2-fade scene2-step-${dna.step}`);
+                line.setAttribute('opacity', '0');
+                linesGroup.appendChild(line);
+            }
+
+            // 绘制DNA双链
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('class', `scene2-fade scene2-step-${dna.step}`);
+            g.setAttribute('opacity', dna.step === 0 ? '1' : '0');
+            
+            const topStrand = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            topStrand.setAttribute('x1', dna.x);
+            topStrand.setAttribute('y1', dna.y - 3);
+            topStrand.setAttribute('x2', dna.x + 30);
+            topStrand.setAttribute('y2', dna.y - 3);
+            topStrand.setAttribute('stroke', dna.topColor);
+            topStrand.setAttribute('stroke-width', '3');
+            
+            const bottomStrand = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            bottomStrand.setAttribute('x1', dna.x);
+            bottomStrand.setAttribute('y1', dna.y + 3);
+            bottomStrand.setAttribute('x2', dna.x + 30);
+            bottomStrand.setAttribute('y2', dna.y + 3);
+            bottomStrand.setAttribute('stroke', dna.bottomColor);
+            bottomStrand.setAttribute('stroke-width', '3');
+            
+            g.appendChild(topStrand);
+            g.appendChild(bottomStrand);
+            dnasGroup.appendChild(g);
+        });
+
+        let currentStep = 0;
+        const maxStep = 4;
+        const btnPrev = document.getElementById('scene2-btn-prev');
+        const btnNext = document.getElementById('scene2-btn-next');
+        const treeGroup = document.getElementById('scene2-tree-group');
+        const summaryPanel = document.getElementById('scene2-summary-panel');
+        
+        const statN = document.getElementById('scene2-stat-n');
+        const statTotal = document.getElementById('scene2-stat-total');
+        const statRatio = document.getElementById('scene2-stat-ratio');
+
+        function updateState() {
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+
+            // 更新标签和DNA显示
+            for (let i = 1; i <= 3; i++) {
+                const label = document.getElementById(`scene2-label-${i}`);
+                const elements = document.querySelectorAll(`.scene2-step-${i}`);
+                
+                const isVisible = currentStep >= i;
+                label.setAttribute('opacity', isVisible ? '1' : '0');
+                elements.forEach(el => el.setAttribute('opacity', isVisible ? '1' : '0'));
+            }
+
+            // 更新统计数据
+            if (currentStep < 4) {
+                statN.innerHTML = currentStep;
+                statTotal.innerHTML = Math.pow(2, currentStep + 1);
+                
+                if (currentStep === 0) statRatio.innerHTML = '1';
+                else if (currentStep === 1) statRatio.innerHTML = '1/2';
+                else if (currentStep === 2) statRatio.innerHTML = '1/4';
+                else if (currentStep === 3) statRatio.innerHTML = '1/8';
+            } else {
+                statN.innerHTML = '$n$';
+                statTotal.innerHTML = '$2^{n+1}$';
+                statRatio.innerHTML = '$\frac{1}{2^n}$';
+                // 触发 MathJax 重新渲染
+                if (window.MathJax) {
+                    MathJax.typesetPromise([statN, statTotal, statRatio]);
+                }
+            }
+
+            // 步骤4特殊处理
+            if (currentStep === 4) {
+                treeGroup.style.opacity = '0.1';
+                summaryPanel.style.display = 'block';
+                // 强制重绘以应用过渡
+                summaryPanel.offsetHeight;
+                summaryPanel.style.opacity = '1';
+            } else {
+                treeGroup.style.opacity = '1';
+                summaryPanel.style.opacity = '0';
+                setTimeout(() => {
+                    if (currentStep !== 4) summaryPanel.style.display = 'none';
+                }, 300);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateState();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateState();
+            }
+        });
+
+        // 初始渲染 MathJax
+        if (window.MathJax) {
+            MathJax.typesetPromise();
+        }
+    })();
+    </script>
+</body>
+</html>

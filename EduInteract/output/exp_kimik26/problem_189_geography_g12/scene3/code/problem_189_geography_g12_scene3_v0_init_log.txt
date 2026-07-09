@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 3 - 东西半球晨昏线关系与经度、地方时计算</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene3-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene3-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene3-btn-prev, #scene3-btn-next {
+            padding: 6px 16px;
+            font-size: 14px;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        }
+        #scene3-btn-prev { background: #f0f0f0; color: #333333; }
+        #scene3-btn-prev:hover:not(:disabled) { background: #e0e0e0; }
+        #scene3-btn-next { background: #1565c0; color: #ffffff; border-color: #1565c0; }
+        #scene3-btn-next:hover:not(:disabled) { background: #0d47a1; }
+        #scene3-btn-prev:disabled, #scene3-btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene3-step-label { font-size: 14px; color: #666666; min-width: 70px; text-align: center; }
+        .scene3-dynamic { display: none; }
+    </style>
+</head>
+<body>
+    <div id="scene3-container">
+        <svg width="800" height="500" viewBox="0 0 800 500" style="display:block;">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="scene3-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#f9a825" />
+                </marker>
+            </defs>
+
+            <!-- ===== 静态基础元素（所有步骤均显示） ===== -->
+            <!-- 地球圆 -->
+            <circle id="scene3-earth" cx="280" cy="220" r="170" stroke="#000000" stroke-width="2" fill="none" />
+            <!-- 地轴 -->
+            <line id="scene3-axis" x1="280" y1="30" x2="280" y2="410" stroke="#000000" stroke-width="2" />
+            <!-- N/S 标签（偏移地轴避免重叠） -->
+            <text id="scene3-label-n" x="400" y="48" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">N</text>
+            <text id="scene3-label-s" x="400" y="445" text-anchor="middle" font-size="16" fill="#000000" font-weight="bold">S</text>
+            <!-- 赤道 -->
+            <line id="scene3-equator" x1="110" y1="220" x2="450" y2="220" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+            <text id="scene3-label-equator" x="460" y="255" font-size="14" fill="#333333">赤道</text>
+            <!-- 北回归线 -->
+            <line id="scene3-tropic-n" x1="110" y1="152" x2="450" y2="152" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+            <text id="scene3-label-tropic-n" x="460" y="140" font-size="14" fill="#333333">北回归线</text>
+            <!-- 南回归线 -->
+            <line id="scene3-tropic-s" x1="110" y1="288" x2="450" y2="288" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+            <text id="scene3-label-tropic-s" x="460" y="330" font-size="14" fill="#333333">南回归线</text>
+            <!-- 太阳光线 -->
+            <g id="scene3-sunrays">
+                <line x1="470" y1="140" x2="530" y2="140" stroke="#f9a825" stroke-width="2" marker-end="url(#scene3-arrowhead)" />
+                <line x1="470" y1="180" x2="530" y2="180" stroke="#f9a825" stroke-width="2" marker-end="url(#scene3-arrowhead)" />
+                <line x1="470" y1="220" x2="530" y2="220" stroke="#f9a825" stroke-width="2" marker-end="url(#scene3-arrowhead)" />
+                <line x1="470" y1="260" x2="530" y2="260" stroke="#f9a825" stroke-width="2" marker-end="url(#scene3-arrowhead)" />
+                <line x1="470" y1="300" x2="530" y2="300" stroke="#f9a825" stroke-width="2" marker-end="url(#scene3-arrowhead)" />
+            </g>
+            <text id="scene3-label-sunrays" x="460" y="380" font-size="14" fill="#f9a825">太阳光线</text>
+
+            <!-- ===== 动态元素：步骤1 东西半球分界线 ===== -->
+            <g id="scene3-step1-group" class="scene3-dynamic">
+                <!-- 0°经线 -->
+                <line id="scene3-meridian-0" x1="120" y1="163" x2="120" y2="277" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" />
+                <!-- 70°E经线（蓝色粗线） -->
+                <line id="scene3-meridian-70e" x1="280" y1="50" x2="280" y2="390" stroke="#1565c0" stroke-width="2" />
+                <!-- 120°E经线 -->
+                <line id="scene3-meridian-120e" x1="410" y1="111" x2="410" y2="330" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" />
+                <!-- 20°W标注 -->
+                <text id="scene3-label-20w" x="70" y="270" text-anchor="middle" font-size="14" fill="#333333">20°W</text>
+                <!-- 160°E标注 -->
+                <text id="scene3-label-160e" x="480" y="95" text-anchor="middle" font-size="14" fill="#333333">160°E</text>
+                <!-- 东半球文字 -->
+                <text id="scene3-label-east-hemi" x="200" y="420" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold">东半球</text>
+                <!-- 西半球文字 -->
+                <text id="scene3-label-west-hemi" x="450" y="420" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">西半球（背面）</text>
+            </g>
+
+            <!-- ===== 动态元素：步骤2 东半球全黑夜 ===== -->
+            <g id="scene3-step2-group" class="scene3-dynamic">
+                <!-- 夜半球填充 -->
+                <circle id="scene3-night-fill" cx="280" cy="220" r="170" fill="#1565c0" fill-opacity="0.15" stroke="none" />
+                <!-- 昏线18:00 -->
+                <text id="scene3-label-dusk" x="70" y="270" text-anchor="middle" font-size="13" fill="#1565c0" font-weight="bold">昏线 18:00</text>
+                <!-- 晨线6:00 -->
+                <text id="scene3-label-dawn" x="580" y="310" text-anchor="middle" font-size="13" fill="#1565c0" font-weight="bold">晨线 6:00</text>
+            </g>
+
+            <!-- ===== 动态元素：步骤3 夜半球中央经线与太阳直射点 ===== -->
+            <g id="scene3-step3-group" class="scene3-dynamic">
+                <!-- 午夜0:00标注（圆外上方，引线指向，避开N标签） -->
+                <line x1="280" y1="100" x2="400" y2="28" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" />
+                <text id="scene3-label-70e-midnight" x="400" y="28" font-size="13" fill="#1565c0" font-weight="bold">午夜 0:00</text>
+                <!-- 太阳标记 -->
+                <g id="scene3-sun-marker">
+                    <circle cx="470" cy="220" r="12" fill="#f9a825" />
+                    <!-- 光芒 -->
+                    <line x1="470" y1="200" x2="470" y2="190" stroke="#f9a825" stroke-width="2" />
+                    <line x1="470" y1="240" x2="470" y2="250" stroke="#f9a825" stroke-width="2" />
+                    <line x1="450" y1="220" x2="440" y2="220" stroke="#f9a825" stroke-width="2" />
+                    <line x1="490" y1="220" x2="500" y2="220" stroke="#f9a825" stroke-width="2" />
+                    <line x1="456" y1="206" x2="449" y2="199" stroke="#f9a825" stroke-width="2" />
+                    <line x1="484" y1="234" x2="491" y2="241" stroke="#f9a825" stroke-width="2" />
+                    <line x1="484" y1="206" x2="491" y2="199" stroke="#f9a825" stroke-width="2" />
+                    <line x1="456" y1="234" x2="449" y2="241" stroke="#f9a825" stroke-width="2" />
+                </g>
+                <!-- 右侧标签列 -->
+                <text id="scene3-label-110w" x="580" y="105" text-anchor="middle" font-size="13" fill="#c62828" font-weight="bold">110°W</text>
+                <text id="scene3-label-sun-noon" x="580" y="145" text-anchor="middle" font-size="13" fill="#c62828" font-weight="bold">太阳直射 12:00</text>
+                <text id="scene3-label-e-point" x="580" y="380" text-anchor="middle" font-size="13" fill="#c62828" font-weight="bold">E点</text>
+                <!-- 引导虚线 -->
+                <line id="scene3-guide-line" x1="450" y1="220" x2="450" y2="220" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+            </g>
+
+            <!-- ===== 动态元素：步骤4 B/E对跖关系 ===== -->
+            <g id="scene3-step4-group" class="scene3-dynamic">
+                <!-- B点标记 -->
+                <circle id="scene3-point-b" cx="280" cy="220" r="6" fill="#1565c0" />
+                <!-- B点标签（圆外下方，引线指向，远离西半球文字） -->
+                <line x1="280" y1="290" x2="560" y2="460" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" />
+                <text id="scene3-label-b-point" x="560" y="460" font-size="13" fill="#1565c0" font-weight="bold">B点 70°E</text>
+                <!-- E点标记（太阳标记中心） -->
+                <circle id="scene3-point-e" cx="470" cy="220" r="6" fill="#c62828" />
+                <!-- B-E对跖连线 -->
+                <line id="scene3-antipodal-line" x1="280" y1="220" x2="470" y2="220" stroke="#888888" stroke-width="1" stroke-dasharray="4,4" />
+                <!-- 对跖经线标注（圆外上方，引线指向，远离午夜标签和地球圆） -->
+                <line x1="375" y1="205" x2="560" y2="28" stroke="#888888" stroke-width="1" stroke-dasharray="3,3" />
+                <text id="scene3-label-antipodal" x="560" y="28" text-anchor="middle" font-size="13" fill="#333333" font-weight="bold">对跖经线 相差180°</text>
+            </g>
+
+            <!-- ===== 动态元素：步骤5 时间计算面板 ===== -->
+            <g id="scene3-step5-group" class="scene3-dynamic">
+                <!-- 面板左侧分隔线 -->
+                <line x1="600" y1="90" x2="600" y2="390" stroke="#cccccc" stroke-width="1" />
+                <!-- 面板标题 -->
+                <text id="scene3-time-panel-title" x="620" y="110" font-size="15" fill="#333333" font-weight="bold">时间计算流程</text>
+                <!-- 计算步骤 -->
+                <text id="scene3-calc-1" x="620" y="145" font-size="13" fill="#333333">① E点: 110°W（太阳直射）</text>
+                <text id="scene3-calc-2" x="620" y="180" font-size="13" fill="#333333">② 直射点地方时: 12:00</text>
+                <text id="scene3-calc-3" x="620" y="215" font-size="13" fill="#333333">③ 北京经度: 120°E</text>
+                <text id="scene3-calc-4" x="620" y="250" font-size="13" fill="#333333">④ 经度差 = 230°</text>
+                <text id="scene3-calc-5" x="620" y="285" font-size="13" fill="#333333">⑤ 时差 = 15小时20分钟</text>
+                <text id="scene3-calc-6" x="620" y="320" font-size="13" fill="#333333">⑥ 120°E在东侧，时间更早</text>
+                <text id="scene3-calc-7" x="620" y="355" font-size="13" fill="#333333">⑦ 12:00 + 15h20m = </text>
+                <!-- 计算结果 -->
+                <text id="scene3-calc-result" x="620" y="390" font-size="15" fill="#c62828" font-weight="bold">3月22日 3:20</text>
+            </g>
+        </svg>
+
+        <!-- 控件栏 -->
+        <div id="scene3-controls">
+            <button id="scene3-btn-prev" disabled>◀ 上一步</button>
+            <span id="scene3-step-label">步骤 1/6</span>
+            <button id="scene3-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 3 实现
+        const STEP_MAX = 5;
+        let currentStep = 0;
+
+        const btnPrev = document.getElementById('scene3-btn-prev');
+        const btnNext = document.getElementById('scene3-btn-next');
+        const stepLabel = document.getElementById('scene3-step-label');
+
+        // 各步骤对应的动态元素组
+        const stepGroups = [
+            null, // 步骤0无额外动态组（基础元素始终显示）
+            document.getElementById('scene3-step1-group'),
+            document.getElementById('scene3-step2-group'),
+            document.getElementById('scene3-step3-group'),
+            document.getElementById('scene3-step4-group'),
+            document.getElementById('scene3-step5-group')
+        ];
+
+        // 步骤1中需要在步骤2替换的标注
+        const label20w = document.getElementById('scene3-label-20w');
+        const label160e = document.getElementById('scene3-label-160e');
+        const labelDusk = document.getElementById('scene3-label-dusk');
+        const labelDawn = document.getElementById('scene3-label-dawn');
+
+        // 步骤3的右侧标签，在步骤5时需要隐藏以避免与时间面板重叠
+        const label110w = document.getElementById('scene3-label-110w');
+        const labelSunNoon = document.getElementById('scene3-label-sun-noon');
+        const labelEPoint = document.getElementById('scene3-label-e-point');
+
+        function setStep(step) {
+            if (step < 0 || step > STEP_MAX) return;
+            currentStep = step;
+
+            // 更新步骤标签
+            stepLabel.textContent = '步骤 ' + (currentStep + 1) + '/6';
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === STEP_MAX);
+
+            // 隐藏所有动态组
+            for (let i = 1; i <= STEP_MAX; i++) {
+                if (stepGroups[i]) {
+                    stepGroups[i].style.display = 'none';
+                }
+            }
+
+            // 显示当前步骤及之前的所有动态组（累积显示）
+            for (let i = 1; i <= currentStep; i++) {
+                if (stepGroups[i]) {
+                    stepGroups[i].style.display = 'block';
+                }
+            }
+
+            // 特殊处理：步骤2时隐藏步骤1的20°W和160°E标注，显示昏线/晨线
+            if (currentStep >= 2) {
+                if (label20w) label20w.style.display = 'none';
+                if (label160e) label160e.style.display = 'none';
+                if (labelDusk) labelDusk.style.display = 'block';
+                if (labelDawn) labelDawn.style.display = 'block';
+            } else {
+                if (label20w) label20w.style.display = 'block';
+                if (label160e) label160e.style.display = 'block';
+                if (labelDusk) labelDusk.style.display = 'none';
+                if (labelDawn) labelDawn.style.display = 'none';
+            }
+
+            // 步骤5时隐藏右侧标签，避免与时间面板重叠
+            if (currentStep >= 5) {
+                if (label110w) label110w.style.display = 'none';
+                if (labelSunNoon) labelSunNoon.style.display = 'none';
+                if (labelEPoint) labelEPoint.style.display = 'none';
+            } else {
+                if (label110w) label110w.style.display = 'block';
+                if (labelSunNoon) labelSunNoon.style.display = 'block';
+                if (labelEPoint) labelEPoint.style.display = 'block';
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            setStep(currentStep - 1);
+        });
+
+        btnNext.addEventListener('click', function() {
+            setStep(currentStep + 1);
+        });
+
+        // 初始化
+        setStep(0);
+    })();
+    </script>
+</body>
+</html>

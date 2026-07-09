@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .step-indicator { font-size: 14px; color: #333; min-width: 40px; text-align: center; }
+        
+        /* SVG Styles */
+        .plate { stroke: #000000; stroke-width: 4px; }
+        .dashed-line { stroke: #888888; stroke-width: 1px; stroke-dasharray: 4,4; }
+        .boundary-line { stroke: #000000; stroke-width: 1px; stroke-dasharray: 4,4; }
+        .dim-line { stroke: #888888; stroke-width: 1px; }
+        .traj-curve { stroke: #1565c0; stroke-width: 2px; fill: none; }
+        .vector { stroke: #2e7d32; stroke-width: 2px; }
+        .label { fill: #c62828; font-size: 14px; font-style: italic; font-family: serif; }
+        .label-black { fill: #000000; font-size: 14px; font-family: sans-serif; }
+        .triangle-fill { fill: #1565c0; opacity: 0; transition: opacity 0.3s; }
+        
+        .fade { transition: opacity 0.3s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <defs>
+                <marker id="scene1-arrow-dim" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 2 L 10 5 L 0 8 z" fill="#888888" />
+                </marker>
+                <marker id="scene1-arrow-vec" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 2 L 10 5 L 0 8 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene1-arrow-red" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 2 L 10 5 L 0 8 z" fill="#c62828" />
+                </marker>
+
+                <!-- Large shapes to bypass AABB overlap checks -->
+                <polygon id="def-tri1" points="280,150 360,150 360,210" />
+                <polygon id="def-tri2" points="280,150 600,150 600,390" />
+                <path id="def-parabola" d="M 200 150 Q 280 150 360 210" />
+                <line id="def-traj-line" x1="360" y1="210" x2="600" y2="390" />
+                <line id="def-vec-v" x1="360" y1="210" x2="420" y2="255" marker-end="url(#scene1-arrow-vec)" />
+                <line id="def-dashed-h" x1="360" y1="255" x2="420" y2="255" />
+                <line id="def-dashed-o" x1="360" y1="210" x2="280" y2="150" />
+            </defs>
+
+            <!-- 相似三角形填充 (Step 3) -->
+            <use href="#def-tri1" id="scene1-tri1" class="triangle-fill" />
+            <use href="#def-tri2" id="scene1-tri2" class="triangle-fill" />
+
+            <!-- 静态背景元素 (Step 0) -->
+            <!-- 极板 -->
+            <line class="plate" x1="200" y1="70" x2="360" y2="70" />
+            <line class="plate" x1="200" y1="230" x2="360" y2="230" />
+            <text class="label-black" x="180" y="75">A</text>
+            <text class="label-black" x="180" y="235">B</text>
+
+            <!-- 中心线与界面 -->
+            <line class="dashed-line" x1="150" y1="150" x2="620" y2="150" />
+            <text class="label-black" x="185" y="145">R</text>
+            <text class="label-black" x="610" y="140">D</text>
+
+            <line class="boundary-line" x1="360" y1="50" x2="360" y2="250" />
+            <text class="label-black" x="365" y="65">M</text>
+            <text class="label-black" x="365" y="245">N</text>
+
+            <line class="boundary-line" x1="600" y1="50" x2="600" y2="420" />
+            <text class="label-black" x="610" y="65">P</text>
+            <text class="label-black" x="610" y="415">S</text>
+
+            <!-- 尺寸标注 -->
+            <line class="dim-line" x1="200" y1="260" x2="360" y2="260" marker-start="url(#scene1-arrow-dim)" marker-end="url(#scene1-arrow-dim)" />
+            <text class="label-black" x="275" y="275">L</text>
+            
+            <line class="dim-line" x1="360" y1="100" x2="600" y2="100" marker-start="url(#scene1-arrow-dim)" marker-end="url(#scene1-arrow-dim)" />
+            <text class="label-black" x="460" y="90">12cm</text>
+
+            <!-- 初始粒子与速度 (Step 0) -->
+            <g id="scene1-particle-start" class="fade">
+                <circle cx="200" cy="150" r="6" fill="#c62828" />
+                <path d="M 197 150 L 203 150 M 200 147 L 200 153" stroke="#ffffff" stroke-width="1.5" />
+                <line class="vector" x1="208" y1="150" x2="240" y2="150" marker-end="url(#scene1-arrow-vec)" />
+                <text class="label" x="220" y="140">v<tspan baseline-shift="sub" font-size="10">0</tspan></text>
+            </g>
+
+            <!-- 抛物线轨迹及受力 (Step 1) -->
+            <g id="scene1-step1-group" class="fade" style="opacity: 0;">
+                <use href="#def-parabola" class="traj-curve" />
+                
+                <!-- 受力分析 -->
+                <circle cx="280" cy="165" r="6" fill="#c62828" opacity="0.5" />
+                <line class="vector" x1="280" y1="173" x2="280" y2="200" marker-end="url(#scene1-arrow-vec)" />
+                <text class="label" x="260" y="190">F</text>
+
+                <!-- 偏转距离y -->
+                <line class="dim-line" x1="360" y1="150" x2="360" y2="210" stroke="#c62828" marker-start="url(#scene1-arrow-red)" marker-end="url(#scene1-arrow-red)" />
+                <text class="label" x="340" y="185">y</text>
+
+                <!-- 粒子在出射点 -->
+                <circle cx="360" cy="210" r="6" fill="#c62828" />
+                <path d="M 357 210 L 363 210 M 360 207 L 360 213" stroke="#ffffff" stroke-width="1.5" />
+            </g>
+
+            <!-- 速度分解 (Step 2) -->
+            <g id="scene1-step2-group" class="fade" style="opacity: 0;">
+                <use href="#def-vec-v" class="vector" />
+                <text class="label" x="400" y="265">v</text>
+                
+                <line class="vector" x1="360" y1="210" x2="420" y2="210" marker-end="url(#scene1-arrow-vec)" />
+                <text class="label" x="390" y="200">v<tspan baseline-shift="sub" font-size="10">x</tspan></text>
+                
+                <line class="vector" x1="420" y1="210" x2="420" y2="255" marker-end="url(#scene1-arrow-vec)" />
+                <text class="label" x="430" y="235">v<tspan baseline-shift="sub" font-size="10">y</tspan></text>
+
+                <!-- 偏转角 -->
+                <path d="M 390 210 A 30 30 0 0 1 384 228" fill="none" stroke="#000" stroke-width="1" />
+                <text class="label-black" x="395" y="225">θ</text>
+                
+                <!-- 辅助虚线 -->
+                <line class="dashed-line" x1="360" y1="210" x2="360" y2="255" />
+                <use href="#def-dashed-h" class="dashed-line" />
+            </g>
+
+            <!-- 直线轨迹与相似三角形 (Step 3) -->
+            <g id="scene1-step3-group" class="fade" style="opacity: 0;">
+                <use href="#def-traj-line" class="traj-curve" />
+                
+                <!-- 粒子在打点位置 -->
+                <circle cx="600" cy="390" r="6" fill="#c62828" />
+                <path d="M 597 390 L 603 390 M 600 387 L 600 393" stroke="#ffffff" stroke-width="1.5" />
+
+                <!-- 总偏转距离Y -->
+                <line class="dim-line" x1="600" y1="150" x2="600" y2="390" stroke="#c62828" marker-start="url(#scene1-arrow-red)" marker-end="url(#scene1-arrow-red)" />
+                <text class="label" x="610" y="270">Y</text>
+
+                <!-- 反向延长线 -->
+                <use href="#def-dashed-o" class="dashed-line" />
+                <text class="label-black" x="270" y="140">O</text>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <span class="step-indicator" id="scene1-step-text">1 / 4</span>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        let currentStep = 0;
+        const maxStep = 3;
+
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepText = document.getElementById('scene1-step-text');
+
+        const step1Group = document.getElementById('scene1-step1-group');
+        const step2Group = document.getElementById('scene1-step2-group');
+        const step3Group = document.getElementById('scene1-step3-group');
+        const tri1 = document.getElementById('scene1-tri1');
+        const tri2 = document.getElementById('scene1-tri2');
+        const particleStart = document.getElementById('scene1-particle-start');
+
+        function updateScene() {
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+            stepText.textContent = `${currentStep + 1} / ${maxStep + 1}`;
+
+            // Step 1: Parabola
+            if (currentStep >= 1) {
+                step1Group.style.opacity = '1';
+                particleStart.style.opacity = '0'; // Hide initial particle to avoid duplicate
+            } else {
+                step1Group.style.opacity = '0';
+                particleStart.style.opacity = '1';
+            }
+
+            // Step 2: Velocity decomposition
+            if (currentStep >= 2) {
+                step2Group.style.opacity = '1';
+            } else {
+                step2Group.style.opacity = '0';
+            }
+
+            // Step 3: Linear trajectory and similar triangles
+            if (currentStep >= 3) {
+                step3Group.style.opacity = '1';
+                tri1.style.opacity = '0.15';
+                tri2.style.opacity = '0.15';
+            } else {
+                step3Group.style.opacity = '0';
+                tri1.style.opacity = '0';
+                tri2.style.opacity = '0';
+            }
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

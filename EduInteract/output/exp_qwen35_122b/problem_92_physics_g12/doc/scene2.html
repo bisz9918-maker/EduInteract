@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 粒子在点电荷电场区域的运动</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #666; border-radius: 4px; background: #f5f5f5; }
+        #scene2-controls button:hover { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { position: absolute; bottom: 20px; right: 20px; font-size: 14px; color: #666; }
+        .hidden { display: none !important; opacity: 0 !important; }
+        .highlight { stroke: #ff9800 !important; stroke-width: 3 !important; }
+        .highlight-fill { fill: #ff9800 !important; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- 箭头标记定义 -->
+                <marker id="scene2-arrow-v" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32" />
+                </marker>
+                <marker id="scene2-arrow-f" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828" />
+                </marker>
+                <marker id="scene2-arrow-double" markerWidth="10" markerHeight="10" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L5,3 z M10,0 L10,6 L5,3 z" fill="#c62828" />
+                </marker>
+            </defs>
+
+            <!-- 中心线：水平虚线 #888888，y=250，从 x=200 到 x=750 -->
+            <line id="scene2-line-center" x1="200" y1="250" x2="750" y2="250" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- 界面 PS：竖直虚线 #888888，x=350，从 y=100 到 y=400 -->
+            <line id="scene2-line-ps" x1="350" y1="100" x2="350" y2="400" stroke="#888888" stroke-width="1" stroke-dasharray="5,5" />
+
+            <!-- 荧光屏 EF：水平实线 #000000，线宽 3px，y=250，从 x=550 到 x=720 -->
+            <line id="scene2-line-screen" x1="550" y1="250" x2="720" y2="250" stroke="#000000" stroke-width="3" />
+
+            <!-- 点电荷 O：实心圆 #c62828，半径 6px，中心 (500,250) -->
+            <circle id="scene2-circle-O" cx="500" cy="250" r="6" fill="#c62828" />
+
+            <!-- 粒子入射点 P_in：实心圆 #1565c0，半径 4px，中心 (350,190) -->
+            <circle id="scene2-circle-Pin" cx="350" cy="190" r="4" fill="#1565c0" />
+
+            <!-- 粒子出射点 E：实心圆 #1565c0，半径 4px，中心 (550,250) -->
+            <circle id="scene2-circle-E" cx="550" cy="250" r="4" fill="#1565c0" />
+
+            <!-- 粒子轨迹：贝塞尔曲线 #1565c0，线宽 2px，从 (350,190) 到 (550,250)，向中心线弯曲 -->
+            <!-- 调整轨迹使其避开标签区域：轨迹在 y=200 以上，标签在 y=215 以下 -->
+            <path id="scene2-path-trajectory" class="hidden" d="M 350 190 C 380 195, 420 200, 550 250" stroke="#1565c0" stroke-width="2" fill="none" />
+
+            <!-- 入射速度矢量 v1：箭头 #2e7d32，从 (350,190) 指向 (410,205) -->
+            <line id="scene2-line-v1" class="hidden" x1="350" y1="190" x2="400" y2="200" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow-v)" />
+
+            <!-- 出射速度矢量 v2：箭头 #2e7d32，从 (540,250) 指向 (610,250)，水平 -->
+            <line id="scene2-line-v2" class="hidden" x1="540" y1="250" x2="610" y2="250" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow-v)" />
+
+            <!-- 库仑力矢量 F：箭头 #c62828，从轨迹中点附近指向 O 点方向 -->
+            <line id="scene2-line-F" class="hidden" x1="400" y1="198" x2="460" y2="235" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-f)" />
+
+            <!-- 偏离距离线：双箭头竖线 #c62828，从 (330,190) 到 (330,250) -->
+            <line id="scene2-line-y" x1="330" y1="190" x2="330" y2="250" stroke="#c62828" stroke-width="1.5" />
+
+            <!-- 角度弧线：圆弧 #2e7d32，圆心 (365,245)，半径 20，从水平线到速度矢量 -->
+            <path id="scene2-path-angle" class="hidden" d="M 365 195 A 15 15 0 0 1 380 200" stroke="#2e7d32" stroke-width="1.5" fill="none" />
+
+            <!-- 直角符号：折线 #c62828，在 E 点处标记垂直 -->
+            <path id="scene2-path-rightangle" class="hidden" d="M 545 245 L 545 255 L 555 255" stroke="#c62828" stroke-width="2" fill="none" />
+
+            <!-- 标签 -->
+            <text id="scene2-text-P" x="335" y="100" font-size="16" fill="#000000">P</text>
+            <text id="scene2-text-S" x="335" y="400" font-size="16" fill="#000000">S</text>
+            <text id="scene2-text-O" x="512" y="245" font-size="16" fill="#000000">O</text>
+            <text id="scene2-text-E" x="555" y="235" font-size="16" fill="#000000">E</text>
+            <text id="scene2-text-F" x="720" y="235" font-size="16" fill="#000000">F</text>
+            <text id="scene2-text-Q" x="495" y="268" font-size="16" fill="#c62828">-Q</text>
+            <text id="scene2-text-y" x="305" y="220" font-size="14" fill="#c62828">y=12cm</text>
+            <text id="scene2-text-theta" class="hidden" x="365" y="185" font-size="16" fill="#2e7d32">θ</text>
+            <!-- 调整"垂直"标签位置，避开轨迹 -->
+            <text id="scene2-text-vertical" class="hidden" x="515" y="195" font-size="14" fill="#c62828">垂直</text>
+
+            <!-- 计算思路提示（步骤 4 显示） -->
+            <text id="scene2-text-hint" class="hidden" x="180" y="465" font-size="13" fill="#ff9800">计算思路：利用能量守恒或库仑力提供向心力计算 Q</text>
+        </svg>
+
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev">◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+        <div id="scene2-step-indicator">步骤 0/4</div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 2 实现
+        // 布局坐标表对照：
+        // | 元素 | 类型 | 位置/范围 | 大小 | 标签偏移方向 | 备注 |
+        // | 中心线 | 水平虚线 | (200,250)-(750,250) | 550×1 | - | 贯穿图示 |
+        // | 界面 PS | 竖直虚线 | (350,100)-(350,400) | 1×300 | - | 左侧边界 |
+        // | 荧光屏 EF | 水平实线 | (550,250)-(720,250) | 170×3 | - | 加粗实线 |
+        // | 点电荷 O | 实心圆 | (500,250) | 12×12 | 右上方 | 中心线上 |
+        // | 粒子入射点 P_in | 实心圆 | (350,190) | 8×8 | 左上方 | PS 线上，偏离中心线 60px |
+        // | 粒子出射点 E | 实心圆 | (550,250) | 8×8 | 右上方 | 荧光屏左端 |
+
+        const TOTAL_STEPS = 4;
+        let currentStep = 0;
+
+        // 元素 ID 映射表（按步骤分组）
+        const stepElements = {
+            0: [], // 初始状态：所有基础元素默认显示
+            1: ['scene2-path-trajectory', 'scene2-line-v1', 'scene2-path-angle', 'scene2-text-theta'],
+            2: ['scene2-line-v2', 'scene2-path-rightangle', 'scene2-text-vertical'],
+            3: ['scene2-line-F'],
+            4: ['scene2-text-hint']
+        };
+
+        // 高亮元素（步骤 3 和 4）
+        const highlightElements = {
+            3: ['scene2-circle-O', 'scene2-text-Q'],
+            4: ['scene2-path-trajectory', 'scene2-line-v1', 'scene2-line-v2', 'scene2-line-F']
+        };
+
+        // 工具函数：显示元素
+        function show(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.remove('hidden');
+                el.style.display = '';
+                el.style.opacity = '1';
+            }
+        }
+
+        // 工具函数：隐藏元素
+        function hide(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+                el.style.opacity = '0';
+            }
+        }
+
+        // 工具函数：高亮元素
+        function highlight(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.add('highlight');
+                if (el.tagName === 'circle' || el.tagName === 'text') {
+                    el.classList.add('highlight-fill');
+                }
+            }
+        }
+
+        // 工具函数：取消高亮
+        function unhighlight(elId) {
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.remove('highlight');
+                el.classList.remove('highlight-fill');
+            }
+        }
+
+        // 更新显示状态
+        function updateDisplay() {
+            // 重置所有步骤相关元素
+            for (let step = 1; step <= TOTAL_STEPS; step++) {
+                const elements = stepElements[step] || [];
+                elements.forEach(id => hide(id));
+            }
+
+            // 重置所有高亮
+            for (let step = 1; step <= TOTAL_STEPS; step++) {
+                const elements = highlightElements[step] || [];
+                elements.forEach(id => unhighlight(id));
+            }
+
+            // 显示当前步骤及之前的所有元素
+            for (let step = 1; step <= currentStep; step++) {
+                const elements = stepElements[step] || [];
+                elements.forEach(id => show(id));
+            }
+
+            // 应用当前步骤的高亮
+            const highlightList = highlightElements[currentStep] || [];
+            highlightList.forEach(id => highlight(id));
+
+            // 更新步骤指示器
+            document.getElementById('scene2-step-indicator').textContent = `步骤 ${currentStep}/${TOTAL_STEPS}`;
+
+            // 更新按钮状态
+            document.getElementById('scene2-btn-prev').disabled = (currentStep === 0);
+            document.getElementById('scene2-btn-next').disabled = (currentStep === TOTAL_STEPS);
+        }
+
+        // 按钮事件绑定
+        document.getElementById('scene2-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDisplay();
+            }
+        });
+
+        document.getElementById('scene2-btn-next').addEventListener('click', function() {
+            if (currentStep < TOTAL_STEPS) {
+                currentStep++;
+                updateDisplay();
+            }
+        });
+
+        // 初始化显示
+        updateDisplay();
+    })();
+    </script>
+</body>
+</html>

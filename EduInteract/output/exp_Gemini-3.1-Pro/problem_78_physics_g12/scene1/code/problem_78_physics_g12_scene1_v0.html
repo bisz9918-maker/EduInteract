@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双棒下落的运动学过程演示</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #e9e9e9; }
+        
+        .rail { stroke: #000; stroke-width: 3; stroke-linecap: round; }
+        .wire { stroke: #000; stroke-width: 3; }
+        .resistor { fill: #fff; stroke: #000; stroke-width: 2; }
+        .dashed-line { stroke: #888; stroke-width: 2; stroke-dasharray: 6,4; }
+        .magnetic-bound { stroke: #1565c0; stroke-width: 2; stroke-dasharray: 6,4; }
+        .cross { stroke: #1565c0; stroke-width: 2; stroke-linecap: round; }
+        .rod-a { stroke: #c62828; stroke-width: 6; stroke-linecap: round; transition: all 0.5s ease-in-out; }
+        .rod-b { stroke: #2e7d32; stroke-width: 6; stroke-linecap: round; transition: all 0.5s ease-in-out; }
+        .rod-label { font-size: 16px; font-weight: bold; font-style: italic; transition: all 0.5s ease-in-out; }
+        .label { font-size: 16px; font-style: italic; fill: #000; }
+        .label-blue { font-size: 16px; font-style: italic; fill: #1565c0; }
+        .arrow { stroke: #1565c0; stroke-width: 2; fill: none; transition: all 0.5s ease-in-out; }
+        .arrow-head { fill: #1565c0; }
+        .dim-arrow { stroke: #000; stroke-width: 1; fill: none; }
+        .dim-arrow-head { fill: #000; }
+        
+        .fade { transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out; }
+        .vel-text { transition: all 0.5s ease-in-out; }
+    </style>
+    <!-- MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg width="800" height="500" id="scene1-svg">
+            <!-- Definitions for arrowheads -->
+            <defs>
+                <marker id="scene1-arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" class="arrow-head" />
+                </marker>
+                <marker id="scene1-arrowhead-black-start" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" class="dim-arrow-head" />
+                </marker>
+                <marker id="scene1-arrowhead-black-end" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" class="dim-arrow-head" />
+                </marker>
+            </defs>
+
+            <!-- Rails and Top Wire -->
+            <line x1="300" y1="40" x2="300" y2="460" class="rail" />
+            <line x1="500" y1="40" x2="500" y2="460" class="rail" />
+            <line x1="300" y1="40" x2="370" y2="40" class="wire" />
+            <line x1="430" y1="40" x2="500" y2="40" class="wire" />
+            
+            <!-- Resistor -->
+            <rect x="370" y="30" width="60" height="20" class="resistor" />
+            <text x="400" y="20" text-anchor="middle" class="label">R</text>
+
+            <!-- Initial Positions M, N -->
+            <line x1="280" y1="110" x2="520" y2="110" class="dashed-line" />
+            <text x="530" y="115" class="label">M</text>
+            
+            <line x1="280" y1="180" x2="520" y2="180" class="dashed-line" />
+            <text x="530" y="185" class="label">N</text>
+
+            <!-- Magnetic Field Boundaries -->
+            <line x1="250" y1="300" x2="550" y2="300" class="magnetic-bound" />
+            <text x="560" y="305" class="label-blue">L<tspan dy="5" font-size="12">1</tspan></text>
+            
+            <line x1="250" y1="400" x2="550" y2="400" class="magnetic-bound" />
+            <text x="560" y="405" class="label-blue">L<tspan dy="5" font-size="12">2</tspan></text>
+
+            <!-- Magnetic Field Crosses -->
+            <g id="scene1-magnetic-crosses">
+                <!-- Generated via JS -->
+            </g>
+            <text x="350" y="355" class="label-blue">B</text>
+
+            <!-- Displacement d -->
+            <line x1="260" y1="300" x2="260" y2="400" class="dim-arrow" marker-start="url(#scene1-arrowhead-black-start)" marker-end="url(#scene1-arrowhead-black-end)" />
+            <text x="245" y="355" text-anchor="end" class="label">d</text>
+
+            <!-- Rods -->
+            <line id="scene1-rod-a" x1="300" y1="110" x2="500" y2="110" class="rod-a" />
+            <text id="scene1-label-a" x="400" y="100" text-anchor="middle" class="rod-label" fill="#c62828">a</text>
+            
+            <line id="scene1-rod-b" x1="300" y1="180" x2="500" y2="180" class="rod-b" />
+            <text id="scene1-label-b" x="400" y="170" text-anchor="middle" class="rod-label" fill="#2e7d32">b</text>
+
+            <!-- Velocities -->
+            <g id="scene1-vel-b" class="fade" style="opacity: 0; visibility: hidden;">
+                <line id="scene1-vel-b-line" x1="450" y1="300" x2="450" y2="330" class="arrow" marker-end="url(#scene1-arrowhead-blue)" />
+                <text id="scene1-vel-b-text" x="460" y="325" class="label-blue vel-text">v<tspan dy="5" font-size="12">b</tspan></text>
+            </g>
+            
+            <g id="scene1-vel-a" class="fade" style="opacity: 0; visibility: hidden;">
+                <line id="scene1-vel-a-line" x1="450" y1="300" x2="450" y2="340" class="arrow" marker-end="url(#scene1-arrowhead-blue)" />
+                <text id="scene1-vel-a-text" x="460" y="335" class="label-blue vel-text">v<tspan dy="5" font-size="12">a</tspan></text>
+            </g>
+        </svg>
+
+        <div id="scene1-controls">
+            <button id="scene1-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene1-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Generate magnetic field crosses
+        const crossesGroup = document.getElementById('scene1-magnetic-crosses');
+        const xs = [325, 375, 425, 475];
+        const ys = [320, 350, 380];
+        xs.forEach(x => {
+            ys.forEach(y => {
+                // Skip the one near 'B' label
+                if (x === 375 && y === 350) return;
+                
+                const size = 6;
+                const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line1.setAttribute('x1', x - size);
+                line1.setAttribute('y1', y - size);
+                line1.setAttribute('x2', x + size);
+                line1.setAttribute('y2', y + size);
+                line1.setAttribute('class', 'cross');
+                
+                const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line2.setAttribute('x1', x + size);
+                line2.setAttribute('y1', y - size);
+                line2.setAttribute('x2', x - size);
+                line2.setAttribute('y2', y + size);
+                line2.setAttribute('class', 'cross');
+                
+                crossesGroup.appendChild(line1);
+                crossesGroup.appendChild(line2);
+            });
+        });
+
+        // State management
+        let currentStep = 0;
+        const maxStep = 3;
+        
+        const rodA = document.getElementById('scene1-rod-a');
+        const labelA = document.getElementById('scene1-label-a');
+        const rodB = document.getElementById('scene1-rod-b');
+        const labelB = document.getElementById('scene1-label-b');
+        
+        const velB = document.getElementById('scene1-vel-b');
+        const velBLine = document.getElementById('scene1-vel-b-line');
+        const velBText = document.getElementById('scene1-vel-b-text');
+        
+        const velA = document.getElementById('scene1-vel-a');
+        const velALine = document.getElementById('scene1-vel-a-line');
+        const velAText = document.getElementById('scene1-vel-a-text');
+        
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+
+        const steps = [
+            { ya: 110, yb: 180, showVb: false, showVa: false },
+            { ya: 180, yb: 300, showVb: true, showVa: false },
+            { ya: 240, yb: 350, showVb: true, showVa: false },
+            { ya: 300, yb: 400, showVb: false, showVa: true }
+        ];
+
+        function updateScene() {
+            const state = steps[currentStep];
+            
+            // Update rods
+            rodA.setAttribute('y1', state.ya);
+            rodA.setAttribute('y2', state.ya);
+            labelA.setAttribute('y', state.ya - 10);
+            
+            rodB.setAttribute('y1', state.yb);
+            rodB.setAttribute('y2', state.yb);
+            labelB.setAttribute('y', state.yb - 10);
+            
+            // Update velocity visibility
+            if (state.showVb) {
+                velB.style.visibility = 'visible';
+                velB.style.opacity = '1';
+            } else {
+                velB.style.visibility = 'hidden';
+                velB.style.opacity = '0';
+            }
+            
+            if (state.showVa) {
+                velA.style.visibility = 'visible';
+                velA.style.opacity = '1';
+            } else {
+                velA.style.visibility = 'hidden';
+                velA.style.opacity = '0';
+            }
+            
+            // Update velocity positions to follow rods
+            velBLine.setAttribute('y1', state.yb);
+            velBLine.setAttribute('y2', state.yb + 30);
+            velBText.setAttribute('y', state.yb + 25);
+            
+            velALine.setAttribute('y1', state.ya);
+            velALine.setAttribute('y2', state.ya + 40);
+            velAText.setAttribute('y', state.ya + 35);
+
+            // Update buttons
+            btnPrev.disabled = currentStep === 0;
+            btnNext.disabled = currentStep === maxStep;
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateScene();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentStep < maxStep) {
+                currentStep++;
+                updateScene();
+            }
+        });
+
+        // Initialize
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

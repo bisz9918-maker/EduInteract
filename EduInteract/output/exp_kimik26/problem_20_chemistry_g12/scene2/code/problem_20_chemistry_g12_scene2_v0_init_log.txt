@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 电化学双模式</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { padding: 6px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; }
+        #scene2-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        #scene2-step-indicator { position: absolute; bottom: 50px; left: 0; right: 0; text-align: center; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg width="800" height="500" viewBox="0 0 800 500">
+            <defs>
+                <marker id="scene2-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#c62828"/>
+                </marker>
+                <marker id="scene2-arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+                </marker>
+                <marker id="scene2-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#2e7d32"/>
+                </marker>
+            </defs>
+
+            <!-- 烧杯轮廓 -->
+            <line id="scene2-beaker-left-wall" x1="270" y1="200" x2="290" y2="380" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-beaker-right-wall" x1="530" y1="200" x2="510" y2="380" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-beaker-bottom" x1="290" y1="380" x2="510" y2="380" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-liquid-surface" x1="270" y1="200" x2="530" y2="200" stroke="#888888" stroke-width="1" stroke-dasharray="4,4"/>
+
+            <!-- C棒 -->
+            <rect id="scene2-electrode-c" x="330" y="180" width="20" height="180" fill="#666666" stroke="#000000" stroke-width="1"/>
+            <!-- Fe棒 -->
+            <rect id="scene2-electrode-fe" x="470" y="180" width="20" height="180" fill="#999999" stroke="#000000" stroke-width="1"/>
+
+            <!-- 电极标签 -->
+            <text id="scene2-label-c" x="335" y="165" font-size="14" fill="#000000">C</text>
+            <text id="scene2-label-fe" x="475" y="165" font-size="14" fill="#000000">Fe</text>
+
+            <!-- 溶液名称 -->
+            <text id="scene2-solution-name" x="350" y="400" font-size="14" fill="#000000">饱和NaCl溶液</text>
+
+            <!-- 导线系统 -->
+            <line id="scene2-wire-c" x1="340" y1="180" x2="340" y2="130" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-wire-fe" x1="480" y1="180" x2="480" y2="130" stroke="#000000" stroke-width="2"/>
+
+            <!-- 水平导线（K1部分） -->
+            <line id="scene2-wire-h-left" x1="340" y1="130" x2="405" y2="130" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-wire-h-right" x1="415" y1="130" x2="480" y2="130" stroke="#000000" stroke-width="2"/>
+            <line id="scene2-wire-h-mid" x1="405" y1="130" x2="415" y2="130" stroke="#000000" stroke-width="2" style="display:none"/>
+
+            <!-- 电源符号（步骤2显示） -->
+            <g id="scene2-power-group" style="display:none">
+                <line x1="395" y1="70" x2="425" y2="70" stroke="#000000" stroke-width="2"/>
+                <line x1="395" y1="90" x2="425" y2="90" stroke="#000000" stroke-width="2"/>
+                <line x1="395" y1="70" x2="395" y2="90" stroke="#1565c0" stroke-width="4"/>
+                <line x1="425" y1="65" x2="425" y2="95" stroke="#c62828" stroke-width="4"/>
+                <text x="380" y="70" font-size="14" fill="#1565c0">−</text>
+                <text x="440" y="70" font-size="14" fill="#c62828">+</text>
+            </g>
+
+            <!-- 电源引线（步骤2显示） -->
+            <g id="scene2-power-wires" style="display:none">
+                <polyline points="395,80 395,110 340,110 340,130" fill="none" stroke="#000000" stroke-width="2"/>
+                <polyline points="425,80 425,110 480,110 480,130" fill="none" stroke="#000000" stroke-width="2"/>
+                <line x1="390" y1="105" x2="400" y2="115" stroke="#000000" stroke-width="2"/>
+                <line x1="420" y1="105" x2="430" y2="115" stroke="#000000" stroke-width="2"/>
+            </g>
+
+            <!-- O₂ 分子（步骤0-2始终显示）- 放在液面上方，远离电极标签 -->
+            <text id="scene2-o2-1" x="370" y="192" font-size="11" fill="#000000">O₂</text>
+            <text id="scene2-o2-2" x="450" y="192" font-size="11" fill="#000000">O₂</text>
+
+            <!-- H⁺ 离子（红色，仅步骤0）- 液面附近 -->
+            <text id="scene2-h1" x="390" y="192" font-size="11" fill="#c62828" style="display:none">H⁺</text>
+            <text id="scene2-h2" x="430" y="192" font-size="11" fill="#c62828" style="display:none">H⁺</text>
+
+            <!-- OH⁻ 离子（紫色，仅步骤0）- 液面附近 -->
+            <text id="scene2-oh1" x="410" y="192" font-size="11" fill="#7b1fa2" style="display:none">OH⁻</text>
+
+            <!-- Na⁺ 离子（蓝色，步骤0-2始终显示）- 溶液内部网格布局，远离器壁 -->
+            <text id="scene2-na1" x="370" y="230" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na2" x="430" y="230" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na3" x="370" y="280" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na4" x="430" y="280" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na5" x="370" y="330" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na6" x="430" y="330" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na7" x="400" y="360" font-size="11" fill="#1565c0">Na⁺</text>
+            <text id="scene2-na8" x="400" y="250" font-size="11" fill="#1565c0">Na⁺</text>
+
+            <!-- Cl⁻ 离子（绿色，步骤0-2始终显示）- 溶液内部网格布局 -->
+            <text id="scene2-cl1" x="400" y="230" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl2" x="400" y="280" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl3" x="400" y="330" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl4" x="370" y="250" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl5" x="430" y="250" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl6" x="370" y="300" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl7" x="430" y="300" font-size="11" fill="#2e7d32">Cl⁻</text>
+            <text id="scene2-cl8" x="400" y="310" font-size="11" fill="#2e7d32">Cl⁻</text>
+
+            <!-- e⁻ 标注（步骤1-2） -->
+            <text id="scene2-e-label" x="410" y="122" font-size="12" fill="#c62828" style="display:none">e⁻</text>
+
+            <!-- Fe反应式框+文（步骤1-2）- 放在右侧，远离烧杯 -->
+            <g id="scene2-reaction-fe-group" style="display:none">
+                <rect x="545" y="250" width="165" height="36" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <text x="555" y="273" font-size="12" fill="#000000">Fe - 2e⁻ → Fe²⁺</text>
+            </g>
+
+            <!-- C反应式框1（步骤1：吸氧还原）- 放在左侧，远离烧杯 -->
+            <g id="scene2-reaction-c1-group" style="display:none">
+                <rect x="85" y="250" width="175" height="36" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <text x="93" y="273" font-size="10" fill="#000000">O₂ + 2H₂O + 4e⁻ → 4OH⁻</text>
+            </g>
+
+            <!-- C反应式框2（步骤2：析氢还原） -->
+            <g id="scene2-reaction-c2-group" style="display:none">
+                <rect x="85" y="250" width="175" height="36" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+                <text x="93" y="273" font-size="10" fill="#000000">2H₂O + 2e⁻ → H₂↑ + 2OH⁻</text>
+            </g>
+
+            <!-- Fe²⁺ 生成（棕色，步骤1-2）- 靠近Fe电极但在溶液内 -->
+            <text id="scene2-fe2-1" x="445" y="270" font-size="11" fill="#8d6e63" style="display:none">Fe²⁺</text>
+            <text id="scene2-fe2-2" x="445" y="310" font-size="11" fill="#8d6e63" style="display:none">Fe²⁺</text>
+
+            <!-- OH⁻ 生成（紫色，步骤1-2）- 靠近C电极但在溶液内 -->
+            <text id="scene2-oh-gen1" x="355" y="270" font-size="11" fill="#7b1fa2" style="display:none">OH⁻</text>
+            <text id="scene2-oh-gen2" x="355" y="310" font-size="11" fill="#7b1fa2" style="display:none">OH⁻</text>
+
+            <!-- H₂ 标注（步骤2）- 靠近C电极上方 -->
+            <text id="scene2-h2-label" x="355" y="210" font-size="11" fill="#666666" style="display:none">H₂</text>
+
+            <!-- 电子箭头 -->
+            <!-- 步骤1：水平导线上从Fe→C（从右向左） -->
+            <line id="scene2-e-arrow1" x1="460" y1="130" x2="420" y2="130" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)" style="display:none"/>
+            <line id="scene2-e-arrow2" x1="400" y1="130" x2="360" y2="130" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)" style="display:none"/>
+
+            <!-- 步骤2：电源引线 -->
+            <line id="scene2-e-arrow3" x1="480" y1="100" x2="480" y2="120" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)" style="display:none"/>
+            <line id="scene2-e-arrow4" x1="340" y1="120" x2="340" y2="100" stroke="#c62828" stroke-width="2" marker-end="url(#scene2-arrow-red)" style="display:none"/>
+
+            <!-- Na⁺ 移动箭头（蓝色，步骤1-2，指向C棒/阴极） -->
+            <line id="scene2-na-arrow1" x1="380" y1="240" x2="360" y2="240" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)" style="display:none"/>
+            <line id="scene2-na-arrow2" x1="420" y1="340" x2="360" y2="340" stroke="#1565c0" stroke-width="2" marker-end="url(#scene2-arrow-blue)" style="display:none"/>
+
+            <!-- Cl⁻ 移动箭头（绿色，步骤1-2，指向Fe棒/阳极） -->
+            <line id="scene2-cl-arrow1" x1="400" y1="275" x2="470" y2="275" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow-green)" style="display:none"/>
+            <line id="scene2-cl-arrow2" x1="380" y1="340" x2="470" y2="340" stroke="#2e7d32" stroke-width="2" marker-end="url(#scene2-arrow-green)" style="display:none"/>
+
+            <!-- H₂ 气泡（步骤2）- C棒附近 -->
+            <circle id="scene2-bubble1" cx="318" cy="260" r="5" fill="#ececec" opacity="0.3" style="display:none"/>
+            <circle id="scene2-bubble2" cx="314" cy="240" r="4" fill="#ececec" opacity="0.3" style="display:none"/>
+            <circle id="scene2-bubble3" cx="320" cy="220" r="6" fill="#ececec" opacity="0.3" style="display:none"/>
+            <circle id="scene2-bubble4" cx="312" cy="200" r="4" fill="#ececec" opacity="0.3" style="display:none"/>
+        </svg>
+
+        <div id="scene2-step-indicator">步骤 1 / 3</div>
+        <div id="scene2-controls">
+            <button id="scene2-btn-prev" disabled>◀ 上一步</button>
+            <button id="scene2-btn-next">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var currentStep = 0;
+        var totalSteps = 3;
+
+        var btnPrev = document.getElementById('scene2-btn-prev');
+        var btnNext = document.getElementById('scene2-btn-next');
+        var stepIndicator = document.getElementById('scene2-step-indicator');
+
+        var wireHMid = document.getElementById('scene2-wire-h-mid');
+        var powerGroup = document.getElementById('scene2-power-group');
+        var powerWires = document.getElementById('scene2-power-wires');
+        var h1 = document.getElementById('scene2-h1');
+        var h2 = document.getElementById('scene2-h2');
+        var oh1 = document.getElementById('scene2-oh1');
+        var eLabel = document.getElementById('scene2-e-label');
+        var reactionFeGroup = document.getElementById('scene2-reaction-fe-group');
+        var reactionC1Group = document.getElementById('scene2-reaction-c1-group');
+        var reactionC2Group = document.getElementById('scene2-reaction-c2-group');
+        var fe2_1 = document.getElementById('scene2-fe2-1');
+        var fe2_2 = document.getElementById('scene2-fe2-2');
+        var ohGen1 = document.getElementById('scene2-oh-gen1');
+        var ohGen2 = document.getElementById('scene2-oh-gen2');
+        var h2Label = document.getElementById('scene2-h2-label');
+        var eArrow1 = document.getElementById('scene2-e-arrow1');
+        var eArrow2 = document.getElementById('scene2-e-arrow2');
+        var eArrow3 = document.getElementById('scene2-e-arrow3');
+        var eArrow4 = document.getElementById('scene2-e-arrow4');
+        var naArrow1 = document.getElementById('scene2-na-arrow1');
+        var naArrow2 = document.getElementById('scene2-na-arrow2');
+        var clArrow1 = document.getElementById('scene2-cl-arrow1');
+        var clArrow2 = document.getElementById('scene2-cl-arrow2');
+        var bubble1 = document.getElementById('scene2-bubble1');
+        var bubble2 = document.getElementById('scene2-bubble2');
+        var bubble3 = document.getElementById('scene2-bubble3');
+        var bubble4 = document.getElementById('scene2-bubble4');
+
+        function updateStep(step) {
+            currentStep = step;
+            stepIndicator.textContent = '步骤 ' + (step + 1) + ' / ' + totalSteps;
+            btnPrev.disabled = (step === 0);
+            btnNext.disabled = (step === totalSteps - 1);
+
+            if (step === 0) {
+                wireHMid.style.display = 'none';
+                powerGroup.style.display = 'none';
+                powerWires.style.display = 'none';
+                h1.style.display = 'block';
+                h2.style.display = 'block';
+                oh1.style.display = 'block';
+                eLabel.style.display = 'none';
+                reactionFeGroup.style.display = 'none';
+                reactionC1Group.style.display = 'none';
+                reactionC2Group.style.display = 'none';
+                fe2_1.style.display = 'none';
+                fe2_2.style.display = 'none';
+                ohGen1.style.display = 'none';
+                ohGen2.style.display = 'none';
+                h2Label.style.display = 'none';
+                eArrow1.style.display = 'none';
+                eArrow2.style.display = 'none';
+                eArrow3.style.display = 'none';
+                eArrow4.style.display = 'none';
+                naArrow1.style.display = 'none';
+                naArrow2.style.display = 'none';
+                clArrow1.style.display = 'none';
+                clArrow2.style.display = 'none';
+                bubble1.style.display = 'none';
+                bubble2.style.display = 'none';
+                bubble3.style.display = 'none';
+                bubble4.style.display = 'none';
+            } else if (step === 1) {
+                wireHMid.style.display = 'block';
+                powerGroup.style.display = 'none';
+                powerWires.style.display = 'none';
+                h1.style.display = 'none';
+                h2.style.display = 'none';
+                oh1.style.display = 'none';
+                eLabel.style.display = 'block';
+                reactionFeGroup.style.display = 'block';
+                reactionC1Group.style.display = 'block';
+                reactionC2Group.style.display = 'none';
+                fe2_1.style.display = 'block';
+                fe2_2.style.display = 'block';
+                ohGen1.style.display = 'block';
+                ohGen2.style.display = 'block';
+                h2Label.style.display = 'none';
+                eArrow1.style.display = 'block';
+                eArrow2.style.display = 'block';
+                eArrow3.style.display = 'none';
+                eArrow4.style.display = 'none';
+                naArrow1.style.display = 'block';
+                naArrow2.style.display = 'block';
+                clArrow1.style.display = 'block';
+                clArrow2.style.display = 'block';
+                bubble1.style.display = 'none';
+                bubble2.style.display = 'none';
+                bubble3.style.display = 'none';
+                bubble4.style.display = 'none';
+            } else if (step === 2) {
+                wireHMid.style.display = 'none';
+                powerGroup.style.display = 'block';
+                powerWires.style.display = 'block';
+                h1.style.display = 'none';
+                h2.style.display = 'none';
+                oh1.style.display = 'none';
+                eLabel.style.display = 'block';
+                reactionFeGroup.style.display = 'block';
+                reactionC1Group.style.display = 'none';
+                reactionC2Group.style.display = 'block';
+                fe2_1.style.display = 'block';
+                fe2_2.style.display = 'block';
+                ohGen1.style.display = 'block';
+                ohGen2.style.display = 'block';
+                h2Label.style.display = 'block';
+                eArrow1.style.display = 'none';
+                eArrow2.style.display = 'none';
+                eArrow3.style.display = 'block';
+                eArrow4.style.display = 'block';
+                naArrow1.style.display = 'block';
+                naArrow2.style.display = 'block';
+                clArrow1.style.display = 'block';
+                clArrow2.style.display = 'block';
+                bubble1.style.display = 'block';
+                bubble2.style.display = 'block';
+                bubble3.style.display = 'block';
+                bubble4.style.display = 'block';
+            }
+        }
+
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                updateStep(currentStep - 1);
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps - 1) {
+                updateStep(currentStep + 1);
+            }
+        });
+
+        updateStep(0);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电磁感应装置结构与电路分析</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #scene1-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: #ffffff;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #scene1-svg {
+            width: 800px;
+            height: 500px;
+        }
+        .scene1-fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .scene1-visible {
+            opacity: 1;
+        }
+        .scene1-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .scene1-btn:hover:not(:disabled) {
+            background: #1565c0;
+        }
+        .scene1-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .scene1-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        .scene1-step-indicator {
+            font-size: 14px;
+            color: #333;
+            min-width: 80px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- 基础导轨装置（始终显示） -->
+            <g id="scene1-base">
+                <!-- 左导轨 -->
+                <line id="scene1-rail-left" x1="150" y1="60" x2="150" y2="380" stroke="#000000" stroke-width="3"/>
+                <!-- 右导轨 -->
+                <line id="scene1-rail-right" x1="450" y1="60" x2="450" y2="380" stroke="#000000" stroke-width="3"/>
+                <!-- 顶部电阻 R -->
+                <rect id="scene1-resistor-top" x="270" y="60" width="60" height="15" fill="none" stroke="#c62828" stroke-width="2"/>
+                <!-- 导体棒 a -->
+                <line id="scene1-rod-a" x1="150" y1="130" x2="450" y2="130" stroke="#000000" stroke-width="4"/>
+                <!-- 导体棒 b -->
+                <line id="scene1-rod-b" x1="150" y1="190" x2="450" y2="190" stroke="#000000" stroke-width="4"/>
+            </g>
+
+            <!-- 磁场区域相关（步骤 1+ 显示） -->
+            <g id="scene1-magnetic" class="scene1-fade-in">
+                <!-- 磁场区域填充 -->
+                <rect id="scene1-magnetic-area" x="150" y="270" width="300" height="100" fill="#1565c0" fill-opacity="0.2" stroke="#1565c0" stroke-width="1"/>
+                <!-- L₁ 虚线 -->
+                <line id="scene1-line-l1" x1="140" y1="270" x2="460" y2="270" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- L₂ 虚线 -->
+                <line id="scene1-line-l2" x1="140" y1="370" x2="460" y2="370" stroke="#888888" stroke-width="2" stroke-dasharray="5,5"/>
+                <!-- 磁场 B 符号 -->
+                <text id="scene1-label-B" x="300" y="325" text-anchor="middle" font-size="20" fill="#000000" font-weight="bold">B</text>
+                <!-- 高度 d 标注 - 双向箭头 -->
+                <line id="scene1-arrow-d" x1="125" y1="270" x2="125" y2="370" stroke="#000000" stroke-width="1.5"/>
+                <polygon id="scene1-arrow-d-top" points="125,270 120,280 130,280" fill="#000000"/>
+                <polygon id="scene1-arrow-d-bottom" points="125,370 120,360 130,360" fill="#000000"/>
+                <text id="scene1-label-d" x="105" y="325" text-anchor="middle" font-size="14" fill="#000000">d=0.5m</text>
+                <!-- L₁ 标签 -->
+                <text id="scene1-label-L1" x="470" y="275" font-size="14" fill="#000000">L₁</text>
+                <!-- L₂ 标签 -->
+                <text id="scene1-label-L2" x="470" y="380" font-size="14" fill="#000000">L₂</text>
+            </g>
+
+            <!-- 导体棒参数标签（步骤 2+ 显示） -->
+            <g id="scene1-params" class="scene1-fade-in">
+                <!-- 顶部电阻标签 -->
+                <text id="scene1-label-R-top" x="300" y="50" text-anchor="middle" font-size="14" fill="#000000">R=3Ω</text>
+                <!-- 导体棒 a 参数 -->
+                <text id="scene1-label-a" x="465" y="125" font-size="12" fill="#000000">mₐ=0.2kg, Rₐ=3Ω</text>
+                <text id="scene1-label-M" x="465" y="145" font-size="14" fill="#000000" font-weight="bold">M</text>
+                <!-- 导体棒 b 参数 -->
+                <text id="scene1-label-b" x="465" y="185" font-size="12" fill="#000000">mᵦ=0.1kg, Rᵦ=6Ω</text>
+                <text id="scene1-label-N" x="465" y="205" font-size="14" fill="#000000" font-weight="bold">N</text>
+            </g>
+
+            <!-- 等效电路（步骤 3 显示） -->
+            <g id="scene1-circuit" class="scene1-fade-in">
+                <!-- 电路框 -->
+                <rect id="scene1-circuit-box" x="580" y="100" width="190" height="280" fill="none" stroke="#2e7d32" stroke-width="2" rx="5"/>
+                <!-- 等效电源（电池符号） -->
+                <line id="scene1-circuit-source-pos" x1="620" y1="150" x2="680" y2="150" stroke="#2e7d32" stroke-width="2"/>
+                <line id="scene1-circuit-source-neg" x1="635" y1="165" x2="665" y2="165" stroke="#2e7d32" stroke-width="3"/>
+                <line id="scene1-circuit-source-wire1" x1="620" y1="150" x2="620" y2="165" stroke="#2e7d32" stroke-width="1.5"/>
+                <line id="scene1-circuit-source-wire2" x1="680" y1="150" x2="680" y2="165" stroke="#2e7d32" stroke-width="1.5"/>
+                <!-- 等效电源标签 -->
+                <text id="scene1-label-E" x="605" y="165" text-anchor="end" font-size="12" fill="#2e7d32">E=BLv</text>
+                <!-- 等效内阻 -->
+                <rect id="scene1-circuit-r-internal" x="620" y="200" width="60" height="15" fill="none" stroke="#2e7d32" stroke-width="2"/>
+                <text id="scene1-label-R-internal" x="690" y="212" font-size="12" fill="#2e7d32">R_棒</text>
+                <!-- 外阻 R -->
+                <rect id="scene1-circuit-r-external" x="700" y="150" width="50" height="15" fill="none" stroke="#2e7d32" stroke-width="2"/>
+                <text id="scene1-label-R-external" x="725" y="140" text-anchor="middle" font-size="12" fill="#2e7d32">R=3Ω</text>
+                <!-- 电路连接导线 -->
+                <line id="scene1-circuit-wire1" x1="650" y1="165" x2="650" y2="185" stroke="#2e7d32" stroke-width="1.5"/>
+                <line id="scene1-circuit-wire2" x1="650" y1="185" x2="650" y2="200" stroke="#2e7d32" stroke-width="1.5"/>
+                <line id="scene1-circuit-wire3" x1="650" y1="215" x2="650" y2="240" stroke="#2e7d32" stroke-width="1.5"/>
+                <line id="scene1-circuit-wire4" x1="650" y1="240" x2="725" y2="240" stroke="#2e7d32" stroke-width="1.5"/>
+                <line id="scene1-circuit-wire5" x1="725" y1="240" x2="725" y2="165" stroke="#2e7d32" stroke-width="1.5"/>
+                <line id="scene1-circuit-wire6" x1="700" y1="157.5" x2="725" y2="157.5" stroke="#2e7d32" stroke-width="1.5"/>
+                <!-- 标题 -->
+                <text id="scene1-circuit-title" x="675" y="125" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold">等效电路</text>
+            </g>
+
+            <!-- 控件栏 -->
+            <g id="scene1-controls-group">
+                <rect x="0" y="440" width="800" height="60" fill="#f5f5f5" fill-opacity="0.8"/>
+            </g>
+        </svg>
+        <div id="scene1-controls" class="scene1-controls">
+            <button id="scene1-btn-prev" class="scene1-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator" class="scene1-step-indicator">步骤 0/3</span>
+            <button id="scene1-btn-next" class="scene1-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Scene 1 实现 - 电磁感应装置结构与电路分析
+
+        // 状态变量
+        let currentStep = 0;
+        const totalSteps = 3;
+
+        // DOM 元素
+        const btnPrev = document.getElementById('scene1-btn-prev');
+        const btnNext = document.getElementById('scene1-btn-next');
+        const stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // 元素组
+        const magneticGroup = document.getElementById('scene1-magnetic');
+        const paramsGroup = document.getElementById('scene1-params');
+        const circuitGroup = document.getElementById('scene1-circuit');
+
+        // 更新显示状态
+        function updateStep() {
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep}/${totalSteps}`;
+
+            // 更新按钮状态
+            btnPrev.disabled = (currentStep === 0);
+            btnNext.disabled = (currentStep === totalSteps);
+
+            // 根据步骤显示/隐藏元素组
+            if (currentStep >= 1) {
+                magneticGroup.classList.add('scene1-visible');
+            } else {
+                magneticGroup.classList.remove('scene1-visible');
+            }
+
+            if (currentStep >= 2) {
+                paramsGroup.classList.add('scene1-visible');
+            } else {
+                paramsGroup.classList.remove('scene1-visible');
+            }
+
+            if (currentStep >= 3) {
+                circuitGroup.classList.add('scene1-visible');
+            } else {
+                circuitGroup.classList.remove('scene1-visible');
+            }
+        }
+
+        // 按钮事件处理
+        btnPrev.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        btnNext.addEventListener('click', function() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        // 初始化
+        updateStep();
+    })();
+    </script>
+</body>
+</html>

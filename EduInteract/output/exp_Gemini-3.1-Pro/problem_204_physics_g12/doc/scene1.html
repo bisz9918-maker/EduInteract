@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Scene 1</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        .panel { position: absolute; left: 40px; top: 50px; width: 240px; height: 320px; background: rgba(255,255,255,0.9); border: 1px solid #ccc; border-radius: 8px; padding: 15px; box-sizing: border-box; font-size: 14px; line-height: 1.8; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .panel h3 { margin: 0 0 10px 0; font-size: 16px; text-align: center; }
+        .val-row { display: flex; justify-content: space-between; }
+        .status-box { margin-top: 15px; padding: 10px; background: #f0f8ff; border-left: 4px solid #1976d2; font-weight: bold; min-height: 60px; }
+        
+        /* SVG Elements */
+        .disk { fill: rgba(204,204,204,0.5); stroke: #000; stroke-width: 2; }
+        .axis { fill: #000; }
+        .block { fill: rgba(153,153,153,0.8); stroke: #000; stroke-width: 1.5; }
+        .string { stroke: #000; stroke-width: 2; }
+        .vec-fa, .vec-fb { stroke: #c62828; stroke-width: 2; fill: #c62828; }
+        .vec-tab { stroke: #1565c0; stroke-width: 2; fill: #1565c0; }
+        .vec-tob { stroke: #2e7d32; stroke-width: 2; fill: #2e7d32; }
+        .guide { stroke: #888; stroke-width: 1; stroke-dasharray: 4 4; }
+        text { font-family: sans-serif; font-size: 14px; }
+        .label-fa, .label-fb { fill: #c62828; }
+        .label-tab { fill: #1565c0; }
+        .label-tob { fill: #2e7d32; }
+        .break-text { fill: #c62828; font-weight: bold; font-size: 16px; opacity: 0; }
+        
+        input[type=range] { width: 300px; }
+    </style>
+    <!-- MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div id="scene1-container">
+        <div class="panel">
+            <h3>受力数据面板</h3>
+            <div class="val-row"><span>角速度 \(\omega\):</span> <span id="scene1-val-w">0.00 rad/s</span></div>
+            <div class="val-row"><span>\(f_A\):</span> <span id="scene1-val-fa">0.00 mg</span></div>
+            <div class="val-row"><span>\(f_B\):</span> <span id="scene1-val-fb">0.00 mg</span></div>
+            <div class="val-row"><span>\(T_{AB}\):</span> <span id="scene1-val-tab">0.00 mg</span></div>
+            <div class="val-row"><span>\(T_{OB}\):</span> <span id="scene1-val-tob">0.00 mg</span></div>
+            <div class="status-box" id="scene1-status">靠静摩擦力提供向心力</div>
+        </div>
+        
+        <svg id="scene1-svg" width="800" height="500">
+            <defs>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c62828" />
+                </marker>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1565c0" />
+                </marker>
+                <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d32" />
+                </marker>
+            </defs>
+            
+            <!-- Disk -->
+            <ellipse cx="500" cy="250" rx="220" ry="80" class="disk" />
+            
+            <!-- Guides -->
+            <line x1="500" y1="250" x2="500" y2="350" class="guide" />
+            <line x1="600" y1="250" x2="600" y2="330" class="guide" />
+            <line x1="700" y1="250" x2="700" y2="350" class="guide" />
+            
+            <line x1="500" y1="320" x2="600" y2="320" class="guide" />
+            <text x="550" y="315" text-anchor="middle" fill="#888">r_B</text>
+            
+            <line x1="500" y1="340" x2="700" y2="340" class="guide" />
+            <text x="600" y="335" text-anchor="middle" fill="#888">r_A</text>
+            
+            <!-- Dynamic Group for sliding -->
+            <g id="scene1-dynamic-group">
+                <!-- Strings -->
+                <line id="scene1-str-ob1" x1="500" y1="250" x2="540" y2="250" class="string" />
+                <line id="scene1-str-ob2" x1="560" y1="250" x2="600" y2="250" class="string" />
+                <line id="scene1-str-ob-full" x1="500" y1="250" x2="600" y2="250" class="string" />
+                <text id="scene1-break-txt" x="550" y="245" text-anchor="middle" class="break-text">断裂</text>
+                
+                <line id="scene1-str-ab" x1="600" y1="250" x2="700" y2="250" class="string" />
+                
+                <!-- Blocks -->
+                <rect id="scene1-block-b" x="590" y="240" width="20" height="20" class="block" />
+                <text id="scene1-label-b" x="615" y="235">B</text>
+                
+                <rect id="scene1-block-a" x="690" y="240" width="20" height="20" class="block" />
+                <text id="scene1-label-a" x="715" y="275">A</text>
+                
+                <!-- Vectors -->
+                <!-- f_A -->
+                <line id="scene1-vec-fa" x1="700" y1="225" x2="700" y2="225" class="vec-fa" marker-end="url(#arrow-red)" />
+                <text id="scene1-txt-fa" x="700" y="210" text-anchor="middle" class="label-fa">f_A</text>
+                
+                <!-- f_B -->
+                <line id="scene1-vec-fb" x1="600" y1="225" x2="600" y2="225" class="vec-fb" marker-end="url(#arrow-red)" />
+                <text id="scene1-txt-fb" x="600" y="210" text-anchor="middle" class="label-fb">f_B</text>
+                
+                <!-- T_AB on A -->
+                <line id="scene1-vec-tab-a" x1="700" y1="275" x2="700" y2="275" class="vec-tab" marker-end="url(#arrow-blue)" />
+                <text id="scene1-txt-tab-a" x="700" y="295" text-anchor="middle" class="label-tab">T_AB</text>
+                
+                <!-- T_OB on B -->
+                <line id="scene1-vec-tob" x1="600" y1="275" x2="600" y2="275" class="vec-tob" marker-end="url(#arrow-green)" />
+                <text id="scene1-txt-tob" x="600" y="295" text-anchor="middle" class="label-tob">T_OB</text>
+                
+                <!-- T_AB on B -->
+                <line id="scene1-vec-tab-b" x1="600" y1="195" x2="600" y2="195" class="vec-tab" marker-end="url(#arrow-blue)" />
+                <text id="scene1-txt-tab-b" x="600" y="180" text-anchor="middle" class="label-tab">T_AB</text>
+            </g>
+            
+            <!-- Axis O -->
+            <circle cx="500" cy="250" r="4" class="axis" />
+            <text x="485" y="265" text-anchor="end">O</text>
+            
+        </svg>
+        
+        <div id="scene1-controls">
+            <label for="scene1-slider" style="line-height: 24px; font-weight: bold;">角速度 ω:</label>
+            <input type="range" id="scene1-slider" min="0" max="12" step="0.01" value="0">
+        </div>
+    </div>
+    <script>
+    (function() {
+        const slider = document.getElementById('scene1-slider');
+        const valW = document.getElementById('scene1-val-w');
+        const valFa = document.getElementById('scene1-val-fa');
+        const valFb = document.getElementById('scene1-val-fb');
+        const valTab = document.getElementById('scene1-val-tab');
+        const valTob = document.getElementById('scene1-val-tob');
+        const statusBox = document.getElementById('scene1-status');
+        
+        const vecFa = document.getElementById('scene1-vec-fa');
+        const txtFa = document.getElementById('scene1-txt-fa');
+        const vecFb = document.getElementById('scene1-vec-fb');
+        const txtFb = document.getElementById('scene1-txt-fb');
+        const vecTabA = document.getElementById('scene1-vec-tab-a');
+        const txtTabA = document.getElementById('scene1-txt-tab-a');
+        const vecTob = document.getElementById('scene1-vec-tob');
+        const txtTob = document.getElementById('scene1-txt-tob');
+        const vecTabB = document.getElementById('scene1-vec-tab-b');
+        const txtTabB = document.getElementById('scene1-txt-tab-b');
+        
+        const strObFull = document.getElementById('scene1-str-ob-full');
+        const strOb1 = document.getElementById('scene1-str-ob1');
+        const strOb2 = document.getElementById('scene1-str-ob2');
+        const breakTxt = document.getElementById('scene1-break-txt');
+        
+        const dynamicGroup = document.getElementById('scene1-dynamic-group');
+        
+        function updateScene() {
+            const w = parseFloat(slider.value);
+            let fa = 0, fb = 0, tab = 0, tob = 0;
+            let status = "";
+            let delta = 0;
+            let broken = false;
+            
+            if (w < 5) {
+                fa = 0.2 * w * w;
+                fb = 0.1 * w * w;
+                tab = 0;
+                tob = 0;
+                status = "靠静摩擦力提供向心力";
+            } else if (w >= 5 && w < 5.7735) {
+                fa = 5;
+                tab = 0.2 * w * w - 5;
+                fb = 0.1 * w * w + tab;
+                if (w === 5) status = "A 的摩擦力达到最大，AB绳即将产生张力";
+                else status = "A 摩擦力饱和，AB绳产生张力";
+            } else if (w >= 5.7735 && w <= 10) {
+                fa = 5;
+                fb = 5;
+                tab = 0.2 * w * w - 5;
+                tob = 0.3 * w * w - 10;
+                if (Math.abs(w - 5.77) < 0.02) status = "B 的摩擦力达到最大，OB绳即将产生张力";
+                else if (w === 10) status = "OB绳达到最大张力，即将断裂";
+                else status = "A、B 摩擦力均饱和，OB绳产生张力";
+            } else {
+                fa = 5;
+                fb = 5;
+                tab = 15; 
+                tob = 0;
+                delta = (w - 10) * 20;
+                broken = true;
+                status = "OB绳断裂，物体向外滑动！";
+            }
+            
+            // Update texts
+            valW.innerHTML = w.toFixed(2) + " rad/s";
+            valFa.innerHTML = (fa / 10).toFixed(2) + " mg";
+            valFb.innerHTML = (fb / 10).toFixed(2) + " mg";
+            valTab.innerHTML = (tab / 10).toFixed(2) + " mg";
+            valTob.innerHTML = (tob / 10).toFixed(2) + " mg";
+            statusBox.innerHTML = status;
+            
+            // Update vectors (1 N = 8 px)
+            const pxPerN = 8;
+            
+            function setVec(line, txt, x0, y0, force, dir, labelY) {
+                if (force <= 0.01) {
+                    line.style.opacity = 0;
+                    txt.style.opacity = 0;
+                } else {
+                    line.style.opacity = 1;
+                    txt.style.opacity = 1;
+                    const len = force * pxPerN;
+                    const x1 = x0 + dir * len;
+                    line.setAttribute('x1', x0);
+                    line.setAttribute('y1', y0);
+                    line.setAttribute('x2', x1);
+                    line.setAttribute('y2', y0);
+                    txt.setAttribute('x', x0 + dir * len / 2);
+                    txt.setAttribute('y', labelY);
+                }
+            }
+            
+            setVec(vecFa, txtFa, 700, 225, fa, -1, 210);
+            setVec(vecFb, txtFb, 600, 225, fb, -1, 210);
+            setVec(vecTabA, txtTabA, 700, 275, tab, -1, 295);
+            setVec(vecTob, txtTob, 600, 275, tob, -1, 295);
+            setVec(vecTabB, txtTabB, 600, 195, tab, 1, 180);
+            
+            // Handle breaking
+            if (broken) {
+                strObFull.style.opacity = 0;
+                strOb1.style.opacity = 1;
+                strOb2.style.opacity = 1;
+                breakTxt.style.opacity = 1;
+                
+                // Move dynamic group
+                dynamicGroup.setAttribute('transform', `translate(${delta}, 0)`);
+                
+                // Keep strOb1 fixed to center
+                strOb1.setAttribute('x1', 500 - delta);
+                strOb1.setAttribute('x2', 540 - delta);
+                breakTxt.setAttribute('x', 550 - delta);
+            } else {
+                strObFull.style.opacity = 1;
+                strOb1.style.opacity = 0;
+                strOb2.style.opacity = 0;
+                breakTxt.style.opacity = 0;
+                dynamicGroup.setAttribute('transform', `translate(0, 0)`);
+            }
+        }
+        
+        slider.addEventListener('input', updateScene);
+        updateScene();
+    })();
+    </script>
+</body>
+</html>

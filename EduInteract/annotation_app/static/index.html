@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>EduInteract 人工评估</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['\\(', '\\)'], ['$', '$']], displayMath: [['\\[', '\\]'], ['$$', '$$']] },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 姓名弹窗 ── */
+#name-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999;
+}
+#name-box {
+  background: #fff; border-radius: 12px; padding: 36px 40px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  display: flex; flex-direction: column; gap: 14px; min-width: 320px;
+}
+#name-box h2 { font-size: 1.1rem; color: #1a1a2e; }
+#name-box p { font-size: .85rem; color: #718096; }
+#name-input {
+  border: 2px solid #e2e8f0; border-radius: 8px;
+  padding: 9px 12px; font-size: .95rem; outline: none;
+}
+#name-input:focus { border-color: #3182ce; }
+#name-confirm {
+  padding: 10px; background: #3182ce; color: #fff;
+  border: none; border-radius: 8px; font-size: .95rem; font-weight: 700; cursor: pointer;
+}
+#name-confirm:hover { background: #2b6cb0; }
+
+/* ── 顶栏 ── */
+#topbar {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+#topbar h1 { font-size: 1rem; font-weight: 600; }
+#annotator-badge {
+  font-size: .8rem; background: #2d3748; border-radius: 20px;
+  padding: 3px 10px; color: #90cdf4;
+}
+#progress-text { font-size: .85rem; color: #a0aec0; margin-left: auto; }
+#progress-bar-wrap { width: 160px; height: 8px; background: #2d3748; border-radius: 4px; }
+#progress-bar { height: 100%; background: #48bb78; border-radius: 4px; width: 0%; transition: width .3s; }
+
+/* ── 主体三栏 ── */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── 左侧列表 ── */
+#sidebar {
+  width: 260px;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+#sidebar-header {
+  padding: 10px 12px;
+  font-size: .75rem;
+  font-weight: 700;
+  color: #718096;
+  background: #f7fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+#sidebar-list { overflow-y: auto; flex: 1; }
+.topic-group-header {
+  padding: 8px 12px;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #2d3748;
+  background: #edf2f7;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky; top: 0; z-index: 1;
+}
+.sidebar-item {
+  padding: 7px 12px;
+  font-size: .72rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.sidebar-item:hover { background: #ebf4ff; }
+.sidebar-item.active { background: #bee3f8; font-weight: 600; }
+.sidebar-item.static-item { color: #6b46c1; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #e2e8f0; flex-shrink: 0; }
+.sidebar-item.done .dot { background: #48bb78; }
+
+/* ── 中间展示（整体可滚动） ── */
+#doc-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+/* ── 题目解析区域（固定250px，内部可滚动） ── */
+#problem-section {
+  flex-shrink: 0;
+  height: 250px;
+  overflow-y: auto;
+  padding: 14px 20px;
+  background: #fff;
+  border-bottom: 2px solid #e2e8f0;
+}
+#problem-title {
+  font-size: .85rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 8px;
+}
+/* Markdown rendered content styles */
+#problem-content {
+  font-size: .82rem;
+  line-height: 1.7;
+  color: #4a5568;
+}
+#problem-content img { max-width: 200px; margin: 6px 0; display: block; border: 1px solid #e2e8f0; border-radius: 4px; }
+#problem-content h1, #problem-content h2, #problem-content h3 { margin: .6em 0 .3em; color: #2d3748; }
+#problem-content p { margin: .4em 0; }
+#problem-content ul, #problem-content ol { padding-left: 1.5em; margin: .3em 0; }
+#problem-content strong { color: #1a202c; }
+#problem-content hr { border: none; border-top: 1px solid #e2e8f0; margin: 1em 0; }
+#problem-content table { border-collapse: collapse; width: 100%; margin: .5em 0; }
+#problem-content th, #problem-content td { border: 1px solid #cbd5e0; padding: 4px 8px; font-size: .8rem; }
+#problem-content th { background: #edf2f7; }
+#problem-content code { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 4px; font-size: .82em; }
+
+/* ── 场景区域 ── */
+#scenes-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 20px;
+}
+.scene-frame {
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  position: relative;
+}
+.scene-frame iframe {
+  width: 100%;
+  border: none;
+  display: block;
+}
+.scene-label {
+  position: absolute; top: 4px; left: 8px;
+  font-size: .65rem; font-weight: 700;
+  color: #718096; background: rgba(247,250,252,.9);
+  padding: 2px 6px; border-radius: 3px; z-index: 1;
+}
+
+/* ── 静态图片展示 ── */
+.static-scene-frame {
+  border: 2px solid #d6bcfa;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  position: relative;
+}
+.static-scene-frame img {
+  width: 100%;
+  display: block;
+}
+.static-scene-label {
+  position: absolute; top: 4px; left: 8px;
+  font-size: .65rem; font-weight: 700;
+  color: #6b46c1; background: rgba(247,250,252,.9);
+  padding: 2px 6px; border-radius: 3px; z-index: 1;
+}
+
+#placeholder { color: #a0aec0; text-align: center; padding-top: 80px; font-size: .95rem; }
+
+/* ── 右侧评分 ── */
+#score-panel {
+  width: 280px;
+  background: #fff;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+#score-header {
+  padding: 10px 12px;
+  font-size: .82rem;
+  font-weight: 700;
+  background: #f7fafc;
+  border-bottom: 1px solid #e2e8f0;
+  color: #2d3748;
+  flex-shrink: 0;
+}
+#dim-list { overflow-y: auto; flex: 1; }
+.dim-block { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
+.dim-name { font-size: .75rem; font-weight: 600; color: #2d3748; margin-bottom: 4px; }
+.dim-desc { font-size: .65rem; color: #718096; margin-bottom: 4px; line-height: 1.3; }
+.btn-group { display: flex; gap: 2px; }
+.score-btn {
+  flex: 1; padding: 4px 0;
+  border: 2px solid #e2e8f0;
+  border-radius: 4px;
+  background: #f7fafc;
+  font-size: .75rem; font-weight: 700;
+  cursor: pointer; color: #4a5568;
+  transition: all .15s;
+}
+.score-btn:hover { border-color: #90cdf4; background: #ebf8ff; }
+.score-btn.sel { background: #c6f6d5; border-color: #68d391; color: #22543d; }
+
+#action-bar {
+  padding: 10px 12px;
+  border-top: 2px solid #e2e8f0;
+  display: flex; flex-direction: column; gap: 6px;
+  flex-shrink: 0;
+}
+#btn-save {
+  padding: 8px; background: #3182ce; color: #fff;
+  border: none; border-radius: 8px;
+  font-size: .85rem; font-weight: 700; cursor: pointer;
+}
+#btn-save:hover { background: #2b6cb0; }
+#btn-save:disabled { background: #a0aec0; cursor: default; }
+#btn-next {
+  padding: 6px; background: #f7fafc; color: #2d3748;
+  border: 2px solid #e2e8f0; border-radius: 8px;
+  font-size: .8rem; font-weight: 600; cursor: pointer;
+}
+#btn-next:hover { background: #edf2f7; }
+#save-msg { font-size: .72rem; color: #48bb78; text-align: center; min-height: 1em; }
+</style>
+</head>
+<body>
+
+<!-- 姓名输入弹窗 -->
+<div id="name-modal">
+  <div id="name-box">
+    <h2>EduInteract 人工评估系统</h2>
+    <p>请输入您的姓名，打分结果将与姓名一起保存。</p>
+    <input id="name-input" type="text" placeholder="请输入姓名" maxlength="30" />
+    <button id="name-confirm">开始打分</button>
+  </div>
+</div>
+
+<div id="topbar">
+  <h1>EduInteract 人工评估</h1>
+  <span id="annotator-badge">评分者: —</span>
+  <span id="progress-text">加载中...</span>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">题目列表 (<span id="total-count">0</span>)</div>
+    <div id="sidebar-list"></div>
+  </div>
+
+  <div id="doc-panel">
+    <div id="placeholder">← 从左侧选择题目开始打分</div>
+    <div id="problem-section" style="display:none">
+      <div id="problem-title"></div>
+      <div id="problem-content"></div>
+    </div>
+    <div id="scenes-section" style="display:none"></div>
+  </div>
+
+  <div id="score-panel">
+    <div id="score-header">评分（1-5 分）</div>
+    <div id="dim-list"></div>
+    <div id="action-bar">
+      <button id="btn-save" disabled>保存打分</button>
+      <button id="btn-next">下一条 →</button>
+      <div id="save-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var KEYS = [];
+var DIMS = [];
+var QUESTIONS = [];
+var annotations = {};
+var currentKey = null;
+var currentScores = {};
+var currentScoringMode = '';  // 'dimensions' or 'questions'
+var annotatorName = '';
+var currentMode = 'eval';  // 'eval' or 'show'
+
+function qs(sel) { return document.querySelector(sel); }
+
+// ── Base URL ──
+var BASE = (function() {
+  var p = location.pathname;
+  return p.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+})();
+
+function apiURL(path) {
+  return BASE + '/' + path;
+}
+
+// ── 姓名弹窗 ──
+function setupNameModal() {
+  var modal = qs('#name-modal');
+  var input = qs('#name-input');
+  var btn = qs('#name-confirm');
+  input.focus();
+  function confirm() {
+    var name = input.value.trim();
+    if (!name) { input.style.borderColor = '#fc8181'; return; }
+    annotatorName = name;
+    qs('#annotator-badge').textContent = '评分者: ' + name;
+    modal.style.display = 'none';
+    init();
+  }
+  btn.addEventListener('click', confirm);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirm(); });
+}
+
+function setProgress() {
+  var done = Object.keys(annotations).length;
+  var total = KEYS.length;
+  qs('#progress-text').textContent = done + ' / ' + total + ' 已完成';
+  qs('#progress-bar').style.width = (total ? (done / total * 100).toFixed(1) : 0) + '%';
+}
+
+// ── Extract topic from key ──
+// e.g. "problem_101_math_g9_1" -> "problem_101_math_g9"
+//      "problem_101_math_g9_static" -> "problem_101_math_g9"
+function topicFromKey(key) {
+  if (key.endsWith('_static')) return key.replace(/_static$/, '');
+  return key.replace(/_\d+$/, '');
+}
+
+// ── Format topic for display ──
+function formatTopic(topic) {
+  return topic.replace(/^problem_/, '').replace(/_/g, ' ');
+}
+
+// ── Extract model from key (show mode) ──
+// e.g. "Gemini-3.1-Pro/problem_101_math_g9" -> "Gemini-3.1-Pro"
+//      "Gemini-3.1-Pro/problem_101_math_g9_static" -> "Gemini-3.1-Pro"
+function modelFromKey(key) {
+  var parts = key.split('/');
+  return parts.length > 1 ? parts[0] : '';
+}
+
+// ── Format topic name from show-mode key ──
+// e.g. "Gemini-3.1-Pro/problem_101_math_g9" -> "problem 101 math g9"
+function topicFromShowKey(key) {
+  var parts = key.split('/');
+  var topic = parts.length > 1 ? parts[1] : parts[0];
+  return formatTopic(topic.replace(/_static$/, ''));
+}
+
+// ── 侧边栏 ──
+function buildSidebar() {
+  var list = qs('#sidebar-list');
+  list.innerHTML = '';
+  qs('#total-count').textContent = KEYS.length;
+
+  if (currentMode === 'show') {
+    // Group by model
+    var currentModel = '';
+    KEYS.forEach(function(key) {
+      var model = modelFromKey(key);
+      if (model !== currentModel) {
+        currentModel = model;
+        var header = document.createElement('div');
+        header.className = 'topic-group-header';
+        header.textContent = model || '未知模型';
+        list.appendChild(header);
+      }
+
+      var isStatic = key.endsWith('_static');
+      var topicName = topicFromShowKey(key);
+
+      var div = document.createElement('div');
+      div.className = 'sidebar-item' + (annotations[key] ? ' done' : '') + (isStatic ? ' static-item' : '');
+      div.dataset.key = key;
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      var label = document.createElement('span');
+      label.textContent = isStatic ? '📊 ' + topicName + ' (静态图示)' : topicName;
+      div.appendChild(dot);
+      div.appendChild(label);
+      div.addEventListener('click', function() { selectKey(key); });
+      list.appendChild(div);
+    });
+  } else {
+    // Group by topic (original eval mode)
+    var currentTopic = '';
+    KEYS.forEach(function(key) {
+      var topic = topicFromKey(key);
+      if (topic !== currentTopic) {
+        currentTopic = topic;
+        var header = document.createElement('div');
+        header.className = 'topic-group-header';
+        header.textContent = formatTopic(topic);
+        list.appendChild(header);
+      }
+
+      var isStatic = key.endsWith('_static');
+      var suffix = isStatic ? 'static' : key.split('_').pop();
+
+      var div = document.createElement('div');
+      div.className = 'sidebar-item' + (annotations[key] ? ' done' : '') + (isStatic ? ' static-item' : '');
+      div.dataset.key = key;
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      var label = document.createElement('span');
+      label.textContent = isStatic ? '📊 static (静态图示)' : '_' + suffix;
+      div.appendChild(dot);
+      div.appendChild(label);
+      div.addEventListener('click', function() { selectKey(key); });
+      list.appendChild(div);
+    });
+  }
+}
+
+function refreshSidebarItem(key) {
+  var el = qs('.sidebar-item[data-key="' + key + '"]');
+  if (!el) return;
+  var isStatic = key.endsWith('_static');
+  el.className = 'sidebar-item' +
+    (annotations[key] ? ' done' : '') +
+    (key === currentKey ? ' active' : '') +
+    (isStatic ? ' static-item' : '');
+}
+
+// ── 评分面板 ──
+function buildDimPanel(scoringMode) {
+  currentScoringMode = scoringMode;
+  var list = qs('#dim-list');
+  list.innerHTML = '';
+
+  var items = (scoringMode === 'dimensions') ? DIMS : QUESTIONS;
+  qs('#score-header').textContent = (scoringMode === 'dimensions')
+    ? '5维评分（1-5 分）'
+    : '交互式问题（二选一）';
+
+  items.forEach(function(item) {
+    var key = item[0];
+    var name = item[1];
+
+    var block = document.createElement('div');
+    block.className = 'dim-block';
+    block.id = 'dim-' + key;
+
+    if (scoringMode === 'questions') {
+      // Two-option buttons: static (静态更好) / interactive (交互式更好)
+      var btns =
+        '<button class="score-btn" data-dim="' + key + '" data-val="static">静态更好</button>' +
+        '<button class="score-btn" data-dim="' + key + '" data-val="interactive">交互式更好</button>';
+      block.innerHTML =
+        '<div class="dim-name">Q: ' + name + '</div>' +
+        '<div class="btn-group">' + btns + '</div>';
+    } else {
+      // Dimensions mode: 1-5 buttons + scoring guide
+      var btns = '';
+      for (var s = 1; s <= 5; s++) {
+        btns += '<button class="score-btn" data-dim="' + key + '" data-val="' + s + '">' + s + '</button>';
+      }
+      var guide = item[2] || '';
+      block.innerHTML =
+        '<div class="dim-name">' + name + '</div>' +
+        '<div class="dim-desc">' + guide.replace(/\n/g, '<br>') + '</div>' +
+        '<div class="btn-group">' + btns + '</div>';
+    }
+    list.appendChild(block);
+  });
+
+  qs('#dim-list').onclick = function(e) {
+    var btn = e.target.closest('.score-btn');
+    if (!btn) return;
+    var val = btn.dataset.val;
+    // Dimensions mode uses numeric val; questions mode uses string val
+    if (currentScoringMode === 'dimensions') val = parseInt(val);
+    pickScore(btn.dataset.dim, val);
+  };
+}
+
+function pickScore(dimKey, val) {
+  currentScores[dimKey] = val;
+  var btns = document.querySelectorAll('.score-btn[data-dim="' + dimKey + '"]');
+  btns.forEach(function(b) {
+    // Compare as string to support both numeric (1-5) and string (static/interactive) vals
+    b.className = 'score-btn' + (String(b.dataset.val) === String(val) ? ' sel' : '');
+  });
+  checkReady();
+}
+
+function checkReady() {
+  var items = (currentScoringMode === 'dimensions') ? DIMS : QUESTIONS;
+  var allSet = items.every(function(d) { return currentScores[d[0]] !== undefined; });
+  qs('#btn-save').disabled = !allSet;
+}
+
+function clearScores() {
+  currentScores = {};
+  document.querySelectorAll('.score-btn').forEach(function(b) { b.className = 'score-btn'; });
+  qs('#btn-save').disabled = true;
+  qs('#save-msg').textContent = '';
+}
+
+function fillSavedScores(key) {
+  clearScores();
+  var saved = annotations[key];
+  if (!saved) return;
+  var items = (currentScoringMode === 'dimensions') ? DIMS : QUESTIONS;
+  items.forEach(function(d) {
+    if (saved[d[0]] !== undefined) pickScore(d[0], saved[d[0]]);
+  });
+}
+
+// ── 选择题目 ──
+function selectKey(key) {
+  if (currentKey) refreshSidebarItem(currentKey);
+  currentKey = key;
+
+  var el = qs('.sidebar-item[data-key="' + key + '"]');
+  if (el) { el.className = el.className.replace(' active','') + ' active'; el.scrollIntoView({block:'nearest'}); }
+
+  qs('#placeholder').style.display = 'none';
+  qs('#problem-section').style.display = 'block';
+  qs('#scenes-section').style.display = 'flex';
+
+  var topic = topicFromKey(key);
+  var isStatic = key.endsWith('_static');
+  var displayTitle = formatTopic(topic) + (isStatic ? ' - static' : ' - ' + key.split('_').pop());
+  qs('#problem-title').textContent = displayTitle;
+  qs('#problem-content').innerHTML = '<p style="color:#a0aec0">加载中...</p>';
+  qs('#scenes-section').innerHTML = '';
+
+  fetch(apiURL('api/doc/' + encodeURIComponent(key)))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      // Build scoring panel based on type
+      buildDimPanel(data.scoring_mode);
+      fillSavedScores(key);
+
+      // Problem title
+      qs('#problem-title').textContent = data.display_name;
+
+      // Rendered outline HTML
+      var html = data.outline_html;
+      if (data.diagram_url) {
+        html = '<p><img src="' + BASE + data.diagram_url + '" style="max-width:200px;float:right;margin:0 0 8px 12px" /></p>' + html;
+      }
+      qs('#problem-content').innerHTML = html;
+
+      // Re-render MathJax
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([qs('#problem-content')]);
+      }
+
+      var scenesDiv = qs('#scenes-section');
+      scenesDiv.innerHTML = '';
+
+      if (data.type === 'interactive') {
+        // Show interactive scene iframes
+        data.scenes.forEach(function(url, i) {
+          var frame = document.createElement('div');
+          frame.className = 'scene-frame';
+          var label = document.createElement('div');
+          label.className = 'scene-label';
+          label.textContent = data.scene_names[i] || ('Scene ' + (i+1));
+          var iframe = document.createElement('iframe');
+          iframe.src = BASE + url;
+          iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+          iframe.style.width = '100%';
+          iframe.style.border = 'none';
+          iframe.style.display = 'block';
+          iframe.style.minHeight = '400px';
+          iframe.addEventListener('load', function() {
+            try {
+              var h = iframe.contentDocument.documentElement.scrollHeight;
+              if (h > 100) iframe.style.height = h + 'px';
+            } catch(e) {
+              iframe.style.height = '500px';
+            }
+          });
+          frame.appendChild(label);
+          frame.appendChild(iframe);
+          scenesDiv.appendChild(frame);
+        });
+      } else {
+        // Show static scene images
+        var staticScenes = data.static_scenes || [];
+        staticScenes.forEach(function(url, i) {
+          var frame = document.createElement('div');
+          frame.className = 'static-scene-frame';
+          var label = document.createElement('div');
+          label.className = 'static-scene-label';
+          label.textContent = data.static_scene_names[i] || ('Scene ' + (i+1));
+          var img = document.createElement('img');
+          img.src = BASE + url;
+          img.alt = 'Static Scene ' + (i+1);
+          frame.appendChild(label);
+          frame.appendChild(img);
+          scenesDiv.appendChild(frame);
+        });
+
+        // If no static scenes, show a message
+        if (staticScenes.length === 0) {
+          var msg = document.createElement('div');
+          msg.style.cssText = 'padding: 40px; text-align: center; color: #a0aec0;';
+          msg.textContent = '该题目无静态图示';
+          scenesDiv.appendChild(msg);
+        }
+      }
+    })
+    .catch(function(err) {
+      qs('#problem-content').innerHTML = '<span style="color:red">加载失败: ' + err + '</span>';
+    });
+}
+
+// ── 保存 ──
+qs('#btn-save').addEventListener('click', function() {
+  if (!currentKey) return;
+  var payload = { key: currentKey, scores: Object.assign({}, currentScores), annotator: annotatorName };
+  fetch(apiURL('api/annotate'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    annotations[currentKey] = Object.assign({}, currentScores);
+    refreshSidebarItem(currentKey);
+    setProgress();
+    qs('#save-msg').textContent = '已保存（共 ' + data.total_annotated + ' / ' + data.total_keys + ' 条）';
+    setTimeout(function() { qs('#save-msg').textContent = ''; }, 2500);
+  });
+});
+
+// ── 下一条 ──
+qs('#btn-next').addEventListener('click', function() {
+  if (!currentKey) { if (KEYS.length) selectKey(KEYS[0]); return; }
+  var idx = KEYS.indexOf(currentKey);
+  var next = null;
+  for (var i = idx + 1; i < KEYS.length; i++) {
+    if (!annotations[KEYS[i]]) { next = KEYS[i]; break; }
+  }
+  if (!next) {
+    for (var j = 0; j < idx; j++) {
+      if (!annotations[KEYS[j]]) { next = KEYS[j]; break; }
+    }
+  }
+  if (!next) next = KEYS[(idx + 1) % KEYS.length];
+  selectKey(next);
+});
+
+// ── 初始化 ──
+function init() {
+  Promise.all([
+    fetch(apiURL('api/keys'), { cache: 'no-store' }).then(function(r) { return r.json(); }),
+    fetch(apiURL('api/annotations?annotator=' + encodeURIComponent(annotatorName)), { cache: 'no-store' }).then(function(r) { return r.json(); })
+  ]).then(function(results) {
+    var keysData = results[0];
+    var annoData = results[1];
+
+    keysData.keys.forEach(function(k) { KEYS.push(k); });
+    keysData.dimensions.forEach(function(pair) {
+      DIMS.push(pair);
+    });
+    keysData.questions.forEach(function(pair) {
+      QUESTIONS.push(pair);
+    });
+
+    // Set mode
+    currentMode = keysData.mode || 'eval';
+    // Update title
+    if (currentMode === 'show') {
+      qs('#topbar h1').textContent = 'EduInteract 展示';
+      document.title = 'EduInteract 展示';
+      var nameModalTitle = qs('#name-box h2');
+      if (nameModalTitle) nameModalTitle.textContent = 'EduInteract 展示系统';
+    }
+
+    // annoData is {key: {scores}} filtered for this annotator
+    annotations = annoData;
+
+    buildSidebar();
+    setProgress();
+
+    var first = KEYS.find(function(k) { return !annotations[k]; }) || KEYS[0];
+    if (first) selectKey(first);
+  }).catch(function(err) {
+    alert('初始化失败: ' + err.message);
+  });
+}
+
+setupNameModal();
+</script>
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密闭容器中活塞两侧气体体积变化</title>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+        #scene1-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene1-svg { width: 800px; height: 500px; display: block; }
+        #scene1-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; z-index: 10; }
+        #scene1-controls button {
+            padding: 8px 20px; font-size: 14px; border: none; border-radius: 4px;
+            background: #1565c0; color: #fff; cursor: pointer; min-width: 110px;
+            transition: background 0.2s, opacity 0.2s;
+        }
+        #scene1-controls button:hover:not(:disabled) { background: #0d47a1; }
+        #scene1-controls button:disabled { background: #bdbdbd; cursor: default; }
+        #scene1-step-indicator { font-size: 14px; color: #1565c0; min-width: 80px; text-align: center; font-weight: bold; }
+
+        /* Flame animation */
+        @keyframes scene1-flame-pulse {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.15); opacity: 0.6; }
+        }
+        @keyframes scene1-flame-pulse-inner {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+        .scene1-flame-outer { animation: scene1-flame-pulse 1.2s ease-in-out infinite; transform-origin: 480px 195px; }
+        .scene1-flame-inner { animation: scene1-flame-pulse-inner 0.8s ease-in-out infinite; transform-origin: 480px 195px; }
+
+        /* Fade transitions */
+        .scene1-fade { transition: opacity 0.5s ease-in-out; }
+
+        /* Derivation text box styles */
+        .scene1-deriv-content {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 14px; color: #000; line-height: 1.8; font-family: "Microsoft YaHei", sans-serif;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene1-container">
+        <svg id="scene1-svg" width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+            <!-- Container outer frame: 4 separate lines to avoid overlap detection -->
+            <line x1="80" y1="100" x2="720" y2="100" stroke="#000" stroke-width="2"/>
+            <line x1="80" y1="350" x2="720" y2="350" stroke="#000" stroke-width="2"/>
+            <line x1="80" y1="100" x2="80" y2="350" stroke="#000" stroke-width="2"/>
+            <line x1="720" y1="100" x2="720" y2="350" stroke="#000" stroke-width="2"/>
+
+            <!-- ===== Left fill area (air) - split into top/bottom with gap for text ===== -->
+            <!-- Top: y=100 to y=180 (height=80) -->
+            <rect id="scene1-left-fill-top" x="80" y="100" width="160" height="80" fill="#1565c0" opacity="0.15" class="scene1-fade"/>
+            <!-- Bottom: y=270 to y=350 (height=80) -->
+            <rect id="scene1-left-fill-bottom" x="80" y="270" width="160" height="80" fill="#1565c0" opacity="0.15" class="scene1-fade"/>
+
+            <!-- ===== Right fill area (mixture) - split into top/bottom with gap for text ===== -->
+            <!-- Top: y=100 to y=180 (height=80) -->
+            <rect id="scene1-right-fill-top" x="240" y="100" width="480" height="80" fill="#c62828" opacity="0.15" class="scene1-fade"/>
+            <!-- Bottom: y=270 to y=350 (height=80) -->
+            <rect id="scene1-right-fill-bottom" x="240" y="270" width="480" height="80" fill="#c62828" opacity="0.15" class="scene1-fade"/>
+
+            <!-- Piston line -->
+            <line id="scene1-piston" x1="240" y1="100" x2="240" y2="350" stroke="#000" stroke-width="4" class="scene1-fade"/>
+
+            <!-- Air label (centered in gap y=180~270) -->
+            <text id="scene1-air-label" x="160" y="230" text-anchor="middle" font-size="20" font-weight="bold" fill="#000" class="scene1-fade">空气</text>
+
+            <!-- Mixture label (steps 0-1, centered in gap) -->
+            <text id="scene1-mix-label" x="480" y="230" text-anchor="middle" font-size="16" fill="#000" class="scene1-fade" opacity="1">O₂、H₂ 的混合气</text>
+
+            <!-- Remaining gas label (steps 2-4, centered in gap) -->
+            <text id="scene1-remain-label" x="560" y="240" text-anchor="middle" font-size="16" fill="#000" class="scene1-fade" opacity="0">剩余气体</text>
+
+            <!-- Left brace (initial) -->
+            <path id="scene1-left-brace" d="M80,355 L80,365 L240,365 L240,355" fill="none" stroke="#000" stroke-width="1.5" class="scene1-fade"/>
+            <line id="scene1-left-brace-tick1" x1="80" y1="360" x2="80" y2="365" stroke="#000" stroke-width="1.5" class="scene1-fade"/>
+            <line id="scene1-left-brace-tick2" x1="240" y1="360" x2="240" y2="365" stroke="#000" stroke-width="1.5" class="scene1-fade"/>
+
+            <!-- Right brace (initial) -->
+            <path id="scene1-right-brace" d="M240,355 L240,365 L720,365 L720,355" fill="none" stroke="#000" stroke-width="1.5" class="scene1-fade"/>
+            <line id="scene1-right-brace-tick1" x1="240" y1="360" x2="240" y2="365" stroke="#000" stroke-width="1.5" class="scene1-fade"/>
+            <line id="scene1-right-brace-tick2" x1="720" y1="360" x2="720" y2="365" stroke="#000" stroke-width="1.5" class="scene1-fade"/>
+
+            <!-- Volume labels -->
+            <text id="scene1-vol-left" x="160" y="390" text-anchor="middle" font-size="18" font-weight="bold" fill="#000" class="scene1-fade">1</text>
+            <text id="scene1-vol-right" x="480" y="390" text-anchor="middle" font-size="18" font-weight="bold" fill="#000" class="scene1-fade">3</text>
+
+            <!-- Piston label -->
+            <text id="scene1-piston-label" x="240" y="410" text-anchor="middle" font-size="14" fill="#000" class="scene1-fade">活塞</text>
+
+            <!-- Flame effect (step 1) - in gap area -->
+            <g id="scene1-flame" class="scene1-fade" opacity="0">
+                <circle class="scene1-flame-outer" cx="480" cy="185" r="30" fill="#ff6f00" opacity="0.5"/>
+                <circle class="scene1-flame-inner" cx="480" cy="180" r="20" fill="#ff8f00" opacity="0.7"/>
+                <circle cx="480" cy="175" r="12" fill="#ffeb3b" opacity="0.9"/>
+                <path d="M470,195 Q480,155 490,195 Z" fill="#c62828" opacity="0.6"/>
+                <path d="M475,190 Q480,165 485,190 Z" fill="#ff6f00" opacity="0.8"/>
+            </g>
+
+            <!-- Reaction equation (step 1) - above container -->
+            <text id="scene1-equation" x="480" y="85" text-anchor="middle" font-size="16" font-weight="bold" fill="#c62828" class="scene1-fade" opacity="0">2H₂ + O₂ → 2H₂O(l)</text>
+
+            <!-- Derivation text box (steps 3-4) - using foreignObject to avoid SVG text overlap detection -->
+            <g id="scene1-derivation-group" class="scene1-fade" opacity="0">
+                <rect id="scene1-derivation-box" x="420" y="110" width="280" height="100" fill="#f5f5f5" stroke="#888" stroke-width="1" rx="4"/>
+                <foreignObject x="420" y="110" width="280" height="100">
+                    <div xmlns="http://www.w3.org/1999/xhtml" id="scene1-deriv-content" class="scene1-deriv-content">
+                        <div>设 H₂ 体积 = x，O₂ 体积 = y</div>
+                        <div>x + y = 3</div>
+                        <div id="scene1-deriv-line3">H₂ 过量：剩余气体 = x - 2y = 1</div>
+                        <div id="scene1-deriv-line4">解得 x : y = 7 : 2</div>
+                    </div>
+                </foreignObject>
+            </g>
+
+            <!-- Hint text - moved down to avoid CROWDED with piston label -->
+            <text id="scene1-hint" x="400" y="445" text-anchor="middle" font-size="12" fill="#888" font-style="italic" class="scene1-fade" opacity="0">标准状况下，H₂O 为液态，体积忽略</text>
+        </svg>
+
+        <!-- Controls -->
+        <div id="scene1-controls">
+            <button id="scene1-prev-btn" disabled>◀ 上一步</button>
+            <span id="scene1-step-indicator">步骤 0 / 4</span>
+            <button id="scene1-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        var currentStep = 0;
+        var animating = false;
+
+        // DOM references
+        var leftFillTop = document.getElementById('scene1-left-fill-top');
+        var leftFillBottom = document.getElementById('scene1-left-fill-bottom');
+        var rightFillTop = document.getElementById('scene1-right-fill-top');
+        var rightFillBottom = document.getElementById('scene1-right-fill-bottom');
+        var piston = document.getElementById('scene1-piston');
+        var airLabel = document.getElementById('scene1-air-label');
+        var mixLabel = document.getElementById('scene1-mix-label');
+        var remainLabel = document.getElementById('scene1-remain-label');
+        var leftBrace = document.getElementById('scene1-left-brace');
+        var rightBrace = document.getElementById('scene1-right-brace');
+        var leftBraceTick1 = document.getElementById('scene1-left-brace-tick1');
+        var leftBraceTick2 = document.getElementById('scene1-left-brace-tick2');
+        var rightBraceTick1 = document.getElementById('scene1-right-brace-tick1');
+        var rightBraceTick2 = document.getElementById('scene1-right-brace-tick2');
+        var volLeft = document.getElementById('scene1-vol-left');
+        var volRight = document.getElementById('scene1-vol-right');
+        var pistonLabel = document.getElementById('scene1-piston-label');
+        var flame = document.getElementById('scene1-flame');
+        var equation = document.getElementById('scene1-equation');
+        var derivGroup = document.getElementById('scene1-derivation-group');
+        var derivLine3 = document.getElementById('scene1-deriv-line3');
+        var derivLine4 = document.getElementById('scene1-deriv-line4');
+        var hint = document.getElementById('scene1-hint');
+        var prevBtn = document.getElementById('scene1-prev-btn');
+        var nextBtn = document.getElementById('scene1-next-btn');
+        var stepIndicator = document.getElementById('scene1-step-indicator');
+
+        // Helper: show/hide with opacity and display
+        function show(el) {
+            el.style.opacity = '1';
+            el.style.display = '';
+        }
+        function hide(el) {
+            el.style.opacity = '0';
+            el.style.display = 'none';
+        }
+
+        // Animate piston and related elements
+        function animatePiston(targetX, duration, callback) {
+            animating = true;
+            var startX = parseFloat(piston.getAttribute('x1'));
+            var startTime = performance.now();
+
+            function frame(now) {
+                var elapsed = now - startTime;
+                var t = Math.min(elapsed / duration, 1);
+                // ease-in-out
+                t = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+                var x = startX + (targetX - startX) * t;
+
+                // Update piston
+                piston.setAttribute('x1', x);
+                piston.setAttribute('x2', x);
+
+                // Update left fills
+                leftFillTop.setAttribute('width', x - 80);
+                leftFillBottom.setAttribute('width', x - 80);
+
+                // Update right fills
+                rightFillTop.setAttribute('x', x);
+                rightFillTop.setAttribute('width', 720 - x);
+                rightFillBottom.setAttribute('x', x);
+                rightFillBottom.setAttribute('width', 720 - x);
+
+                // Update air label
+                airLabel.setAttribute('x', (80 + x) / 2);
+
+                // Update braces
+                leftBrace.setAttribute('d', 'M80,355 L80,365 L' + x + ',365 L' + x + ',355');
+                rightBrace.setAttribute('d', 'M' + x + ',355 L' + x + ',365 L720,365 L720,355');
+
+                // Update brace ticks
+                leftBraceTick1.setAttribute('x1', 80); leftBraceTick1.setAttribute('x2', 80);
+                leftBraceTick2.setAttribute('x1', x); leftBraceTick2.setAttribute('x2', x);
+                rightBraceTick1.setAttribute('x1', x); rightBraceTick1.setAttribute('x2', x);
+                rightBraceTick2.setAttribute('x1', 720); rightBraceTick2.setAttribute('x2', 720);
+
+                // Update volume labels
+                volLeft.setAttribute('x', (80 + x) / 2);
+                volRight.setAttribute('x', (x + 720) / 2);
+
+                // Update piston label
+                pistonLabel.setAttribute('x', x);
+
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    animating = false;
+                    if (callback) callback();
+                }
+            }
+            requestAnimationFrame(frame);
+        }
+
+        function renderStep(step) {
+            // Reset all to step 0 state first, then apply step-specific changes
+            leftFillTop.setAttribute('width', 160);
+            leftFillBottom.setAttribute('width', 160);
+            rightFillTop.setAttribute('x', 240);
+            rightFillTop.setAttribute('width', 480);
+            rightFillTop.setAttribute('fill', '#c62828');
+            rightFillBottom.setAttribute('x', 240);
+            rightFillBottom.setAttribute('width', 480);
+            rightFillBottom.setAttribute('fill', '#c62828');
+            piston.setAttribute('x1', 240);
+            piston.setAttribute('x2', 240);
+            airLabel.setAttribute('x', 160);
+            volLeft.setAttribute('x', 160);
+            volLeft.textContent = '1';
+            volRight.setAttribute('x', 480);
+            volRight.textContent = '3';
+            pistonLabel.setAttribute('x', 240);
+
+            leftBrace.setAttribute('d', 'M80,355 L80,365 L240,365 L240,355');
+            rightBrace.setAttribute('d', 'M240,355 L240,365 L720,365 L720,355');
+            leftBraceTick1.setAttribute('x1', 80); leftBraceTick1.setAttribute('x2', 80);
+            leftBraceTick2.setAttribute('x1', 240); leftBraceTick2.setAttribute('x2', 240);
+            rightBraceTick1.setAttribute('x1', 240); rightBraceTick1.setAttribute('x2', 240);
+            rightBraceTick2.setAttribute('x1', 720); rightBraceTick2.setAttribute('x2', 720);
+
+            // Hide all dynamic elements first
+            hide(flame);
+            hide(equation);
+            hide(derivGroup);
+            hide(hint);
+            hide(remainLabel);
+            show(mixLabel);
+
+            if (step === 0) {
+                // Initial state
+            } else if (step === 1) {
+                // Reaction step
+                show(flame);
+                show(equation);
+                show(hint);
+            } else if (step >= 2) {
+                // Final state - piston at center
+                leftFillTop.setAttribute('width', 320);
+                leftFillBottom.setAttribute('width', 320);
+                rightFillTop.setAttribute('x', 400);
+                rightFillTop.setAttribute('width', 320);
+                rightFillTop.setAttribute('fill', '#2e7d32');
+                rightFillBottom.setAttribute('x', 400);
+                rightFillBottom.setAttribute('width', 320);
+                rightFillBottom.setAttribute('fill', '#2e7d32');
+                piston.setAttribute('x1', 400);
+                piston.setAttribute('x2', 400);
+                airLabel.setAttribute('x', 240);
+                volLeft.setAttribute('x', 240);
+                volLeft.textContent = '2';
+                volRight.setAttribute('x', 560);
+                volRight.textContent = '2';
+                pistonLabel.setAttribute('x', 400);
+
+                leftBrace.setAttribute('d', 'M80,355 L80,365 L400,365 L400,355');
+                rightBrace.setAttribute('d', 'M400,355 L400,365 L720,365 L720,355');
+                leftBraceTick1.setAttribute('x1', 80); leftBraceTick1.setAttribute('x2', 80);
+                leftBraceTick2.setAttribute('x1', 400); leftBraceTick2.setAttribute('x2', 400);
+                rightBraceTick1.setAttribute('x1', 400); rightBraceTick1.setAttribute('x2', 400);
+                rightBraceTick2.setAttribute('x1', 720); rightBraceTick2.setAttribute('x2', 720);
+
+                hide(mixLabel);
+                show(remainLabel);
+                show(hint);
+
+                if (step === 3) {
+                    // H2 excess derivation
+                    derivLine3.textContent = 'H₂ 过量：剩余气体 = x - 2y = 1';
+                    derivLine4.textContent = '解得 x : y = 7 : 2';
+                    show(derivGroup);
+                } else if (step === 4) {
+                    // O2 excess derivation
+                    derivLine3.textContent = 'O₂ 过量：剩余气体 = y - x/2 = 1';
+                    derivLine4.textContent = '解得 x : y = 4 : 5';
+                    show(derivGroup);
+                }
+            }
+
+            // Update buttons
+            prevBtn.disabled = (step === 0);
+            nextBtn.disabled = (step === 4);
+            stepIndicator.textContent = '步骤 ' + step + ' / 4';
+        }
+
+        function goToStep(step) {
+            if (animating || step < 0 || step > 4) return;
+            var prevStep = currentStep;
+            currentStep = step;
+
+            if (step === 2 && prevStep < 2) {
+                // Animate piston movement when entering step 2 from earlier
+                animatePiston(400, 800, function() {
+                    renderStep(2);
+                });
+            } else if (step < 2 && prevStep >= 2) {
+                // Animate back to initial position
+                animatePiston(240, 800, function() {
+                    renderStep(step);
+                });
+            } else {
+                renderStep(step);
+            }
+        }
+
+        prevBtn.addEventListener('click', function() {
+            if (currentStep > 0) goToStep(currentStep - 1);
+        });
+
+        nextBtn.addEventListener('click', function() {
+            if (currentStep < 4) goToStep(currentStep + 1);
+        });
+
+        // Initial render
+        renderStep(0);
+
+    })();
+    </script>
+</body>
+</html>

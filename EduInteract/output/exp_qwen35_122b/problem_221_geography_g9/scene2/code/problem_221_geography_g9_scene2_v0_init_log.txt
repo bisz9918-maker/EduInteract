@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene 2 - 太阳直射点与太阳能板角度计算</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei", sans-serif; }
+        #scene2-container { position: relative; width: 800px; height: 500px; background: #ffffff; margin: 0 auto; overflow: hidden; }
+        #scene2-svg { width: 800px; height: 500px; }
+        #scene2-controls { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 10; }
+        #scene2-controls button { padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #f5f5f5; }
+        #scene2-controls button:hover { background: #e0e0e0; }
+        #scene2-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #scene2-step-indicator { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #666; }
+        .fade-in { transition: opacity 0.3s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="scene2-container">
+        <svg id="scene2-svg" width="800" height="500">
+            <!-- 标题区 -->
+            <text id="scene2-title" x="400" y="50" text-anchor="middle" font-size="18" font-weight="bold" class="fade-in">基础图示</text>
+            
+            <!-- ========== 左侧地球侧视图区（缩小并左移） ========== -->
+            <!-- 地球轮廓 -->
+            <circle id="scene2-earth" cx="120" cy="225" r="100" fill="none" stroke="#333" stroke-width="2" class="fade-in"/>
+            
+            <!-- 赤道线 -->
+            <line id="scene2-equator" x1="20" y1="225" x2="220" y2="225" stroke="#333" stroke-width="1" class="fade-in"/>
+            <text id="scene2-equator-label" x="230" y="230" font-size="14" class="fade-in">0°</text>
+            
+            <!-- 北回归线 -->
+            <line id="scene2-tropic-n" x1="20" y1="175" x2="220" y2="175" stroke="#333" stroke-width="1" stroke-dasharray="5,5" class="fade-in"/>
+            <text id="scene2-tropic-n-label" x="230" y="180" font-size="14" class="fade-in">23.5°N</text>
+            
+            <!-- 南回归线 -->
+            <line id="scene2-tropic-s" x1="20" y1="275" x2="220" y2="275" stroke="#333" stroke-width="1" stroke-dasharray="5,5" class="fade-in"/>
+            <text id="scene2-tropic-s-label" x="230" y="280" font-size="14" class="fade-in">23.5°S</text>
+            
+            <!-- 晨昏线 -->
+            <line id="scene2-terminator" x1="150" y1="125" x2="90" y2="325" stroke="#333" stroke-width="2" class="fade-in"/>
+            
+            <!-- 太阳光线 -->
+            <line id="scene2-ray1" x1="300" y1="140" x2="220" y2="140" stroke="#f57f17" stroke-width="2" class="fade-in"/>
+            <line id="scene2-ray2" x1="300" y1="175" x2="220" y2="175" stroke="#f57f17" stroke-width="2" class="fade-in"/>
+            <line id="scene2-ray3" x1="300" y1="210" x2="220" y2="210" stroke="#f57f17" stroke-width="2" class="fade-in"/>
+            <line id="scene2-ray4" x1="300" y1="245" x2="220" y2="245" stroke="#f57f17" stroke-width="2" class="fade-in"/>
+            <!-- 箭头 -->
+            <polygon id="scene2-arrow1" points="220,135 210,140 220,145" fill="#f57f17" class="fade-in"/>
+            <polygon id="scene2-arrow2" points="220,170 210,175 220,180" fill="#f57f17" class="fade-in"/>
+            <polygon id="scene2-arrow3" points="220,205 210,210 220,215" fill="#f57f17" class="fade-in"/>
+            <polygon id="scene2-arrow4" points="220,240 210,245 220,250" fill="#f57f17" class="fade-in"/>
+            <text id="scene2-ray-label" x="310" y="175" font-size="14" fill="#f57f17" class="fade-in">太阳光线</text>
+            
+            <!-- 太阳直射点 -->
+            <circle id="scene2-sun-direct" cx="120" cy="275" r="5" fill="#c62828" class="fade-in"/>
+            
+            <!-- 上海位置 - 在地球内部 -->
+            <circle id="scene2-shanghai" cx="170" cy="185" r="4" fill="#1565c0" class="fade-in"/>
+            <!-- 上海标签 - 移到地球外部右侧 -->
+            <text id="scene2-shanghai-label" x="230" y="185" font-size="12" fill="#1565c0" class="fade-in">上海 (31°N)</text>
+            
+            <!-- 甲点 - 北回归线与晨昏线交点 -->
+            <circle id="scene2-point-jia" cx="150" cy="175" r="3" fill="#333" class="fade-in"/>
+            <!-- 甲标签 - 移到上方 -->
+            <text id="scene2-jia-label" x="160" y="160" font-size="12" class="fade-in">甲</text>
+            
+            <!-- 乙点 - 南回归线与晨昏线交点 -->
+            <circle id="scene2-point-yi" cx="90" cy="275" r="3" fill="#333" class="fade-in"/>
+            <!-- 乙标签 - 移到下方 -->
+            <text id="scene2-yi-label" x="80" y="295" font-size="12" class="fade-in">乙</text>
+            
+            <!-- 地球中心标签 - 移到左侧 -->
+            <text id="scene2-center-label" x="105" y="220" font-size="14" class="fade-in">O</text>
+            
+            <!-- ========== 右侧内容区（从 x=350 开始） ========== -->
+            <!-- 步骤 1：月出时间标注 -->
+            <text id="scene2-moon-title" x="370" y="110" font-size="14" font-weight="bold" class="fade-in">农历十五月出时间</text>
+            <text id="scene2-moon-info1" x="370" y="145" font-size="12" class="fade-in">农历十五：月球与太阳相对</text>
+            <text id="scene2-moon-info2" x="370" y="165" font-size="12" class="fade-in">月出时间 ≈ 日落时间</text>
+            <text id="scene2-moon-time" x="385" y="200" font-size="16" font-weight="bold" fill="#c62828" class="fade-in">18:00 月出</text>
+            
+            <!-- 步骤 2：太阳能板示意图基础 -->
+            <text id="scene2-panel-title" x="370" y="110" font-size="14" font-weight="bold" class="fade-in">太阳高度角计算</text>
+            
+            <!-- 地面线 -->
+            <line id="scene2-ground" x1="370" y1="350" x2="640" y2="350" stroke="#333" stroke-width="2" class="fade-in"/>
+            
+            <!-- 建筑物墙面 -->
+            <line id="scene2-wall" x1="470" y1="350" x2="470" y2="200" stroke="#333" stroke-width="2" class="fade-in"/>
+            <text id="scene2-wall-label" x="455" y="275" font-size="12" class="fade-in">墙面</text>
+            
+            <!-- 太阳光线（右侧） -->
+            <line id="scene2-sun-ray-right" x1="640" y1="250" x2="570" y2="250" stroke="#f57f17" stroke-width="2" class="fade-in"/>
+            <polygon id="scene2-sun-arrow-right" points="570,245 560,250 570,255" fill="#f57f17" class="fade-in"/>
+            
+            <!-- 太阳能板 -->
+            <line id="scene2-solar-panel" x1="470" y1="350" x2="570" y2="250" stroke="#2e7d32" stroke-width="3" class="fade-in"/>
+            <text id="scene2-panel-label" x="580" y="300" font-size="12" fill="#2e7d32" class="fade-in">太阳能板</text>
+            
+            <!-- 墙面法线 -->
+            <line id="scene2-normal" x1="470" y1="350" x2="570" y2="350" stroke="#888" stroke-width="1" stroke-dasharray="5,5" class="fade-in"/>
+            
+            <!-- 高度角 H 弧线 -->
+            <path id="scene2-angle-h" d="M 500 320 A 30 30 0 0 1 525 300" fill="none" stroke="#888" stroke-width="1" stroke-dasharray="3,3" class="fade-in"/>
+            <text id="scene2-h-label" x="535" y="290" font-size="14" fill="#888" class="fade-in">H</text>
+            
+            <!-- 高度角计算公式 -->
+            <text id="scene2-h-formula" x="370" y="235" font-size="12" class="fade-in">H = 90° - |31° - (-23.5°)|</text>
+            <text id="scene2-h-result" x="370" y="255" font-size="14" font-weight="bold" fill="#c62828" class="fade-in">H = 35.5°</text>
+            
+            <!-- 步骤 3：倾角α -->
+            <!-- 倾角α弧线 -->
+            <path id="scene2-angle-alpha" d="M 490 330 A 20 20 0 0 1 505 320" fill="none" stroke="#888" stroke-width="1" stroke-dasharray="3,3" class="fade-in"/>
+            <text id="scene2-alpha-label" x="510" y="340" font-size="14" fill="#888" class="fade-in">α</text>
+            
+            <!-- 倾角计算公式 -->
+            <text id="scene2-alpha-formula" x="370" y="280" font-size="12" class="fade-in">α = 90° - H</text>
+            <text id="scene2-alpha-result" x="370" y="300" font-size="14" font-weight="bold" fill="#2e7d32" class="fade-in">α = 54.5°</text>
+            
+            <!-- 步骤 4：综合答案（移到地球下方） -->
+            <text id="scene2-conclusion-title" x="400" y="110" text-anchor="middle" font-size="16" font-weight="bold" class="fade-in">综合答案</text>
+            
+            <!-- 左侧答案（移到地球下方） -->
+            <text id="scene2-ans1-title" x="20" y="405" font-size="14" font-weight="bold" class="fade-in">(1) 东西半球与甲地时间</text>
+            <text id="scene2-ans1-a" x="20" y="430" font-size="12" class="fade-in">阴影部分主要位于：西半球</text>
+            <text id="scene2-ans1-b" x="20" y="450" font-size="12" class="fade-in">甲地地方时：6:00</text>
+            
+            <text id="scene2-ans2-title" x="220" y="405" font-size="14" font-weight="bold" class="fade-in">(2) 太阳直射点位置</text>
+            <text id="scene2-ans2-a" x="220" y="430" font-size="12" class="fade-in">太阳直射点位于：南半球</text>
+            <text id="scene2-ans2-b" x="220" y="450" font-size="12" class="fade-in">太阳直射点经度：22.5°W</text>
+            
+            <text id="scene2-ans3-title" x="20" y="475" font-size="14" font-weight="bold" class="fade-in">(3) 乙地白昼时间</text>
+            <text id="scene2-ans3-a" x="20" y="495" font-size="12" class="fade-in">乙地白昼时间：约 11 小时</text>
+            
+            <!-- 右侧答案 -->
+            <text id="scene2-ans4-title" x="420" y="405" font-size="14" font-weight="bold" class="fade-in">(4) 农历十五月出时间</text>
+            <text id="scene2-ans4-a" x="420" y="430" font-size="12" class="fade-in">等待时间：约 6 小时</text>
+            <text id="scene2-ans4-b" x="420" y="450" font-size="12" class="fade-in">(从 12:00 到 18:00 月出)</text>
+            
+            <text id="scene2-ans5-title" x="420" y="475" font-size="14" font-weight="bold" class="fade-in">(5) 太阳能板最佳倾角</text>
+            <text id="scene2-ans5-a" x="420" y="495" font-size="12" class="fade-in">最佳夹角：54.5°</text>
+        </svg>
+        
+        <div id="scene2-step-indicator">步骤 1/5</div>
+        
+        <div id="scene2-controls">
+            <button id="scene2-prev-btn">◀ 上一步</button>
+            <button id="scene2-next-btn">下一步 ▶</button>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        // Scene 2 实现
+        const TOTAL_STEPS = 5;
+        let currentStep = 0;
+        
+        // 获取所有 DOM 元素
+        const titleEl = document.getElementById('scene2-title');
+        const prevBtn = document.getElementById('scene2-prev-btn');
+        const nextBtn = document.getElementById('scene2-next-btn');
+        const stepIndicator = document.getElementById('scene2-step-indicator');
+        
+        // 按步骤分组的元素
+        const stepElements = {
+            0: [titleEl],
+            1: [
+                document.getElementById('scene2-moon-title'),
+                document.getElementById('scene2-moon-info1'),
+                document.getElementById('scene2-moon-info2'),
+                document.getElementById('scene2-moon-time')
+            ],
+            2: [
+                document.getElementById('scene2-panel-title'),
+                document.getElementById('scene2-ground'),
+                document.getElementById('scene2-wall'),
+                document.getElementById('scene2-wall-label'),
+                document.getElementById('scene2-sun-ray-right'),
+                document.getElementById('scene2-sun-arrow-right'),
+                document.getElementById('scene2-solar-panel'),
+                document.getElementById('scene2-panel-label'),
+                document.getElementById('scene2-normal'),
+                document.getElementById('scene2-angle-h'),
+                document.getElementById('scene2-h-label'),
+                document.getElementById('scene2-h-formula'),
+                document.getElementById('scene2-h-result')
+            ],
+            3: [
+                document.getElementById('scene2-angle-alpha'),
+                document.getElementById('scene2-alpha-label'),
+                document.getElementById('scene2-alpha-formula'),
+                document.getElementById('scene2-alpha-result')
+            ],
+            4: [
+                document.getElementById('scene2-conclusion-title'),
+                document.getElementById('scene2-ans1-title'),
+                document.getElementById('scene2-ans1-a'),
+                document.getElementById('scene2-ans1-b'),
+                document.getElementById('scene2-ans2-title'),
+                document.getElementById('scene2-ans2-a'),
+                document.getElementById('scene2-ans2-b'),
+                document.getElementById('scene2-ans3-title'),
+                document.getElementById('scene2-ans3-a'),
+                document.getElementById('scene2-ans4-title'),
+                document.getElementById('scene2-ans4-a'),
+                document.getElementById('scene2-ans4-b'),
+                document.getElementById('scene2-ans5-title'),
+                document.getElementById('scene2-ans5-a')
+            ]
+        };
+        
+        // 步骤标题
+        const stepTitles = [
+            '基础图示',
+            '农历十五月出时间',
+            '太阳高度角计算',
+            '太阳能板角度确定',
+            '综合答案'
+        ];
+        
+        // 更新视图
+        function updateView() {
+            // 更新标题
+            titleEl.textContent = stepTitles[currentStep];
+            
+            // 更新步骤指示器
+            stepIndicator.textContent = `步骤 ${currentStep + 1}/${TOTAL_STEPS}`;
+            
+            // 更新按钮状态
+            prevBtn.disabled = (currentStep === 0);
+            if (currentStep === TOTAL_STEPS - 1) {
+                nextBtn.textContent = '完成';
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.textContent = '下一步 ▶';
+                nextBtn.disabled = false;
+            }
+            
+            // 控制各步骤元素的显示
+            for (let step = 0; step < TOTAL_STEPS; step++) {
+                const elements = stepElements[step];
+                if (!elements) continue;
+                
+                elements.forEach(el => {
+                    if (!el) return;
+                    if (step <= currentStep) {
+                        el.style.opacity = '1';
+                        el.style.display = 'block';
+                    } else {
+                        el.style.opacity = '0';
+                        el.style.display = 'none';
+                    }
+                });
+            }
+            
+            // 步骤 4 时隐藏右侧示意图，显示综合答案
+            if (currentStep === 4) {
+                const hideElements = [
+                    'scene2-moon-title', 'scene2-moon-info1', 'scene2-moon-info2', 'scene2-moon-time',
+                    'scene2-panel-title', 'scene2-ground', 'scene2-wall', 'scene2-wall-label',
+                    'scene2-sun-ray-right', 'scene2-sun-arrow-right', 'scene2-solar-panel',
+                    'scene2-panel-label', 'scene2-normal', 'scene2-angle-h', 'scene2-h-label',
+                    'scene2-h-formula', 'scene2-h-result', 'scene2-angle-alpha', 'scene2-alpha-label',
+                    'scene2-alpha-formula', 'scene2-alpha-result'
+                ];
+                hideElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.opacity = '0';
+                        el.style.display = 'none';
+                    }
+                });
+            }
+        }
+        
+        // 事件绑定
+        prevBtn.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateView();
+            }
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            if (currentStep < TOTAL_STEPS - 1) {
+                currentStep++;
+                updateView();
+            }
+        });
+        
+        // 初始化
+        updateView();
+    })();
+    </script>
+</body>
+</html>
