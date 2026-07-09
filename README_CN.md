@@ -30,25 +30,15 @@ benchmark.json ──▶ 场景大纲 ──▶ 实现计划 ──▶ HTML 代�
 | pnpm | 10.30.2 |
 | Git | 2.x |
 
-## 2. 拉取仓库
+## 2. 仓库布局
 
-本项目包含 3 个仓库，放在同一父目录下：
+镜像内已内置三个仓库，放在同一父目录下。将该目录设为 `$WORKSPACE`（本指南后续均使用）：
 
 ```bash
-WORKSPACE=/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact
-
-# 主仓库（生成 + 评估脚本、VisualSolver）
-cd $WORKSPACE
-git clone -b EduInteract https://github.com/bisz9918-maker/EduInteract.git EduInteract
-
-# OAH 源码
-git clone -b oah https://github.com/bisz9918-maker/EduInteract.git oah
-
-# OAH 部署配置（runtime、模型配置、多实例管理）
-git clone -b test_oah_server https://github.com/bisz9918-maker/EduInteract.git test_oah_server2
+export WORKSPACE=/path/to/edu_interact
 ```
 
-拉取后的目录结构：
+目录结构：
 
 ```
 edu_interact/

@@ -30,25 +30,15 @@ benchmark.json ──▶ Scene Outline ──▶ Implementation Plan ──▶ H
 | pnpm | 10.30.2 |
 | Git | 2.x |
 
-## 2. Clone the repositories
+## 2. Repository layout
 
-Three repos live under the same parent directory:
+The image bundles three repositories under a single parent directory. Assign that directory to `$WORKSPACE` (used throughout this guide):
 
 ```bash
-WORKSPACE=/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact
-
-# Main repo (generation + evaluation scripts, VisualSolver)
-cd $WORKSPACE
-git clone -b EduInteract https://github.com/bisz9918-maker/EduInteract.git EduInteract
-
-# OAH source
-git clone -b oah https://github.com/bisz9918-maker/EduInteract.git oah
-
-# OAH deployment config (runtime, model configs, multi-instance management)
-git clone -b test_oah_server https://github.com/bisz9918-maker/EduInteract.git test_oah_server2
+export WORKSPACE=/path/to/edu_interact
 ```
 
-Resulting layout:
+Layout:
 
 ```
 edu_interact/
