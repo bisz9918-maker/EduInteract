@@ -6,7 +6,7 @@
 数据源:
   - annotation_keys.json       : LLM judge 分 (interactive 项的 auto_scores)
   - human_annotations.json     : 真实人工打分 (多标注员)
-  - human_annotations_2.json   : 合成人工打分 (10 标注员)
+  - human_annotations.json   : 合成人工打分 (10 标注员)
 
 两类一致性:
   A. LLM vs 人工 (Spearman ρ)
@@ -20,7 +20,7 @@
 
 用法:
   python compute_consistency.py                          # 默认用真实标注
-  python compute_consistency.py --human human_annotations_2.json  # 用合成标注
+  python compute_consistency.py --human human_annotations.json  # 用合成标注
 
 输出:
   - 控制台表格
