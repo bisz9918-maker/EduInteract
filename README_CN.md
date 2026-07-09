@@ -1,651 +1,348 @@
-# EduIllustrate
+# EduInteract
 
 [English](README.md) | 简体中文
 
-## 📖 项目简介
+从考试题目生成交互式教育图示（HTML）并用 LLM judge 评估的流程。生成由 OAH（Open Agent Harness）驱动，经过三个 agent（outline → planner → solver），评估对每道题打五个维度的分数。
 
-**EduIllustrate** 是一个基于大语言模型的教育图文讲解生成系统,能够自动为数学、物理、化学、生物等学科题目生成包含动画图示的详细讲解文档。
-
-系统输入题目描述和图片,通过多阶段规划、代码生成和渲染流程,输出:
-- 📝 结构化的 Markdown 讲解文档
-- 🎨 使用 Manim 渲染的高质量示意图
-- 🌐 支持中英文双语输出
-
-## ✨ 主要特性
-
-- 🤖 **多模型支持**: 支持 OpenAI GPT、Anthropic Claude、Google Gemini、Moonshot Kimi 等主流大模型
-- 🎬 **专业图示**: 基于 Manim 生成教学级别的数学/物理/化学动画图示
-- 📊 **多维度评估**: 内置8个维度的文档质量评估系统
-- 🔄 **自动重试**: 智能错误检测和代码修复机制
-- ⚡ **并发处理**: 支持场景级和题目级并发,提高生成效率
-- 🌍 **智能翻译**: 支持一键翻译为中文,保留所有 LaTeX 公式和格式
-
-## 🏗️ 系统架构
-
-```
-EduIllustrate
-├── VisualSolver/                  # HTML 图示生成引擎 (pip 包)
-│   ├── pyproject.toml             # 包声明 (pip install -e)
-│   ├── visual_solver/             # Python 包
-│   │   ├── generate_explanation.py
-│   │   ├── src/                   # core, config, rag, utils
-│   │   ├── mllm_tools/            # 大模型接口封装
-│   │   └── task_generator/        # 任务和提示词生成
-│   └── ...
-├── teacher_app/                   # 教师备课助手 (Vue 3 + Express)
-│   ├── src/
-│   │   ├── server/                # Express 后端 (API + 静态文件服务)
-│   │   ├── client/                # Vue 3 前端
-│   │   └── bridge/                # Python 桥接 (worker.py)
-│   └── data/                      # 用户数据 & 题库
-├── deploy/                        # Docker 部署配置
-├── evaluate.py                    # 评估脚本
-├── eval_suite/                    # 评估套件
-└── data/                          # 数据集
-```
-
-## 🚀 快速开始
-
-### 1. 环境要求
-
-- Python 3.8+
-- FFmpeg (用于视频处理)
-- LaTeX (用于数学公式渲染)
-- Cairo 和 Pango (用于 Manim)
-
-### 2. 安装依赖
-
-#### Ubuntu/Debian
-
-```bash
-# 安装系统依赖
-sudo apt-get update
-sudo apt-get install -y \
-    ffmpeg \
-    texlive-full \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libsdl-pango-dev \
-    portaudio19-dev
-
-# 克隆主仓库
-git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
-cd EduIllustrate-teacher
-
-# 克隆 VisualSolver 包到项目内（主仓库不包含 VisualSolver 源码，需单独拉取）
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
-
-# 创建虚拟环境并安装
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e VisualSolver
-```
-
-#### macOS
-
-```bash
-# 安装系统依赖
-brew install ffmpeg
-brew install cairo pango
-brew install portaudio
-
-# 安装 LaTeX
-brew install --cask mactex
-
-# 克隆主仓库
-git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
-cd EduIllustrate-teacher
-
-# 克隆 VisualSolver 包到项目内（主仓库不包含 VisualSolver 源码，需单独拉取）
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
-
-# 创建虚拟环境并安装
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e VisualSolver
-```
-
-### 3. 配置 API 密钥
-
-复制环境变量模板并配置您的 API 密钥:
-
-```bash
-cp .env.template .env
-```
-
-编辑 `.env` 文件,配置您使用的模型服务:
-
-```bash
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key
-
-# Anthropic Claude
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# Google Gemini
-GOOGLE_API_KEY=your_google_api_key
-
-# Moonshot Kimi
-MOONSHOT_API_KEY=your_moonshot_api_key
-
-# 自定义 API 端点 (可选)
-CUSTOM_API_BASE=https://your-custom-endpoint.com
-```
-
-### 4. 运行生成
-
-#### 生成单个题目的讲解
-
-```bash
-python -m visual_solver.generate_explanation \
-  --model "gemini-3.1-pro-preview" \
-  --problem_path data/benchmark/benchmark.json \
-  --output_dir output/my_experiment \
-  --index 215 \
-  --max_retries 3 \
-  --max_scene_concurrency 5 \
-  --translate_to_chinese
-```
-
-#### 批量生成多个题目
-
-```bash
-python -m visual_solver.generate_explanation \
-  --model "claude-opus-4-6" \
-  --problem_path data/benchmark/benchmark.json \
-  --output_dir output/batch_experiment \
-  --max_scene_concurrency 1 \
-  --max_topic_concurrency 10 \
-  --translate_to_chinese
-```
-
-### 5. 查看结果
-
-生成的文档位于:
-```
-output/my_experiment/<problem_name>/doc/
-├── solution.md          # 讲解文档
-├── scene1.png          # 场景1图示
-├── scene2.png          # 场景2图示
-└── ...
-```
-
-## 📝 使用说明
-
-### 主要命令行参数
-
-#### 生成参数 (`generate_explanation.py`)
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--model` | 使用的大模型 (如 gpt-5, claude-opus-4-6, Kimi-K25) | 必填 |
-| `--problem_path` | 题目数据集 JSON 文件路径 | 必填 |
-| `--output_dir` | 输出目录 | 必填 |
-| `--index` | 要处理的题目索引 (单个或逗号分隔列表) | - |
-| `--max_retries` | 错误重试次数 | 3 |
-| `--max_scene_concurrency` | 单个题目内的并发场景数 | 5 |
-| `--max_topic_concurrency` | 并发处理的题目数 | 1 |
-| `--translate_to_chinese` | 翻译结果为中文 | False |
-| `--use_visual_fix_code` | 启用视觉代码修复 | False |
-| `--disable_code` | 跳过代码生成(仅生成文本) | False |
-
-#### 评估参数 (`evaluate.py`)
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--eval_type` | 评估类型: doc(文档), explanation(视频), text(文本), image(图片) | 必填 |
-| `--file_path` | 要评估的文件或目录路径 | 必填 |
-| `--output_folder` | 评估结果输出目录 | 必填 |
-| `--model_doc` | 文档评估使用的模型 | gpt-5 |
-| `--bulk_evaluate` | 批量评估模式 | False |
-| `--combine` | 合并所有评估结果 | False |
-| `--problem_data_path` | 原题数据路径(用于参考答案) | - |
-| `--max_workers` | 并发评估的进程数 | 4 |
-
-### 工作流程
-
-EduIllustrate 采用多阶段生成流程,支持两种代码生成策略:
-
-#### 1. 讲解规划 (Outline Planning)
-
-系统分析题目后生成结构化大纲,将讲解内容分解为文本块 `<TEXT_k>` 和图示场景 `<SCENE_k>`:
-
-```xml
-<SCENE_OUTLINE>
-  <TEXT_1>首先,我们来理解题目...</TEXT_1>
-  <SCENE_1>绘制题目中的几何图形,标注已知条件</SCENE_1>
-  <TEXT_2>根据勾股定理...</TEXT_2>
-  <SCENE_2>展示直角三角形,突出显示三边关系</SCENE_2>
-  ...
-</SCENE_OUTLINE>
-```
-
-#### 2. 代码生成策略
-
-**默认策略 (增量式):**
-- 仅为场景1生成详细的实现计划
-- 场景1的代码基于实现计划生成
-- 后续场景(场景2、3、...)直接基于以下内容生成代码:
-  - 该场景的大纲描述
-  - 场景1的代码作为参考示例
-- 这种方法通过使用场景1作为风格模板来保持一致性
-
-**All_Parallel 分支策略:**
-- 为**所有场景**独立生成详细的实现计划
-- 每个场景的代码基于自己的实现计划生成
-- 场景可以并行处理以加快生成速度
-- 提供更多灵活性但风格一致性可能较低
-
-#### 3. 渲染 (Rendering)
-
-- 使用 `manim -pql -s` 渲染每个场景(低质量 + 保存最后一帧)
-- 导出每个场景的最后一帧为 PNG 图片
-
-#### 4. 文档组装 (Document Assembly)
-
-- 将文本块和场景图片组装成完整的 Markdown 文档
-- 可选: 翻译为中文(保留所有 LaTeX 公式和格式)
-
-### 数据格式
-
-#### 输入数据格式 (JSON)
-
-```json
-[
-  {
-    "problem": "题目描述文本...",
-    "img": "base64编码的题目图片",
-    "img_caption": "图片描述",
-    "format_answer": "标准答案",
-    "topic": "physics",
-    "grade": "9"
-  }
-]
-```
-
-#### 输出目录结构
-
-```
-output/
-└── my_experiment/
-    └── problem_0_physics_g9/
-        ├── doc/
-        │   ├── solution.md        # 最终讲解文档
-        │   ├── scene1.png        # 场景图示
-        │   └── scene2.png
-        ├── scene1/
-        │   ├── code/             # Manim 代码
-        │   ├── media/            # 渲染输出
-        │   └── prompt.json       # 提示词记录
-        ├── scene2/
-        │   └── ...
-        └── timing.json           # 时间统计
-```
-
-## 📊 评估系统
-
-### 文档评估 (--eval_type doc)
-
-评估生成的图文讲解文档质量,包含 8 个维度:
-
-#### 文本维度 (仅评估文字)
-
-1. **解题步骤的正确性和完整性** (0-5分)
-2. **讲解的逻辑连贯性** (0-5分)
-3. **讲解的易懂性和教学效果** (0-5分)
-4. **排版和视觉呈现的清晰度** (0-5分)
-
-#### 图文协同维度
-
-5. **图示与题目的匹配度** (0-5分, 每个场景与原题对比)
-6. **图文协同的流畅性** (0-5分, 评估图文配合)
-
-#### 图片维度
-
-7. **图片元素布局质量** (0-5分, 每张图独立评估)
-8. **视觉一致性** (0-5分, 所有图与第一张对比)
-
-**综合得分**: 所有维度分数的几何平均值
-
-### 评估命令示例
-
-#### 评估单个文档
-
-```bash
-python evaluate.py \
-  --eval_type doc \
-  --file_path "output/my_experiment/problem_0_physics_g9/doc" \
-  --output_folder "output/doc_evaluation" \
-  --model_doc "gpt-5" \
-  --problem_data_path "data/benchmark/benchmark.json"
-```
-
-#### 批量评估
-
-```bash
-python evaluate.py \
-  --eval_type doc \
-  --file_path "output/my_experiment" \
-  --output_folder "output/doc_evaluation" \
-  --model_doc "claude-opus-4-6" \
-  --bulk_evaluate \
-  --combine \
-  --max_workers 4
-```
-
-#### 查看评估结果
-
-```bash
-# 单个问题的评估结果
-cat output/doc_evaluation/evaluation_problem_0_physics_g9_*.json
-
-# 合并后的汇总结果
-cat output/doc_evaluation/combined_evaluation_*.json
-```
-
-评估结果包含:
-- 每个维度的详细评分和评语
-- 综合得分
-- 评估时间戳和模型信息
-- 原题参考信息
-
-## 🔧 高级功能
-
-### 1. 视觉代码修复
-
-启用后,系统会使用渲染出的图片作为视觉反馈来修复代码错误:
-
-```bash
-python -m visual_solver.generate_explanation \
-  --model "gpt-5" \
-  --problem_path data/benchmark/benchmark.json \
-  --output_dir output/visual_fix_test \
-  --index 0 \
-  --use_visual_fix_code
-```
-
-### 2. RAG 检索增强
-
-系统可以使用向量数据库检索相似示例来改进生成质量。配置示例代码库后,系统会自动检索相关参考。
-
-### 3. 自定义提示词
-
-修改 `task_generator/prompts_raw/` 目录下的提示词文件,然后重新生成:
-
-```bash
-cd task_generator
-python parse_prompt.py
-cd ..
-```
-
-### 4. 并发优化
-
-针对大规模批量生成,优化并发参数:
-
-```bash
-python -m visual_solver.generate_explanation \
-  --model "claude-opus-4-6" \
-  --problem_path data/benchmark/benchmark.json \
-  --output_dir output/large_batch \
-  --max_scene_concurrency 5 \
-  --max_topic_concurrency 3
-```
-
-- `max_scene_concurrency`: 单个题目内同时处理的场景数
-- `max_topic_concurrency`: 同时处理的题目数
-
-## 👩‍🏫 教师备课助手部署
-
-教师备课助手是一个独立的全栈 Web 应用，让教师通过浏览器输入题目，AI 自动生成交互式步骤图示。
-
-### 技术栈
-
-- **前端**: Vue 3 + TypeScript + Vite
-- **后端**: Express 5 + TypeScript (tsx)
-- **Python 桥接**: Express 通过子进程调用 `worker.py`，驱动 `ExplanationGenerator` 生成图示
-- **认证**: JWT（bcryptjs 密码哈希，30 天有效）
-
-### 前置条件
-
-- Node.js 22+
-- Python 3.10+（已安装 VisualSolver 包）
-- LLM API 密钥（至少配置一个）
-- （可选）OAH 服务，用于 HTML 图示生成
-
-### 方式一：本地开发部署
-
-```bash
-# 1. 克隆主仓库
-git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
-cd EduIllustrate-teacher
-
-# 2. 克隆 VisualSolver 包到项目内
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
-
-# 3. 安装 VisualSolver Python 包
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e VisualSolver
-
-# 4. 安装教师端前端依赖
-cd teacher_app
-npm install
-
-# 5. 配置环境变量
-cp ../.env.template ../.env
-# 编辑 ../.env，至少配置以下项：
-#   SERVER_PORT=8765
-#   CUSTOM_API_BASE=...
-#   CUSTOM_API_KEY=...
-#   TEACHER_MODEL=claude-sonnet-4-6
-#   OAH_API_URL=http://<oah-host>:8787  （如果使用 OAH）
-
-# 6. 启动开发服务器（Vite 热更新 + Express 后端）
-cd /path/to/EduIllustrate-teacher/teacher_app
-npm run dev
-```
-
-开发模式下：
-- 前端 Vite 开发服务器：`http://localhost:5175`（自动代理 `/api` 到后端）
-- Express 后端：`http://localhost:8765`
-
-### 方式二：本地生产部署
-
-```bash
-# 1. 克隆仓库（同方式一步骤 1-3）
-git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
-cd EduIllustrate-teacher
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
-python3 -m venv .venv && source .venv/bin/activate && pip install -e VisualSolver
-
-# 2. 确认 .env 已配置（同方式一步骤 5）
-
-# 3. 构建前端
-cd /path/to/EduIllustrate-teacher/teacher_app
-npm run build    # 生成 dist/client/ 和 dist/server/
-
-# 4. 启动生产服务
-npm start        # NODE_ENV=production tsx src/server/index.ts
-
-# 5. 后台部署（可选）
-nohup npm start > /tmp/teacher_app.log 2>&1 &
-
-# 停止后台服务
-pkill -f "tsx src/server/index.ts"
-```
-
-生产模式下 Express 同时服务前端静态文件和 API，访问 `http://<IP>:8765`。
-
-### 方式三：Docker 部署（推荐生产环境）
-
-Docker 方式将 Node.js + Python + VisualSolver 打包为单容器镜像，无需在服务器上手动配置 Python 环境。
-
-```bash
-# 1. 在远程服务器克隆代码
-ssh user@server
-cd /home/user
-git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
-cd EduIllustrate-teacher
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
-
-# 2. 配置 .env
-cp .env.template .env
-vim .env   # 填入实际配置
-
-# 必须配置的变量：
-# SERVER_PORT=8765
-# CUSTOM_API_BASE=...          # LLM API 端点
-# CUSTOM_API_KEY=...           # LLM API 密钥
-# TEACHER_MODEL=...            # 使用的模型名称
-# OAH_API_URL=http://...       # OAH 服务地址（如果使用）
-# OCR_URL=...                  # OCR 服务地址（如果需要图片识别）
-# OCR_KEY=...
-
-# 3. 构建镜像并启动
-docker compose -f deploy/docker-compose.prod.yml build
-docker compose -f deploy/docker-compose.prod.yml up -d
-
-# 4. 验证
-docker compose -f deploy/docker-compose.prod.yml ps
-docker compose -f deploy/docker-compose.prod.yml logs -f
-curl http://localhost:8765
-```
-
-浏览器访问 `http://<服务器IP>:8765`，默认测试账号：用户名 `test`，密码 `test`。
-
-#### Docker 镜像架构
-
-镜像采用多阶段构建：
-1. **Stage 1** — `node:22-alpine`：构建 Vue 前端（`npm run build`）
-2. **Stage 2** — `python:3.11-slim`：安装 VisualSolver Python 包
-3. **Stage 3** — `node:22-slim`：运行时镜像，Node.js + apt Python3 + 已安装的 pip 包
-
-最终镜像仅包含运行时必需的文件，Express 通过 `npx tsx` 启动，Python worker 通过子进程调用。
-
-#### 数据持久化
-
-| Volume | 容器路径 | 说明 |
-|--------|---------|------|
-| `app-data` | `/app/data` | 用户数据、题库数据库 |
-| `app-output` | `/app/output` | 生成的图示文件 |
-
-`.env` 通过 bind mount 挂载为只读，修改后重启生效。
-
-#### Docker 常用操作
-
-```bash
-# 查看日志
-docker compose -f deploy/docker-compose.prod.yml logs -f teacher-app
-
-# 重启
-docker compose -f deploy/docker-compose.prod.yml restart
-
-# 更新代码后重新部署
-docker compose -f deploy/docker-compose.prod.yml build --no-cache
-docker compose -f deploy/docker-compose.prod.yml up -d
-
-# 修改 .env 后重启
-docker compose -f deploy/docker-compose.prod.yml restart
-
-# 清理输出数据
-docker volume rm eduillustrate-teacher_app-output
-
-# 进入容器排查问题
-docker compose -f deploy/docker-compose.prod.yml exec teacher-app bash
-python3 -c "from visual_solver import ExplanationGenerator; print('OK')"
-```
-
-### 环境变量参考
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `SERVER_PORT` | `8765` | 服务监听端口 |
-| `TEACHER_MODEL` | `claude-sonnet-4-6` | 生成使用的模型（支持逗号分隔多模型或 `{model:label}` 格式） |
-| `TEACHER_MODEL_DEFAULT` | 列表第一个 | 多模型时的默认模型 |
-| `CUSTOM_API_BASE` | - | OpenAI 兼容的 LLM API 端点 |
-| `CUSTOM_API_KEY` | - | LLM API 密钥 |
-| `OAH_API_URL` | - | OAH 服务地址（用于 HTML 图示生成） |
-| `JWT_SECRET` | `teacher-app-secret-2024` | JWT 签名密钥（**生产环境务必修改**） |
-| `MAX_CONCURRENT_JOBS` | `20` | 最大并发 Python worker 数 |
-| `PYTHON` | `.venv/bin/python` | Python 解释器路径（Docker 中为 `/usr/bin/python3`） |
-| `OCR_URL` / `OCR_KEY` | - | OCR 服务配置（图片识别） |
-
-### API 路由
-
-| 路由 | 方法 | 认证 | 说明 |
-|------|------|------|------|
-| `/api/auth/login` | POST | 否 | 登录，返回 JWT |
-| `/api/auth/register` | POST | 否 | 注册，返回 JWT |
-| `/api/auth/me` | GET | 否 | 验证 token |
-| `/api/generate` | POST | 否 | 启动图示生成任务，返回 `job_id` |
-| `/api/stream/:jobId` | GET | 否 | SSE 实时事件流 |
-| `/api/poll/:jobId` | GET | 否 | 轮询生成事件 |
-| `/api/modify_scene` | POST | JWT | 修改指定 Scene |
-| `/api/bank/save` | POST | JWT | 保存题目到题库 |
-| `/api/bank/list` | GET | JWT | 获取题库列表 |
-| `/api/bank/:id` | GET/DELETE | JWT | 获取/删除题目 |
-| `/api/ocr` | POST | 否 | 图片 OCR 识别 |
-| `/doc/*` | GET | 否 | 静态图示 HTML 文件 |
-
-详细的教师端开发文档见 [teacher_app/README.md](teacher_app/README.md)，Docker 部署详细说明见 [deploy/README.md](deploy/README.md)。
+> benchmark 已在 `benchmark.json` 中包含题目文本和图片。
 
 ---
 
-## 🤝 贡献
+## 整体流程
 
-欢迎提交 Issue 和 Pull Request!
-
-### 开发设置
-
-```bash
-# 克隆主仓库
-git clone -b EduIllustrate-teacher https://github.com/bisz9918-maker/tutor.git EduIllustrate-teacher
-cd EduIllustrate-teacher
-
-# 克隆 VisualSolver 包到项目内
-git clone -b visual-solver-package https://github.com/bisz9918-maker/tutor.git VisualSolver
-
-# 安装开发依赖
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e VisualSolver
-
-# 运行测试
-python -m pytest tests/
 ```
-
-## 📄 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-
-## 📚 引用
-
-如果本项目对您的研究有帮助,欢迎引用:
-
-```bibtex
-@software{eduillustrate2026,
-  title={EduIllustrate: An Agentic Pipeline for Generating Diagram-Rich Explanations of K-12 STEM Problems},
-  author={Shuzhen Bi},
-  year={2026},
-  url={https://github.com/bisz9918-maker/EduIllustrate}
-}
+benchmark.json ──▶ 场景大纲 ──▶ 实现计划 ──▶ HTML 代码 ──▶ 交互式图示
+                   (OAH Agent)  (OAH Agent)  (OAH Agent)
+                                                      │
+                                                      ▼
+                                          evaluate.py ──▶ 5 维分数 + 总分（几何平均）
+                                                          (OAH Agent)
 ```
-
-## 🙏 致谢
-
-本项目基于以下优秀的开源项目:
-
-- [TheoremExplainAgent](https://github.com/TIGER-AI-Lab/TheoremExplainAgent) - 定理视频讲解智能体
-- [Manim](https://github.com/ManimCommunity/manim) - 数学动画引擎
-- [LiteLLM](https://github.com/BerriAI/litellm) - 统一的大模型 API 接口
-
-## 📧 联系方式
-
-如有问题或建议,请通过以下方式联系:
-
-- 提交 GitHub Issue
-- 邮箱: bisz9918@gmail.com
 
 ---
 
-**EduIllustrate** - 让 AI 为教育赋能 🚀
+## 1. 环境要求
+
+| 依赖 | 版本 |
+|------|------|
+| Python | 3.12+ |
+| Node.js | 24+ |
+| pnpm | 10.30.2 |
+| Git | 2.x |
+
+## 2. 拉取仓库
+
+本项目包含 3 个仓库，放在同一父目录下：
+
+```bash
+WORKSPACE=/inspire/qb-ilm/project/ai4education/bishuzhen-CZXS24220022/edu_interact
+
+# 主仓库（生成 + 评估脚本、VisualSolver）
+cd $WORKSPACE
+git clone -b EduInteract https://github.com/bisz9918-maker/EduInteract.git EduInteract
+
+# OAH 源码
+git clone -b oah https://github.com/bisz9918-maker/EduInteract.git oah
+
+# OAH 部署配置（runtime、模型配置、多实例管理）
+git clone -b test_oah_server https://github.com/bisz9918-maker/EduInteract.git test_oah_server2
+```
+
+拉取后的目录结构：
+
+```
+edu_interact/
+├── EduInteract/          # 主项目（Python 虚拟环境 + 生成/评估脚本）
+├── oah/                  # OAH 源码（TypeScript，需 pnpm build）
+└── test_oah_server2/     # OAH 部署配置（daemon.yaml、模型配置、Agent 定义）
+```
+
+## 3. 配置 Python 环境
+
+```bash
+cd $WORKSPACE/EduInteract
+
+# 创建虚拟环境
+python3.12 -m venv .venv
+source .venv/bin/activate
+
+# 安装依赖
+pip install litellm openai pillow python-dotenv aiohttp
+```
+
+## 4. 配置 .env 文件
+
+在 `EduInteract/` 根目录下创建 `.env`，只需 OAH 和 LiteLLM 配置（无需 OCR）：
+
+```bash
+cd $WORKSPACE/EduInteract
+cat > .env << 'EOF'
+# OAH (Open Agent Harness) — VisualSolver 在 use_oah=True 时使用
+OAH_API_URL=http://localhost:8787
+OAH_LOCAL_API_TOKEN=YOUR_TOKEN_HERE
+
+# LiteLLM
+LITELLM_SKIP_MODEL_VALIDATION=True
+EOF
+```
+
+> `OAH_LOCAL_API_TOKEN` 在 OAH 启动后从 `test_oah_server2/run/token` 读取（见第 8 节）。
+
+## 5. 构建 OAH
+
+```bash
+cd $WORKSPACE/oah
+
+# 安装 Node.js 依赖
+pnpm install
+
+# 构建（编译 TypeScript + 打包 Web UI）
+pnpm build
+```
+
+构建产物：
+- Server: `apps/server/dist/`
+- Web UI: `apps/web/dist/`
+
+## 6. 配置模型 API
+
+OAH 通过 OpenAI 兼容接口调用模型。编辑模型配置文件：
+
+```bash
+vi $WORKSPACE/test_oah_server2/source/models/kimi-k26.yaml
+```
+
+内容格式：
+
+```yaml
+kimi-k26:
+  provider: openai-compatible
+  key: YOUR_API_KEY
+  url: YOUR_API_BASE_URL/v1
+  name: Kimi-K2.6
+```
+
+> 如果使用本地部署的模型（如 vLLM），`url` 填本地地址（如 `http://127.0.0.1:8008/v1`），`key` 可填任意值。
+
+## 7. 安装 Chromium + Playwright
+
+OAH Agent 在生成代码后会用 Playwright 做布局检测和截图验证：
+
+```bash
+# 安装 Chromium
+apt-get update
+apt-get install -y google-chrome-stable
+
+# 安装中文字体
+apt-get install -y fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk
+
+# 安装 Playwright（独立目录，避免与 OAH 冲突）
+mkdir -p /app/playwright_modules
+cd /app/playwright_modules
+npm init -y
+npm install playwright-core
+```
+
+## 8. 启动 OAH 服务
+
+### 单实例启动
+
+```bash
+cd $WORKSPACE/test_oah_server2
+
+# 启动 instance_1（端口 8787）
+NODE_OPTIONS="--max-old-space-size=131072" nohup pnpm --dir "$WORKSPACE/oah" exec tsx \
+  --tsconfig "$WORKSPACE/oah/apps/server/tsconfig.json" \
+  "$WORKSPACE/oah/apps/server/src/index.ts" \
+  -- --config $WORKSPACE/test_oah_server2/oah_instance_1/daemon.yaml \
+  > logs/instance_1.log 2>&1 &
+
+# 等待启动
+sleep 5
+
+# 验证
+curl -s http://127.0.0.1:8787/healthz | python3 -m json.tool
+```
+
+### 多实例启动（批量任务推荐）
+
+每个实例独立端口（8787, 8788, ...），可并行处理不同题目：
+
+```bash
+cd $WORKSPACE/test_oah_server2
+
+# 启动实例 1-6
+bash scripts/start_instances.sh start 1-6
+
+# 验证所有实例
+for port in 8787 8788 8789 8790 8791 8792; do
+  status=$(curl -s http://127.0.0.1:$port/healthz 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin).get('status','?'))" 2>/dev/null || echo "FAILED")
+  echo "Instance $port: $status"
+done
+```
+
+### 获取 Token
+
+```bash
+cat $WORKSPACE/test_oah_server2/run/token
+```
+
+将输出值填入 EduInteract 的 `.env` 中 `OAH_LOCAL_API_TOKEN`。
+
+### 启动 Web UI（可选）
+
+```bash
+cd $WORKSPACE/test_oah_server2
+TOKEN=$(cat run/token)
+OAH_LOCAL_API_TOKEN="$TOKEN" nohup node serve-web.mjs > /tmp/oah-webui.log 2>&1 &
+```
+
+浏览器访问 `http://<服务器IP>:5173` 查看 Agent 运行状态。
+
+## 9. Benchmark 数据
+
+benchmark 是一个 JSON 题目列表，每道题包含 `question`、`img`（base64）、`format_answer`、`difficulty`、`subject` 等字段：
+
+```
+EduInteract/VisualSolver/data/benchmark/benchmark.json   # 230 道题
+```
+
+无需图片 OCR——题目文本已内嵌在 `benchmark.json` 中。
+
+## 10. 生成图示
+
+```bash
+cd $WORKSPACE/EduInteract
+source .venv/bin/activate
+
+nohup python -m visual_solver.generate_explanation \
+    --use_oah \
+    --oah_model kimi-k26 \
+    --oah_url http://127.0.0.1:8787 \
+    --problem_path VisualSolver/data/benchmark/benchmark.json \
+    --output_dir output/exp_kimik26 \
+    > logs/exp_kimik26.log 2>&1 &
+```
+
+### 关键参数说明
+
+| 参数 | 说明 |
+|------|------|
+| `--use_oah` | 通过 OAH Agent 驱动生成 |
+| `--oah_model` | OAH 中配置的模型名称（对应 `source/models/` 下的 YAML 文件名） |
+| `--oah_url` | OAH 服务地址 |
+| `--problem_path` | benchmark JSON 路径 |
+| `--output_dir` | 输出目录，生成的 HTML 和 trace 文件保存在此 |
+| `--index` | 按 0 基索引处理单道题 |
+| `--start_index` | 只处理 `index` 字段 ≥ 此值的题目 |
+| `--max_topic_concurrency` | 并发处理的题目数（默认 3） |
+| `--max_scene_concurrency` | 每道题并发处理的 scene 数（默认 1） |
+| `--translate_to_chinese` | 翻译输出为中文 |
+| `--mark_failed` | 标记模型导致的失败，后续不再重试 |
+| `--oah_timeout` | 单个 Agent 运行超时秒数（默认 7200） |
+
+### 多实例并行
+
+启动多个 OAH 实例后，可启动多个进程分别指向不同端口：
+
+```bash
+# 终端 1：前半部分题目，使用 instance_1
+python -m visual_solver.generate_explanation --use_oah \
+    --oah_model kimi-k26 --oah_url http://127.0.0.1:8787 \
+    --problem_path VisualSolver/data/benchmark/benchmark.json \
+    --output_dir output/exp_kimik26 --start_index 0
+
+# 终端 2：后半部分题目，使用 instance_2
+python -m visual_solver.generate_explanation --use_oah \
+    --oah_model kimi-k26 --oah_url http://127.0.0.1:8788 \
+    --problem_path VisualSolver/data/benchmark/benchmark.json \
+    --output_dir output/exp_kimik26 --start_index 115
+```
+
+## 11. 评估图示
+
+对生成的图示打五个维度的分数。总分为五个维度分数的**几何平均**（任一维度为 0 则总分直接为 0；渲染失败也置总分 0）。
+
+```bash
+cd $WORKSPACE/EduInteract
+source .venv/bin/activate
+
+nohup python evaluate.py \
+    --input_dir output/exp_kimik26 \
+    --output_dir output/evaluate_kimi26 \
+    --oah_url http://127.0.0.1:8790 \
+    --workers 4 \
+    > logs/evaluate_kimi.log 2>&1 &
+```
+
+### 关键参数说明
+
+| 参数 | 说明 |
+|------|------|
+| `--input_dir` | 待评估的生成输出目录 |
+| `--output_dir` | 评估输出目录 |
+| `--oah_url` | judge Agent 使用的 OAH 服务地址 |
+| `--workers` | 并行评估 worker 数（默认 1） |
+| `--problem` | 按名称评估单道题 |
+| `--force` | 即使已有报告也重新评估 |
+| `--trace_dir` | 评估 trace 目录 |
+
+### 五个维度
+
+| 维度 | Key | 说明 |
+|------|-----|------|
+| 1 | `dim1_accuracy` | 题图匹配——图示是否与题意对齐 |
+| 2 | `dim2_interaction` | 交互功能——交互是否正常有效 |
+| 3 | `dim3_visual` | 视觉质量——元素质量、布局、风格一致性 |
+| 4 | `dim4_pedagogy` | 教学效果——认知引导、步骤节奏 |
+| 5 | `dim5_logic_coherence` | 逻辑连贯——scene 递进、状态一致性 |
+
+## 12. 查看结果
+
+```bash
+# 生成输出目录结构
+ls output/exp_kimik26/
+# problem_0_physics_g9/        ← 每道题一个目录
+#   ├── scene1/
+#   │   └── scene1.html        ← 生成的交互式图示
+#   ├── doc/
+#   │   └── solution.html
+#   └── traces/                ← Agent 运行轨迹（用于 SFT 数据提取）
+
+# 评估输出目录结构
+ls output/evaluate_kimi26/
+# problem_0_physics_g9/
+#   ├── evaluation_report.xml  ← 5 维分数 + 评分理由
+#   └── dim{1-5}_result.txt    ← 各维度分数
+# evaluation_summary.json      ← 汇总报告，含 total_score
+```
+
+```bash
+# 查看生成进度
+grep -c "completed" logs/exp_kimik26.log
+grep -c "FAILED\|ERROR" logs/exp_kimik26.log
+
+# 查看评估分数汇总
+python3 -c "import json; d=json.load(open('output/evaluate_kimi26/evaluation_summary.json')); print('avg_score:', d.get('avg_score'))"
+```
+
+## 13. 常用运维
+
+```bash
+# 停止 OAH 实例
+cd $WORKSPACE/test_oah_server2
+bash scripts/start_instances.sh stop
+
+# 清理 Workspace（释放 SQLite 空间）
+curl -s http://127.0.0.1:8787/api/v1/workspaces | \
+  python3 -c "import sys,json; [print(w['id']) for w in json.load(sys.stdin).get('items',[])]" | \
+  xargs -I{} curl -s -X DELETE "http://127.0.0.1:8787/api/v1/workspaces/{}"
+
+# 查看 OAH 日志
+tail -f $WORKSPACE/test_oah_server2/logs/instance_1.log
+
+# 检查实例状态
+for port in 8787 8788 8789; do
+  echo "Port $port: $(curl -s http://127.0.0.1:$port/healthz 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("status","?"))' 2>/dev/null || echo 'STOPPED')"
+done
+```
